@@ -1,0 +1,44 @@
+name: ts2wasm CI
+
+on:
+  push:
+    branches: [dev/zhenwei]
+  pull_request:
+    branches: [dev/zhenwei]
+
+jobs:
+  build_and_test:
+    name: 'Build and Test'
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        # node-version: [10.x, 12.x, 14.x, 15.x, 16.x]
+        # Test the latest version of Node.js plus the last two LTS versions.
+        # node-version:
+        #   - "*"
+        #   - lts/*
+        #   - lts/-1
+        node-version: [16.x]
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 5
+      - name: Use node version ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        # - run: npm ci # becuase there is no packge lock.json
+      - run: npm install
+
+      - name: Linter
+        run: |
+          npm install husky -D
+          npm pkg set scripts.prepare="husky install"
+          npm run prepare
+          npx lint-staged
+
+      - name: Test
+        run:
+          # npm run build --if-present
+          npm run test
