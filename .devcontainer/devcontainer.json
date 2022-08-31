@@ -16,5 +16,5 @@
         "dbaeumer.vscode-eslint"
     ],
     "shutdownAction": "stopCompose", // tells VS Code what to do when we close the folder or VS Code
-    "remoteUser": "root"
+    "remoteUser": "vscode"
 }
