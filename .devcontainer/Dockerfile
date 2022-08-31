@@ -1,5 +1,9 @@
 FROM node:16.16.0
 
+ARG USERNAME=vscode
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
 # node may come with an older version of npm. Ensure we have a specific npm.
 RUN npm install -g npm@8.11.0
 
@@ -8,7 +12,21 @@ RUN npm install -g npm@8.11.0
 # Install prerequisites
 RUN apt update
 RUN apt install -y \
-    lsb-release \
+    lsb-release vim \
     curl
 
 ## lsb-release  allows us to find out which distro we run inside the dev container
+
+# Create the non-root user
+RUN userdel -r -f node  \
+    && groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && usermod --shell /bin/bash vscode \
+    #
+    # [Optional] Add sudo support. Omit if you don't need to install software after connecting.
+    && apt-get update \
+    && apt-get install -y sudo \
+    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME
+
+USER $USERNAME

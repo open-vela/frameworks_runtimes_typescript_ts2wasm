@@ -11,7 +11,8 @@
   "scripts": {
     "test": "mocha tests/*.test.ts",
     "lint": "npx lint-staged",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "build": "npx tsc"
   },
   "repository": {
     "type": "git",
