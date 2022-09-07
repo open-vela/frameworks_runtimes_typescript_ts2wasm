@@ -32,11 +32,7 @@ jobs:
       - run: npm install
 
       - name: Linter
-        run: |
-          npm install husky -D
-          npm pkg set scripts.prepare="husky install"
-          npm run prepare
-          npx lint-staged
+        run: npx lint-staged
 
       - name: Test
         run:

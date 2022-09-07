@@ -1,5 +1,5 @@
 interface Foo {
-  name: string;
+    name: string;
 }
 const i: Foo = { name: 'John' };
 console.log(i);
