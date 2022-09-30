@@ -14,6 +14,8 @@ RUN apt update
 RUN apt install -y \
     lsb-release vim \
     curl
+RUN apt install -y \
+    build-essential cmake g++-multilib libgcc-8-dev lib32gcc-8-dev
 
 ## lsb-release  allows us to find out which distro we run inside the dev container
 

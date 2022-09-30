@@ -1,0 +1,35 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Program",
+            "program": "${workspaceFolder}/build/cli/ts2wasm.js",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node",
+            "outFiles": [
+                "${workspaceFolder}/**/*.js"
+            ],
+            "outputCapture": "std",
+            "args": [
+                "${workspaceFolder}/test/samples/function-declaration.ts",
+            ],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/",
+                "!/node_modules/**"
+            ],
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Program",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/ts-node-esm",
+            "args": [
+                "${workspaceFolder}/src/compiler.ts",
+                "${workspaceFolder}/test/test.ts"
+            ]
+        }
+    ]
+}
