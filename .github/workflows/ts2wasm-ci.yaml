@@ -2,9 +2,17 @@ name: ts2wasm CI
 
 on:
   push:
-    branches: [dev/zhenwei]
+    paths-ignore:
+      - "doc/**"
+      - "README.md"
+    branches: [main]
   pull_request:
-    branches: [dev/zhenwei]
+    paths-ignore:
+      - "doc/**"
+      - "README.md"
+    branches: [main]
+  # allow to be triggered manually
+  workflow_dispatch:
 
 jobs:
   build_and_test:

@@ -18,3 +18,9 @@ Please follow [dev_environment.md](./doc/dev_environment.md) to setup developmen
     ``` bash
     npm run build
     ```
+
+## Test
+
+``` bash
+npm test
+```
