@@ -1,0 +1,3 @@
+[submodule "lib/dyntype/quickjs"]
+	path = lib/dyntype/quickjs
+	url = https://github.com/bellard/quickjs.git
