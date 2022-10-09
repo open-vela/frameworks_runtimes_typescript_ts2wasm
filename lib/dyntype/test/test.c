@@ -1,6 +1,7 @@
 #include "dyntype.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <quickjs.h>
 
 void helper(int i) {
     i = 10;
