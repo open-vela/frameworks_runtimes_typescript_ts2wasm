@@ -12,7 +12,7 @@
     "compile": "",
     "cover": "nyc --reporter=html npm run test:unit",
     "pretest": "npm run compile",
-    "test": "npm run test:unit && npm run test:integration",
+    "test": "mocha",
     "test:integration": "mocha test/*.integration.spec.ts",
     "test:unit": "mocha 'test/!(*.integration).spec.ts'",
     "lint": "npx lint-staged",

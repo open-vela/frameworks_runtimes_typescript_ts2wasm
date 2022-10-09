@@ -1,0 +1,4 @@
+{
+    "files.trimTrailingWhitespace": true,
+    "cmake.sourceDirectory": "${workspaceFolder}/lib/dyntype"
+}

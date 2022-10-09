@@ -1,4 +1,3 @@
-import ts from 'typescript';
 import binaryen from 'binaryen';
 import { VariableInfo } from './utils.js';
 
@@ -8,6 +7,7 @@ export enum ScopeKind {
     FunctionScope,
     BlockScope,
 }
+
 export class Scope {
     kind = ScopeKind.Scope;
     variableArray: VariableInfo[] = [];
@@ -50,6 +50,7 @@ export class Scope {
 export class GlobalScope extends Scope {
     kind = ScopeKind.GlobalScope;
 }
+
 export class FunctionScope extends Scope {
     kind = ScopeKind.FunctionScope;
     funcName = '';
