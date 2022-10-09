@@ -3,18 +3,15 @@
 
 #include <stdbool.h>
 #include <string.h>
-#include <quickjs.h>
 
 #define DYNTYPE_FALSE     0
-#define DYNTYPE_SUCCESS   0
 #define DYNTYPE_TRUE      1
+
+#define DYNTYPE_SUCCESS   0
 #define DYNTYPE_EXCEPTION 1
 #define DYNTYPE_TYPEERR   2
 
-typedef struct DynTypeContext {
-  JSRuntime *js_rt;
-  JSContext *js_ctx;
-} DynTypeContext;
+typedef struct DynTypeContext DynTypeContext;
 
 typedef DynTypeContext *dyn_ctx_t;
 typedef void dyn_options_t;
@@ -38,11 +35,6 @@ typedef enum dyn_type_t {
   DynExtRefObj,
   DynExtRefFunc
 } dyn_type_t;
-
-typedef struct DynValue{
-  JSValue v;
-  uint32_t ref;
-} Dynvalue;
 
 /******************* Initialization and destroy *******************/
 
