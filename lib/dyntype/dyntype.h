@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define DYNTYPE_FALSE     0
 #define DYNTYPE_TRUE      1
 
@@ -351,5 +355,9 @@ void dyntype_release(dyn_ctx_t ctx, dyn_value_t obj);
  * @param ctx the dynamic type system context
  */
 void dyntype_collect(dyn_ctx_t ctx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of  __DYNTYPE_H_ */

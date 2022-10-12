@@ -16,14 +16,6 @@ set(LIB_QUICKJS
 set(LIB_DYNTYPE
     dyntype.c)
 
-add_library(quickjs SHARED ${LIB_QUICKJS})
-add_library(dyntype SHARED ${LIB_DYNTYPE})
-
-set(LIBS
-    dyntype
-    quickjs
-    m
-)
-
-add_executable(test ./test/test.c )
-target_link_libraries(test ${LIBS})
+add_library(quickjs ${LIB_QUICKJS})
+add_library(dyntype ${LIB_DYNTYPE})
+target_link_libraries(dyntype quickjs)
