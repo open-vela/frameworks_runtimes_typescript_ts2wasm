@@ -1,4 +1,3 @@
-import ts from 'typescript';
 import binaryen from 'binaryen';
 
 export enum AssignKind {

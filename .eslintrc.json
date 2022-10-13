@@ -24,7 +24,8 @@
     "rules": {
         // eslint-plugin-import
         // deal with import/export package
-        "import/no-extraneous-dependencies": ["error", { "optionalDependencies": false }]
+        "import/no-extraneous-dependencies": ["error", { "optionalDependencies": false }],
+        "@typescript-eslint/no-this-alias": ["off"]
 
         // eslint-plugin-no-null
         // restricts using null as explicit values for variables or function arguments.

@@ -8,7 +8,7 @@ export default class LiteralCompiler extends BaseCompiler {
         super(compiler);
     }
 
-    visitNode(node: ts.Node): binaryen.Type {
+    visitNode(node: ts.Node): binaryen.ExpressionRef {
         switch (node.kind) {
             case ts.SyntaxKind.NumericLiteral: {
                 const numericLiteralNode = <ts.NumericLiteral>node;

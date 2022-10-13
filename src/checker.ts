@@ -56,4 +56,8 @@
 
  * error TS1109: Expression expected.
  while ()
+
+ * error TS2393: Duplicate function implementation
+ function a()
+ function a()
  */
