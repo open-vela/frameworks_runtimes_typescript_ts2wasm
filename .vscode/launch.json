@@ -27,8 +27,8 @@
             "name": "Launch Program",
             "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/ts-node-esm",
             "args": [
-                "${workspaceFolder}/src/compiler.ts",
-                "${workspaceFolder}/test/test.ts"
+                "${workspaceFolder}/cli/ts2wasm.ts",
+                "${workspaceFolder}/test/samples/global-statement.ts"
             ]
         }
     ]

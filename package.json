@@ -59,7 +59,7 @@
   },
   "lint-staged": {
     "*.ts": [
-      "eslint --fix '**/*.ts' --max-warnings 0",
+      "eslint --fix '**/*.ts'",
       "prettier --config .prettierrc.json --write '**/*.ts'"
     ]
   },

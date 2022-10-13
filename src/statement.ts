@@ -5,33 +5,28 @@ import BaseCompiler from './base.js';
 import {
     ForStatementInfo,
     IfStatementInfo,
-    VariableInfo,
-    LoopStatementInfo,
     WhileStatementInfo,
     DoStatementInfo,
     LoopKind,
 } from './utils.js';
-import { FunctionScope, BlockScope } from './scope.js';
+import { BlockScope, ScopeKind } from './scope.js';
 
 export default class StatementCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
         super(compiler);
     }
-    visitNode(node: ts.Node): binaryen.Type {
+    visitNode(node: ts.Node): binaryen.ExpressionRef {
         switch (node.kind) {
             case ts.SyntaxKind.Block: {
                 const blockNode = <ts.Block>node;
                 // connet blockScope with its parentScope
                 const parentScope = this.getCurrentScope()!;
                 const blockScope = new BlockScope(parentScope);
-                parentScope.addChild(blockScope);
                 this.setCurrentScope(blockScope);
                 // push the current block into stack
                 this.getBlockScopeStack().push(blockScope);
                 // get statements of body
-                if (blockNode.statements.length === 0) {
-                    return binaryen.none;
-                } else {
+                if (blockNode.statements.length !== 0) {
                     // push all statements into statementArray
                     for (let i = 0; i < blockNode.statements.length; i++) {
                         const childExpressionRef = this.visit(
@@ -46,6 +41,7 @@ export default class StatementCompiler extends BaseCompiler {
                 }
                 // get the current block
                 const currentBlockScope = this.getBlockScopeStack().pop()!;
+                this.setCurrentScope(currentBlockScope.getParent());
                 return this.getBinaryenModule().block(
                     null,
                     currentBlockScope.getStatementArray(),
@@ -94,6 +90,11 @@ export default class StatementCompiler extends BaseCompiler {
                     ifTrue: binaryen.none,
                     ifFalse: binaryen.none,
                 };
+                if (this.getCurrentScope()!.kind === ScopeKind.GlobalScope) {
+                    this.setCurrentScope(
+                        this.getStartBlockScope(this.getCurrentScope()!),
+                    );
+                }
                 ifStatementInfo.condition = this.visit(
                     ifStatementNode.expression,
                 );
@@ -105,16 +106,27 @@ export default class StatementCompiler extends BaseCompiler {
                         ifStatementNode.elseStatement,
                     );
                 }
-                return this.getBinaryenModule().if(
-                    ifStatementInfo.condition,
-                    ifStatementInfo.ifTrue,
-                    ifStatementInfo.ifFalse,
+                if (
+                    this.getCurrentScope()!.kind === ScopeKind.StartBlockScope
+                ) {
+                    this.setCurrentScope(
+                        this.getCurrentScope()!.getParent()!.getParent()!,
+                    );
+                }
+                return this.handleStatement(
+                    this.getBinaryenModule().if(
+                        ifStatementInfo.condition,
+                        ifStatementInfo.ifTrue,
+                        ifStatementInfo.ifFalse,
+                    ),
                 );
             }
 
             case ts.SyntaxKind.ExpressionStatement: {
                 const expressionStatementNode = <ts.ExpressionStatement>node;
-                return this.visit(expressionStatementNode.expression);
+                return this.handleStatement(
+                    this.visit(expressionStatementNode.expression),
+                );
             }
 
             case ts.SyntaxKind.ForStatement: {
@@ -129,13 +141,26 @@ export default class StatementCompiler extends BaseCompiler {
                     incrementor: binaryen.none,
                     statement: binaryen.none,
                 };
+                if (this.getCurrentScope()!.kind === ScopeKind.GlobalScope) {
+                    this.setCurrentScope(
+                        this.getStartBlockScope(this.getCurrentScope()!),
+                    );
+                }
                 if (forStatementNode.initializer) {
                     forStatementInfo.initializer = this.visit(
                         forStatementNode.initializer,
                     );
-                    this.getBlockScopeStack()
-                        .peek()
-                        .addStatement(forStatementInfo.initializer);
+                    const currentScope = this.getCurrentScope();
+                    if (currentScope!.kind === ScopeKind.StartBlockScope) {
+                        const currentStartBlockScope = <BlockScope>currentScope;
+                        currentStartBlockScope.addStatement(
+                            forStatementInfo.initializer,
+                        );
+                    } else {
+                        this.getBlockScopeStack()
+                            .peek()
+                            .addStatement(forStatementInfo.initializer);
+                    }
                 }
                 if (forStatementNode.condition) {
                     forStatementInfo.condition = this.visit(
@@ -152,9 +177,18 @@ export default class StatementCompiler extends BaseCompiler {
                         forStatementNode.statement,
                     );
                 }
-                return this.getBinaryenModule().loop(
-                    forStatementInfo.label,
-                    this.flattenLoopStatement(forStatementInfo),
+                if (
+                    this.getCurrentScope()!.kind === ScopeKind.StartBlockScope
+                ) {
+                    this.setCurrentScope(
+                        this.getCurrentScope()!.getParent()!.getParent()!,
+                    );
+                }
+                return this.handleStatement(
+                    this.getBinaryenModule().loop(
+                        forStatementInfo.label,
+                        this.flattenLoopStatement(forStatementInfo),
+                    ),
                 );
             }
 
@@ -179,6 +213,11 @@ export default class StatementCompiler extends BaseCompiler {
                     condition: binaryen.none,
                     statement: binaryen.none,
                 };
+                if (this.getCurrentScope()!.kind === ScopeKind.GlobalScope) {
+                    this.setCurrentScope(
+                        this.getStartBlockScope(this.getCurrentScope()!),
+                    );
+                }
                 if (
                     whileStatementNode.expression.pos ===
                     whileStatementNode.expression.end
@@ -199,9 +238,18 @@ export default class StatementCompiler extends BaseCompiler {
                         whileStatementNode.statement,
                     );
                 }
-                return this.getBinaryenModule().loop(
-                    whileStatementInfo.label,
-                    this.flattenLoopStatement(whileStatementInfo),
+                if (
+                    this.getCurrentScope()!.kind === ScopeKind.StartBlockScope
+                ) {
+                    this.setCurrentScope(
+                        this.getCurrentScope()!.getParent()!.getParent()!,
+                    );
+                }
+                return this.handleStatement(
+                    this.getBinaryenModule().loop(
+                        whileStatementInfo.label,
+                        this.flattenLoopStatement(whileStatementInfo),
+                    ),
                 );
             }
 
@@ -215,6 +263,11 @@ export default class StatementCompiler extends BaseCompiler {
                     condition: binaryen.none,
                     statement: binaryen.none,
                 };
+                if (this.getCurrentScope()!.kind === ScopeKind.GlobalScope) {
+                    this.setCurrentScope(
+                        this.getStartBlockScope(this.getCurrentScope()!),
+                    );
+                }
                 if (
                     doStatementNode.expression.pos ===
                     doStatementNode.expression.end
@@ -235,10 +288,23 @@ export default class StatementCompiler extends BaseCompiler {
                         doStatementNode.statement,
                     );
                 }
-                return this.getBinaryenModule().loop(
-                    doStatementInfo.label,
-                    this.flattenLoopStatement(doStatementInfo),
+                if (
+                    this.getCurrentScope()!.kind === ScopeKind.StartBlockScope
+                ) {
+                    this.setCurrentScope(
+                        this.getCurrentScope()!.getParent()!.getParent()!,
+                    );
+                }
+                return this.handleStatement(
+                    this.getBinaryenModule().loop(
+                        doStatementInfo.label,
+                        this.flattenLoopStatement(doStatementInfo),
+                    ),
                 );
+            }
+
+            case ts.SyntaxKind.EmptyStatement: {
+                return binaryen.none;
             }
         }
 
@@ -251,9 +317,11 @@ export default class StatementCompiler extends BaseCompiler {
             ifTrue: binaryen.none,
             ifFalse: binaryen.none,
         };
-        if (loopStatementInfo.kind != LoopKind.do) {
+        if (loopStatementInfo.kind !== LoopKind.do) {
             const ifTrueBlockArray: binaryen.ExpressionRef[] = [];
-            ifTrueBlockArray.push(loopStatementInfo.statement);
+            if (loopStatementInfo.statement !== binaryen.none) {
+                ifTrueBlockArray.push(loopStatementInfo.statement);
+            }
             if (loopStatementInfo.kind === LoopKind.for) {
                 ifTrueBlockArray.push(loopStatementInfo.incrementor);
             }
@@ -275,13 +343,30 @@ export default class StatementCompiler extends BaseCompiler {
                 loopStatementInfo.label,
             );
             const blockArray: binaryen.ExpressionRef[] = [];
-            blockArray.push(loopStatementInfo.statement);
+            if (loopStatementInfo.statement !== binaryen.none) {
+                blockArray.push(loopStatementInfo.statement);
+            }
             const ifExpression = this.getBinaryenModule().if(
                 ifStatementInfo.condition,
                 ifStatementInfo.ifTrue,
             );
             blockArray.push(ifExpression);
             return this.getBinaryenModule().block(null, blockArray);
+        }
+    }
+
+    handleStatement(
+        expressionRef: binaryen.ExpressionRef,
+    ): binaryen.ExpressionRef {
+        const currentScope = this.getCurrentScope();
+        if (currentScope!.kind == ScopeKind.GlobalScope) {
+            const currentStartBlockScope = this.getStartBlockScope(
+                currentScope!,
+            );
+            currentStartBlockScope.addStatement(expressionRef);
+            return binaryen.none;
+        } else {
+            return expressionRef;
         }
     }
 }
