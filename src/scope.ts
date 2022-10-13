@@ -6,6 +6,8 @@ export enum ScopeKind {
     GlobalScope,
     FunctionScope,
     BlockScope,
+    StartFunctionScope,
+    StartBlockScope,
 }
 
 export class Scope {
@@ -13,9 +15,13 @@ export class Scope {
     variableArray: VariableInfo[] = [];
     children: Scope[] = [];
     parent: Scope | null;
+    isGlobalVariable: Map<string, boolean> = new Map();
 
     constructor(parent: Scope | null) {
         this.parent = parent;
+        if (this.parent !== null) {
+            this.parent.addChild(this);
+        }
     }
 
     addVariable(variableInfo: VariableInfo) {
@@ -38,10 +44,54 @@ export class Scope {
         return this.variableArray;
     }
 
-    findVariable(variableName: string) {
-        for (let i = 0; i < this.variableArray.length; i++) {
-            if (this.variableArray[i].variableName === variableName) {
-                return this.variableArray[i];
+    findVariable(
+        variableName: string,
+        nested = true,
+    ): VariableInfo | undefined {
+        if (nested) {
+            let currentScope: Scope | null = this;
+            while (currentScope != null) {
+                if (currentScope.findVariable(variableName, false)) {
+                    if (currentScope.kind === ScopeKind.GlobalScope) {
+                        this.setIsGlobalVariable(variableName, true);
+                    }
+                    return currentScope.findVariable(variableName, false);
+                }
+                currentScope = currentScope.getParent();
+            }
+        } else {
+            for (let i = 0; i < this.variableArray.length; i++) {
+                if (this.variableArray[i].variableName === variableName) {
+                    return this.variableArray[i];
+                }
+            }
+        }
+    }
+
+    setIsGlobalVariable(variableName: string, isGlobalVariable: boolean) {
+        this.isGlobalVariable.set(variableName, isGlobalVariable);
+    }
+
+    findFunctionScope(
+        functionName: string,
+        nested = true,
+    ): FunctionScope | undefined {
+        if (nested) {
+            let currentScope: Scope | null = this;
+            while (currentScope != null) {
+                if (currentScope.findFunctionScope(functionName, false)) {
+                    return currentScope.findFunctionScope(functionName, false);
+                }
+                currentScope = currentScope.getParent();
+            }
+        } else {
+            for (let i = 0; i < this.children.length; i++) {
+                if (this.children[i].kind === ScopeKind.FunctionScope) {
+                    const functionScope = <FunctionScope>this.children[i];
+                    if (functionScope.getFuncName() === functionName) {
+                        return functionScope;
+                    }
+                }
             }
         }
     }
@@ -49,6 +99,20 @@ export class Scope {
 
 export class GlobalScope extends Scope {
     kind = ScopeKind.GlobalScope;
+    globalFunctionChild: FunctionScope | null = null;
+
+    constructor() {
+        super(null);
+    }
+
+    setGlobalFunctionChild(startFunctionScope: FunctionScope) {
+        this.globalFunctionChild = startFunctionScope;
+        this.globalFunctionChild.kind = ScopeKind.StartFunctionScope;
+    }
+
+    getGlobalFunctionChild() {
+        return this.globalFunctionChild;
+    }
 }
 
 export class FunctionScope extends Scope {
@@ -57,7 +121,7 @@ export class FunctionScope extends Scope {
     paramArray: VariableInfo[] = [];
     returnType: binaryen.Type = binaryen.none;
     returnTypeUndefined = false;
-    body: binaryen.Type = binaryen.none;
+    body: binaryen.ExpressionRef = binaryen.none;
 
     constructor(parent: Scope) {
         super(parent);
@@ -95,7 +159,7 @@ export class FunctionScope extends Scope {
         return this.returnTypeUndefined;
     }
 
-    setBody(body: binaryen.Type) {
+    setBody(body: binaryen.ExpressionRef) {
         this.body = body;
     }
 
@@ -103,10 +167,26 @@ export class FunctionScope extends Scope {
         return this.body;
     }
 
-    findVariable(variableName: string) {
-        for (let i = 0; i < this.paramArray.length; i++) {
-            if (this.paramArray[i].variableName === variableName) {
-                return this.paramArray[i];
+    findVariable(
+        variableName: string,
+        nested = true,
+    ): VariableInfo | undefined {
+        if (nested) {
+            let currentScope: Scope | null = this;
+            while (currentScope != null) {
+                if (currentScope.findVariable(variableName, false)) {
+                    if (currentScope.kind === ScopeKind.GlobalScope) {
+                        this.setIsGlobalVariable(variableName, true);
+                    }
+                    return currentScope.findVariable(variableName, false);
+                }
+                currentScope = currentScope.getParent();
+            }
+        } else {
+            for (let i = 0; i < this.paramArray.length; i++) {
+                if (this.paramArray[i].variableName === variableName) {
+                    return this.paramArray[i];
+                }
             }
         }
     }
@@ -114,13 +194,16 @@ export class FunctionScope extends Scope {
 
 export class BlockScope extends Scope {
     kind = ScopeKind.BlockScope;
-    statementArray: binaryen.Type[] = [];
+    statementArray: binaryen.ExpressionRef[] = [];
 
     constructor(parent: Scope) {
         super(parent);
+        if (parent.kind === ScopeKind.StartFunctionScope) {
+            this.kind = ScopeKind.StartBlockScope;
+        }
     }
 
-    addStatement(statement: binaryen.Type) {
+    addStatement(statement: binaryen.ExpressionRef) {
         this.statementArray.push(statement);
     }
 

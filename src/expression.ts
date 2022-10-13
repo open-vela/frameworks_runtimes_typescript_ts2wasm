@@ -9,25 +9,49 @@ import {
     VariableInfo,
     ExpressionKind,
 } from './utils.js';
+import { ScopeKind } from './scope.js';
 
 export default class ExpressionCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
         super(compiler);
     }
-    visitNode(node: ts.Node): binaryen.Type {
+    visitNode(node: ts.Node): binaryen.ExpressionRef {
         switch (node.kind) {
             case ts.SyntaxKind.Identifier: {
                 const identifierNode = <ts.Identifier>node;
                 const identifierName = identifierNode.getText();
                 // find if the identifier is in the scope
-                let currentScope = this.getCurrentScope();
-                while (currentScope != null) {
-                    const localValueInfo =
-                        currentScope.findVariable(identifierName);
-                    if (localValueInfo) {
-                        return this.getLocalValue(localValueInfo);
+                const currentScope = this.getCurrentScope();
+                const valueInfo = currentScope?.findVariable(identifierName);
+                if (valueInfo) {
+                    if (currentScope?.isGlobalVariable.get(identifierName)) {
+                        return this.getGlobalValue(
+                            valueInfo.variableName,
+                            valueInfo.variableType,
+                        );
+                    } else {
+                        return this.getLocalValue(
+                            valueInfo.variableIndex,
+                            valueInfo.variableType,
+                        );
                     }
-                    currentScope = currentScope.getParent();
+                } else {
+                    if (currentScope!.kind == ScopeKind.GlobalScope) {
+                        const currentStartBlockScope = this.getStartBlockScope(
+                            currentScope!,
+                        );
+                        const startBlockValueInfo =
+                            currentStartBlockScope.findVariable(
+                                identifierName,
+                                false,
+                            );
+                        if (startBlockValueInfo) {
+                            return this.getLocalValue(
+                                startBlockValueInfo.variableIndex,
+                                startBlockValueInfo.variableType,
+                            );
+                        }
+                    }
                 }
                 // TODO DELETE: error TS2304: Cannot find name.
                 this.reportError(identifierNode, 'error TS2304');
@@ -141,15 +165,60 @@ export default class ExpressionCompiler extends BaseCompiler {
                     ExpressionKind.postfixUnaryExpression,
                 );
             }
+
+            case ts.SyntaxKind.CallExpression: {
+                // TODO: add closure
+                const callExpressionNode = <ts.CallExpression>node;
+                const funcName = callExpressionNode.expression.getText();
+                const parameters = callExpressionNode.arguments;
+                const paramExpressionRefList: binaryen.ExpressionRef[] = [];
+                for (let i = 0; i < parameters.length; i++) {
+                    paramExpressionRefList.push(this.visit(parameters[i]));
+                }
+                let paramArray: VariableInfo[] = [];
+                let returnType = binaryen.none;
+                const currentScope = this.getCurrentScope();
+                // TODO: function hoisting
+                const childFunctionScope =
+                    currentScope?.findFunctionScope(funcName);
+                if (childFunctionScope) {
+                    paramArray = childFunctionScope.getParamArray()!;
+                    returnType = childFunctionScope.getReturnType()!;
+                }
+                if (paramArray?.length !== paramExpressionRefList.length) {
+                    for (
+                        let i = paramExpressionRefList.length;
+                        i < paramArray?.length;
+                        i++
+                    ) {
+                        paramExpressionRefList.push(
+                            paramArray[i].variableInitial!,
+                        );
+                    }
+                }
+                // judge if the return value need to drop
+                if (returnType !== binaryen.none) {
+                    if (
+                        callExpressionNode.parent.kind ===
+                        ts.SyntaxKind.ExpressionStatement
+                    ) {
+                        return this.getBinaryenModule().drop(
+                            this.getBinaryenModule().call(
+                                funcName,
+                                paramExpressionRefList,
+                                returnType,
+                            ),
+                        );
+                    }
+                }
+                return this.getBinaryenModule().call(
+                    funcName,
+                    paramExpressionRefList,
+                    returnType,
+                );
+            }
         }
         return binaryen.none;
-    }
-
-    getLocalValue(variableInfo: VariableInfo) {
-        return this.getBinaryenModule().local.get(
-            variableInfo.variableIndex,
-            variableInfo.variableType,
-        );
     }
 
     handleBinaryExpression(
@@ -265,81 +334,199 @@ export default class ExpressionCompiler extends BaseCompiler {
         // get the assigned identifier
         const assignedIdentifierName = identifierNode.getText();
         // find if the identifier is in the scope
-        let currentScope = this.getCurrentScope();
-        while (currentScope != null) {
-            const localValueInfo = currentScope.findVariable(
-                assignedIdentifierName,
+        const currentScope = this.getCurrentScope();
+        const valueInfo = currentScope?.findVariable(assignedIdentifierName);
+        let globalLocalValueInfo;
+        if (currentScope!.kind === ScopeKind.GlobalScope) {
+            const currentStartBlockScope = this.getStartBlockScope(
+                currentScope!,
             );
-            if (localValueInfo) {
-                // check if the variable is a const
-                if (localValueInfo.variableAssign === AssignKind.const) {
-                    this.reportError(identifierNode, 'error TS2588');
-                }
-                // check if the type is match
-                if (
-                    this.matchType(
-                        binaryExpressionInfo.leftType,
-                        binaryExpressionInfo.rightType,
-                    )
-                ) {
-                    if (expressionKind === ExpressionKind.equalsExpression) {
-                        return this.getBinaryenModule().local.set(
-                            localValueInfo.variableIndex,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    } else if (
-                        expressionKind === ExpressionKind.postfixUnaryExpression
-                    ) {
-                        const blockArray: binaryen.ExpressionRef[] = [];
-                        // get local value if postfixUnaryExpression's parent is not ExpressionStatement
+            globalLocalValueInfo = currentStartBlockScope.findVariable(
+                assignedIdentifierName,
+                false,
+            );
+        }
+        if (valueInfo || globalLocalValueInfo) {
+            // check if the variable is a const
+            if (
+                (valueInfo && valueInfo.variableAssign === AssignKind.const) ||
+                (globalLocalValueInfo &&
+                    globalLocalValueInfo.variableAssign === AssignKind.const)
+            ) {
+                this.reportError(identifierNode, 'error TS2588');
+            }
+            // check if the type is match
+            if (
+                this.matchType(
+                    binaryExpressionInfo.leftType,
+                    binaryExpressionInfo.rightType,
+                )
+            ) {
+                if (expressionKind === ExpressionKind.equalsExpression) {
+                    if (valueInfo) {
+                        // check the variable is in global or in local
                         if (
-                            identifierNode.parent.parent.kind !=
-                                ts.SyntaxKind.ExpressionStatement &&
-                            identifierNode.parent.parent.kind !=
-                                ts.SyntaxKind.ForStatement
+                            currentScope?.isGlobalVariable.get(
+                                assignedIdentifierName,
+                            )
                         ) {
-                            blockArray.push(
-                                this.getBinaryenModule().local.get(
-                                    localValueInfo.variableIndex,
-                                    binaryExpressionInfo.leftType,
-                                ),
+                            return this.setGlobalValue(
+                                valueInfo.variableName,
+                                binaryExpressionInfo.rightExpression,
+                            );
+                        } else {
+                            return this.setLocalValue(
+                                valueInfo.variableIndex,
+                                binaryExpressionInfo.rightExpression,
                             );
                         }
-                        blockArray.push(
-                            this.getBinaryenModule().local.set(
-                                localValueInfo.variableIndex,
-                                binaryExpressionInfo.rightExpression,
-                            ),
-                        );
-                        return this.getBinaryenModule().block(null, blockArray);
-                    } else if (
-                        expressionKind === ExpressionKind.prefixUnaryExpression
-                    ) {
-                        const blockArray: binaryen.ExpressionRef[] = [];
-                        blockArray.push(
-                            this.getBinaryenModule().local.set(
-                                localValueInfo.variableIndex,
-                                binaryExpressionInfo.rightExpression,
-                            ),
-                        );
-                        // get local value if prefixUnaryExpression's parent is not ExpressionStatement
-                        if (
-                            identifierNode.parent.parent.kind !=
-                            ts.SyntaxKind.ExpressionStatement
-                        ) {
-                            blockArray.push(
-                                this.getBinaryenModule().local.get(
-                                    localValueInfo.variableIndex,
-                                    binaryExpressionInfo.leftType,
-                                ),
-                            );
-                        }
-                        return this.getBinaryenModule().block(null, blockArray);
                     }
+                } else if (
+                    expressionKind === ExpressionKind.postfixUnaryExpression
+                ) {
+                    const blockArray: binaryen.ExpressionRef[] = [];
+                    // get local value if postfixUnaryExpression's parent is not ExpressionStatement
+                    if (
+                        identifierNode.parent.parent.kind !==
+                            ts.SyntaxKind.ExpressionStatement &&
+                        identifierNode.parent.parent.kind !==
+                            ts.SyntaxKind.ForStatement
+                    ) {
+                        if (
+                            valueInfo &&
+                            currentScope?.isGlobalVariable.get(
+                                assignedIdentifierName,
+                            )
+                        ) {
+                            blockArray.push(
+                                this.getGlobalValue(
+                                    valueInfo.variableName,
+                                    binaryExpressionInfo.leftType,
+                                ),
+                            );
+                        } else {
+                            if (!valueInfo && globalLocalValueInfo) {
+                                blockArray.push(
+                                    this.getLocalValue(
+                                        globalLocalValueInfo.variableIndex,
+                                        binaryExpressionInfo.leftType,
+                                    ),
+                                );
+                            } else {
+                                blockArray.push(
+                                    this.getLocalValue(
+                                        valueInfo!.variableIndex,
+                                        binaryExpressionInfo.leftType,
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    if (
+                        valueInfo &&
+                        currentScope?.isGlobalVariable.get(
+                            assignedIdentifierName,
+                        )
+                    ) {
+                        blockArray.push(
+                            this.setGlobalValue(
+                                valueInfo.variableName,
+                                binaryExpressionInfo.rightExpression,
+                            ),
+                        );
+                    } else {
+                        if (!valueInfo && globalLocalValueInfo) {
+                            blockArray.push(
+                                this.setLocalValue(
+                                    globalLocalValueInfo.variableIndex,
+                                    binaryExpressionInfo.rightExpression,
+                                ),
+                            );
+                        } else {
+                            blockArray.push(
+                                this.setLocalValue(
+                                    valueInfo!.variableIndex,
+                                    binaryExpressionInfo.rightExpression,
+                                ),
+                            );
+                        }
+                    }
+                    return this.getBinaryenModule().block(null, blockArray);
+                } else if (
+                    expressionKind === ExpressionKind.prefixUnaryExpression
+                ) {
+                    const blockArray: binaryen.ExpressionRef[] = [];
+                    if (
+                        valueInfo &&
+                        currentScope?.isGlobalVariable.get(
+                            assignedIdentifierName,
+                        )
+                    ) {
+                        blockArray.push(
+                            this.setGlobalValue(
+                                valueInfo.variableName,
+                                binaryExpressionInfo.rightExpression,
+                            ),
+                        );
+                    } else {
+                        if (!valueInfo && globalLocalValueInfo) {
+                            blockArray.push(
+                                this.setLocalValue(
+                                    globalLocalValueInfo.variableIndex,
+                                    binaryExpressionInfo.rightExpression,
+                                ),
+                            );
+                        } else {
+                            blockArray.push(
+                                this.setLocalValue(
+                                    valueInfo!.variableIndex,
+                                    binaryExpressionInfo.rightExpression,
+                                ),
+                            );
+                        }
+                    }
+                    // get local value if prefixUnaryExpression's parent is not ExpressionStatement
+                    if (
+                        identifierNode.parent.parent.kind !=
+                            ts.SyntaxKind.ExpressionStatement &&
+                        identifierNode.parent.parent.kind !=
+                            ts.SyntaxKind.ForStatement
+                    ) {
+                        if (
+                            valueInfo &&
+                            currentScope?.isGlobalVariable.get(
+                                assignedIdentifierName,
+                            )
+                        ) {
+                            blockArray.push(
+                                this.getGlobalValue(
+                                    valueInfo.variableName,
+                                    binaryExpressionInfo.leftType,
+                                ),
+                            );
+                        } else {
+                            if (!valueInfo && globalLocalValueInfo) {
+                                blockArray.push(
+                                    this.getLocalValue(
+                                        globalLocalValueInfo.variableIndex,
+                                        binaryExpressionInfo.leftType,
+                                    ),
+                                );
+                            } else {
+                                blockArray.push(
+                                    this.getLocalValue(
+                                        valueInfo!.variableIndex,
+                                        binaryExpressionInfo.leftType,
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    return this.getBinaryenModule().block(null, blockArray);
                 }
             }
-            currentScope = currentScope.getParent();
         }
+
         return binaryen.none;
     }
 

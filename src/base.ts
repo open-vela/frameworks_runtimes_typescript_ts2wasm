@@ -1,7 +1,7 @@
 import { Compiler } from './compiler.js';
 import ts from 'typescript';
 import binaryen from 'binaryen';
-import { Scope } from './scope.js';
+import { GlobalScope, BlockScope, Scope } from './scope.js';
 
 export default class BaseCompiler {
     compiler: Compiler;
@@ -38,12 +38,48 @@ export default class BaseCompiler {
         return this.compiler.currentScope;
     }
 
+    getStartBlockScope(currentScope: Scope): BlockScope {
+        const currentGlobalScope = <GlobalScope>currentScope;
+        const currentStartBlockScope = <BlockScope>(
+            currentGlobalScope.getGlobalFunctionChild()!.getChildren()[0]
+        );
+        return currentStartBlockScope;
+    }
+
     getLoopLabelArray() {
         return this.compiler.loopLabelArray;
     }
 
     getBinaryenModule() {
         return this.compiler.binaryenModule;
+    }
+
+    setLocalValue(
+        variableIndex: number,
+        value: binaryen.ExpressionRef,
+    ): binaryen.ExpressionRef {
+        return this.getBinaryenModule().local.set(variableIndex, value);
+    }
+
+    getLocalValue(
+        variableIndex: number,
+        variableType: binaryen.Type,
+    ): binaryen.ExpressionRef {
+        return this.getBinaryenModule().local.get(variableIndex, variableType);
+    }
+
+    setGlobalValue(
+        variableName: string,
+        value: binaryen.ExpressionRef,
+    ): binaryen.ExpressionRef {
+        return this.getBinaryenModule().global.set(variableName, value);
+    }
+
+    getGlobalValue(
+        variableName: string,
+        variableType: binaryen.Type,
+    ): binaryen.ExpressionRef {
+        return this.getBinaryenModule().global.get(variableName, variableType);
     }
 
     getTypeChecker() {

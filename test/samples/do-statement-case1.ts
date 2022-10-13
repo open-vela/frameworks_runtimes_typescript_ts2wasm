@@ -1,4 +1,4 @@
-export function doTest(a: number, b: number): number {
+export function doTest(): number {
     let o = 9;
     let c = 10;
     do {
