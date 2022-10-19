@@ -142,6 +142,23 @@ export default class ExpressionCompiler extends BaseCompiler {
                             );
                         break;
                     }
+                    // "xx && xx expression"
+                    case ts.SyntaxKind.AmpersandAmpersandToken: {
+                        binaryExpressionInfo.operator =
+                            this.handleBinaryExpression(
+                                binaryExpressionInfo,
+                                OperatorKind.and,
+                            );
+                        break;
+                    }
+                    // // "xx || xx expression"
+                    case ts.SyntaxKind.BarBarToken: {
+                        binaryExpressionInfo.operator =
+                            this.handleBinaryExpression(
+                                binaryExpressionInfo,
+                                OperatorKind.or,
+                            );
+                    }
                 }
                 return binaryExpressionInfo.operator;
             }
@@ -164,6 +181,12 @@ export default class ExpressionCompiler extends BaseCompiler {
                     postfixUnaryExpressionNode,
                     ExpressionKind.postfixUnaryExpression,
                 );
+            }
+
+            // "xx ? xx : xx" expression
+            case ts.SyntaxKind.ConditionalExpression: {
+                const conditionNode = <ts.ConditionalExpression>node;
+                return this.handleConditionalExpression(conditionNode);
             }
 
             case ts.SyntaxKind.CallExpression: {
@@ -268,6 +291,16 @@ export default class ExpressionCompiler extends BaseCompiler {
             }
         }
 
+        switch (operatorKind) {
+            case OperatorKind.and:
+            case OperatorKind.or: {
+                return this.handleLogicalToken(
+                    binaryExpressionInfo,
+                    operatorKind,
+                );
+            }
+        }
+
         // TODO: dyntype API should be invoked here to get actual type.
         return binaryen.none;
     }
@@ -317,6 +350,13 @@ export default class ExpressionCompiler extends BaseCompiler {
                     );
                 break;
             }
+            // "!xx" expression
+            case ts.SyntaxKind.ExclamationToken: {
+                return this.handleExclamationToken(
+                    operandExpression,
+                    operandExpressionType,
+                );
+            }
         }
         unaryExpressionInfo.rightType = binaryen.f64;
         return this.handleExpressionStatement(
@@ -324,6 +364,25 @@ export default class ExpressionCompiler extends BaseCompiler {
             unaryExpressionInfo,
             expressionKind,
         );
+    }
+
+    handleConditionalExpression(
+        node: ts.ConditionalExpression,
+    ): binaryen.ExpressionRef {
+        const module = this.getBinaryenModule();
+        let condExpression = this.visit(node.condition);
+        const trueExpression = this.visit(node.whenTrue);
+        const falseExpression = this.visit(node.whenFalse);
+        const condExpressionType = this.visit(
+            this.getVariableType(node.condition, this.getTypeChecker()!),
+        );
+        if (condExpressionType != binaryen.i32) {
+            condExpression = this.convertTypeToI32(
+                condExpression,
+                condExpressionType,
+            );
+        }
+        return module.select(condExpression, trueExpression, falseExpression);
     }
 
     handleExpressionStatement(
@@ -539,5 +598,50 @@ export default class ExpressionCompiler extends BaseCompiler {
             return true;
         }
         return false;
+    }
+
+    handleExclamationToken(
+        operandExpression: binaryen.Type,
+        operandType: binaryen.Type,
+    ): binaryen.ExpressionRef {
+        let flag = operandExpression;
+        if (operandType !== binaryen.i32) {
+            flag = this.convertTypeToI32(operandExpression, operandType);
+        }
+        return this.getBinaryenModule().i32.eqz(flag);
+    }
+
+    handleLogicalToken(
+        binaryExpressionInfo: BinaryExpressionInfo,
+        operatorKind: OperatorKind,
+    ): binaryen.ExpressionRef {
+        const left = binaryExpressionInfo.leftExpression;
+        const right = binaryExpressionInfo.rightExpression;
+        const leftType = binaryExpressionInfo.leftType;
+
+        // '&&' and '||' not always return boolean type.
+        let tempLeft = left;
+        if (leftType !== binaryen.i32) {
+            tempLeft = this.convertTypeToI32(left, leftType);
+        }
+        if (operatorKind === OperatorKind.and) {
+            return this.getBinaryenModule().select(tempLeft, right, left);
+        } else if (operatorKind === OperatorKind.or) {
+            return this.getBinaryenModule().select(tempLeft, left, right);
+        }
+        return binaryen.none;
+    }
+
+    convertTypeToI32(
+        expression: binaryen.ExpressionRef,
+        expressionType: binaryen.Type,
+    ): binaryen.ExpressionRef {
+        switch (expressionType) {
+            case binaryen.f64: {
+                return this.getBinaryenModule().i32.trunc_u_sat.f64(expression);
+            }
+            // TODO: deal with more types
+        }
+        return binaryen.none;
     }
 }

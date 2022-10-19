@@ -1,4 +1,11 @@
 {
     "files.trimTrailingWhitespace": true,
-    "cmake.sourceDirectory": "${workspaceFolder}/lib/dyntype"
+    "cmake.sourceDirectory": "${workspaceFolder}/lib/dyntype",
+    "files.associations": {
+        "sstream": "cpp",
+        "iostream": "cpp",
+        "array": "cpp",
+        "ratio": "cpp",
+        "string": "cpp"
+    }
 }

@@ -244,12 +244,8 @@ int dyntype_to_number(dyn_ctx_t ctx, dyn_value_t obj, double *pres) {
     if (!JS_IsNumber(*ptr)) {
         return -DYNTYPE_TYPEERR;
     }
-    if (JS_VALUE_GET_TAG(*ptr) == JS_TAG_INT) {
-        JS_ToInt32(ctx->js_ctx, (int *)pres, *ptr);
-    } else {
-        JS_ToFloat64(ctx->js_ctx, pres, *ptr);
-    }
-    // *pres = (JS_VALUE_GET_TAG(*ptr) == JS_TAG_INT ? ptr->u.int32 : ptr->u.float64);
+    *pres = (JS_VALUE_GET_TAG(*ptr) == JS_TAG_INT ? JS_VALUE_GET_INT(*ptr) :
+            JS_VALUE_GET_FLOAT64(*ptr));
     return DYNTYPE_SUCCESS;
 }
 
@@ -300,14 +296,19 @@ int dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres) {
 
 dyn_type_t dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj) {
     JSValueConst *ptr = (JSValueConst *)obj;
-    JSAtom q_atom_tag = js_operator_typeof1(ctx->js_ctx, *ptr);
+    if (ptr->tag == JS_TAG_EXT_OBJ) {
+        return DynExtRefObj;
+    }
+    if (ptr->tag == JS_TAG_EXT_FUNC) {
+        return DynExtRefFunc;
+    }
+    int q_atom_tag = js_operator_typeof1(ctx->js_ctx, *ptr);
     dyn_type_t tag = quickjs_type_to_dyn_type(q_atom_tag);
     return tag;
 }
 
 bool dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs) {
-    JSValue *lhs_ptr = (JSValue *)lhs, *rhs_ptr = (JSValue *)rhs;
-    return JS_VALUE_GET_TAG(*lhs_ptr) == JS_VALUE_GET_TAG(*rhs_ptr);
+    return dyntype_typeof(ctx, lhs) == dyntype_typeof(ctx, rhs);
 }
 
 dyn_value_t dyntype_new_object_with_proto(dyn_ctx_t ctx,
@@ -375,22 +376,25 @@ dyn_value_t dyntype_get_own_property(dyn_ctx_t ctx, dyn_value_t obj,
 
 bool dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
                         const dyn_value_t dst_obj) {
-    // TODO: to be checked more cases.
     JSValue *src = (JSValue *)src_obj;
     JSValue *dst = (JSValue *)dst_obj;
-    int ret = JS_IsInstanceOf(ctx->js_ctx, *src, *dst);
+    int ret = JS_OrdinaryIsInstanceOf1(ctx->js_ctx, *src, *dst);
+    if (ret == -1) {
+        return -DYNTYPE_EXCEPTION;
+    }
     return ret == 1 ? DYNTYPE_TRUE : DYNTYPE_FALSE;
 }
 
-int dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj) {
-    // TODO
-    return 0;
+void dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj) {
+    JSValue *v = (JSValue *)obj;
+    JS_Dump1(ctx->js_rt, v);
 }
 
 int dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer,
                               int len) {
-    // TODO
-    return 0;
+    JSValue *v = (JSValue *)obj;
+    int res = JS_DumpWithBuffer(ctx->js_rt, v, buffer, len);
+    return res == -1 ? -DYNTYPE_EXCEPTION : res;
 }
 
 void dyntype_hold(dyn_ctx_t ctx, dyn_value_t obj) {

@@ -24,6 +24,10 @@ export default class LiteralCompiler extends BaseCompiler {
                     return binaryen.f64;
                 } else if (literalKind === ts.SyntaxKind.StringLiteral) {
                     // TODO: more literalTypeNode.literal.kinds, like StringLiteral
+                } else if (literalKind === ts.SyntaxKind.FalseKeyword) {
+                    return binaryen.i32;
+                } else if (literalKind == ts.SyntaxKind.TrueKeyword) {
+                    return binaryen.i32;
                 }
                 break;
             }
