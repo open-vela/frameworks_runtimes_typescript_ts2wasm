@@ -17,7 +17,8 @@ else ()
     include(FetchContent)
     FetchContent_Declare(
         googletest
-        URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        release-1.12.1
     )
 
     message("Fetching googletest ...")
@@ -26,7 +27,6 @@ endif()
 
 include(GoogleTest)
 enable_testing()
-
 # add lcov support commands
 set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage ${CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage ${CMAKE_CXX_FLAGS}")
@@ -59,9 +59,12 @@ add_subdirectory(${QJS_ROOT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/libdyntype)
 include_directories(${QJS_ROOT_DIR})
 
 add_executable(
-    object_property_test
+    dyntype_test
+    ${CMAKE_CURRENT_LIST_DIR}/types_test.cc
     ${CMAKE_CURRENT_LIST_DIR}/object_property_test.cc
+    ${CMAKE_CURRENT_LIST_DIR}/operator_test.cc
+    ${CMAKE_CURRENT_LIST_DIR}/prototype_test.cc
 )
-target_link_libraries(object_property_test dyntype gtest_main gcov)
+target_link_libraries(dyntype_test dyntype gtest_main gcov)
 
-gtest_discover_tests(object_property_test)
+gtest_discover_tests(dyntype_test)
