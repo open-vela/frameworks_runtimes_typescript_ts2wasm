@@ -20,6 +20,15 @@ export default class TypeCompiler extends BaseCompiler {
             case ts.SyntaxKind.VoidKeyword: {
                 return binaryen.none;
             }
+            case ts.SyntaxKind.BooleanKeyword: {
+                return binaryen.i32;
+            }
+            case ts.SyntaxKind.FalseKeyword: {
+                return this.getBinaryenModule().i32.const(0);
+            }
+            case ts.SyntaxKind.TrueKeyword: {
+                return this.getBinaryenModule().i32.const(1);
+            }
         }
         return binaryen.none;
     }

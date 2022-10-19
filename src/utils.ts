@@ -21,6 +21,8 @@ export enum OperatorKind {
     ge,
     lt,
     le,
+    and,
+    or,
 }
 
 export enum ExpressionKind {

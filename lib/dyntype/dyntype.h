@@ -313,9 +313,8 @@ bool dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
  *
  * @param ctx the dynamic type system context
  * @param obj object to be dumped
- * @return length of bytes printed
  */
-int dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj);
+void dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj);
 
 /**
  * @brief Dump dynamic value to given buffer
