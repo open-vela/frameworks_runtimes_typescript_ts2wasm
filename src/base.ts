@@ -50,6 +50,14 @@ export default class BaseCompiler {
         return this.compiler.loopLabelArray;
     }
 
+    getBreakLabelsStack() {
+        return this.compiler.breakLabelsStack;
+    }
+
+    getSwitchLabelStack() {
+        return this.compiler.switchLabelStack;
+    }
+
     getBinaryenModule() {
         return this.compiler.binaryenModule;
     }

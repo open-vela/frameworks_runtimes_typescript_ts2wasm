@@ -24,6 +24,8 @@ export class Compiler {
     blockScopeStack = new Stack<BlockScope>();
     currentScope: Scope | null = null;
     loopLabelArray: string[] = [];
+    breakLabelsStack: string[] = [];
+    switchLabelStack: number[] = [];
 
     constructor() {
         this.compilers = [

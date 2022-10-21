@@ -132,7 +132,10 @@ export default class StatementCompiler extends BaseCompiler {
             case ts.SyntaxKind.ForStatement: {
                 const forStatementNode = <ts.ForStatement>node;
                 const loopLabel = 'for_loop_' + this.getLoopLabelArray().length;
+                const breakLabels = this.getBreakLabelsStack();
+                breakLabels.push(loopLabel + 'block');
                 this.getLoopLabelArray().push(loopLabel);
+
                 const forStatementInfo: ForStatementInfo = {
                     kind: LoopKind.for,
                     label: loopLabel,
@@ -177,6 +180,7 @@ export default class StatementCompiler extends BaseCompiler {
                         forStatementNode.statement,
                     );
                 }
+                const blockLabel = breakLabels.pop() as string;
                 if (
                     this.getCurrentScope()!.kind === ScopeKind.StartBlockScope
                 ) {
@@ -185,10 +189,12 @@ export default class StatementCompiler extends BaseCompiler {
                     );
                 }
                 return this.handleStatement(
-                    this.getBinaryenModule().loop(
-                        forStatementInfo.label,
-                        this.flattenLoopStatement(forStatementInfo),
-                    ),
+                    this.getBinaryenModule().block(blockLabel, [
+                        this.getBinaryenModule().loop(
+                            forStatementInfo.label,
+                            this.flattenLoopStatement(forStatementInfo),
+                        ),
+                    ]),
                 );
             }
 
@@ -198,15 +204,20 @@ export default class StatementCompiler extends BaseCompiler {
             }
 
             case ts.SyntaxKind.SwitchStatement: {
-                // TODO
-                break;
+                const switchStatementNode = <ts.SwitchStatement>node;
+                const switchLabels = this.getSwitchLabelStack();
+                switchLabels.push(switchLabels.length);
+                return this.handleSwitchStatement(switchStatementNode);
             }
 
             case ts.SyntaxKind.WhileStatement: {
                 const whileStatementNode = <ts.WhileStatement>node;
                 const loopLabel =
                     'while_loop_' + this.getLoopLabelArray().length;
+                const breakLabels = this.getBreakLabelsStack();
+                breakLabels.push(loopLabel + 'block');
                 this.getLoopLabelArray().push(loopLabel);
+
                 const whileStatementInfo: WhileStatementInfo = {
                     kind: LoopKind.while,
                     label: loopLabel,
@@ -245,18 +256,28 @@ export default class StatementCompiler extends BaseCompiler {
                         this.getCurrentScope()!.getParent()!.getParent()!,
                     );
                 }
+                const blockLabel = breakLabels.pop() as string;
                 return this.handleStatement(
-                    this.getBinaryenModule().loop(
-                        whileStatementInfo.label,
-                        this.flattenLoopStatement(whileStatementInfo),
-                    ),
+                    // this.getBinaryenModule().loop(
+                    //     whileStatementInfo.label,
+                    //     this.flattenLoopStatement(whileStatementInfo),
+                    // ),
+                    this.getBinaryenModule().block(blockLabel, [
+                        this.getBinaryenModule().loop(
+                            whileStatementInfo.label,
+                            this.flattenLoopStatement(whileStatementInfo),
+                        ),
+                    ]),
                 );
             }
 
             case ts.SyntaxKind.DoStatement: {
                 const doStatementNode = <ts.DoStatement>node;
                 const loopLabel = 'do_loop_' + this.getLoopLabelArray().length;
+                const breakLabels = this.getBreakLabelsStack();
+                breakLabels.push(loopLabel + 'block');
                 this.getLoopLabelArray().push(loopLabel);
+
                 const doStatementInfo: DoStatementInfo = {
                     kind: LoopKind.do,
                     label: loopLabel,
@@ -295,16 +316,38 @@ export default class StatementCompiler extends BaseCompiler {
                         this.getCurrentScope()!.getParent()!.getParent()!,
                     );
                 }
+                const blockLabel = breakLabels.pop() as string;
                 return this.handleStatement(
-                    this.getBinaryenModule().loop(
-                        doStatementInfo.label,
-                        this.flattenLoopStatement(doStatementInfo),
-                    ),
+                    this.getBinaryenModule().block(blockLabel, [
+                        this.getBinaryenModule().loop(
+                            doStatementInfo.label,
+                            this.flattenLoopStatement(doStatementInfo),
+                        ),
+                    ]),
                 );
             }
 
             case ts.SyntaxKind.EmptyStatement: {
                 return binaryen.none;
+            }
+
+            case ts.SyntaxKind.BreakStatement: {
+                const module = this.getBinaryenModule();
+                const breakStatementNode = <ts.BreakStatement>node;
+                if (breakStatementNode.label) {
+                    // not support goto currently
+                    this.reportError(breakStatementNode, 'Not support goto');
+                    return module.unreachable();
+                }
+                const labels = this.getBreakLabelsStack();
+                if (!labels.length) {
+                    this.reportError(
+                        breakStatementNode,
+                        'parse failed, breakLabelsStack is empty',
+                    );
+                    return module.unreachable();
+                }
+                return module.br(labels[labels.length - 1]);
             }
         }
 
@@ -353,6 +396,66 @@ export default class StatementCompiler extends BaseCompiler {
             blockArray.push(ifExpression);
             return this.getBinaryenModule().block(null, blockArray);
         }
+    }
+
+    handleSwitchStatement(statement: ts.SwitchStatement): binaryen.Type {
+        const module = this.getBinaryenModule();
+        const clauses = statement.caseBlock.clauses;
+
+        // iff empty statement
+        if (clauses.length === 0) {
+            return module.nop();
+        }
+        const breakLabels = this.getBreakLabelsStack();
+        const switchLabels = this.getSwitchLabelStack();
+        const switchLabel =
+            '_' + switchLabels[switchLabels.length - 1].toString(10);
+        const branches: binaryen.ExpressionRef[] = new Array(clauses.length);
+        const condition = this.visit(statement.expression);
+        let indexOfDefault = -1;
+
+        clauses.forEach((clause, i) => {
+            if (ts.isDefaultClause(clause)) {
+                indexOfDefault = i;
+            } else {
+                const caseClause = <ts.CaseClause>clause;
+                // TODO: here just deal with number type, maybe need put br.condition in a common funcion for
+                // dealing with more types.
+                branches[i] = module.br(
+                    'case' + i + switchLabel,
+                    module.f64.eq(condition, this.visit(caseClause.expression)),
+                );
+            }
+        });
+
+        const default_label =
+            indexOfDefault === -1
+                ? 'break'
+                : 'case' + indexOfDefault + switchLabel;
+
+        breakLabels.push('break');
+        branches[indexOfDefault] = module.br(default_label);
+        let block = module.block('case0' + switchLabel, branches);
+
+        clauses.forEach((clause, i) => {
+            const label =
+                i === clauses.length - 1
+                    ? 'break'
+                    : 'case' + (i + 1) + switchLabel;
+            block = module.block(
+                label,
+                [block].concat(
+                    clause.statements.map((s) => {
+                        return this.visit(s);
+                    }),
+                ),
+            );
+        });
+
+        breakLabels.pop();
+        switchLabels.pop();
+
+        return block;
     }
 
     handleStatement(

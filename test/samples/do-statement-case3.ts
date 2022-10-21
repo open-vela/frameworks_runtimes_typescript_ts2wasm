@@ -1,11 +1,12 @@
 export function doTest(): number {
-    let o = 9;
     let c = 10;
+
     do {
-        c++;
-        if (c > 15) {
+        if (c > 20) {
             break;
         }
-    } while (++o < 20);
+        c++;
+    } while (c < 30);
+
     return c;
 }
