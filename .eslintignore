@@ -1,0 +1,3 @@
+# cant test switch-case-statement.ts because of eslint checking, add the line temporarily
+test/samples/*.ts
+test/**/*.ts
