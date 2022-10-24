@@ -3,7 +3,7 @@ export function switchCaseCase3(): number {
     let i = 10;
     let j = 0;
     switch (i) {
-        case 10: {
+        case 1: {
             j = 10;
             break;
         }

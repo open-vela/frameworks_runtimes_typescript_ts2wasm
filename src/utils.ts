@@ -17,12 +17,19 @@ export enum LoopKind {
 export enum OperatorKind {
     add,
     sub,
+    mul,
+    div,
     gt,
     ge,
     lt,
     le,
     and,
     or,
+    eq,
+    eq_eq,
+    ne,
+    ne_ne,
+    plus_equals,
 }
 
 export enum ExpressionKind {

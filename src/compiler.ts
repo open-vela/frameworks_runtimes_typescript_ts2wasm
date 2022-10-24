@@ -23,9 +23,10 @@ export class Compiler {
     functionScopeStack = new Stack<FunctionScope>();
     blockScopeStack = new Stack<BlockScope>();
     currentScope: Scope | null = null;
-    loopLabelArray: string[] = [];
-    breakLabelsStack: string[] = [];
-    switchLabelStack: number[] = [];
+    loopLabelStack = new Stack<string>();
+    breakLabelsStack = new Stack<string>();
+    switchLabelStack = new Stack<number>();
+    anonymousFunctionNameStack = new Stack<string>();
 
     constructor() {
         this.compilers = [
@@ -47,6 +48,17 @@ export class Compiler {
             compilerHost,
         );
         this.typeChecker = program.getTypeChecker();
+        // fill scopes
+        program
+            .getSourceFiles()
+            .filter(
+                (sourceFile: ts.SourceFile) =>
+                    !sourceFile.fileName.match(/\.d\.ts$/),
+            )
+            .forEach((sourceFile: ts.SourceFile) => {
+                this.visit(sourceFile, true);
+            });
+        // invoke binaryen
         program
             .getSourceFiles()
             .filter(
@@ -58,9 +70,9 @@ export class Compiler {
             });
     }
 
-    visit(node: ts.Node): binaryen.Type {
+    visit(node: ts.Node, fillScope = false): binaryen.ExpressionRef {
         for (let i = 0; i < this.compilers.length; i++) {
-            const visitValue = this.compilers[i].visitNode(node);
+            const visitValue = this.compilers[i].visitNode(node, fillScope);
             if (visitValue != binaryen.none) {
                 return visitValue;
             }
