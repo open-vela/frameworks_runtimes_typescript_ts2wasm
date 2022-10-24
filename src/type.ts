@@ -7,7 +7,7 @@ export default class TypeCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
         super(compiler);
     }
-    visitNode(node: ts.Node): binaryen.Type {
+    visitNode(node: ts.Node, fillScope: boolean): binaryen.Type {
         switch (node.kind) {
             case ts.SyntaxKind.NumberKeyword: {
                 return binaryen.f64;
@@ -28,6 +28,9 @@ export default class TypeCompiler extends BaseCompiler {
             }
             case ts.SyntaxKind.TrueKeyword: {
                 return this.getBinaryenModule().i32.const(1);
+            }
+            case ts.SyntaxKind.FunctionType: {
+                return binaryen.funcref;
             }
         }
         return binaryen.none;

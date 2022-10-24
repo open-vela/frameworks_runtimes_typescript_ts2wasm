@@ -8,7 +8,7 @@ export default class LiteralCompiler extends BaseCompiler {
         super(compiler);
     }
 
-    visitNode(node: ts.Node): binaryen.ExpressionRef {
+    visitNode(node: ts.Node, fillScope: boolean): binaryen.ExpressionRef {
         switch (node.kind) {
             case ts.SyntaxKind.NumericLiteral: {
                 const numericLiteralNode = <ts.NumericLiteral>node;
@@ -28,6 +28,17 @@ export default class LiteralCompiler extends BaseCompiler {
                     return binaryen.i32;
                 } else if (literalKind == ts.SyntaxKind.TrueKeyword) {
                     return binaryen.i32;
+                } else if (
+                    literalKind === ts.SyntaxKind.PrefixUnaryExpression
+                ) {
+                    const prefixUnaryExpressionNode = <
+                        ts.PrefixUnaryExpression
+                    >literalTypeNode.literal;
+                    switch (prefixUnaryExpressionNode.operand.kind) {
+                        case ts.SyntaxKind.NumericLiteral: {
+                            return binaryen.f64;
+                        }
+                    }
                 }
                 break;
             }

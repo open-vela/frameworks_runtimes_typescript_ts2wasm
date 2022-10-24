@@ -3,4 +3,5 @@ export function switchCaseCase2() {
     const i = 0;
     switch (i) {
     }
+    return i;
 }

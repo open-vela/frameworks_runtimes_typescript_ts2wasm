@@ -15,90 +15,20 @@ export default class DeclarationCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
         super(compiler);
     }
-    visitNode(node: ts.Node): binaryen.ExpressionRef {
+    visitNode(node: ts.Node, fillScope: boolean): binaryen.ExpressionRef {
         switch (node.kind) {
             case ts.SyntaxKind.FunctionDeclaration: {
                 const functionDeclarationNode = <ts.FunctionDeclaration>node;
-                // connet functionScope with its parentScope
-                let currentScope = this.getCurrentScope()!;
-                if (currentScope.kind === ScopeKind.StartBlockScope) {
-                    currentScope = this.getGlobalScopeStack().peek();
-                }
-                const functionScope = new FunctionScope(currentScope);
-                this.setCurrentScope(functionScope);
-                // push the current function into stack
-                this.getFunctionScopeStack().push(functionScope);
-                // set function name
-                functionScope.setFuncName(
-                    typeof functionDeclarationNode.name?.getText() === 'string'
-                        ? functionDeclarationNode.name?.getText()
-                        : '',
-                );
-                // set function parameters
-                for (
-                    let i = 0;
-                    i < functionDeclarationNode.parameters.length;
-                    i++
-                ) {
-                    this.visit(functionDeclarationNode.parameters[i]);
-                }
-                // get return type of function
-                if (functionDeclarationNode.type === undefined) {
-                    // By default, the type can be regarded as void, else, the function' return type should be judged by the return value
-                    functionScope.setReturnType(binaryen.none);
-                    functionScope.setReturnTypeUndefined(true);
+                if (fillScope) {
+                    this.storeFunctionLikeDeclaration(
+                        functionDeclarationNode,
+                        fillScope,
+                    );
                 } else {
-                    functionScope.setReturnType(
-                        this.visit(functionDeclarationNode.type),
+                    this.generateFunctionLikeDeclaration(
+                        functionDeclarationNode,
                     );
                 }
-                // TODO DELETE: error TS2391: Function implementation is missing or not immediately following the declaration.
-                if (functionDeclarationNode.body === undefined) {
-                    this.reportError(functionDeclarationNode, 'error TS2391');
-                    break;
-                }
-                // handle function body, add connection between functionScope and blockScope in the Block Node.
-                functionScope.setBody(this.visit(functionDeclarationNode.body));
-                // get the current function
-                const currentFunction = this.getFunctionScopeStack().pop()!;
-                this.setCurrentScope(currentFunction.getParent());
-                this.getBinaryenModule().addFunction(
-                    currentFunction.getFuncName(),
-                    binaryen.createType(
-                        currentFunction
-                            .getParamArray()
-                            .map(
-                                (param: { variableType: binaryen.Type }) =>
-                                    param.variableType,
-                            ),
-                    ),
-                    currentFunction.getReturnType(),
-                    currentFunction
-                        .getVariableArray()
-                        .map(
-                            (variable: { variableType: binaryen.Type }) =>
-                                variable.variableType,
-                        ),
-                    currentFunction.getBody(),
-                );
-                if (functionDeclarationNode.modifiers !== undefined) {
-                    for (
-                        let i = 0;
-                        i < functionDeclarationNode.modifiers.length;
-                        i++
-                    ) {
-                        if (
-                            functionDeclarationNode.modifiers[i].kind ===
-                            ts.SyntaxKind.ExportKeyword
-                        ) {
-                            this.getBinaryenModule().addFunctionExport(
-                                currentFunction.getFuncName(),
-                                currentFunction.getFuncName(),
-                            );
-                        }
-                    }
-                }
-
                 break;
             }
 
@@ -146,166 +76,188 @@ export default class DeclarationCompiler extends BaseCompiler {
                 const variableDeclarationListNode = <
                     ts.VariableDeclarationList
                 >node;
-                const variableDeclarationList: binaryen.ExpressionRef[] = [];
-                for (
-                    let i = 0;
-                    i < variableDeclarationListNode.declarations.length;
-                    i++
-                ) {
-                    const variableDeclarationExpressionRef = this.visit(
-                        variableDeclarationListNode.declarations[i],
-                    );
-                    if (variableDeclarationExpressionRef != binaryen.none) {
-                        variableDeclarationList.push(
-                            variableDeclarationExpressionRef,
+                if (fillScope) {
+                    for (
+                        let i = 0;
+                        i < variableDeclarationListNode.declarations.length;
+                        i++
+                    ) {
+                        this.visit(
+                            variableDeclarationListNode.declarations[i],
+                            fillScope,
                         );
                     }
+                } else {
+                    const variableDeclarationList: binaryen.ExpressionRef[] =
+                        [];
+                    for (
+                        let i = 0;
+                        i < variableDeclarationListNode.declarations.length;
+                        i++
+                    ) {
+                        const variableDeclarationExpressionRef = this.visit(
+                            variableDeclarationListNode.declarations[i],
+                        );
+                        if (variableDeclarationExpressionRef != binaryen.none) {
+                            variableDeclarationList.push(
+                                variableDeclarationExpressionRef,
+                            );
+                        }
+                    }
+                    return this.getBinaryenModule().block(
+                        null,
+                        variableDeclarationList,
+                    );
                 }
-                return this.getBinaryenModule().block(
-                    null,
-                    variableDeclarationList,
-                );
                 break;
             }
 
             case ts.SyntaxKind.VariableDeclaration: {
                 const variableDeclarationNode = <ts.VariableDeclaration>node;
-                const variableInfo: VariableInfo = {
-                    variableName: '',
-                    variableType: binaryen.none,
-                    variableIndex: 0,
-                    variableInitial: undefined,
-                    variableAssign: AssignKind.default,
-                };
-                // get the information of the variableInfo
-                const variableAssignText =
-                    variableDeclarationNode.parent.getText();
-                if (variableAssignText.includes(CONST_KEYWORD)) {
-                    variableInfo.variableAssign = AssignKind.const;
-                } else if (variableAssignText.includes(LET_KEYWORD)) {
-                    variableInfo.variableAssign = AssignKind.let;
-                } else if (variableAssignText.includes(VAR_KEYWORD)) {
-                    variableInfo.variableAssign = AssignKind.var;
-                }
-
                 const variableIdentifierNode = <ts.Identifier>(
                     variableDeclarationNode.name
                 );
-                variableInfo.variableName = variableIdentifierNode.getText();
-                if (variableDeclarationNode.type === undefined) {
-                    // get type automatically
-                    variableInfo.variableType = this.visit(
-                        this.getVariableType(
-                            variableIdentifierNode,
-                            this.getTypeChecker()!,
-                        ),
-                    );
-                } else {
-                    variableInfo.variableType = this.visit(
-                        variableDeclarationNode.type,
-                    );
-                }
-                const currentScope = this.getCurrentScope();
-                if (currentScope!.kind === ScopeKind.StartBlockScope) {
-                    const currentStartBlockScope = <BlockScope>currentScope;
-                    variableInfo.variableIndex =
-                        currentStartBlockScope.getVariableArray().length;
-                } else {
-                    if (currentScope!.kind !== ScopeKind.GlobalScope) {
-                        // The variable's index also include param's index
-                        if (this.getFunctionScopeStack().size() > 0) {
-                            const currentFunctionScope =
-                                this.getFunctionScopeStack().peek();
-                            variableInfo.variableIndex =
-                                currentFunctionScope.getVariableArray().length +
-                                currentFunctionScope.getParamArray().length;
-                        } else {
-                            variableInfo.variableIndex =
-                                currentScope!.getVariableArray().length;
-                        }
+                if (fillScope) {
+                    const variableInfo: VariableInfo = {
+                        variableName: '',
+                        variableType: binaryen.none,
+                        variableIndex: 0,
+                        variableInitial: undefined,
+                        variableAssign: AssignKind.default,
+                    };
+                    // get the information of the variableInfo
+                    const variableAssignText =
+                        variableDeclarationNode.parent.getText();
+                    if (variableAssignText.includes(CONST_KEYWORD)) {
+                        variableInfo.variableAssign = AssignKind.const;
+                    } else if (variableAssignText.includes(LET_KEYWORD)) {
+                        variableInfo.variableAssign = AssignKind.let;
+                    } else if (variableAssignText.includes(VAR_KEYWORD)) {
+                        variableInfo.variableAssign = AssignKind.var;
                     }
-                }
-                // get variable initializer
-                if (variableDeclarationNode.initializer !== undefined) {
-                    variableInfo.variableInitial = this.visit(
-                        variableDeclarationNode.initializer,
-                    );
-                } else {
-                    if (variableInfo.variableAssign === AssignKind.const) {
-                        this.reportError(
-                            variableDeclarationNode,
-                            'error TS1155',
-                        );
-                    }
-                }
-
-                // check if the variableDeclaration is in global scope.
-                if (currentScope!.kind === ScopeKind.GlobalScope) {
-                    const currentStartBlockScope = this.getStartBlockScope(
-                        currentScope!,
-                    );
-
-                    // check if the global variable has a NumericLiteral initializer
-                    if (
-                        variableDeclarationNode.initializer === undefined ||
-                        variableDeclarationNode.initializer?.kind ===
-                            ts.SyntaxKind.NumericLiteral
-                    ) {
-                        this.getBinaryenModule().addGlobal(
-                            variableInfo.variableName,
-                            variableInfo.variableType,
-                            variableInfo.variableAssign === AssignKind.const
-                                ? false
-                                : true,
-                            variableInfo.variableInitial === undefined
-                                ? this.getVariableDeclarationInitialValue(
-                                      variableInfo.variableType,
-                                  )
-                                : variableInfo.variableInitial,
+                    variableInfo.variableName =
+                        variableIdentifierNode.getText();
+                    if (variableDeclarationNode.type === undefined) {
+                        // get type automatically
+                        variableInfo.variableType = this.visit(
+                            this.getVariableType(
+                                variableIdentifierNode,
+                                this.getTypeChecker()!,
+                            ),
                         );
                     } else {
-                        this.getBinaryenModule().addGlobal(
-                            variableInfo.variableName,
-                            variableInfo.variableType,
-                            true,
-                            this.getVariableDeclarationInitialValue(
-                                variableInfo.variableType,
-                            ),
-                        );
-                        currentStartBlockScope.addStatement(
-                            this.setGlobalValue(
-                                variableInfo.variableName,
-                                variableInfo.variableInitial!,
-                            ),
+                        variableInfo.variableType = this.visit(
+                            variableDeclarationNode.type,
                         );
                     }
-                    currentScope!.addVariable(variableInfo);
-                } else {
-                    // push the variableInfo into current block's variableArray and function's variableArray
-                    currentScope!.addVariable(variableInfo);
-                    let startFunctionScopeFlag = false;
-                    let parentScope = currentScope!.getParent();
-                    while (parentScope !== null) {
-                        if (
-                            parentScope!.kind === ScopeKind.StartFunctionScope
-                        ) {
-                            startFunctionScopeFlag = true;
-                            parentScope.addVariable(variableInfo);
-                            break;
+                    const currentScope = this.getCurrentScope();
+                    if (currentScope!.kind === ScopeKind.StartBlockScope) {
+                        const currentStartBlockScope = <BlockScope>currentScope;
+                        variableInfo.variableIndex =
+                            currentStartBlockScope.getVariableArray().length;
+                    } else {
+                        if (currentScope!.kind !== ScopeKind.GlobalScope) {
+                            // The variable's index also include param's index
+                            if (this.getFunctionScopeStack().size() > 0) {
+                                const currentFunctionScope =
+                                    this.getFunctionScopeStack().peek();
+                                variableInfo.variableIndex =
+                                    currentFunctionScope.getVariableArray()
+                                        .length +
+                                    currentFunctionScope.getParamArray().length;
+                            } else {
+                                variableInfo.variableIndex =
+                                    currentScope!.getVariableArray().length;
+                            }
                         }
-                        parentScope = parentScope.getParent();
                     }
-                    if (!startFunctionScopeFlag) {
-                        const currentFunctionScope =
-                            this.getFunctionScopeStack().peek();
-                        currentFunctionScope.addVariable(variableInfo);
+                    currentScope!.addVariable(variableInfo);
+                    if (currentScope?.kind !== ScopeKind.GlobalScope) {
+                        let startFunctionScopeFlag = false;
+                        let parentScope = currentScope!.getParent();
+                        while (parentScope !== null) {
+                            if (
+                                parentScope!.kind ===
+                                ScopeKind.StartFunctionScope
+                            ) {
+                                startFunctionScopeFlag = true;
+                                parentScope.addVariable(variableInfo);
+                                break;
+                            }
+                            parentScope = parentScope.getParent();
+                        }
+                        if (!startFunctionScopeFlag) {
+                            const currentFunctionScope =
+                                this.getFunctionScopeStack().peek();
+                            currentFunctionScope.addVariable(variableInfo);
+                        }
                     }
-                    // set variable initial value
-                    if (variableInfo.variableInitial !== undefined) {
-                        return this.setLocalValue(
-                            variableInfo.variableIndex,
-                            variableInfo.variableInitial,
+                } else {
+                    const currentScope = this.getCurrentScope();
+                    const variableInfo = currentScope!.findVariable(
+                        variableIdentifierNode.getText(),
+                    )!;
+                    // get variable initializer
+                    if (variableDeclarationNode.initializer !== undefined) {
+                        variableInfo.variableInitial = this.visit(
+                            variableDeclarationNode.initializer,
                         );
+                    } else {
+                        if (variableInfo.variableAssign === AssignKind.const) {
+                            this.reportError(
+                                variableDeclarationNode,
+                                'error TS1155',
+                            );
+                        }
+                    }
+                    // check if the variableDeclaration is in global scope.
+                    if (currentScope!.kind === ScopeKind.GlobalScope) {
+                        const currentStartBlockScope = this.getStartBlockScope(
+                            currentScope!,
+                        );
+
+                        // check if the global variable has a NumericLiteral initializer
+                        if (
+                            variableDeclarationNode.initializer === undefined ||
+                            variableDeclarationNode.initializer?.kind ===
+                                ts.SyntaxKind.NumericLiteral
+                        ) {
+                            this.getBinaryenModule().addGlobal(
+                                variableInfo.variableName,
+                                variableInfo.variableType,
+                                variableInfo.variableAssign === AssignKind.const
+                                    ? false
+                                    : true,
+                                variableInfo.variableInitial === undefined
+                                    ? this.getVariableDeclarationInitialValue(
+                                          variableInfo.variableType,
+                                      )
+                                    : variableInfo.variableInitial,
+                            );
+                        } else {
+                            this.getBinaryenModule().addGlobal(
+                                variableInfo.variableName,
+                                variableInfo.variableType,
+                                true,
+                                this.getVariableDeclarationInitialValue(
+                                    variableInfo.variableType,
+                                ),
+                            );
+                            currentStartBlockScope.addStatement(
+                                this.setGlobalValue(
+                                    variableInfo.variableName,
+                                    variableInfo.variableInitial!,
+                                ),
+                            );
+                        }
+                    } else {
+                        // set variable initial value
+                        if (variableInfo.variableInitial !== undefined) {
+                            return this.setLocalValue(
+                                variableInfo.variableIndex,
+                                variableInfo.variableInitial,
+                            );
+                        }
                     }
                 }
                 break;

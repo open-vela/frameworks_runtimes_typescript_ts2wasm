@@ -15,7 +15,7 @@ export default class ExpressionCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
         super(compiler);
     }
-    visitNode(node: ts.Node): binaryen.ExpressionRef {
+    visitNode(node: ts.Node, fillScope: boolean): binaryen.ExpressionRef {
         switch (node.kind) {
             case ts.SyntaxKind.Identifier: {
                 const identifierNode = <ts.Identifier>node;
@@ -103,6 +103,22 @@ export default class ExpressionCompiler extends BaseCompiler {
                             );
                         break;
                     }
+                    case ts.SyntaxKind.AsteriskToken: {
+                        binaryExpressionInfo.operator =
+                            this.handleBinaryExpression(
+                                binaryExpressionInfo,
+                                OperatorKind.mul,
+                            );
+                        break;
+                    }
+                    case ts.SyntaxKind.SlashToken: {
+                        binaryExpressionInfo.operator =
+                            this.handleBinaryExpression(
+                                binaryExpressionInfo,
+                                OperatorKind.div,
+                            );
+                        break;
+                    }
                     case ts.SyntaxKind.GreaterThanToken: {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
@@ -158,6 +174,117 @@ export default class ExpressionCompiler extends BaseCompiler {
                                 binaryExpressionInfo,
                                 OperatorKind.or,
                             );
+                        break;
+                    }
+                    case ts.SyntaxKind.EqualsEqualsToken: {
+                        binaryExpressionInfo.operator =
+                            this.handleBinaryExpression(
+                                binaryExpressionInfo,
+                                OperatorKind.eq,
+                            );
+                        break;
+                    }
+                    case ts.SyntaxKind.EqualsEqualsEqualsToken: {
+                        binaryExpressionInfo.operator =
+                            this.handleBinaryExpression(
+                                binaryExpressionInfo,
+                                OperatorKind.eq_eq,
+                            );
+                        break;
+                    }
+                    case ts.SyntaxKind.ExclamationEqualsToken: {
+                        binaryExpressionInfo.operator =
+                            this.handleBinaryExpression(
+                                binaryExpressionInfo,
+                                OperatorKind.ne,
+                            );
+                        break;
+                    }
+                    case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
+                        binaryExpressionInfo.operator =
+                            this.handleBinaryExpression(
+                                binaryExpressionInfo,
+                                OperatorKind.ne_ne,
+                            );
+                        break;
+                    }
+                    case ts.SyntaxKind.PlusEqualsToken: {
+                        const plusEqualsExpressionInfo: BinaryExpressionInfo = {
+                            leftExpression: binaryExpressionInfo.leftExpression,
+                            leftType: binaryExpressionInfo.leftType,
+                            operator: binaryen.none,
+                            rightExpression: this.handleBinaryExpression(
+                                binaryExpressionInfo,
+                                OperatorKind.add,
+                            ),
+                            rightType: binaryExpressionInfo.rightType,
+                        };
+                        // TODO: if leftType does not equals rightType, rightType should be fixed.
+                        return this.handleExpressionStatement(
+                            binaryExpressionNode.left as ts.Identifier,
+                            plusEqualsExpressionInfo,
+                            ExpressionKind.equalsExpression,
+                        );
+                    }
+                    case ts.SyntaxKind.MinusEqualsToken: {
+                        const minusEqualsExpressionInfo: BinaryExpressionInfo =
+                            {
+                                leftExpression:
+                                    binaryExpressionInfo.leftExpression,
+                                leftType: binaryExpressionInfo.leftType,
+                                operator: binaryen.none,
+                                rightExpression: this.handleBinaryExpression(
+                                    binaryExpressionInfo,
+                                    OperatorKind.sub,
+                                ),
+                                rightType: binaryExpressionInfo.rightType,
+                            };
+                        // TODO: if leftType does not equals rightType, rightType should be fixed.
+                        return this.handleExpressionStatement(
+                            binaryExpressionNode.left as ts.Identifier,
+                            minusEqualsExpressionInfo,
+                            ExpressionKind.equalsExpression,
+                        );
+                    }
+                    case ts.SyntaxKind.AsteriskEqualsToken: {
+                        const asteriskEqualsExpressionInfo: BinaryExpressionInfo =
+                            {
+                                leftExpression:
+                                    binaryExpressionInfo.leftExpression,
+                                leftType: binaryExpressionInfo.leftType,
+                                operator: binaryen.none,
+                                rightExpression: this.handleBinaryExpression(
+                                    binaryExpressionInfo,
+                                    OperatorKind.mul,
+                                ),
+                                rightType: binaryExpressionInfo.rightType,
+                            };
+                        // TODO: if leftType does not equals rightType, rightType should be fixed.
+                        return this.handleExpressionStatement(
+                            binaryExpressionNode.left as ts.Identifier,
+                            asteriskEqualsExpressionInfo,
+                            ExpressionKind.equalsExpression,
+                        );
+                    }
+                    case ts.SyntaxKind.SlashEqualsToken: {
+                        const slashEqualsExpressionInfo: BinaryExpressionInfo =
+                            {
+                                leftExpression:
+                                    binaryExpressionInfo.leftExpression,
+                                leftType: binaryExpressionInfo.leftType,
+                                operator: binaryen.none,
+                                rightExpression: this.handleBinaryExpression(
+                                    binaryExpressionInfo,
+                                    OperatorKind.div,
+                                ),
+                                rightType: binaryExpressionInfo.rightType,
+                            };
+                        // TODO: if leftType does not equals rightType, rightType should be fixed.
+                        return this.handleExpressionStatement(
+                            binaryExpressionNode.left as ts.Identifier,
+                            slashEqualsExpressionInfo,
+                            ExpressionKind.equalsExpression,
+                        );
                     }
                 }
                 return binaryExpressionInfo.operator;
@@ -201,7 +328,6 @@ export default class ExpressionCompiler extends BaseCompiler {
                 let paramArray: VariableInfo[] = [];
                 let returnType = binaryen.none;
                 const currentScope = this.getCurrentScope();
-                // TODO: function hoisting
                 const childFunctionScope =
                     currentScope?.findFunctionScope(funcName);
                 if (childFunctionScope) {
@@ -263,6 +389,18 @@ export default class ExpressionCompiler extends BaseCompiler {
                             binaryExpressionInfo.rightExpression,
                         );
                     }
+                    case OperatorKind.mul: {
+                        return this.getBinaryenModule().f64.mul(
+                            binaryExpressionInfo.leftExpression,
+                            binaryExpressionInfo.rightExpression,
+                        );
+                    }
+                    case OperatorKind.div: {
+                        return this.getBinaryenModule().f64.div(
+                            binaryExpressionInfo.leftExpression,
+                            binaryExpressionInfo.rightExpression,
+                        );
+                    }
                     case OperatorKind.gt: {
                         return this.getBinaryenModule().f64.gt(
                             binaryExpressionInfo.leftExpression,
@@ -283,6 +421,30 @@ export default class ExpressionCompiler extends BaseCompiler {
                     }
                     case OperatorKind.le: {
                         return this.getBinaryenModule().f64.le(
+                            binaryExpressionInfo.leftExpression,
+                            binaryExpressionInfo.rightExpression,
+                        );
+                    }
+                    case OperatorKind.eq: {
+                        return this.getBinaryenModule().f64.eq(
+                            binaryExpressionInfo.leftExpression,
+                            binaryExpressionInfo.rightExpression,
+                        );
+                    }
+                    case OperatorKind.eq_eq: {
+                        return this.getBinaryenModule().f64.eq(
+                            binaryExpressionInfo.leftExpression,
+                            binaryExpressionInfo.rightExpression,
+                        );
+                    }
+                    case OperatorKind.ne: {
+                        return this.getBinaryenModule().f64.ne(
+                            binaryExpressionInfo.leftExpression,
+                            binaryExpressionInfo.rightExpression,
+                        );
+                    }
+                    case OperatorKind.ne_ne: {
+                        return this.getBinaryenModule().f64.ne(
                             binaryExpressionInfo.leftExpression,
                             binaryExpressionInfo.rightExpression,
                         );
@@ -311,6 +473,7 @@ export default class ExpressionCompiler extends BaseCompiler {
             | ts.PrefixUnaryExpression,
         expressionKind: ExpressionKind,
     ): binaryen.ExpressionRef {
+        const operatorKind = unaryExpressionNode.operator;
         const unaryExpressionInfo: BinaryExpressionInfo = {
             leftExpression: binaryen.none,
             leftType: binaryen.none,
@@ -332,7 +495,6 @@ export default class ExpressionCompiler extends BaseCompiler {
             rightExpression: this.getBinaryenModule().f64.const(1),
             rightType: binaryen.f64,
         };
-        const operatorKind = unaryExpressionNode.operator;
         switch (operatorKind) {
             case ts.SyntaxKind.PlusPlusToken: {
                 unaryExpressionInfo.rightExpression =
@@ -357,7 +519,41 @@ export default class ExpressionCompiler extends BaseCompiler {
                     operandExpressionType,
                 );
             }
+
+            case ts.SyntaxKind.MinusToken: {
+                const operand = unaryExpressionNode.operand;
+                const operandType = this.visit(
+                    this.getVariableType(operand, this.getTypeChecker()!),
+                );
+                switch (operand.kind) {
+                    case ts.SyntaxKind.NumericLiteral: {
+                        switch (operandType) {
+                            case binaryen.f64: {
+                                const numberValue = parseFloat(
+                                    unaryExpressionNode.getText(),
+                                );
+                                return this.getBinaryenModule().f64.const(
+                                    numberValue,
+                                );
+                            }
+                        }
+                        break;
+                    }
+                    case ts.SyntaxKind.Identifier: {
+                        switch (operandType) {
+                            case binaryen.f64: {
+                                return this.getBinaryenModule().f64.sub(
+                                    this.getBinaryenModule().f64.const(0),
+                                    this.visit(operand),
+                                );
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
         }
+
         unaryExpressionInfo.rightType = binaryen.f64;
         return this.handleExpressionStatement(
             operand,
@@ -583,6 +779,11 @@ export default class ExpressionCompiler extends BaseCompiler {
                     }
                     return this.getBinaryenModule().block(null, blockArray);
                 }
+            } else {
+                this.reportError(
+                    identifierNode,
+                    'Type mismatch in ExpressionStatement',
+                );
             }
         }
 

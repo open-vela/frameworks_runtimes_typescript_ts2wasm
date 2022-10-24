@@ -1,3 +1,4 @@
+import ts from 'typescript';
 import binaryen from 'binaryen';
 import { VariableInfo } from './utils.js';
 
@@ -16,6 +17,7 @@ export class Scope {
     children: Scope[] = [];
     parent: Scope | null;
     isGlobalVariable: Map<string, boolean> = new Map();
+    corNode: ts.Node | null = null;
 
     constructor(parent: Scope | null) {
         this.parent = parent;
@@ -42,6 +44,14 @@ export class Scope {
 
     getVariableArray() {
         return this.variableArray;
+    }
+
+    setCorNode(corNode: ts.Node) {
+        this.corNode = corNode;
+    }
+
+    getCorNode() {
+        return this.corNode;
     }
 
     findVariable(
@@ -122,6 +132,7 @@ export class FunctionScope extends Scope {
     returnType: binaryen.Type = binaryen.none;
     returnTypeUndefined = false;
     body: binaryen.ExpressionRef = binaryen.none;
+    modifiers: ts.SyntaxKind[] = [];
 
     constructor(parent: Scope) {
         super(parent);
@@ -165,6 +176,14 @@ export class FunctionScope extends Scope {
 
     getBody() {
         return this.body;
+    }
+
+    addModifier(modifier: ts.SyntaxKind) {
+        this.modifiers.push(modifier);
+    }
+
+    getModifiers() {
+        return this.modifiers;
     }
 
     findVariable(
