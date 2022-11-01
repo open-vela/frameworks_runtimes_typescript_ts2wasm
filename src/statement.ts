@@ -105,8 +105,11 @@ export default class StatementCompiler extends BaseCompiler {
                             this.getStartBlockScope(this.getCurrentScope()!),
                         );
                     }
-                    ifStatementInfo.condition = this.visit(
-                        ifStatementNode.expression,
+                    const condition = this.visit(ifStatementNode.expression);
+                    const conditionType = binaryen.getExpressionType(condition);
+                    ifStatementInfo.condition = this.toTrueOrFalse(
+                        condition,
+                        conditionType,
                     );
                     ifStatementInfo.ifTrue = this.visit(
                         ifStatementNode.thenStatement,
