@@ -566,19 +566,28 @@ export default class ExpressionCompiler extends BaseCompiler {
         node: ts.ConditionalExpression,
     ): binaryen.ExpressionRef {
         const module = this.getBinaryenModule();
-        let condExpression = this.visit(node.condition);
-        const trueExpression = this.visit(node.whenTrue);
-        const falseExpression = this.visit(node.whenFalse);
-        const condExpressionType = this.visit(
-            this.getVariableType(node.condition, this.getTypeChecker()!),
+        const condExpression = this.visit(node.condition);
+        const trueExpr = this.visit(node.whenTrue);
+        const falseExpr = this.visit(node.whenFalse);
+        const cond = this.toTrueOrFalse(
+            condExpression,
+            binaryen.getExpressionType(condExpression),
         );
-        if (condExpressionType != binaryen.i32) {
-            condExpression = this.convertTypeToI32(
-                condExpression,
-                condExpressionType,
-            );
-        }
-        return module.select(condExpression, trueExpression, falseExpression);
+        const commonType = this.getCommonType(
+            binaryen.getExpressionType(trueExpr),
+            binaryen.getExpressionType(falseExpr),
+        );
+        const convertedTrue = this.convertType(
+            trueExpr,
+            binaryen.getExpressionType(trueExpr),
+            commonType,
+        );
+        const convertedFalse = this.convertType(
+            falseExpr,
+            binaryen.getExpressionType(falseExpr),
+            commonType,
+        );
+        return module.select(cond, convertedTrue, convertedFalse);
     }
 
     handleExpressionStatement(
@@ -805,11 +814,8 @@ export default class ExpressionCompiler extends BaseCompiler {
         operandExpression: binaryen.Type,
         operandType: binaryen.Type,
     ): binaryen.ExpressionRef {
-        let flag = operandExpression;
-        if (operandType !== binaryen.i32) {
-            flag = this.convertTypeToI32(operandExpression, operandType);
-        }
-        return this.getBinaryenModule().i32.eqz(flag);
+        const condition = this.toTrueOrFalse(operandExpression, operandType);
+        return this.getBinaryenModule().i32.eqz(condition);
     }
 
     handleLogicalToken(
@@ -817,31 +823,20 @@ export default class ExpressionCompiler extends BaseCompiler {
         operatorKind: OperatorKind,
     ): binaryen.ExpressionRef {
         const left = binaryExpressionInfo.leftExpression;
-        const right = binaryExpressionInfo.rightExpression;
         const leftType = binaryExpressionInfo.leftType;
+        const right = binaryExpressionInfo.rightExpression;
+        const rightType = binaryExpressionInfo.rightType;
+        const module = this.getBinaryenModule();
 
-        // '&&' and '||' not always return boolean type.
-        let tempLeft = left;
-        if (leftType !== binaryen.i32) {
-            tempLeft = this.convertTypeToI32(left, leftType);
-        }
+        const condition = this.toTrueOrFalse(left, leftType);
+        const commonType = this.getCommonType(leftType, rightType);
+        const convertedLeft = this.convertType(left, leftType, commonType);
+        const convertedRight = this.convertType(right, rightType, commonType);
+
         if (operatorKind === OperatorKind.and) {
-            return this.getBinaryenModule().select(tempLeft, right, left);
+            return module.select(condition, convertedRight, convertedLeft);
         } else if (operatorKind === OperatorKind.or) {
-            return this.getBinaryenModule().select(tempLeft, left, right);
-        }
-        return binaryen.none;
-    }
-
-    convertTypeToI32(
-        expression: binaryen.ExpressionRef,
-        expressionType: binaryen.Type,
-    ): binaryen.ExpressionRef {
-        switch (expressionType) {
-            case binaryen.f64: {
-                return this.getBinaryenModule().i32.trunc_u_sat.f64(expression);
-            }
-            // TODO: deal with more types
+            return module.select(condition, convertedLeft, convertedRight);
         }
         return binaryen.none;
     }

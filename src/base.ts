@@ -233,4 +233,60 @@ export default class BaseCompiler {
         this.getFunctionScopeStack().pop()!;
         this.setCurrentScope(currentFunctionScope.getParent());
     }
+
+    toTrueOrFalse(
+        expression: binaryen.ExpressionRef,
+        expressionType: binaryen.Type,
+    ): binaryen.ExpressionRef {
+        const module = this.getBinaryenModule();
+
+        switch (expressionType) {
+            case binaryen.i32: {
+                return expression;
+            }
+            case binaryen.f64: {
+                return module.i32.eqz(
+                    module.i32.eqz(
+                        module.i32.trunc_u_sat.f64(
+                            module.f64.ceil(module.f64.abs(expression)),
+                        ),
+                    ),
+                );
+            }
+            default: {
+                return binaryen.none;
+            }
+        }
+    }
+
+    getCommonType(
+        lhsType: binaryen.Type,
+        rhsType: binaryen.Type,
+    ): binaryen.Type {
+        if (lhsType === rhsType) {
+            return lhsType;
+        }
+        if (lhsType < rhsType) {
+            return rhsType;
+        }
+        return lhsType;
+    }
+
+    convertType(
+        expression: binaryen.ExpressionRef,
+        from: binaryen.Type,
+        to: binaryen.Type,
+    ) {
+        if (from === to) {
+            return expression;
+        }
+        const module = this.getBinaryenModule();
+        if (from === binaryen.i32) {
+            if (to === binaryen.f64) {
+                return module.f64.convert_s.i32(expression);
+            }
+        }
+        // TODO: deal with more types
+        return binaryen.none;
+    }
 }

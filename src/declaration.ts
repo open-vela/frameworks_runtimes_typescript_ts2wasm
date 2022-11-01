@@ -199,9 +199,21 @@ export default class DeclarationCompiler extends BaseCompiler {
                     )!;
                     // get variable initializer
                     if (variableDeclarationNode.initializer !== undefined) {
-                        variableInfo.variableInitial = this.visit(
+                        const rightValue = this.visit(
                             variableDeclarationNode.initializer,
                         );
+                        if (
+                            variableInfo.variableType !==
+                            binaryen.getExpressionType(rightValue)
+                        ) {
+                            // TODO: where to do type convert?
+                            variableInfo.variableInitial = this.toTrueOrFalse(
+                                rightValue,
+                                binaryen.getExpressionType(rightValue),
+                            );
+                        } else {
+                            variableInfo.variableInitial = rightValue;
+                        }
                     } else {
                         if (variableInfo.variableAssign === AssignKind.const) {
                             this.reportError(
@@ -271,6 +283,8 @@ export default class DeclarationCompiler extends BaseCompiler {
     ): binaryen.ExpressionRef {
         if (valueType === binaryen.f64) {
             return this.getBinaryenModule().f64.const(0);
+        } else if (valueType === binaryen.i32) {
+            return this.getBinaryenModule().i32.const(0);
         }
         return binaryen.none;
     }
