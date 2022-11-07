@@ -64,6 +64,7 @@ add_executable(
     ${CMAKE_CURRENT_LIST_DIR}/object_property_test.cc
     ${CMAKE_CURRENT_LIST_DIR}/operator_test.cc
     ${CMAKE_CURRENT_LIST_DIR}/prototype_test.cc
+    ${CMAKE_CURRENT_LIST_DIR}/dump.cc
 )
 target_link_libraries(dyntype_test dyntype gtest_main gcov)
 
