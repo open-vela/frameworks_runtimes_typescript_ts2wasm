@@ -9,7 +9,7 @@ import {
     DoStatementInfo,
     LoopKind,
 } from './utils.js';
-import { BlockScope, ScopeKind } from './scope.js';
+import { BlockScope, GlobalScope, ScopeKind, Scope } from './scope.js';
 
 export default class StatementCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
@@ -42,14 +42,15 @@ export default class StatementCompiler extends BaseCompiler {
 
             case ts.SyntaxKind.ReturnStatement: {
                 const returnStatementNode = <ts.ReturnStatement>node;
-                if (returnStatementNode.expression === undefined) {
+                if (!returnStatementNode.expression) {
                     return this.getBinaryenModule().return(undefined);
-                } else {
-                    // get function's return type according to return value
+                }
+                if (fillScope) {
+                    // Get function's  real return type according to return value
                     const realReturnType = this.visit(
                         this.getVariableType(
                             returnStatementNode.expression,
-                            this.getTypeChecker()!,
+                            this.getTypeChecker(),
                         ),
                     );
                     const functionScope = this.getFunctionScopeStack().peek();
@@ -64,33 +65,20 @@ export default class StatementCompiler extends BaseCompiler {
                             );
                         }
                     }
+                } else {
                     return this.getBinaryenModule().return(
                         this.visit(returnStatementNode.expression),
                     );
                 }
+                break;
             }
 
             case ts.SyntaxKind.IfStatement: {
                 const ifStatementNode = <ts.IfStatement>node;
                 if (fillScope) {
-                    if (
-                        this.getCurrentScope()!.kind === ScopeKind.GlobalScope
-                    ) {
-                        this.setCurrentScope(
-                            this.getStartBlockScope(this.getCurrentScope()!),
-                        );
-                    }
                     this.visit(ifStatementNode.thenStatement, fillScope);
                     if (ifStatementNode.elseStatement) {
                         this.visit(ifStatementNode.elseStatement, fillScope);
-                    }
-                    if (
-                        this.getCurrentScope()!.kind ===
-                        ScopeKind.StartBlockScope
-                    ) {
-                        this.setCurrentScope(
-                            this.getCurrentScope()!.getParent()!.getParent()!,
-                        );
                     }
                 } else {
                     const ifStatementInfo: IfStatementInfo = {
@@ -98,33 +86,23 @@ export default class StatementCompiler extends BaseCompiler {
                         ifTrue: binaryen.none,
                         ifFalse: binaryen.none,
                     };
-                    if (
-                        this.getCurrentScope()!.kind === ScopeKind.GlobalScope
-                    ) {
-                        this.setCurrentScope(
-                            this.getStartBlockScope(this.getCurrentScope()!),
-                        );
-                    }
-                    const condition = this.visit(ifStatementNode.expression);
-                    const conditionType = binaryen.getExpressionType(condition);
-                    ifStatementInfo.condition = this.toTrueOrFalse(
-                        condition,
-                        conditionType,
+                    const ifConditionRef = this.visit(
+                        ifStatementNode.expression,
                     );
+                    const ifConditionType =
+                        binaryen.getExpressionType(ifConditionRef);
+
+                    ifStatementInfo.condition = this.convertTypeToI32(
+                        ifConditionRef,
+                        ifConditionType,
+                    );
+
                     ifStatementInfo.ifTrue = this.visit(
                         ifStatementNode.thenStatement,
                     );
                     if (ifStatementNode.elseStatement) {
                         ifStatementInfo.ifFalse = this.visit(
                             ifStatementNode.elseStatement,
-                        );
-                    }
-                    if (
-                        this.getCurrentScope()!.kind ===
-                        ScopeKind.StartBlockScope
-                    ) {
-                        this.setCurrentScope(
-                            this.getCurrentScope()!.getParent()!.getParent()!,
                         );
                     }
                     return this.handleStatement(
@@ -151,7 +129,7 @@ export default class StatementCompiler extends BaseCompiler {
             case ts.SyntaxKind.ForStatement: {
                 const forStatementNode = <ts.ForStatement>node;
                 if (fillScope) {
-                    this.setOutofLoopScopeAsCurrentScopeInFillScope(
+                    this.setOutOfLoopScopeAsCurrentScopeInFillScope(
                         forStatementNode,
                     );
                     if (forStatementNode.initializer) {
@@ -174,7 +152,7 @@ export default class StatementCompiler extends BaseCompiler {
                         incrementor: binaryen.none,
                         statement: binaryen.none,
                     };
-                    this.setOutofLoopScopeAsCurrentScope(node);
+                    this.setOutofLoopScopeAsCurrentScope(forStatementNode);
                     if (forStatementNode.initializer) {
                         forStatementInfo.initializer = this.visit(
                             forStatementNode.initializer,
@@ -198,22 +176,20 @@ export default class StatementCompiler extends BaseCompiler {
                             forStatementNode.statement,
                         );
                     }
-                    const blockLabel = breakLabels.pop() as string;
                     this.judgeGlobalScopeAsCurrentScope();
-                    this.getBlockScopeStack()
-                        .peek()
-                        .addStatement(
-                            this.getBinaryenModule().loop(
-                                forStatementInfo.label,
-                                this.flattenLoopStatement(forStatementInfo),
-                            ),
-                        );
+                    const blockLabel = breakLabels.pop() as string;
                     const currentOutofLoopBlock =
                         this.getBlockScopeStack().pop();
+                    currentOutofLoopBlock.addStatement(
+                        this.getBinaryenModule().loop(
+                            forStatementInfo.label,
+                            this.flattenLoopStatement(forStatementInfo),
+                        ),
+                    );
                     return this.handleStatement(
                         this.getBinaryenModule().block(
                             blockLabel,
-                            currentOutofLoopBlock!.getStatementArray(),
+                            currentOutofLoopBlock.getStatementArray(),
                         ),
                     );
                 }
@@ -239,6 +215,11 @@ export default class StatementCompiler extends BaseCompiler {
                     );
                     switchLabels.pop();
                     breakLabels.pop();
+                    const currentScope = this.getCurrentScope();
+                    if (currentScope.kind === ScopeKind.GlobalScope) {
+                        const currentGlobalScope = <GlobalScope>currentScope;
+                        currentGlobalScope.addStatement(switchExpressionRef);
+                    }
                     return switchExpressionRef;
                 }
                 break;
@@ -277,7 +258,7 @@ export default class StatementCompiler extends BaseCompiler {
             case ts.SyntaxKind.WhileStatement: {
                 const whileStatementNode = <ts.WhileStatement>node;
                 if (fillScope) {
-                    this.setOutofLoopScopeAsCurrentScopeInFillScope(
+                    this.setOutOfLoopScopeAsCurrentScopeInFillScope(
                         whileStatementNode,
                     );
                     if (
@@ -316,22 +297,20 @@ export default class StatementCompiler extends BaseCompiler {
                     whileStatementInfo.statement = this.visit(
                         whileStatementNode.statement,
                     );
-                    const blockLabel = breakLabels.pop() as string;
                     this.judgeGlobalScopeAsCurrentScope();
-                    this.getBlockScopeStack()
-                        .peek()
-                        .addStatement(
-                            this.getBinaryenModule().loop(
-                                whileStatementInfo.label,
-                                this.flattenLoopStatement(whileStatementInfo),
-                            ),
-                        );
+                    const blockLabel = breakLabels.pop() as string;
                     const currentOutofLoopBlock =
                         this.getBlockScopeStack().pop();
+                    currentOutofLoopBlock.addStatement(
+                        this.getBinaryenModule().loop(
+                            whileStatementInfo.label,
+                            this.flattenLoopStatement(whileStatementInfo),
+                        ),
+                    );
                     return this.handleStatement(
                         this.getBinaryenModule().block(
                             blockLabel,
-                            currentOutofLoopBlock!.getStatementArray(),
+                            currentOutofLoopBlock.getStatementArray(),
                         ),
                     );
                 }
@@ -341,7 +320,7 @@ export default class StatementCompiler extends BaseCompiler {
             case ts.SyntaxKind.DoStatement: {
                 const doStatementNode = <ts.DoStatement>node;
                 if (fillScope) {
-                    this.setOutofLoopScopeAsCurrentScopeInFillScope(
+                    this.setOutOfLoopScopeAsCurrentScopeInFillScope(
                         doStatementNode,
                     );
                     if (
@@ -380,22 +359,20 @@ export default class StatementCompiler extends BaseCompiler {
                     doStatementInfo.statement = this.visit(
                         doStatementNode.statement,
                     );
-                    const blockLabel = breakLabels.pop() as string;
                     this.judgeGlobalScopeAsCurrentScope();
-                    this.getBlockScopeStack()
-                        .peek()
-                        .addStatement(
-                            this.getBinaryenModule().loop(
-                                doStatementInfo.label,
-                                this.flattenLoopStatement(doStatementInfo),
-                            ),
-                        );
+                    const blockLabel = breakLabels.pop() as string;
                     const currentOutofLoopBlock =
                         this.getBlockScopeStack().pop();
+                    currentOutofLoopBlock.addStatement(
+                        this.getBinaryenModule().loop(
+                            doStatementInfo.label,
+                            this.flattenLoopStatement(doStatementInfo),
+                        ),
+                    );
                     return this.handleStatement(
                         this.getBinaryenModule().block(
                             blockLabel,
-                            currentOutofLoopBlock!.getStatementArray(),
+                            currentOutofLoopBlock.getStatementArray(),
                         ),
                     );
                 }
@@ -547,60 +524,49 @@ export default class StatementCompiler extends BaseCompiler {
         expressionRef: binaryen.ExpressionRef,
     ): binaryen.ExpressionRef {
         const currentScope = this.getCurrentScope();
-        if (currentScope!.kind == ScopeKind.GlobalScope) {
-            const currentStartBlockScope = this.getStartBlockScope(
-                currentScope!,
-            );
-            currentStartBlockScope.addStatement(expressionRef);
+        if (currentScope.kind == ScopeKind.GlobalScope) {
+            const currentGlobalScope = <GlobalScope>currentScope;
+            currentGlobalScope.addStatement(expressionRef);
             return binaryen.none;
         } else {
             return expressionRef;
         }
     }
 
-    setOutofLoopScopeAsCurrentScopeInFillScope(node: ts.Node) {
-        this.judgeStartBlockScopeAsCurrentScope();
-        const outofLoopBlock = new BlockScope(this.getCurrentScope()!);
-        outofLoopBlock.setCorNode(node);
-        this.getBlockScopeStack().push(outofLoopBlock);
-        this.setCurrentScope(outofLoopBlock);
+    setOutOfLoopScopeAsCurrentScopeInFillScope(node: ts.Node) {
+        const currentScope = this.getCurrentScope();
+        const outOfLoopBlock = new BlockScope(currentScope);
+        outOfLoopBlock.setCorNode(node);
+        this.getBlockScopeStack().push(outOfLoopBlock);
+        this.setCurrentScope(outOfLoopBlock);
     }
 
     setOutofLoopScopeAsCurrentScope(node: ts.Node) {
-        this.judgeStartBlockScopeAsCurrentScope();
-        let outofLoopBlockScope = null;
-        for (let i = 0; i < this.getCurrentScope()!.getChildren().length; i++) {
-            const child = this.getCurrentScope()!.getChildren()[i];
+        let outOfLoopBlockScope = null;
+        for (let i = 0; i < this.getCurrentScope().getChildren().length; i++) {
+            const child = this.getCurrentScope().getChildren()[i];
             if (child.getCorNode() === node) {
-                outofLoopBlockScope = child;
+                outOfLoopBlockScope = child;
             }
         }
-        if (outofLoopBlockScope === null) {
+        if (outOfLoopBlockScope === null) {
             this.reportError(
                 node,
                 'Cannot find the out block of loop statement',
             );
         }
-        this.setCurrentScope(outofLoopBlockScope);
-        this.getBlockScopeStack().push(<BlockScope>outofLoopBlockScope);
+        this.setCurrentScope(outOfLoopBlockScope);
+        this.getBlockScopeStack().push(<BlockScope>outOfLoopBlockScope);
     }
 
     judgeGlobalScopeAsCurrentScope() {
-        if (
-            this.getCurrentScope()!.getParent()!.kind ===
-            ScopeKind.StartBlockScope
-        ) {
-            this.setCurrentScope(
-                this.getCurrentScope()!.getParent()!.getParent()!.getParent()!,
-            );
+        const currentScope = this.getCurrentScope();
+        if (!currentScope.getParent()) {
+            throw new Error('CurrentScope parent is null');
         }
-    }
-
-    judgeStartBlockScopeAsCurrentScope() {
-        if (this.getCurrentScope()!.kind === ScopeKind.GlobalScope) {
-            this.setCurrentScope(
-                this.getStartBlockScope(this.getCurrentScope()!),
-            );
+        const parentScope = <Scope>currentScope.getParent();
+        if (parentScope.kind === ScopeKind.GlobalScope) {
+            this.setCurrentScope(parentScope);
         }
     }
 
@@ -608,7 +574,7 @@ export default class StatementCompiler extends BaseCompiler {
         node: ts.BlockLike | ts.CaseBlock,
         fillScope = true,
     ) {
-        const parentScope = this.getCurrentScope()!;
+        const parentScope = this.getCurrentScope();
         const blockScope = new BlockScope(parentScope);
         blockScope.setCorNode(node);
         this.setCurrentScope(blockScope);
@@ -626,14 +592,14 @@ export default class StatementCompiler extends BaseCompiler {
                 this.visit(statements[i], fillScope);
             }
         }
-        const currentBlockScope = this.getBlockScopeStack().pop()!;
+        const currentBlockScope = this.getBlockScopeStack().pop();
         this.setCurrentScope(currentBlockScope.getParent());
     }
 
     visitStatementsOfBlock(
         node: ts.BlockLike | ts.CaseBlock,
     ): binaryen.ExpressionRef {
-        const parentScope = this.getCurrentScope()!;
+        const parentScope = this.getCurrentScope();
         let blockScope;
         for (let i = 0; i < parentScope.getChildren().length; i++) {
             const child = parentScope.getChildren()[i];
@@ -670,10 +636,11 @@ export default class StatementCompiler extends BaseCompiler {
             );
         } else {
             if (node.statements.length !== 0) {
-                // push all statements into statementArray
+                // Push all statements into statementArray
                 for (let i = 0; i < node.statements.length; i++) {
                     const childExpressionRef = this.visit(node.statements[i]);
-                    if (childExpressionRef != binaryen.none) {
+                    // VariableStatement may return binaryen.none (eg, let a), which shouldn't be added into statement array.
+                    if (childExpressionRef !== binaryen.none) {
                         currentBlockScope.addStatement(childExpressionRef);
                     }
                 }
@@ -683,7 +650,7 @@ export default class StatementCompiler extends BaseCompiler {
                 currentBlockScope.getStatementArray(),
             );
         }
-        const topBlockScope = this.getBlockScopeStack().pop()!;
+        const topBlockScope = this.getBlockScopeStack().pop();
         this.setCurrentScope(topBlockScope.getParent());
         return expressionRef;
     }

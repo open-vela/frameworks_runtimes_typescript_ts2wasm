@@ -14,24 +14,6 @@ export enum LoopKind {
     do,
 }
 
-export enum OperatorKind {
-    add,
-    sub,
-    mul,
-    div,
-    gt,
-    ge,
-    lt,
-    le,
-    and,
-    or,
-    eq,
-    eq_eq,
-    ne,
-    ne_ne,
-    plus_equals,
-}
-
 export enum ExpressionKind {
     equalsExpression,
     postfixUnaryExpression,
@@ -41,6 +23,13 @@ export enum ExpressionKind {
 export const CONST_KEYWORD = 'const';
 export const LET_KEYWORD = 'let';
 export const VAR_KEYWORD = 'var';
+
+export interface HelpMessageCategory {
+    General: string[];
+    Output: string[];
+    Validation: string[];
+    Other: string[];
+}
 
 export interface VariableInfo {
     variableName: string;
@@ -86,9 +75,15 @@ export class Stack<T> {
         this.items.push(item);
     }
     pop() {
-        return this.items.pop();
+        if (this.isEmpty()) {
+            throw new Error('Current stack is empty, can not pop');
+        }
+        return this.items.pop()!;
     }
     peek() {
+        if (this.isEmpty()) {
+            throw new Error('Current stack is empty, can not get peek item');
+        }
         return this.items[this.items.length - 1];
     }
     isEmpty() {
