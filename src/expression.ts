@@ -5,11 +5,9 @@ import BaseCompiler from './base.js';
 import {
     AssignKind,
     BinaryExpressionInfo,
-    OperatorKind,
     VariableInfo,
     ExpressionKind,
 } from './utils.js';
-import { ScopeKind } from './scope.js';
 
 export default class ExpressionCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
@@ -20,42 +18,23 @@ export default class ExpressionCompiler extends BaseCompiler {
             case ts.SyntaxKind.Identifier: {
                 const identifierNode = <ts.Identifier>node;
                 const identifierName = identifierNode.getText();
-                // find if the identifier is in the scope
                 const currentScope = this.getCurrentScope();
-                const valueInfo = currentScope?.findVariable(identifierName);
-                if (valueInfo) {
-                    if (currentScope?.isGlobalVariable.get(identifierName)) {
-                        return this.getGlobalValue(
-                            valueInfo.variableName,
-                            valueInfo.variableType,
-                        );
-                    } else {
-                        return this.getLocalValue(
-                            valueInfo.variableIndex,
-                            valueInfo.variableType,
-                        );
-                    }
-                } else {
-                    if (currentScope!.kind == ScopeKind.GlobalScope) {
-                        const currentStartBlockScope = this.getStartBlockScope(
-                            currentScope!,
-                        );
-                        const startBlockValueInfo =
-                            currentStartBlockScope.findVariable(
-                                identifierName,
-                                false,
-                            );
-                        if (startBlockValueInfo) {
-                            return this.getLocalValue(
-                                startBlockValueInfo.variableIndex,
-                                startBlockValueInfo.variableType,
-                            );
-                        }
-                    }
+                let valueInfo = currentScope.findVariable(identifierName);
+                if (!valueInfo) {
+                    this.reportError(identifierNode, 'error TS2304');
                 }
-                // TODO DELETE: error TS2304: Cannot find name.
-                this.reportError(identifierNode, 'error TS2304');
-                break;
+                valueInfo = <VariableInfo>valueInfo;
+                if (currentScope.isGlobalVariable(identifierName)) {
+                    return this.getGlobalValue(
+                        valueInfo.variableName,
+                        valueInfo.variableType,
+                    );
+                } else {
+                    return this.getLocalValue(
+                        valueInfo.variableIndex,
+                        valueInfo.variableType,
+                    );
+                }
             }
 
             case ts.SyntaxKind.BinaryExpression: {
@@ -73,7 +52,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                 binaryExpressionInfo.leftType = this.visit(
                     this.getVariableType(
                         binaryExpressionNode.left,
-                        this.getTypeChecker()!,
+                        this.getTypeChecker(),
                     ),
                 );
                 binaryExpressionInfo.rightExpression = this.visit(
@@ -82,7 +61,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                 binaryExpressionInfo.rightType = this.visit(
                     this.getVariableType(
                         binaryExpressionNode.right,
-                        this.getTypeChecker()!,
+                        this.getTypeChecker(),
                     ),
                 );
                 const operatorKind = binaryExpressionNode.operatorToken.kind;
@@ -91,7 +70,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.add,
+                                ts.SyntaxKind.PlusToken,
                             );
                         break;
                     }
@@ -99,7 +78,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.sub,
+                                ts.SyntaxKind.MinusToken,
                             );
                         break;
                     }
@@ -107,7 +86,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.mul,
+                                ts.SyntaxKind.AsteriskToken,
                             );
                         break;
                     }
@@ -115,7 +94,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.div,
+                                ts.SyntaxKind.SlashToken,
                             );
                         break;
                     }
@@ -123,7 +102,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.gt,
+                                ts.SyntaxKind.GreaterThanToken,
                             );
                         break;
                     }
@@ -131,7 +110,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.ge,
+                                ts.SyntaxKind.GreaterThanEqualsToken,
                             );
                         break;
                     }
@@ -146,7 +125,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.lt,
+                                ts.SyntaxKind.LessThanToken,
                             );
                         break;
                     }
@@ -154,7 +133,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.le,
+                                ts.SyntaxKind.LessThanEqualsToken,
                             );
                         break;
                     }
@@ -163,7 +142,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.and,
+                                ts.SyntaxKind.AmpersandAmpersandToken,
                             );
                         break;
                     }
@@ -172,7 +151,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.or,
+                                ts.SyntaxKind.BarBarToken,
                             );
                         break;
                     }
@@ -180,7 +159,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.eq,
+                                ts.SyntaxKind.EqualsEqualsToken,
                             );
                         break;
                     }
@@ -188,7 +167,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.eq_eq,
+                                ts.SyntaxKind.EqualsEqualsEqualsToken,
                             );
                         break;
                     }
@@ -196,7 +175,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.ne,
+                                ts.SyntaxKind.ExclamationEqualsToken,
                             );
                         break;
                     }
@@ -204,7 +183,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         binaryExpressionInfo.operator =
                             this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.ne_ne,
+                                ts.SyntaxKind.ExclamationEqualsEqualsToken,
                             );
                         break;
                     }
@@ -215,7 +194,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                             operator: binaryen.none,
                             rightExpression: this.handleBinaryExpression(
                                 binaryExpressionInfo,
-                                OperatorKind.add,
+                                ts.SyntaxKind.PlusToken,
                             ),
                             rightType: binaryExpressionInfo.rightType,
                         };
@@ -235,7 +214,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                                 operator: binaryen.none,
                                 rightExpression: this.handleBinaryExpression(
                                     binaryExpressionInfo,
-                                    OperatorKind.sub,
+                                    ts.SyntaxKind.MinusToken,
                                 ),
                                 rightType: binaryExpressionInfo.rightType,
                             };
@@ -255,7 +234,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                                 operator: binaryen.none,
                                 rightExpression: this.handleBinaryExpression(
                                     binaryExpressionInfo,
-                                    OperatorKind.mul,
+                                    ts.SyntaxKind.AsteriskToken,
                                 ),
                                 rightType: binaryExpressionInfo.rightType,
                             };
@@ -275,7 +254,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                                 operator: binaryen.none,
                                 rightExpression: this.handleBinaryExpression(
                                     binaryExpressionInfo,
-                                    OperatorKind.div,
+                                    ts.SyntaxKind.SlashToken,
                                 ),
                                 rightType: binaryExpressionInfo.rightType,
                             };
@@ -329,15 +308,15 @@ export default class ExpressionCompiler extends BaseCompiler {
                 let returnType = binaryen.none;
                 const currentScope = this.getCurrentScope();
                 const childFunctionScope =
-                    currentScope?.findFunctionScope(funcName);
+                    currentScope.findFunctionScope(funcName);
                 if (childFunctionScope) {
-                    paramArray = childFunctionScope.getParamArray()!;
-                    returnType = childFunctionScope.getReturnType()!;
+                    paramArray = childFunctionScope.getParamArray();
+                    returnType = childFunctionScope.getReturnType();
                 }
-                if (paramArray?.length !== paramExpressionRefList.length) {
+                if (paramArray.length !== paramExpressionRefList.length) {
                     for (
                         let i = paramExpressionRefList.length;
-                        i < paramArray?.length;
+                        i < paramArray.length;
                         i++
                     ) {
                         paramExpressionRefList.push(
@@ -345,7 +324,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                         );
                     }
                 }
-                // judge if the return value need to drop
+                // Judge if the return value need to drop
                 if (returnType !== binaryen.none) {
                     if (
                         callExpressionNode.parent.kind ===
@@ -372,97 +351,210 @@ export default class ExpressionCompiler extends BaseCompiler {
 
     handleBinaryExpression(
         binaryExpressionInfo: BinaryExpressionInfo,
-        operatorKind: OperatorKind,
+        operatorKind: ts.SyntaxKind,
     ): binaryen.ExpressionRef {
-        if (binaryExpressionInfo.leftType === binaryen.f64) {
-            if (binaryExpressionInfo.rightType === binaryen.f64) {
-                switch (operatorKind) {
-                    case OperatorKind.add: {
-                        return this.getBinaryenModule().f64.add(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
+        if (
+            binaryExpressionInfo.leftType === binaryen.f64 &&
+            binaryExpressionInfo.rightType === binaryen.f64
+        ) {
+            switch (operatorKind) {
+                case ts.SyntaxKind.PlusToken: {
+                    return this.getBinaryenModule().f64.add(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.MinusToken: {
+                    return this.getBinaryenModule().f64.sub(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.AsteriskToken: {
+                    return this.getBinaryenModule().f64.mul(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.SlashToken: {
+                    return this.getBinaryenModule().f64.div(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.GreaterThanToken: {
+                    return this.getBinaryenModule().f64.gt(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.GreaterThanEqualsToken: {
+                    return this.getBinaryenModule().f64.ge(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.LessThanToken: {
+                    return this.getBinaryenModule().f64.lt(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.LessThanEqualsToken: {
+                    return this.getBinaryenModule().f64.le(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.EqualsEqualsToken: {
+                    return this.getBinaryenModule().f64.eq(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.EqualsEqualsEqualsToken: {
+                    return this.getBinaryenModule().f64.eq(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.ExclamationEqualsToken: {
+                    return this.getBinaryenModule().f64.ne(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
+                    return this.getBinaryenModule().f64.ne(
+                        binaryExpressionInfo.leftExpression,
+                        binaryExpressionInfo.rightExpression,
+                    );
+                }
+                case ts.SyntaxKind.AmpersandAmpersandToken: {
+                    const left = binaryExpressionInfo.leftExpression;
+                    const right = binaryExpressionInfo.rightExpression;
+                    const leftType = binaryExpressionInfo.leftType;
+                    return this.getBinaryenModule().select(
+                        this.convertTypeToI32(left, leftType),
+                        right,
+                        left,
+                        binaryen.f64,
+                    );
+                }
+                case ts.SyntaxKind.BarBarToken: {
+                    const left = binaryExpressionInfo.leftExpression;
+                    const right = binaryExpressionInfo.rightExpression;
+                    const leftType = binaryExpressionInfo.leftType;
+                    return this.getBinaryenModule().select(
+                        this.convertTypeToI32(left, leftType),
+                        left,
+                        right,
+                        binaryen.f64,
+                    );
+                }
+            }
+        }
+        if (
+            binaryExpressionInfo.leftType === binaryen.f64 &&
+            binaryExpressionInfo.rightType === binaryen.i32
+        ) {
+            switch (operatorKind) {
+                case ts.SyntaxKind.AmpersandAmpersandToken: {
+                    const left = binaryExpressionInfo.leftExpression;
+                    const right = binaryExpressionInfo.rightExpression;
+                    const leftType = binaryExpressionInfo.leftType;
+                    return this.getBinaryenModule().select(
+                        this.convertTypeToI32(left, leftType),
+                        right,
+                        this.convertTypeToI32(left, leftType),
+                        binaryen.i32,
+                    );
+                }
+                case ts.SyntaxKind.BarBarToken: {
+                    const left = binaryExpressionInfo.leftExpression;
+                    const right = binaryExpressionInfo.rightExpression;
+                    const leftType = binaryExpressionInfo.leftType;
+                    return this.getBinaryenModule().select(
+                        this.convertTypeToI32(left, leftType),
+                        this.convertTypeToI32(left, leftType),
+                        right,
+                        binaryen.i32,
+                    );
+                }
+            }
+        }
+        if (
+            binaryExpressionInfo.leftType === binaryen.i32 &&
+            binaryExpressionInfo.rightType === binaryen.f64
+        ) {
+            switch (operatorKind) {
+                case ts.SyntaxKind.AmpersandAmpersandToken: {
+                    const left = binaryExpressionInfo.leftExpression;
+                    const right = binaryExpressionInfo.rightExpression;
+                    const rightType = binaryExpressionInfo.rightType;
+                    // if left is false, then condition is true
+                    const condition = Boolean(
+                        this.getBinaryenModule().i32.eqz(left),
+                    );
+                    if (condition) {
+                        return this.getBinaryenModule().select(
+                            left,
+                            this.convertTypeToI32(right, rightType),
+                            left,
+                            binaryen.i32,
                         );
+                    } else {
+                        return right;
                     }
-                    case OperatorKind.sub: {
-                        return this.getBinaryenModule().f64.sub(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.mul: {
-                        return this.getBinaryenModule().f64.mul(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.div: {
-                        return this.getBinaryenModule().f64.div(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.gt: {
-                        return this.getBinaryenModule().f64.gt(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.ge: {
-                        return this.getBinaryenModule().f64.ge(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.lt: {
-                        return this.getBinaryenModule().f64.lt(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.le: {
-                        return this.getBinaryenModule().f64.le(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.eq: {
-                        return this.getBinaryenModule().f64.eq(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.eq_eq: {
-                        return this.getBinaryenModule().f64.eq(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.ne: {
-                        return this.getBinaryenModule().f64.ne(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
-                        );
-                    }
-                    case OperatorKind.ne_ne: {
-                        return this.getBinaryenModule().f64.ne(
-                            binaryExpressionInfo.leftExpression,
-                            binaryExpressionInfo.rightExpression,
+                }
+                case ts.SyntaxKind.BarBarToken: {
+                    const left = binaryExpressionInfo.leftExpression;
+                    const right = binaryExpressionInfo.rightExpression;
+                    const rightType = binaryExpressionInfo.rightType;
+                    // if left is false, then condition is true
+                    const condition = Boolean(
+                        this.getBinaryenModule().i32.eqz(left),
+                    );
+                    if (condition) {
+                        return right;
+                    } else {
+                        return this.getBinaryenModule().select(
+                            left,
+                            left,
+                            this.convertTypeToI32(right, rightType),
+                            binaryen.i32,
                         );
                     }
                 }
             }
         }
-
-        switch (operatorKind) {
-            case OperatorKind.and:
-            case OperatorKind.or: {
-                return this.handleLogicalToken(
-                    binaryExpressionInfo,
-                    operatorKind,
-                );
+        if (
+            binaryExpressionInfo.leftType === binaryen.i32 &&
+            binaryExpressionInfo.rightType === binaryen.i32
+        ) {
+            switch (operatorKind) {
+                case ts.SyntaxKind.AmpersandAmpersandToken: {
+                    const left = binaryExpressionInfo.leftExpression;
+                    const right = binaryExpressionInfo.rightExpression;
+                    return this.getBinaryenModule().select(
+                        left,
+                        right,
+                        left,
+                        binaryen.i32,
+                    );
+                }
+                case ts.SyntaxKind.BarBarToken: {
+                    const left = binaryExpressionInfo.leftExpression;
+                    const right = binaryExpressionInfo.rightExpression;
+                    return this.getBinaryenModule().select(
+                        left,
+                        left,
+                        right,
+                        binaryen.i32,
+                    );
+                }
             }
         }
-
         // TODO: dyntype API should be invoked here to get actual type.
         return binaryen.none;
     }
@@ -485,7 +577,7 @@ export default class ExpressionCompiler extends BaseCompiler {
         const operandExpression = this.visit(operand);
         unaryExpressionInfo.leftExpression = operandExpression;
         const operandExpressionType = this.visit(
-            this.getVariableType(operand, this.getTypeChecker()!),
+            this.getVariableType(operand, this.getTypeChecker()),
         );
         unaryExpressionInfo.leftType = operandExpressionType;
         const rightExpressionInfo: BinaryExpressionInfo = {
@@ -500,7 +592,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                 unaryExpressionInfo.rightExpression =
                     this.handleBinaryExpression(
                         rightExpressionInfo,
-                        OperatorKind.add,
+                        ts.SyntaxKind.PlusToken,
                     );
                 break;
             }
@@ -508,7 +600,7 @@ export default class ExpressionCompiler extends BaseCompiler {
                 unaryExpressionInfo.rightExpression =
                     this.handleBinaryExpression(
                         rightExpressionInfo,
-                        OperatorKind.sub,
+                        ts.SyntaxKind.MinusToken,
                     );
                 break;
             }
@@ -519,11 +611,11 @@ export default class ExpressionCompiler extends BaseCompiler {
                     operandExpressionType,
                 );
             }
-
+            // "-1" or "-a"
             case ts.SyntaxKind.MinusToken: {
                 const operand = unaryExpressionNode.operand;
                 const operandType = this.visit(
-                    this.getVariableType(operand, this.getTypeChecker()!),
+                    this.getVariableType(operand, this.getTypeChecker()),
                 );
                 switch (operand.kind) {
                     case ts.SyntaxKind.NumericLiteral: {
@@ -566,28 +658,19 @@ export default class ExpressionCompiler extends BaseCompiler {
         node: ts.ConditionalExpression,
     ): binaryen.ExpressionRef {
         const module = this.getBinaryenModule();
-        const condExpression = this.visit(node.condition);
-        const trueExpr = this.visit(node.whenTrue);
-        const falseExpr = this.visit(node.whenFalse);
-        const cond = this.toTrueOrFalse(
-            condExpression,
-            binaryen.getExpressionType(condExpression),
+        let condExpression = this.visit(node.condition);
+        const trueExpression = this.visit(node.whenTrue);
+        const falseExpression = this.visit(node.whenFalse);
+        const condExpressionType = this.visit(
+            this.getVariableType(node.condition, this.getTypeChecker()),
         );
-        const commonType = this.getCommonType(
-            binaryen.getExpressionType(trueExpr),
-            binaryen.getExpressionType(falseExpr),
-        );
-        const convertedTrue = this.convertType(
-            trueExpr,
-            binaryen.getExpressionType(trueExpr),
-            commonType,
-        );
-        const convertedFalse = this.convertType(
-            falseExpr,
-            binaryen.getExpressionType(falseExpr),
-            commonType,
-        );
-        return module.select(cond, convertedTrue, convertedFalse);
+        if (condExpressionType != binaryen.i32) {
+            condExpression = this.convertTypeToI32(
+                condExpression,
+                condExpressionType,
+            );
+        }
+        return module.select(condExpression, trueExpression, falseExpression);
     }
 
     handleExpressionStatement(
@@ -595,205 +678,120 @@ export default class ExpressionCompiler extends BaseCompiler {
         binaryExpressionInfo: BinaryExpressionInfo,
         expressionKind: ExpressionKind,
     ): binaryen.ExpressionRef {
-        // get the assigned identifier
         const assignedIdentifierName = identifierNode.getText();
-        // find if the identifier is in the scope
         const currentScope = this.getCurrentScope();
-        const valueInfo = currentScope?.findVariable(assignedIdentifierName);
-        let globalLocalValueInfo;
-        if (currentScope!.kind === ScopeKind.GlobalScope) {
-            const currentStartBlockScope = this.getStartBlockScope(
-                currentScope!,
-            );
-            globalLocalValueInfo = currentStartBlockScope.findVariable(
-                assignedIdentifierName,
-                false,
+        let valueInfo = currentScope.findVariable(assignedIdentifierName);
+        if (!valueInfo) {
+            this.reportError(identifierNode, 'error TS2304');
+        }
+        valueInfo = <VariableInfo>valueInfo;
+        if (valueInfo.variableAssign === AssignKind.const) {
+            this.reportError(identifierNode, 'error TS2588');
+        }
+        // Only left value can be assigned to right value, expression statement can run.
+        if (
+            !this.matchType(
+                binaryExpressionInfo.leftType,
+                binaryExpressionInfo.rightType,
+            )
+        ) {
+            this.reportError(
+                identifierNode,
+                'Type mismatch in ExpressionStatement',
             );
         }
-        if (valueInfo || globalLocalValueInfo) {
-            // check if the variable is a const
-            if (
-                (valueInfo && valueInfo.variableAssign === AssignKind.const) ||
-                (globalLocalValueInfo &&
-                    globalLocalValueInfo.variableAssign === AssignKind.const)
-            ) {
-                this.reportError(identifierNode, 'error TS2588');
-            }
-            // check if the type is match
-            if (
-                this.matchType(
-                    binaryExpressionInfo.leftType,
-                    binaryExpressionInfo.rightType,
-                )
-            ) {
-                if (expressionKind === ExpressionKind.equalsExpression) {
-                    if (valueInfo) {
-                        // check the variable is in global or in local
-                        if (
-                            currentScope?.isGlobalVariable.get(
-                                assignedIdentifierName,
-                            )
-                        ) {
-                            return this.setGlobalValue(
-                                valueInfo.variableName,
-                                binaryExpressionInfo.rightExpression,
-                            );
-                        } else {
-                            return this.setLocalValue(
-                                valueInfo.variableIndex,
-                                binaryExpressionInfo.rightExpression,
-                            );
-                        }
-                    }
-                } else if (
-                    expressionKind === ExpressionKind.postfixUnaryExpression
-                ) {
-                    const blockArray: binaryen.ExpressionRef[] = [];
-                    // get local value if postfixUnaryExpression's parent is not ExpressionStatement
-                    if (
-                        identifierNode.parent.parent.kind !==
-                            ts.SyntaxKind.ExpressionStatement &&
-                        identifierNode.parent.parent.kind !==
-                            ts.SyntaxKind.ForStatement
-                    ) {
-                        if (
-                            valueInfo &&
-                            currentScope?.isGlobalVariable.get(
-                                assignedIdentifierName,
-                            )
-                        ) {
-                            blockArray.push(
-                                this.getGlobalValue(
-                                    valueInfo.variableName,
-                                    binaryExpressionInfo.leftType,
-                                ),
-                            );
-                        } else {
-                            if (!valueInfo && globalLocalValueInfo) {
-                                blockArray.push(
-                                    this.getLocalValue(
-                                        globalLocalValueInfo.variableIndex,
-                                        binaryExpressionInfo.leftType,
-                                    ),
-                                );
-                            } else {
-                                blockArray.push(
-                                    this.getLocalValue(
-                                        valueInfo!.variableIndex,
-                                        binaryExpressionInfo.leftType,
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                    if (
-                        valueInfo &&
-                        currentScope?.isGlobalVariable.get(
-                            assignedIdentifierName,
-                        )
-                    ) {
-                        blockArray.push(
-                            this.setGlobalValue(
-                                valueInfo.variableName,
-                                binaryExpressionInfo.rightExpression,
-                            ),
-                        );
-                    } else {
-                        if (!valueInfo && globalLocalValueInfo) {
-                            blockArray.push(
-                                this.setLocalValue(
-                                    globalLocalValueInfo.variableIndex,
-                                    binaryExpressionInfo.rightExpression,
-                                ),
-                            );
-                        } else {
-                            blockArray.push(
-                                this.setLocalValue(
-                                    valueInfo!.variableIndex,
-                                    binaryExpressionInfo.rightExpression,
-                                ),
-                            );
-                        }
-                    }
-                    return this.getBinaryenModule().block(null, blockArray);
-                } else if (
-                    expressionKind === ExpressionKind.prefixUnaryExpression
-                ) {
-                    const blockArray: binaryen.ExpressionRef[] = [];
-                    if (
-                        valueInfo &&
-                        currentScope?.isGlobalVariable.get(
-                            assignedIdentifierName,
-                        )
-                    ) {
-                        blockArray.push(
-                            this.setGlobalValue(
-                                valueInfo.variableName,
-                                binaryExpressionInfo.rightExpression,
-                            ),
-                        );
-                    } else {
-                        if (!valueInfo && globalLocalValueInfo) {
-                            blockArray.push(
-                                this.setLocalValue(
-                                    globalLocalValueInfo.variableIndex,
-                                    binaryExpressionInfo.rightExpression,
-                                ),
-                            );
-                        } else {
-                            blockArray.push(
-                                this.setLocalValue(
-                                    valueInfo!.variableIndex,
-                                    binaryExpressionInfo.rightExpression,
-                                ),
-                            );
-                        }
-                    }
-                    // get local value if prefixUnaryExpression's parent is not ExpressionStatement
-                    if (
-                        identifierNode.parent.parent.kind !=
-                            ts.SyntaxKind.ExpressionStatement &&
-                        identifierNode.parent.parent.kind !=
-                            ts.SyntaxKind.ForStatement
-                    ) {
-                        if (
-                            valueInfo &&
-                            currentScope?.isGlobalVariable.get(
-                                assignedIdentifierName,
-                            )
-                        ) {
-                            blockArray.push(
-                                this.getGlobalValue(
-                                    valueInfo.variableName,
-                                    binaryExpressionInfo.leftType,
-                                ),
-                            );
-                        } else {
-                            if (!valueInfo && globalLocalValueInfo) {
-                                blockArray.push(
-                                    this.getLocalValue(
-                                        globalLocalValueInfo.variableIndex,
-                                        binaryExpressionInfo.leftType,
-                                    ),
-                                );
-                            } else {
-                                blockArray.push(
-                                    this.getLocalValue(
-                                        valueInfo!.variableIndex,
-                                        binaryExpressionInfo.leftType,
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                    return this.getBinaryenModule().block(null, blockArray);
-                }
+        if (expressionKind === ExpressionKind.equalsExpression) {
+            if (currentScope.isGlobalVariable(assignedIdentifierName)) {
+                return this.setGlobalValue(
+                    valueInfo.variableName,
+                    binaryExpressionInfo.rightExpression,
+                );
             } else {
-                this.reportError(
-                    identifierNode,
-                    'Type mismatch in ExpressionStatement',
+                return this.setLocalValue(
+                    valueInfo.variableIndex,
+                    binaryExpressionInfo.rightExpression,
                 );
             }
+        } else if (expressionKind === ExpressionKind.postfixUnaryExpression) {
+            const blockArray: binaryen.ExpressionRef[] = [];
+            // get value if postfixUnaryExpression's parent is not ExpressionStatement or ForStatement
+            if (
+                identifierNode.parent.parent.kind !==
+                    ts.SyntaxKind.ExpressionStatement &&
+                identifierNode.parent.parent.kind !== ts.SyntaxKind.ForStatement
+            ) {
+                if (currentScope.isGlobalVariable(assignedIdentifierName)) {
+                    blockArray.push(
+                        this.getGlobalValue(
+                            valueInfo.variableName,
+                            binaryExpressionInfo.leftType,
+                        ),
+                    );
+                } else {
+                    blockArray.push(
+                        this.getLocalValue(
+                            valueInfo.variableIndex,
+                            binaryExpressionInfo.leftType,
+                        ),
+                    );
+                }
+            }
+            if (currentScope.isGlobalVariable(assignedIdentifierName)) {
+                blockArray.push(
+                    this.setGlobalValue(
+                        valueInfo.variableName,
+                        binaryExpressionInfo.rightExpression,
+                    ),
+                );
+            } else {
+                blockArray.push(
+                    this.setLocalValue(
+                        valueInfo.variableIndex,
+                        binaryExpressionInfo.rightExpression,
+                    ),
+                );
+            }
+            return this.getBinaryenModule().block(null, blockArray);
+        } else if (expressionKind === ExpressionKind.prefixUnaryExpression) {
+            const blockArray: binaryen.ExpressionRef[] = [];
+            if (currentScope.isGlobalVariable(assignedIdentifierName)) {
+                blockArray.push(
+                    this.setGlobalValue(
+                        valueInfo.variableName,
+                        binaryExpressionInfo.rightExpression,
+                    ),
+                );
+            } else {
+                blockArray.push(
+                    this.setLocalValue(
+                        valueInfo.variableIndex,
+                        binaryExpressionInfo.rightExpression,
+                    ),
+                );
+            }
+            // get value if postfixUnaryExpression's parent is not ExpressionStatement or ForStatement
+            if (
+                identifierNode.parent.parent.kind !==
+                    ts.SyntaxKind.ExpressionStatement &&
+                identifierNode.parent.parent.kind !== ts.SyntaxKind.ForStatement
+            ) {
+                if (currentScope.isGlobalVariable(assignedIdentifierName)) {
+                    blockArray.push(
+                        this.getGlobalValue(
+                            valueInfo.variableName,
+                            binaryExpressionInfo.leftType,
+                        ),
+                    );
+                } else {
+                    blockArray.push(
+                        this.getLocalValue(
+                            valueInfo.variableIndex,
+                            binaryExpressionInfo.leftType,
+                        ),
+                    );
+                }
+            }
+            return this.getBinaryenModule().block(null, blockArray);
         }
 
         return binaryen.none;
@@ -811,33 +809,13 @@ export default class ExpressionCompiler extends BaseCompiler {
     }
 
     handleExclamationToken(
-        operandExpression: binaryen.Type,
+        operandExpression: binaryen.ExpressionRef,
         operandType: binaryen.Type,
     ): binaryen.ExpressionRef {
-        const condition = this.toTrueOrFalse(operandExpression, operandType);
-        return this.getBinaryenModule().i32.eqz(condition);
-    }
-
-    handleLogicalToken(
-        binaryExpressionInfo: BinaryExpressionInfo,
-        operatorKind: OperatorKind,
-    ): binaryen.ExpressionRef {
-        const left = binaryExpressionInfo.leftExpression;
-        const leftType = binaryExpressionInfo.leftType;
-        const right = binaryExpressionInfo.rightExpression;
-        const rightType = binaryExpressionInfo.rightType;
-        const module = this.getBinaryenModule();
-
-        const condition = this.toTrueOrFalse(left, leftType);
-        const commonType = this.getCommonType(leftType, rightType);
-        const convertedLeft = this.convertType(left, leftType, commonType);
-        const convertedRight = this.convertType(right, rightType, commonType);
-
-        if (operatorKind === OperatorKind.and) {
-            return module.select(condition, convertedRight, convertedLeft);
-        } else if (operatorKind === OperatorKind.or) {
-            return module.select(condition, convertedLeft, convertedRight);
+        let flag = operandExpression;
+        if (operandType !== binaryen.i32) {
+            flag = this.convertTypeToI32(operandExpression, operandType);
         }
-        return binaryen.none;
+        return this.getBinaryenModule().i32.eqz(flag);
     }
 }

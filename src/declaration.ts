@@ -9,7 +9,7 @@ import {
     VariableInfo,
     VAR_KEYWORD,
 } from './utils.js';
-import { BlockScope, FunctionScope, ScopeKind } from './scope.js';
+import { ScopeKind, GlobalScope } from './scope.js';
 
 export default class DeclarationCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
@@ -50,7 +50,7 @@ export default class DeclarationCompiler extends BaseCompiler {
                         paramInfo.variableType = this.visit(
                             this.getVariableType(
                                 paramIdentifierNode,
-                                this.getTypeChecker()!,
+                                this.getTypeChecker(),
                             ),
                         );
                     } else {
@@ -62,7 +62,6 @@ export default class DeclarationCompiler extends BaseCompiler {
                     paramInfo.variableType = this.visit(parameterNode.type);
                 }
                 paramInfo.variableIndex = functionScope.getParamArray().length;
-                // get parameter initializer
                 if (parameterNode.initializer !== undefined) {
                     paramInfo.variableInitial = this.visit(
                         parameterNode.initializer,
@@ -98,179 +97,34 @@ export default class DeclarationCompiler extends BaseCompiler {
                         const variableDeclarationExpressionRef = this.visit(
                             variableDeclarationListNode.declarations[i],
                         );
-                        if (variableDeclarationExpressionRef != binaryen.none) {
+                        // since variable declaration will return binaryen.none(eg, global variable declaration, local variable declaration with no initializer)
+                        // so the judgement is needed.
+                        if (
+                            variableDeclarationExpressionRef !== binaryen.none
+                        ) {
                             variableDeclarationList.push(
                                 variableDeclarationExpressionRef,
                             );
                         }
                     }
-                    return this.getBinaryenModule().block(
-                        null,
-                        variableDeclarationList,
-                    );
+                    if (variableDeclarationList.length > 0) {
+                        return this.getBinaryenModule().block(
+                            null,
+                            variableDeclarationList,
+                        );
+                    }
                 }
                 break;
             }
 
             case ts.SyntaxKind.VariableDeclaration: {
                 const variableDeclarationNode = <ts.VariableDeclaration>node;
-                const variableIdentifierNode = <ts.Identifier>(
-                    variableDeclarationNode.name
-                );
                 if (fillScope) {
-                    const variableInfo: VariableInfo = {
-                        variableName: '',
-                        variableType: binaryen.none,
-                        variableIndex: 0,
-                        variableInitial: undefined,
-                        variableAssign: AssignKind.default,
-                    };
-                    // get the information of the variableInfo
-                    const variableAssignText =
-                        variableDeclarationNode.parent.getText();
-                    if (variableAssignText.includes(CONST_KEYWORD)) {
-                        variableInfo.variableAssign = AssignKind.const;
-                    } else if (variableAssignText.includes(LET_KEYWORD)) {
-                        variableInfo.variableAssign = AssignKind.let;
-                    } else if (variableAssignText.includes(VAR_KEYWORD)) {
-                        variableInfo.variableAssign = AssignKind.var;
-                    }
-                    variableInfo.variableName =
-                        variableIdentifierNode.getText();
-                    if (variableDeclarationNode.type === undefined) {
-                        // get type automatically
-                        variableInfo.variableType = this.visit(
-                            this.getVariableType(
-                                variableIdentifierNode,
-                                this.getTypeChecker()!,
-                            ),
-                        );
-                    } else {
-                        variableInfo.variableType = this.visit(
-                            variableDeclarationNode.type,
-                        );
-                    }
-                    const currentScope = this.getCurrentScope();
-                    if (currentScope!.kind === ScopeKind.StartBlockScope) {
-                        const currentStartBlockScope = <BlockScope>currentScope;
-                        variableInfo.variableIndex =
-                            currentStartBlockScope.getVariableArray().length;
-                    } else {
-                        if (currentScope!.kind !== ScopeKind.GlobalScope) {
-                            // The variable's index also include param's index
-                            if (this.getFunctionScopeStack().size() > 0) {
-                                const currentFunctionScope =
-                                    this.getFunctionScopeStack().peek();
-                                variableInfo.variableIndex =
-                                    currentFunctionScope.getVariableArray()
-                                        .length +
-                                    currentFunctionScope.getParamArray().length;
-                            } else {
-                                variableInfo.variableIndex =
-                                    currentScope!.getVariableArray().length;
-                            }
-                        }
-                    }
-                    currentScope!.addVariable(variableInfo);
-                    if (currentScope?.kind !== ScopeKind.GlobalScope) {
-                        let startFunctionScopeFlag = false;
-                        let parentScope = currentScope!.getParent();
-                        while (parentScope !== null) {
-                            if (
-                                parentScope!.kind ===
-                                ScopeKind.StartFunctionScope
-                            ) {
-                                startFunctionScopeFlag = true;
-                                parentScope.addVariable(variableInfo);
-                                break;
-                            }
-                            parentScope = parentScope.getParent();
-                        }
-                        if (!startFunctionScopeFlag) {
-                            const currentFunctionScope =
-                                this.getFunctionScopeStack().peek();
-                            currentFunctionScope.addVariable(variableInfo);
-                        }
-                    }
+                    this.storeVariableDeclaration(variableDeclarationNode);
                 } else {
-                    const currentScope = this.getCurrentScope();
-                    const variableInfo = currentScope!.findVariable(
-                        variableIdentifierNode.getText(),
-                    )!;
-                    // get variable initializer
-                    if (variableDeclarationNode.initializer !== undefined) {
-                        const rightValue = this.visit(
-                            variableDeclarationNode.initializer,
-                        );
-                        if (
-                            variableInfo.variableType !==
-                            binaryen.getExpressionType(rightValue)
-                        ) {
-                            // TODO: where to do type convert?
-                            variableInfo.variableInitial = this.toTrueOrFalse(
-                                rightValue,
-                                binaryen.getExpressionType(rightValue),
-                            );
-                        } else {
-                            variableInfo.variableInitial = rightValue;
-                        }
-                    } else {
-                        if (variableInfo.variableAssign === AssignKind.const) {
-                            this.reportError(
-                                variableDeclarationNode,
-                                'error TS1155',
-                            );
-                        }
-                    }
-                    // check if the variableDeclaration is in global scope.
-                    if (currentScope!.kind === ScopeKind.GlobalScope) {
-                        const currentStartBlockScope = this.getStartBlockScope(
-                            currentScope!,
-                        );
-
-                        // check if the global variable has a NumericLiteral initializer
-                        if (
-                            variableDeclarationNode.initializer === undefined ||
-                            variableDeclarationNode.initializer?.kind ===
-                                ts.SyntaxKind.NumericLiteral
-                        ) {
-                            this.getBinaryenModule().addGlobal(
-                                variableInfo.variableName,
-                                variableInfo.variableType,
-                                variableInfo.variableAssign === AssignKind.const
-                                    ? false
-                                    : true,
-                                variableInfo.variableInitial === undefined
-                                    ? this.getVariableDeclarationInitialValue(
-                                          variableInfo.variableType,
-                                      )
-                                    : variableInfo.variableInitial,
-                            );
-                        } else {
-                            this.getBinaryenModule().addGlobal(
-                                variableInfo.variableName,
-                                variableInfo.variableType,
-                                true,
-                                this.getVariableDeclarationInitialValue(
-                                    variableInfo.variableType,
-                                ),
-                            );
-                            currentStartBlockScope.addStatement(
-                                this.setGlobalValue(
-                                    variableInfo.variableName,
-                                    variableInfo.variableInitial!,
-                                ),
-                            );
-                        }
-                    } else {
-                        // set variable initial value
-                        if (variableInfo.variableInitial !== undefined) {
-                            return this.setLocalValue(
-                                variableInfo.variableIndex,
-                                variableInfo.variableInitial,
-                            );
-                        }
-                    }
+                    return this.generateVariableDeclaration(
+                        variableDeclarationNode,
+                    );
                 }
                 break;
             }
@@ -283,8 +137,122 @@ export default class DeclarationCompiler extends BaseCompiler {
     ): binaryen.ExpressionRef {
         if (valueType === binaryen.f64) {
             return this.getBinaryenModule().f64.const(0);
-        } else if (valueType === binaryen.i32) {
-            return this.getBinaryenModule().i32.const(0);
+        }
+        return binaryen.none;
+    }
+
+    storeVariableDeclaration(node: ts.VariableDeclaration) {
+        const variableInfo: VariableInfo = {
+            variableName: '',
+            variableType: binaryen.none,
+            variableIndex: 0,
+            variableInitial: undefined,
+            variableAssign: AssignKind.default,
+        };
+        const variableAssignText = node.parent.getText();
+        if (variableAssignText.includes(CONST_KEYWORD)) {
+            variableInfo.variableAssign = AssignKind.const;
+        } else if (variableAssignText.includes(LET_KEYWORD)) {
+            variableInfo.variableAssign = AssignKind.let;
+        } else if (variableAssignText.includes(VAR_KEYWORD)) {
+            variableInfo.variableAssign = AssignKind.var;
+        }
+        variableInfo.variableName = node.name.getText();
+        if (node.type === undefined) {
+            variableInfo.variableType = this.visit(
+                this.getVariableType(node.name, this.getTypeChecker()),
+            );
+        } else {
+            variableInfo.variableType = this.visit(node.type);
+        }
+        const currentScope = this.getCurrentScope();
+        if (currentScope.kind === ScopeKind.GlobalScope) {
+            variableInfo.variableIndex = currentScope.getVariableArray().length;
+        } else {
+            // add variableInfo into current scope's corresponding function scope
+            if (!this.getFunctionScopeStack().isEmpty()) {
+                const currentFunctionScope =
+                    this.getFunctionScopeStack().peek();
+                // The variable's index also include param's index
+                variableInfo.variableIndex =
+                    currentFunctionScope.getVariableArray().length +
+                    currentFunctionScope.getParamArray().length;
+
+                currentFunctionScope.addVariable(variableInfo);
+            } else {
+                this.getGlobalScopeStack()
+                    .peek()
+                    .addStartFunctionVariable(variableInfo);
+            }
+        }
+        // add variableInfo into current scope
+        currentScope.addVariable(variableInfo);
+    }
+
+    generateVariableDeclaration(
+        node: ts.VariableDeclaration,
+    ): binaryen.ExpressionRef {
+        const currentScope = this.getCurrentScope();
+        let variableInfo = currentScope.findVariable(node.name.getText());
+        if (!variableInfo) {
+            this.reportError(node, 'Can not find variable in current scope');
+        }
+        variableInfo = <VariableInfo>variableInfo;
+        if (node.initializer !== undefined) {
+            variableInfo.variableInitial = this.visit(node.initializer);
+            variableInfo.variableType = binaryen.getExpressionType(
+                variableInfo.variableInitial,
+            );
+        } else {
+            if (variableInfo.variableAssign === AssignKind.const) {
+                this.reportError(node, 'error TS1155');
+            }
+        }
+        if (currentScope.kind === ScopeKind.GlobalScope) {
+            const currentGlobalScope = <GlobalScope>currentScope;
+            // If the global variable is undefined or has a NumericLiteral initializer, then addGlobal with None or NumericLiteral.
+            // Else, addGlobal with no initialize, and add a assign statement in the statement array.
+            if (
+                node.initializer === undefined ||
+                node.initializer.kind === ts.SyntaxKind.NumericLiteral
+            ) {
+                this.getBinaryenModule().addGlobal(
+                    variableInfo.variableName,
+                    variableInfo.variableType,
+                    variableInfo.variableAssign === AssignKind.const
+                        ? false
+                        : true,
+                    variableInfo.variableInitial === undefined
+                        ? this.getVariableDeclarationInitialValue(
+                              variableInfo.variableType,
+                          )
+                        : variableInfo.variableInitial,
+                );
+            } else {
+                this.getBinaryenModule().addGlobal(
+                    variableInfo.variableName,
+                    variableInfo.variableType,
+                    true,
+                    this.getVariableDeclarationInitialValue(
+                        variableInfo.variableType,
+                    ),
+                );
+                if (variableInfo.variableInitial) {
+                    currentGlobalScope.addStatement(
+                        this.setGlobalValue(
+                            variableInfo.variableName,
+                            variableInfo.variableInitial,
+                        ),
+                    );
+                }
+            }
+        } else {
+            if (variableInfo.variableInitial) {
+                return this.setLocalValue(
+                    variableInfo.variableIndex,
+                    variableInfo.variableInitial,
+                );
+            }
         }
         return binaryen.none;
     }

@@ -13,3 +13,5 @@ export function ifTest() {
     }
     return a + b + c + d;
 }
+
+// 36
