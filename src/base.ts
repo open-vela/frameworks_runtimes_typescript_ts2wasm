@@ -1,13 +1,7 @@
 import { Compiler } from './compiler.js';
 import ts from 'typescript';
 import binaryen from 'binaryen';
-import {
-    GlobalScope,
-    BlockScope,
-    Scope,
-    ScopeKind,
-    FunctionScope,
-} from './scope.js';
+import { Scope, FunctionScope } from './scope.js';
 
 export default class BaseCompiler {
     compiler: Compiler;
@@ -41,15 +35,12 @@ export default class BaseCompiler {
     }
 
     getCurrentScope() {
-        return this.compiler.currentScope;
-    }
-
-    getStartBlockScope(currentScope: Scope): BlockScope {
-        const currentGlobalScope = <GlobalScope>currentScope;
-        const currentStartBlockScope = <BlockScope>(
-            currentGlobalScope.getGlobalFunctionChild()!.getChildren()[0]
-        );
-        return currentStartBlockScope;
+        let scope = this.compiler.currentScope;
+        if (!scope) {
+            throw new Error('Current Scope is null');
+        }
+        scope = <Scope>scope;
+        return scope;
     }
 
     getLoopLabelStack() {
@@ -101,7 +92,7 @@ export default class BaseCompiler {
     }
 
     getTypeChecker() {
-        return this.compiler.typeChecker;
+        return this.compiler.typeChecker!;
     }
 
     reportError(node: ts.Node, message: string) {
@@ -141,32 +132,23 @@ export default class BaseCompiler {
                 'anonymous_' + this.getAnonymousFunctionNameStack().size();
             this.getAnonymousFunctionNameStack().push(functionName);
         }
-        let currentScope = this.getCurrentScope()!;
-        if (currentScope.kind === ScopeKind.StartBlockScope) {
-            currentScope = this.getGlobalScopeStack().peek();
-        }
-
-        // connet functionScope with its parentScope
+        const currentScope = this.getCurrentScope();
         const functionScope = new FunctionScope(currentScope);
         this.setCurrentScope(functionScope);
-        // push the current function into stack
         this.getFunctionScopeStack().push(functionScope);
-        // add function modifier
+        functionScope.setCorNode(node);
         const modifiers = ts.getModifiers(node);
         if (modifiers !== undefined) {
             for (let i = 0; i < modifiers.length; i++) {
                 functionScope.addModifier(modifiers[i].kind);
             }
         }
-        // set function name
         functionScope.setFuncName(functionName);
-        // set function parameters
         for (let i = 0; i < node.parameters.length; i++) {
             this.visit(node.parameters[i]);
         }
-        // get return type of function
         if (node.type === undefined) {
-            // By default, the type can be regarded as void, else, the function' return type should be judged by the return value
+            // By default, the type can be regarded as void, the truely return type will be judged by the return value in the ReturnStatement
             functionScope.setReturnType(binaryen.none);
             functionScope.setReturnTypeUndefined(true);
         } else {
@@ -176,28 +158,29 @@ export default class BaseCompiler {
         if (node.body === undefined) {
             this.reportError(node, 'error TS2391');
         }
-        // handle function body, add connection between functionScope and blockScope in the Block Node.
+        // Continue to record the scope stucture in function's body
         functionScope.setBody(this.visit(node.body!, fillScope));
-        // pop the current function after setting its value into scope.
-        const currentFunctionScope = this.getFunctionScopeStack().pop()!;
+        const currentFunctionScope = this.getFunctionScopeStack().pop();
         this.setCurrentScope(currentFunctionScope.getParent());
     }
 
     generateFunctionLikeDeclaration(node: ts.FunctionLikeDeclaration) {
-        let functionName: string;
-        if (node.name !== undefined) {
-            functionName = node.name.getText();
-        } else {
-            functionName = this.getAnonymousFunctionNameStack().peek();
+        const currentScope = this.getCurrentScope();
+        let currentFunctionScope = null;
+        for (let i = 0; i < currentScope.getChildren().length; i++) {
+            const child = currentScope.getChildren()[i];
+            if (child.getCorNode() === node) {
+                currentFunctionScope = child;
+            }
         }
-        let currentScope = this.getCurrentScope()!;
-        if (currentScope.kind === ScopeKind.StartBlockScope) {
-            currentScope = this.getGlobalScopeStack().peek();
+        if (!currentFunctionScope) {
+            this.reportError(
+                node,
+                'Can not find the node in the scope structure',
+            );
         }
-        const currentFunctionScope =
-            currentScope.findFunctionScope(functionName)!;
+        currentFunctionScope = <FunctionScope>currentFunctionScope;
         this.setCurrentScope(currentFunctionScope);
-        // push the current function into stack
         this.getFunctionScopeStack().push(currentFunctionScope);
         currentFunctionScope.setBody(this.visit(node.body!));
         this.getBinaryenModule().addFunction(
@@ -230,63 +213,23 @@ export default class BaseCompiler {
                 );
             }
         }
-        this.getFunctionScopeStack().pop()!;
+        this.getFunctionScopeStack().pop();
         this.setCurrentScope(currentFunctionScope.getParent());
     }
 
-    toTrueOrFalse(
+    convertTypeToI32(
         expression: binaryen.ExpressionRef,
         expressionType: binaryen.Type,
     ): binaryen.ExpressionRef {
-        const module = this.getBinaryenModule();
-
         switch (expressionType) {
+            case binaryen.f64: {
+                return this.getBinaryenModule().i32.trunc_u_sat.f64(expression);
+            }
             case binaryen.i32: {
                 return expression;
             }
-            case binaryen.f64: {
-                return module.i32.eqz(
-                    module.i32.eqz(
-                        module.i32.trunc_u_sat.f64(
-                            module.f64.ceil(module.f64.abs(expression)),
-                        ),
-                    ),
-                );
-            }
-            default: {
-                return binaryen.none;
-            }
+            // TODO: deal with more types
         }
-    }
-
-    getCommonType(
-        lhsType: binaryen.Type,
-        rhsType: binaryen.Type,
-    ): binaryen.Type {
-        if (lhsType === rhsType) {
-            return lhsType;
-        }
-        if (lhsType < rhsType) {
-            return rhsType;
-        }
-        return lhsType;
-    }
-
-    convertType(
-        expression: binaryen.ExpressionRef,
-        from: binaryen.Type,
-        to: binaryen.Type,
-    ) {
-        if (from === to) {
-            return expression;
-        }
-        const module = this.getBinaryenModule();
-        if (from === binaryen.i32) {
-            if (to === binaryen.f64) {
-                return module.f64.convert_s.i32(expression);
-            }
-        }
-        // TODO: deal with more types
         return binaryen.none;
     }
 }

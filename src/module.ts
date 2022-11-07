@@ -2,7 +2,7 @@ import ts from 'typescript';
 import binaryen from 'binaryen';
 import { Compiler } from './compiler.js';
 import BaseCompiler from './base.js';
-import { GlobalScope, ScopeKind, FunctionScope, BlockScope } from './scope.js';
+import { GlobalScope, ScopeKind } from './scope.js';
 
 export default class ModuleCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
@@ -16,19 +16,21 @@ export default class ModuleCompiler extends BaseCompiler {
                     const globalScope = new GlobalScope();
                     this.setCurrentScope(globalScope);
                     this.getGlobalScopeStack().push(globalScope);
-                    const startFunctionScope = new FunctionScope(globalScope);
-                    globalScope.setGlobalFunctionChild(startFunctionScope);
-                    const startBlockScope = new BlockScope(startFunctionScope);
-                    startFunctionScope.setFuncName('~start');
-                    startFunctionScope.setReturnType(binaryen.none);
+                    globalScope.setFuncName('~start');
+                    globalScope.setReturnType(binaryen.none);
+                    for (let i = 0; i < sourceFileNode.statements.length; i++) {
+                        this.visit(sourceFileNode.statements[i], fillScope);
+                    }
+                    this.visit(sourceFileNode.endOfFileToken, fillScope);
                 } else {
-                    this.setCurrentScope(this.getGlobalScopeStack().peek());
+                    const globalScope = this.getGlobalScopeStack().peek();
+                    this.setCurrentScope(globalScope);
+                    for (let i = 0; i < sourceFileNode.statements.length; i++) {
+                        this.visit(sourceFileNode.statements[i]);
+                    }
+                    this.visit(sourceFileNode.endOfFileToken);
+                    this.getGlobalScopeStack().pop();
                 }
-                for (let i = 0; i < sourceFileNode.statements.length; i++) {
-                    this.visit(sourceFileNode.statements[i], fillScope);
-                }
-                this.visit(sourceFileNode.endOfFileToken, fillScope);
-                // this.getGlobalScopeStack().pop();
                 break;
             }
 
@@ -37,33 +39,28 @@ export default class ModuleCompiler extends BaseCompiler {
                 if (!fillScope) {
                     // put all global expressionStatement to a function
                     const currentScope = this.getCurrentScope();
-                    if (currentScope!.kind !== ScopeKind.GlobalScope) {
+                    if (currentScope.kind !== ScopeKind.GlobalScope) {
                         this.reportError(endNode, 'not global scope');
                     }
                     const currentGlobalScope = <GlobalScope>currentScope;
-                    const startFunctionScope =
-                        currentGlobalScope.getGlobalFunctionChild()!;
-                    const startBlockScope = <BlockScope>(
-                        startFunctionScope.getChildren()[0]
-                    );
                     const body = this.getBinaryenModule().block(
                         null,
-                        startBlockScope.getStatementArray(),
+                        currentGlobalScope.getStatementArray(),
                     );
-                    startFunctionScope.setBody(body);
+                    currentGlobalScope.setBody(body);
                     const startFunctionRef =
                         this.getBinaryenModule().addFunction(
-                            startFunctionScope.getFuncName(),
+                            currentGlobalScope.getFuncName(),
                             binaryen.none,
-                            startFunctionScope.getReturnType(),
-                            startFunctionScope
-                                .getVariableArray()
+                            currentGlobalScope.getReturnType(),
+                            currentGlobalScope
+                                .getStartFunctionVariableArray()
                                 .map(
                                     (variable: {
                                         variableType: binaryen.Type;
                                     }) => variable.variableType,
                                 ),
-                            body,
+                            currentGlobalScope.getBody(),
                         );
                     this.getBinaryenModule().setStart(startFunctionRef);
                 }
