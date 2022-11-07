@@ -26,14 +26,7 @@ cd quickjs/
 
 #### step 2
 
-run commands below to apply the patch.
-
-``` shell
-git apply --check ../0001-patch.patch
-git apply ../0001-patch.patch
-```
-
-if success, run commands below to build it.
+run commands below to build it.
 
 ``` shell
 mkdir ../build && cd ../build
