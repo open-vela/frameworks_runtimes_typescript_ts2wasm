@@ -15,13 +15,8 @@ cd ts2wasm/lib/dyntype/
 then run command below to initiate quickjs library.
 
 ```shell
-git submodule update --init --recursive
-```
-
-then
-
-``` shell
-cd quickjs/
+git pull --recurse-submodules
+git submodule update --remote --recursive
 ```
 
 #### step 2
@@ -29,7 +24,7 @@ cd quickjs/
 run commands below to build it.
 
 ``` shell
-mkdir ../build && cd ../build
+mkdir build && cd build
 cmake ../
 make
 ```
