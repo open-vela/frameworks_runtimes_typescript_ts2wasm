@@ -295,6 +295,11 @@ export default class ExpressionCompiler extends BaseCompiler {
                 return this.handleConditionalExpression(conditionNode);
             }
 
+            case ts.SyntaxKind.ParenthesizedExpression: {
+                const parenthesizedNode = <ts.ParenthesizedExpression>node;
+                return this.visit(parenthesizedNode.expression);
+            }
+
             case ts.SyntaxKind.CallExpression: {
                 // TODO: add closure
                 const callExpressionNode = <ts.CallExpression>node;
