@@ -86,20 +86,20 @@ function showHelp(optionPath: string) {
             'node' +
             ' build/cli/ts2wasm.js' +
             ' sample.ts' +
-            ' --wasmFile' +
+            ' --output' +
             ' sample.wasm',
         '  ' +
             'node' +
             ' build/cli/ts2wasm.js' +
             ' sample.ts' +
-            ' --wasmFile' +
+            ' --output' +
             ' sample.wasm' +
             ' --wat',
         '  ' +
             'node' +
             ' build/cli/ts2wasm.js' +
             ' sample.ts' +
-            ' --wasmFile' +
+            ' --output' +
             ' sample.wasm' +
             ' --validate' +
             ' functionName' +
