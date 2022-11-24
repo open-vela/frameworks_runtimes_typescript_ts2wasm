@@ -19,6 +19,26 @@ RUN apt install -y \
 
 ## lsb-release  allows us to find out which distro we run inside the dev container
 
+# Add WAMR gc branch
+RUN git clone -b dev/gc https://github.com/bytecodealliance/wasm-micro-runtime.git
+RUN cd wasm-micro-runtime/product-mini/platforms/linux/ \
+    && mkdir build && cd build \
+    && cmake .. -DWAMR_BUILD_GC=1 \
+    && make
+RUN ln -s /wasm-micro-runtime/product-mini/platforms/linux/build/iwasm  \
+    /usr/local/bin/iwasm
+
+# Add binaryen
+RUN git clone https://github.com/WebAssembly/binaryen.git
+RUN cd binaryen/ \
+    && git submodule init \
+    && git submodule update \
+    && mkdir build && cd build \
+    && cmake .. \
+    && make
+RUN ln -s /binaryen/build/bin/wasm-as /usr/local/bin/wasm-as
+RUN ln -s /binaryen/build/bin/wasm-opt /usr/local/bin/wasm-opt
+
 # Create the non-root user
 RUN userdel -r -f node  \
     && groupadd --gid $USER_GID $USERNAME \
