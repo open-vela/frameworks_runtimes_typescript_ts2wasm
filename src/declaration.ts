@@ -200,9 +200,11 @@ export default class DeclarationCompiler extends BaseCompiler {
         variableInfo = <VariableInfo>variableInfo;
         if (node.initializer !== undefined) {
             variableInfo.variableInitial = this.visit(node.initializer);
-            variableInfo.variableType = binaryen.getExpressionType(
-                variableInfo.variableInitial,
-            );
+            // TODO: in AmpersandAmpersandToken and BarBarToken, typechecker will detect a union type, which need further processing
+            // for now, binaryen.getExpressionType may get an exact type, but not work for complex types
+            // variableInfo.variableType = binaryen.getExpressionType(
+            //     variableInfo.variableInitial,
+            // );
         } else {
             if (variableInfo.variableAssign === AssignKind.const) {
                 this.reportError(node, 'error TS1155');

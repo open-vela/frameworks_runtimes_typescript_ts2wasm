@@ -3,6 +3,7 @@ import binaryen from 'binaryen';
 import { Compiler } from './compiler.js';
 import BaseCompiler from './base.js';
 import { GlobalScope, ScopeKind } from './scope.js';
+import { initStringBuiltin } from '../lib/builtin/stringBuiltin.js';
 
 export default class ModuleCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
@@ -25,6 +26,7 @@ export default class ModuleCompiler extends BaseCompiler {
                 } else {
                     const globalScope = this.getGlobalScopeStack().peek();
                     this.setCurrentScope(globalScope);
+                    initStringBuiltin(this.getBinaryenModule(), globalScope);
                     for (let i = 0; i < sourceFileNode.statements.length; i++) {
                         this.visit(sourceFileNode.statements[i]);
                     }
