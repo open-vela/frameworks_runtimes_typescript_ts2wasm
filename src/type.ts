@@ -2,6 +2,7 @@ import ts from 'typescript';
 import binaryen from 'binaryen';
 import { Compiler } from './compiler.js';
 import BaseCompiler from './base.js';
+import { strStructTypeInfo } from './glue/packType.js';
 
 export default class TypeCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
@@ -15,7 +16,9 @@ export default class TypeCompiler extends BaseCompiler {
             case ts.SyntaxKind.AnyKeyword: {
                 // TODO: handle any type
                 return binaryen.anyref;
-                break;
+            }
+            case ts.SyntaxKind.StringKeyword: {
+                return strStructTypeInfo.typeRef;
             }
             case ts.SyntaxKind.VoidKeyword: {
                 return binaryen.none;
