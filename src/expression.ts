@@ -8,6 +8,12 @@ import {
     VariableInfo,
     ExpressionKind,
 } from './utils.js';
+import {
+    STRING_LENGTH_FUNC,
+    STRING_CONCAT_FUNC,
+    STRING_SLICE_FUNC,
+} from './glue/utils.js';
+import { strArrayTypeInfo, strStructTypeInfo } from './glue/packType.js';
 
 export default class ExpressionCompiler extends BaseCompiler {
     constructor(compiler: Compiler) {
@@ -303,6 +309,12 @@ export default class ExpressionCompiler extends BaseCompiler {
             case ts.SyntaxKind.CallExpression: {
                 // TODO: add closure
                 const callExpressionNode = <ts.CallExpression>node;
+                if (
+                    callExpressionNode.expression.kind ===
+                    ts.SyntaxKind.PropertyAccessExpression
+                ) {
+                    return this.visit(callExpressionNode.expression);
+                }
                 const funcName = callExpressionNode.expression.getText();
                 const parameters = callExpressionNode.arguments;
                 const paramExpressionRefList: binaryen.ExpressionRef[] = [];
@@ -349,6 +361,52 @@ export default class ExpressionCompiler extends BaseCompiler {
                     paramExpressionRefList,
                     returnType,
                 );
+            }
+
+            case ts.SyntaxKind.PropertyAccessExpression: {
+                const propertyAccessNode = <ts.PropertyAccessExpression>node;
+                const module = this.getBinaryenModule();
+                const strStruct1 = this.visit(propertyAccessNode.expression);
+                const builtInFunc = propertyAccessNode.name.getText();
+                if (
+                    propertyAccessNode.parent.kind ===
+                    ts.SyntaxKind.CallExpression
+                ) {
+                    const callNode = <ts.CallExpression>(
+                        propertyAccessNode.parent
+                    );
+                    const params = callNode.arguments;
+                    switch (builtInFunc) {
+                        case 'concat': {
+                            const strStruct2 = this.visit(params[0]);
+                            return module.call(
+                                STRING_CONCAT_FUNC,
+                                [strStruct1, strStruct2],
+                                strStructTypeInfo.heapTypeRef,
+                            );
+                        }
+                        case 'slice': {
+                            const start = this.visit(params[0]);
+                            const end = this.visit(params[1]);
+                            return module.call(
+                                STRING_SLICE_FUNC,
+                                [strStruct1, start, end],
+                                strStructTypeInfo.heapTypeRef,
+                            );
+                        }
+                    }
+                } else {
+                    switch (builtInFunc) {
+                        case 'length': {
+                            return module.call(
+                                STRING_LENGTH_FUNC,
+                                [strStruct1],
+                                strStructTypeInfo.heapTypeRef,
+                            );
+                        }
+                    }
+                }
+                break;
             }
         }
         return binaryen.none;

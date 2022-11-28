@@ -8,6 +8,8 @@
     "strict": true,
     "skipLibCheck": true,
     "outDir": "build",
-    "sourceMap": true
-  }
+    "sourceMap": true,
+    "allowJs": true
+  },
+  "exclude": ["lib/dyntype/quickjs/*", "build/*"]
 }
