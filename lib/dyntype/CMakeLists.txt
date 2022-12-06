@@ -19,3 +19,11 @@ set(LIB_DYNTYPE
 add_library(quickjs ${LIB_QUICKJS})
 add_library(dyntype ${LIB_DYNTYPE})
 target_link_libraries(dyntype quickjs)
+
+set (WAMR_BUILD_PLATFORM "linux")
+set (WAMR_BUILD_TARGET X86_64)
+set (WAMR_BUILD_INTERP 1)
+set (WAMR_BUILD_AOT 1)
+include(${CMAKE_CURRENT_LIST_DIR}/wamr/build-scripts/runtime_lib.cmake)
+
+add_library(dyntype_export SHARED lib_dyntype_wrapper.c)
