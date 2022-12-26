@@ -16,7 +16,7 @@ export const COMPILER_OPTIONS: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2015,
 };
 export class Compiler {
-    private compilers: BaseCompiler[];
+    private typeCompiler;
     typeChecker: ts.TypeChecker | undefined;
     binaryenModule = new binaryen.Module();
     globalScopeStack = new Stack<GlobalScope>();
@@ -29,14 +29,7 @@ export class Compiler {
     anonymousFunctionNameStack = new Stack<string>();
 
     constructor() {
-        this.compilers = [
-            new ExpressionCompiler(this),
-            new StatementCompiler(this),
-            new DeclarationCompiler(this),
-            new LiteralCompiler(this),
-            new ModuleCompiler(this),
-            new TypeCompiler(this),
-        ];
+        this.typeCompiler = new TypeCompiler(this);
     }
 
     compile(fileNames: string[]): void {
@@ -48,36 +41,22 @@ export class Compiler {
             compilerHost,
         );
         this.typeChecker = program.getTypeChecker();
-        // fill scopes
-        program
-            .getSourceFiles()
-            .filter(
-                (sourceFile: ts.SourceFile) =>
-                    !sourceFile.fileName.match(/\.d\.ts$/),
-            )
-            .forEach((sourceFile: ts.SourceFile) => {
-                this.visit(sourceFile, true);
-            });
-        // invoke binaryen
-        program
-            .getSourceFiles()
-            .filter(
-                (sourceFile: ts.SourceFile) =>
-                    !sourceFile.fileName.match(/\.d\.ts$/),
-            )
-            .forEach((sourceFile: ts.SourceFile) => {
-                this.visit(sourceFile);
-            });
-    }
 
-    visit(node: ts.Node, fillScope = false): binaryen.ExpressionRef {
-        for (let i = 0; i < this.compilers.length; i++) {
-            const visitValue = this.compilers[i].visitNode(node, fillScope);
-            if (visitValue != binaryen.none) {
-                return visitValue;
-            }
-        }
-        return binaryen.none;
+        const sourceFileList = program
+            .getSourceFiles()
+            .filter(
+                (sourceFile: ts.SourceFile) =>
+                    !sourceFile.fileName.match(/\.d\.ts$/),
+            );
+
+        /* Step1: Resolve all type declarations */
+        this.typeCompiler.visit(sourceFileList);
+        // TODO: other steps
+        /* Step2: Resolve all scopes */
+        // this.scopeScanner.visit(sourceFileList);
+        /* Step3: additional type checking rules (optional) */
+        /* Step4: code generation */
+        // this.condegen.visit(sourceFileList);
     }
 
     reportError(node: ts.Node, message: string) {
