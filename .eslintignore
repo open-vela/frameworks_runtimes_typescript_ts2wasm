@@ -2,3 +2,4 @@
 tests/samples/
 src/glue/binaryen.d.ts
 src/glue/binaryen.js
+lib/dyntype/*
