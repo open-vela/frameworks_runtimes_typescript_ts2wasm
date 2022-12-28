@@ -1,6 +1,7 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
 import { VariableInfo } from './utils.js';
+import { Type } from './type.js';
 
 export enum ScopeKind {
     Scope,
@@ -16,6 +17,7 @@ export class Scope {
     parent: Scope | null;
     judgedGlobalVariable = '';
     corNode: ts.Node | null = null;
+    namedTypeMap: Map<string, Type> = new Map();
 
     constructor(parent: Scope | null) {
         this.parent = parent;
