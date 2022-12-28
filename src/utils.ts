@@ -1,10 +1,16 @@
 import binaryen from 'binaryen';
+import ts from 'typescript';
 
 export enum AssignKind {
     default,
     const,
     let,
     var,
+}
+
+export interface TypeCheckerInfo {
+    typeName: string;
+    typeNode: ts.Node;
 }
 
 export enum LoopKind {
