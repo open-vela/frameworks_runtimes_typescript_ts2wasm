@@ -12,17 +12,23 @@ import {
     StringLiteralExpression,
     UnaryExpression,
 } from './expression.js';
-import ts from 'typescript';
+import ts, { ModuleKind } from 'typescript';
 import { strArrayTypeInfo } from './glue/packType.js';
 import { arrayToPtr, stringStructTypeInfo } from './glue/transform.js';
 import { assert } from 'console';
+import { FunctionScope, GlobalScope, ScopeKind } from './scope.js';
+import { Stack } from './utils.js';
 
 export class WASMGen {
     private binaryenModule = new binaryen.Module();
     private wasmTypeCompiler = new WASMType();
 
-    constructor() {
-        // TODO
+    constructor(private globalScopes: Stack<GlobalScope>) {}
+
+    WASMGenerate() {
+        while (!this.globalScopes.isEmpty()) {
+            const stack = this.globalScopes.pop();
+        }
     }
 
     get module(): binaryen.Module {
@@ -39,7 +45,9 @@ export class WASMType {
     private tsType2WASMHeapTypeMap: Map<Type, binaryenCAPI.HeapTypeRef> =
         new Map();
 
-    constructor() {}
+    constructor() {
+        // TODO
+    }
 
     createWASMType(type: Type): void {
         if (this.tsType2WASMTypeMap.has(type)) {
@@ -60,10 +68,12 @@ export class WASMType {
 
     getWASMType(type: Type): binaryenCAPI.TypeRef {
         // TODO
+        return binaryen.none;
     }
 
     getWASMHeapType(type: Type): binaryenCAPI.HeapTypeRef {
         // TODO
+        return binaryen.none;
     }
 }
 
@@ -82,35 +92,37 @@ export class WASMValue {
 
     // TODO: Set TypeRef through varInfo
     setBinaryenTypeRef() {
-
+        // TODO
     }
 
     getBinaryenTypeRef(): binaryenCAPI.TypeRef {
-
+        return binaryen.none;
     }
 
     setBinaryenHeapTypeRef() {
-
+        // TODO
     }
 
     getBinaryenHeapTypeRef(): binaryenCAPI.HeapTypeRef {
-
+        return binaryen.none;
     }
 
-    getVarInfo(): Variable {
+    // getVarInfo(): Variable {
 
-    }
+    // }
 
     getIndex(): binaryenCAPI.Index {
-
+        // TODO
+        return binaryen.none;
     }
 
-    setExpression() {
+    // setExpression() {
 
-    }
+    // }
 
     getExpression(): binaryen.ExpressionRef {
-
+        // TODO
+        return binaryen.none;
     }
 }
 
@@ -168,7 +180,8 @@ export class WASMExpression {
         );
         const wasmStringValue = binaryenCAPI._BinaryenStructNew(
             this.WASMCompiler.module.ptr,
-            arrayToPtr([this.WASMCompiler.module.i32.const(0), valueContent]).ptr,
+            arrayToPtr([this.WASMCompiler.module.i32.const(0), valueContent])
+                .ptr,
             2,
             strArrayTypeInfo.heapTypeRef,
         );
@@ -177,10 +190,20 @@ export class WASMExpression {
 
     WASMIdenfiterExpr(expr: IdentifierExpression): binaryen.ExpressionRef {
         const variable = findVariable(expr.identifierName);
-        return this.WASMCompiler.module.local.get(
-            variable.varIndex,
-            this.WASMCompiler.wasmType.getWASMType(variable.varType),
+        const varType = this.WASMCompiler.wasmType.getWASMType(
+            variable.varType,
         );
+        if (variable.isLocalVar) {
+            return this.WASMCompiler.module.local.get(
+                variable.varIndex,
+                varType,
+            );
+        } else {
+            return this.WASMCompiler.module.global.get(
+                variable.varName,
+                varType,
+            );
+        }
     }
 
     WASMBinaryExpr(expr: BinaryExpression): binaryen.ExpressionRef {
@@ -446,6 +469,12 @@ export class WASMExpression {
                     tsFunctionType.returnType,
                 ),
             );
+        } else if (callExpr.expressionKind === ts.SyntaxKind.CallExpression) {
+            // TODO
+        } else if (
+            callExpr.expressionKind === ts.SyntaxKind.PropertyAccessExpression
+        ) {
+            // todo
         }
         return this.WASMCompiler.module.unreachable();
     }
@@ -469,8 +498,11 @@ export class WASMExpression {
 
 function findVariable(name: string): Variable {
     // TODO
+
+    return new Variable('', new Type(), 0, 0);
 }
 
 function findType(name: string): Type {
     // TODO
+    return new Type();
 }
