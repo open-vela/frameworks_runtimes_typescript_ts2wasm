@@ -10,6 +10,7 @@ import {
     ScopeScanner,
 } from './scope.js';
 import { VariableScanner, VariableInit } from './variable.js';
+import ExpressionCompiler from './expression.js';
 
 export const COMPILER_OPTIONS: ts.CompilerOptions = {
     module: ts.ModuleKind.ESNext,
@@ -20,6 +21,8 @@ export class Compiler {
     private typeCompiler;
     private variableScanner;
     private VariableInit;
+    private exprCompiler;
+
     typeChecker: ts.TypeChecker | undefined;
     globalScopeStack = new Stack<GlobalScope>();
     nodeScopeMap = new Map<ts.Node, Scope>();
@@ -39,6 +42,7 @@ export class Compiler {
         this.typeCompiler = new TypeCompiler(this);
         this.variableScanner = new VariableScanner(this);
         this.VariableInit = new VariableInit(this);
+        this.exprCompiler = new ExpressionCompiler(this);
     }
 
     compile(fileNames: string[]): void {
@@ -69,6 +73,22 @@ export class Compiler {
         /* Step3: additional type checking rules (optional) */
         /* Step4: code generation */
         // this.condegen.visit(sourceFileList);
+    }
+
+    get expressionCompiler(): ExpressionCompiler {
+        return this.exprCompiler;
+    }
+
+    get loopLabels(): Stack<string> {
+        return this.loopLabelStack;
+    }
+
+    get breakLabels(): Stack<string> {
+        return this.breakLabels;
+    }
+
+    get switchLabels(): Stack<number> {
+        return this.switchLabelStack;
     }
 
     reportError(node: ts.Node, message: string) {
