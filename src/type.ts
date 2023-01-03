@@ -2,6 +2,7 @@ import ts from 'typescript';
 import { Compiler } from './compiler.js';
 import { Stack, getNodeTypeInfo, getCurScope } from './utils.js';
 import { GlobalScope, Scope } from './scope.js';
+import { Parameter } from './variable.js';
 
 export const enum TypeKind {
     VOID,
@@ -65,15 +66,99 @@ export interface TsClassField {
     type: Type;
     modifier?: 'readonly';
     visibility?: 'public' | 'protected' | 'private';
+    static?: 'static';
 }
 
 export class TSClass extends Type {
     typeKind = TypeKind.CLASS;
-    memberFields: Array<TsClassField> = [];
-    staticFields: Array<TsClassField> = [];
+    private memberFields: Array<TsClassField> = [];
+    private staticFields: Array<TsClassField> = [];
+    private constructorMethodName = '';
+    private constructorMethod: TSFunction | null = null;
+    private methods: Map<string, TSFunction> = new Map();
+    private methodsOverride: Map<string, boolean> = new Map();
+    private staticMethods: Map<string, TSFunction> = new Map();
+    private baseClass: TSClass | null = null;
 
     constructor() {
         super();
+    }
+
+    get classConstructorName(): string {
+        return this.constructorMethodName;
+    }
+
+    get classConstructorType(): TSFunction | null {
+        return this.constructorMethod;
+    }
+
+    setClassConstructor(name: string, functionType: TSFunction) {
+        this.constructorMethodName = name;
+        this.constructorMethod = functionType;
+    }
+
+    setBase(base: TSClass): void {
+        this.baseClass = base;
+    }
+
+    getBase(): TSClass | null {
+        return this.baseClass;
+    }
+
+    addMemberField(memberField: TsClassField): void {
+        this.memberFields.push(memberField);
+    }
+
+    getMemberField(name: string): TsClassField | null {
+        for (const memberField of this.memberFields) {
+            if (memberField.name === name) {
+                return memberField;
+            }
+        }
+        return null;
+    }
+
+    addStaticMemberField(memberField: TsClassField): void {
+        this.staticFields.push(memberField);
+    }
+
+    getStaticMemberField(name: string): TsClassField | null {
+        for (const memberField of this.staticFields) {
+            if (memberField.name === name) {
+                return memberField;
+            }
+        }
+        return null;
+    }
+
+    addMethod(name: string, methodType: TSFunction): void {
+        this.methods.set(name, methodType);
+    }
+
+    getMethod(name: string): TSFunction {
+        const method = this.methods.get(name);
+        if (method === undefined) {
+            throw new Error(
+                'method function not found, function name <' + name + '>',
+            );
+        }
+        return method;
+    }
+
+    addStaticMethod(name: string, methodType: TSFunction): void {
+        this.staticMethods.set(name, methodType);
+    }
+
+    getStaticMethod(name: string): TSFunction {
+        const method = this.staticMethods.get(name);
+        if (method === undefined) {
+            throw new Error(
+                'static method function not found, function name <' +
+                    name +
+                    '>',
+            );
+        }
+        return method;
     }
 }
 
@@ -86,8 +171,46 @@ export class TSArray extends Type {
 
 export class TSFunction extends Type {
     typeKind = TypeKind.FUNCTION;
+    private parameterTypes: Parameter[] = [];
+    private _returnType: Type = new Primitive('void'); // TODO: or default: Type.void
+    // iff last parameter is rest paremeter
+    private hasRestParameter = false;
+
     constructor() {
         super();
+    }
+
+    set returnType(type: Type) {
+        this._returnType = type;
+    }
+
+    get returnType(): Type {
+        return this._returnType;
+    }
+
+    addParameter(parameter: Parameter) {
+        this.parameterTypes.push(parameter);
+    }
+
+    getParameter(name: string): Parameter | null {
+        for (const parameter of this.parameterTypes) {
+            if (parameter.varName === name) {
+                return parameter;
+            }
+        }
+        return null;
+    }
+
+    getParameters(): Parameter[] {
+        return this.parameterTypes;
+    }
+
+    setRest() {
+        this.hasRestParameter = true;
+    }
+
+    hasRest() {
+        return this.hasRestParameter === true;
     }
 }
 
@@ -214,7 +337,7 @@ export default class TypeCompiler {
                         name: fieldName,
                         type: fieldType,
                     };
-                    objLiteral.memberFields.push(objField);
+                    objLiteral.addMemberField(objField);
                 }
                 return objLiteral;
             }
