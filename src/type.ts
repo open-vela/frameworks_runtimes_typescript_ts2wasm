@@ -1,12 +1,62 @@
 import ts from 'typescript';
 import { Compiler } from './compiler.js';
-import { TypeCheckerInfo } from './utils.js';
+import { Stack, getNodeTypeInfo, getCurScope } from './utils.js';
+import { GlobalScope, Scope } from './scope.js';
 
-export class Type {}
+export const enum TypeKind {
+    VOID,
+    BOOLEAN,
+    NUMBER,
+    ANY,
+    STRING,
+    ARRAY,
+    FUNCTION,
+    CLASS,
+    UNKNOWN,
+    NULL,
+}
+
+export class Type {
+    typeKind = TypeKind.UNKNOWN;
+
+    get kind(): TypeKind {
+        return this.typeKind;
+    }
+}
 
 export class Primitive extends Type {
+    typeKind;
     constructor(private type: string) {
         super();
+        switch (type) {
+            case 'number': {
+                this.typeKind = TypeKind.NUMBER;
+                break;
+            }
+            case 'string': {
+                this.typeKind = TypeKind.STRING;
+                break;
+            }
+            case 'boolean': {
+                this.typeKind = TypeKind.BOOLEAN;
+                break;
+            }
+            case 'any': {
+                this.typeKind = TypeKind.ANY;
+                break;
+            }
+            case 'void': {
+                this.typeKind = TypeKind.VOID;
+                break;
+            }
+            case 'null': {
+                this.typeKind = TypeKind.NULL;
+                break;
+            }
+            default: {
+                this.typeKind = TypeKind.UNKNOWN;
+            }
+        }
     }
 }
 
@@ -18,6 +68,7 @@ export interface TsClassField {
 }
 
 export class TSClass extends Type {
+    typeKind = TypeKind.CLASS;
     memberFields: Array<TsClassField> = [];
     staticFields: Array<TsClassField> = [];
 
@@ -27,38 +78,40 @@ export class TSClass extends Type {
 }
 
 export class TSArray extends Type {
+    typeKind = TypeKind.ARRAY;
     constructor(private elemType: Type) {
         super();
     }
 }
 
 export class TSFunction extends Type {
+    typeKind = TypeKind.FUNCTION;
     constructor() {
         super();
     }
 }
 
 export default class TypeCompiler {
-    namedTypeMap: Map<string, Type> =
-        this.compilerCtx.currentScope!.namedTypeMap;
-    typechecker = this.compilerCtx.typeChecker!;
+    typechecker: ts.TypeChecker | undefined = undefined;
+    globalScopeStack = new Stack<GlobalScope>();
+    currentScope: Scope | null = null;
+    nodeScopeMap = new Map<ts.Node, Scope>();
 
-    constructor(private compilerCtx: Compiler) {
-        this.namedTypeMap.set('number', new Primitive('number'));
-        this.namedTypeMap.set('any', new Primitive('any'));
-        this.namedTypeMap.set('string', new Primitive('string'));
-        this.namedTypeMap.set('void', new Primitive('void'));
-        this.namedTypeMap.set('boolean', new Primitive('boolean'));
-    }
+    constructor(private compilerCtx: Compiler) {}
 
     visit(nodes: Array<ts.SourceFile>) {
-        /* TODO: invoke visitNode on interested nodes */
-        for (const sourceFile of nodes) {
-            ts.forEachChild(sourceFile, this.visitNode);
+        this.typechecker = this.compilerCtx.typeChecker;
+        this.globalScopeStack = this.compilerCtx.globalScopeStack;
+        this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
+        for (let i = 0; i < nodes.length; i++) {
+            const sourceFile = nodes[i];
+            this.currentScope = this.globalScopeStack.getItemAtIdx(i);
+            this.visitNode(sourceFile);
         }
     }
 
     visitNode(node: ts.Node): void {
+        this.findCurrentScope(node);
         switch (node.kind) {
             case ts.SyntaxKind.ClassDeclaration: {
                 /* TODO: new TSClass and insert to this.namedTypeMap */
@@ -68,80 +121,72 @@ export default class TypeCompiler {
                 /* TODO: new corresponding type and insert to this.namedTypeMap */
                 break;
             }
-            case ts.SyntaxKind.ArrayLiteralExpression: {
-                const typeCheckerInfo = this.getNodeTypeName(
-                    node,
-                    this.typechecker,
-                );
-                const typeName = typeCheckerInfo.typeName;
-                if (this.namedTypeMap.has(typeName)) {
+            case ts.SyntaxKind.Identifier: {
+                // const dd = [{ a: 1 }, { a: 2 }, { a: 3, b: 3 }];
+                // In this case, identifier's type is not equal with array's type.
+                if (node.parent.kind === ts.SyntaxKind.NewExpression) {
                     break;
                 }
-                const typeNode = typeCheckerInfo.typeNode;
-                const arrayType = this.generateNodeType(typeNode);
-                this.namedTypeMap.set(typeName, arrayType);
+                this.setType(node);
+                break;
+            }
+            case ts.SyntaxKind.ArrayType:
+            case ts.SyntaxKind.ArrayLiteralExpression:
+            case ts.SyntaxKind.ObjectLiteralExpression: {
+                this.setComplexLiteralType(node);
                 break;
             }
             case ts.SyntaxKind.NewExpression: {
+                const newExpressionNode = <ts.NewExpression>node;
+                const identifierName = newExpressionNode.expression.getText()!;
+                switch (identifierName) {
+                    case 'Array': {
+                        this.setComplexLiteralType(newExpressionNode);
+                        break;
+                    }
+                }
                 break;
             }
-            case ts.SyntaxKind.ObjectLiteralExpression: {
+            case ts.SyntaxKind.NumberKeyword:
+            case ts.SyntaxKind.NumericLiteral:
+            case ts.SyntaxKind.StringKeyword:
+            case ts.SyntaxKind.StringLiteral:
+            case ts.SyntaxKind.BooleanKeyword:
+            case ts.SyntaxKind.TrueKeyword:
+            case ts.SyntaxKind.FalseKeyword:
+            case ts.SyntaxKind.NullKeyword: {
+                this.setPrimitiveLiteralType(node);
                 break;
             }
         }
+        ts.forEachChild(node, this.visitNode.bind(this));
     }
 
     generateNodeType(node: ts.Node): Type {
         switch (node.kind) {
-            case ts.SyntaxKind.NumberKeyword: {
-                let numberType: Type;
-                if (!this.namedTypeMap.has('number')) {
-                    numberType = new Primitive('number');
-                    this.namedTypeMap.set('number', numberType);
-                } else {
-                    numberType = this.namedTypeMap.get('number')!;
-                }
-                return numberType;
+            case ts.SyntaxKind.NumberKeyword:
+            case ts.SyntaxKind.NumericLiteral: {
+                return this.generatePrimitiveType('number');
             }
-            case ts.SyntaxKind.AnyKeyword: {
-                let anyType: Type;
-                if (!this.namedTypeMap.has('any')) {
-                    anyType = new Primitive('any');
-                    this.namedTypeMap.set('any', anyType);
-                } else {
-                    anyType = this.namedTypeMap.get('any')!;
-                }
-                return anyType;
+            case ts.SyntaxKind.AnyKeyword:
+            case ts.SyntaxKind.UnionType: {
+                // treat union as any
+                return this.generatePrimitiveType('any');
             }
-            case ts.SyntaxKind.StringKeyword: {
-                let stringType: Type;
-                if (!this.namedTypeMap.has('string')) {
-                    stringType = new Primitive('string');
-                    this.namedTypeMap.set('string', stringType);
-                } else {
-                    stringType = this.namedTypeMap.get('string')!;
-                }
-                return stringType;
+            case ts.SyntaxKind.StringKeyword:
+            case ts.SyntaxKind.StringLiteral: {
+                return this.generatePrimitiveType('string');
             }
             case ts.SyntaxKind.VoidKeyword: {
-                let voidType: Type;
-                if (!this.namedTypeMap.has('void')) {
-                    voidType = new Primitive('void');
-                    this.namedTypeMap.set('void', voidType);
-                } else {
-                    voidType = this.namedTypeMap.get('void')!;
-                }
-                return voidType;
+                return this.generatePrimitiveType('void');
             }
+            case ts.SyntaxKind.FalseKeyword:
+            case ts.SyntaxKind.TrueKeyword:
             case ts.SyntaxKind.BooleanKeyword: {
-                let booleanType: Type;
-                if (!this.namedTypeMap.has('boolean')) {
-                    booleanType = new Primitive('boolean');
-                    this.namedTypeMap.set('boolean', booleanType);
-                } else {
-                    booleanType = this.namedTypeMap.get('boolean')!;
-                }
-                return booleanType;
+                return this.generatePrimitiveType('boolean');
+            }
+            case ts.SyntaxKind.NullKeyword: {
+                return this.generatePrimitiveType('null');
             }
             case ts.SyntaxKind.FunctionType: {
                 const funcTypeNode = <ts.FunctionTypeNode>node;
@@ -184,59 +229,89 @@ export default class TypeCompiler {
                 const typeRefNode = <ts.TypeReferenceNode>node;
                 const typeNameNode = <ts.Identifier>typeRefNode.typeName;
                 const refName = typeNameNode.escapedText.toString();
-                if (!this.namedTypeMap.has(refName)) {
+                if (!this.currentScope!.namedTypeMap.has(refName)) {
                     this.compilerCtx.reportError(
                         typeRefNode,
                         'can not find the ref type ' + refName,
                     );
                 }
-                return this.namedTypeMap.get(refName)!;
+                return this.currentScope!.namedTypeMap.get(refName)!;
             }
             case ts.SyntaxKind.ParenthesizedType: {
                 const parentheNode = <ts.ParenthesizedTypeNode>node;
                 return this.generateNodeType(parentheNode.type);
             }
-            case ts.SyntaxKind.UnionType: {
-                // treat union as any
-                let unionType: Type;
-                if (!this.namedTypeMap.has('any')) {
-                    unionType = new Primitive('any');
-                    this.namedTypeMap.set('any', unionType);
-                } else {
-                    unionType = this.namedTypeMap.get('any')!;
-                }
-                return unionType;
+            case ts.SyntaxKind.LiteralType: {
+                const literalTypeNode = <ts.LiteralTypeNode>node;
+                return this.generateNodeType(literalTypeNode.literal);
             }
         }
         return new Type();
     }
 
-    getNodeTypeName(node: ts.Node, checker: ts.TypeChecker): TypeCheckerInfo {
-        let variableType: ts.Type;
-        if (ts.isTypeReferenceNode(node)) {
-            node = (node as ts.TypeReferenceNode).typeName;
-        }
-        const symbol = checker.getSymbolAtLocation(node);
-        if (symbol === undefined) {
-            variableType = checker.getTypeAtLocation(node);
+    generatePrimitiveType(typeName: string): Type {
+        let TSType: Type;
+        if (!this.currentScope!.namedTypeMap.has(typeName)) {
+            TSType = new Primitive(typeName);
+            this.currentScope!.namedTypeMap.set(typeName, TSType);
         } else {
-            if (ts.isTypeReferenceNode(node)) {
-                variableType = checker.getDeclaredTypeOfSymbol(symbol);
-            } else {
-                variableType = checker.getTypeOfSymbolAtLocation(
-                    symbol,
-                    symbol.declarations![0],
-                );
-            }
+            TSType = this.currentScope!.namedTypeMap.get(typeName)!;
         }
-        const typeCheckerInfo: TypeCheckerInfo = {
-            typeName: checker.typeToString(variableType),
-            typeNode: checker.typeToTypeNode(
-                variableType,
-                undefined,
-                undefined,
-            )!,
-        };
-        return typeCheckerInfo;
+        return TSType;
+    }
+
+    setType(node: ts.Node) {
+        const typeCheckerInfo = getNodeTypeInfo(node, this.typechecker!);
+        const typeName = typeCheckerInfo.typeName;
+        if (this.currentScope!.namedTypeMap.has(typeName)) {
+            return;
+        }
+        const typeNode = typeCheckerInfo.typeNode;
+        const TSType = this.generateNodeType(typeNode);
+        if (this.isPrimitiveType(TSType)) {
+            this.setPrimitiveLiteralType(node);
+        } else {
+            this.setComplexLiteralType(node);
+        }
+    }
+
+    isPrimitiveType(TSType: Type) {
+        if (
+            TSType.kind === TypeKind.NUMBER ||
+            TSType.kind === TypeKind.STRING ||
+            TSType.kind === TypeKind.BOOLEAN ||
+            TSType.kind === TypeKind.ANY ||
+            TSType.kind === TypeKind.NULL ||
+            TSType.kind === TypeKind.VOID
+        ) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    setComplexLiteralType(node: ts.Node) {
+        const typeCheckerInfo = getNodeTypeInfo(node, this.typechecker!);
+        const typeName = typeCheckerInfo.typeName;
+        if (this.currentScope!.namedTypeMap.has(typeName)) {
+            return;
+        }
+        const typeNode = typeCheckerInfo.typeNode;
+        const TSType = this.generateNodeType(typeNode);
+        this.currentScope!.namedTypeMap.set(typeName, TSType);
+    }
+
+    setPrimitiveLiteralType(node: ts.Node) {
+        const typeCheckerInfo = getNodeTypeInfo(node, this.typechecker!);
+        const typeNode = typeCheckerInfo.typeNode;
+        this.generateNodeType(typeNode);
+    }
+
+    findCurrentScope(node: ts.Node) {
+        const currentScope = getCurScope(node, this.nodeScopeMap);
+        if (!currentScope) {
+            throw new Error('current scope is null');
+        }
+        this.currentScope = currentScope;
     }
 }

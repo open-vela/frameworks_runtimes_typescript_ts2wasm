@@ -1,5 +1,6 @@
 import binaryen from 'binaryen';
 import ts from 'typescript';
+import { Scope } from './scope.js';
 
 export enum AssignKind {
     default,
@@ -101,4 +102,59 @@ export class Stack<T> {
     size() {
         return this.items.length;
     }
+    getItemAtIdx(index: number) {
+        if (index >= this.items.length) {
+            throw new Error('index is greater than the size of the stack');
+        }
+        return this.items[index];
+    }
+}
+
+export function getNodeTypeInfo(
+    node: ts.Node,
+    checker: ts.TypeChecker,
+): TypeCheckerInfo {
+    let variableType: ts.Type;
+    if (ts.isTypeReferenceNode(node)) {
+        node = (node as ts.TypeReferenceNode).typeName;
+    }
+    const symbol = checker.getSymbolAtLocation(node);
+    if (symbol === undefined) {
+        variableType = checker.getTypeAtLocation(node);
+    } else {
+        if (ts.isTypeReferenceNode(node)) {
+            variableType = checker.getDeclaredTypeOfSymbol(symbol);
+        } else {
+            variableType = checker.getTypeOfSymbolAtLocation(
+                symbol,
+                symbol.declarations![0],
+            );
+        }
+    }
+    const typeCheckerInfo: TypeCheckerInfo = {
+        typeName: checker.typeToString(variableType),
+        typeNode: checker.typeToTypeNode(variableType, undefined, undefined)!,
+    };
+    return typeCheckerInfo;
+}
+
+export function getCurScope(
+    node: ts.Node,
+    nodeScopeMap: Map<ts.Node, Scope>,
+): Scope | null {
+    if (!node) return null;
+    const scope = nodeScopeMap.get(node);
+    if (scope) return scope;
+    return getCurScope(node.parent, nodeScopeMap);
+}
+
+export function getNearestFunctionScopeFromCurrent(currentScope: Scope | null) {
+    if (!currentScope) {
+        throw new Error('current scope is null');
+    }
+    const functionScope = currentScope.getNearestFunctionScope();
+    if (!functionScope) {
+        return null;
+    }
+    return functionScope;
 }
