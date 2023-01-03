@@ -11,7 +11,8 @@ export default class BaseCompiler {
     }
 
     visit(node: ts.Node, fillScope = false): binaryen.ExpressionRef {
-        return this.compiler.visit(node, fillScope);
+        // return this.compiler.visit(node, fillScope);
+        return binaryen.none;
     }
 
     visitNode(node: ts.Node, fillScope: boolean): binaryen.ExpressionRef {
