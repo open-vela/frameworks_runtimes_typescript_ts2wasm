@@ -1,5 +1,5 @@
+import ts from 'typescript';
 import 'mocha';
-import binaryen from 'binaryen';
 import { expect } from 'chai';
 import {
     GlobalScope,
@@ -7,7 +7,9 @@ import {
     BlockScope,
     ScopeKind,
 } from '../../src/scope.js';
-import { AssignKind } from '../../src/utils.js';
+import { Variable, Parameter, ModifierKind } from '../../src/variable.js';
+import { Primitive, Type } from '../../src/type.js';
+import { Statement } from '../../src/statement.js';
 
 describe('testScope', function () {
     it('nestedScope', function () {
@@ -15,138 +17,65 @@ describe('testScope', function () {
         const funcScope = new FunctionScope(globalScope);
         const blockScope = new BlockScope(funcScope);
 
-        expect(funcScope.getParent()).eq(globalScope);
-        expect(blockScope.getParent()).eq(funcScope);
+        expect(globalScope.parent).eq(null);
+        expect(funcScope.parent).eq(globalScope);
+        expect(blockScope.parent).eq(funcScope);
     });
 
-    it('findVariableInGlobalScope', function () {
-        const globalScope = new GlobalScope();
-        const varInfo = {
-            variableName: 'test_var',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        globalScope.addVariable(varInfo);
-
-        expect(globalScope.findVariable('test_var', false)).eq(varInfo);
-        expect(globalScope.findVariable('test_var')).eq(varInfo);
-    });
-
-    it('findVariableInFuncScope', function () {
-        const globalScope = new GlobalScope();
-        const funcScope = new FunctionScope(globalScope);
-        const varInfo = {
-            variableName: 'test_var',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        funcScope.addParameter(varInfo);
-
-        expect(funcScope.findVariable('test_var', false)).eq(varInfo);
-        expect(funcScope.findVariable('test_var')).eq(varInfo);
-    });
-
-    it('findVariableInBlockScope', function () {
+    it('scopeKind', function () {
         const globalScope = new GlobalScope();
         const funcScope = new FunctionScope(globalScope);
         const blockScope = new BlockScope(funcScope);
-        const varInfo = {
-            variableName: 'test_var',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        blockScope.addVariable(varInfo);
 
-        expect(blockScope.findVariable('test_var', false)).eq(varInfo);
-        expect(blockScope.findVariable('test_var')).eq(varInfo);
+        expect(globalScope.kind).eq(ScopeKind.GlobalScope);
+        expect(funcScope.kind).eq(ScopeKind.FunctionScope);
+        expect(blockScope.kind).eq(ScopeKind.BlockScope);
     });
 
-    it('findVariableInBothBlockAndFuncScope', function () {
+    it('findVariableInScope', function () {
+        const globalScope = new GlobalScope();
+        const var1 = new Variable('var1', new Type(), ModifierKind.default, 0);
+        globalScope.addVariable(var1);
+
+        const funcScope = new FunctionScope(globalScope);
+        const var2 = new Variable('var2', new Type(), ModifierKind.default, 0);
+        funcScope.addVariable(var2);
+
+        const blockScope = new BlockScope(funcScope);
+        const var3 = new Variable('var3', new Type(), ModifierKind.default, 0);
+        blockScope.addVariable(var3);
+
+        expect(globalScope.findVariable('var1')).eq(var1);
+        expect(globalScope.findVariable('var2')).eq(undefined);
+        expect(globalScope.findVariable('var3')).eq(undefined);
+
+        expect(funcScope.findVariable('var1')).eq(var1);
+        expect(funcScope.findVariable('var2')).eq(var2);
+        expect(funcScope.findVariable('var3')).eq(undefined);
+
+        expect(blockScope.findVariable('var1')).eq(var1);
+        expect(blockScope.findVariable('var2')).eq(var2);
+        expect(blockScope.findVariable('var3')).eq(var3);
+    });
+
+    it('findParameterInScope', function () {
         const globalScope = new GlobalScope();
         const funcScope = new FunctionScope(globalScope);
         const blockScope = new BlockScope(funcScope);
-        const funcVarInfo = {
-            variableName: 'test_var',
-            variableType: 0,
-            variableIndex: 1,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        const blockVarInfo = {
-            variableName: 'test_var',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        funcScope.addParameter(funcVarInfo);
-        blockScope.addVariable(blockVarInfo);
 
-        expect(funcScope.findVariable('test_var')).eq(funcVarInfo);
-        expect(blockScope.findVariable('test_var')).eq(blockVarInfo);
-    });
+        const param1 = new Parameter(
+            'param1',
+            new Type(),
+            ModifierKind.default,
+            0,
+            false,
+            false,
+        );
+        funcScope.addVariable(param1);
 
-    it('findVariableFromParentScope', function () {
-        const globalScope = new GlobalScope();
-        const funcScope = new FunctionScope(globalScope);
-        const blockScope = new BlockScope(funcScope);
-        const varInfo = {
-            variableName: 'test_var',
-            variableType: 0,
-            variableIndex: 1,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        funcScope.addParameter(varInfo);
-
-        expect(funcScope.findVariable('test_var')).eq(varInfo);
-        expect(blockScope.findVariable('test_var')).eq(varInfo);
-    });
-
-    it('findVariableFromCurrentAndParentScope', function () {
-        const globalScope = new GlobalScope();
-        const globalVarInfo = {
-            variableName: 'test_global_var',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        globalScope.addVariable(globalVarInfo);
-        const functionScope = new FunctionScope(globalScope);
-        const funcVarInfo = {
-            variableName: 'test_func_var',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        functionScope.addParameter(funcVarInfo);
-        const blockScope = new BlockScope(functionScope);
-        const blockVarInfo = {
-            variableName: 'test_block_var',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        blockScope.addVariable(blockVarInfo);
-
-        expect(globalScope.findVariable('test_global_var')).eq(globalVarInfo);
-        expect(globalScope.findVariable('test_func_var')).eq(undefined);
-        expect(globalScope.findVariable('test_block_var')).eq(undefined);
-        expect(functionScope.findVariable('test_global_var')).eq(globalVarInfo);
-        expect(functionScope.findVariable('test_func_var')).eq(funcVarInfo);
-        expect(functionScope.findVariable('test_block_var')).eq(undefined);
-        expect(blockScope.findVariable('test_global_var')).eq(globalVarInfo);
-        expect(blockScope.findVariable('test_func_var')).eq(funcVarInfo);
-        expect(blockScope.findVariable('test_block_var')).eq(blockVarInfo);
+        expect(globalScope.findVariable('param1')).eq(undefined);
+        expect(funcScope.findVariable('param1')).eq(param1);
+        expect(blockScope.findVariable('param1')).eq(param1);
     });
 
     it('getParentAndChildren', function () {
@@ -154,39 +83,12 @@ describe('testScope', function () {
         const functionScope = new FunctionScope(globalScope);
         const blockScope = new BlockScope(functionScope);
 
-        expect(globalScope.getParent()).eq(null);
-        expect(globalScope.getChildren()[0]).eq(functionScope);
-        expect(functionScope.getParent()).eq(globalScope);
-        expect(functionScope.getChildren()[0]).eq(blockScope);
-        expect(blockScope.getParent()).eq(functionScope);
-        expect(blockScope.getChildren().length).eq(0);
-    });
-
-    it('judgeVariableIsGlobal', function () {
-        const globalScope = new GlobalScope();
-        const globalVarInfo = {
-            variableName: 'test_global_var',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        globalScope.addVariable(globalVarInfo);
-        const functionScope = new FunctionScope(globalScope);
-        const blockScope = new BlockScope(functionScope);
-        const blockVarInfo = {
-            variableName: 'test_block_var',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        blockScope.addVariable(blockVarInfo);
-
-        expect(blockScope.findVariable('test_global_var')).eq(globalVarInfo);
-        expect(blockScope.isGlobalVariable('test_global_var')).eq(true);
-        expect(blockScope.findVariable('test_block_var')).eq(blockVarInfo);
-        expect(blockScope.isGlobalVariable('test_block_var')).eq(false);
+        expect(globalScope.parent).eq(null);
+        expect(globalScope.children[0]).eq(functionScope);
+        expect(functionScope.parent).eq(globalScope);
+        expect(functionScope.children[0]).eq(blockScope);
+        expect(blockScope.parent).eq(functionScope);
+        expect(blockScope.children.length).eq(0);
     });
 
     it('judgeScopeKind', function () {
@@ -227,48 +129,69 @@ describe('testScope', function () {
 
     it('getFunctionFromGlobalScope', function () {
         const globalScope = new GlobalScope();
-        globalScope.setFuncName('~start');
 
-        expect(globalScope.getFuncName()).eq('~start');
+        expect(globalScope.startFuncName).eq('~start');
     });
 
-    it('getStartFunctionVariableFromGlobalScope', function () {
+    it('getStartFunctionVariableArray', function () {
         const globalScope = new GlobalScope();
-        const startVarInfo1 = {
-            variableName: 'test_start_var1',
-            variableType: 0,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        const startVarInfo2 = {
-            variableName: 'test_start_var2',
-            variableType: 1,
-            variableIndex: 0,
-            variableInitial: undefined,
-            variableAssign: AssignKind.let,
-        };
-        globalScope.addStartFunctionVariable(startVarInfo1);
-        globalScope.addStartFunctionVariable(startVarInfo2);
-        const varsTypeList = globalScope
-            .getStartFunctionVariableArray()
-            .map(
-                (variable: { variableType: binaryen.Type }) =>
-                    variable.variableType,
-            );
+        const var1 = new Variable('var1', new Type(), ModifierKind.default, 0);
+        globalScope.addStartFuncVar(var1);
+        const startVarList = globalScope.startFuncVarArray;
 
-        expect(varsTypeList.length).eq(2);
-        expect(varsTypeList[0]).eq(0);
-        expect(varsTypeList[1]).eq(1);
+        expect(startVarList.length).eq(1);
+        expect(startVarList[0].varName).eq('var1');
     });
 
-    it('getStatementFromGlobalScope', function () {
+    it('getStartFunctionStatementArray', function () {
         const globalScope = new GlobalScope();
-        globalScope.addStatement(1);
-        globalScope.addStatement(2);
+        globalScope.addStatement(new Statement(ts.SyntaxKind.IfStatement));
+        globalScope.addStatement(new Statement(ts.SyntaxKind.ForInStatement));
 
-        expect(globalScope.getStatementArray().length).eq(2);
-        expect(globalScope.getStatementArray()[0]).eq(1);
-        expect(globalScope.getStatementArray()[1]).eq(2);
+        expect(globalScope.startStateArray.length).eq(2);
+        expect(globalScope.startStateArray[0].statementKind).eq(
+            ts.SyntaxKind.IfStatement,
+        );
+        expect(globalScope.startStateArray[1].statementKind).eq(
+            ts.SyntaxKind.ForInStatement,
+        );
+    });
+
+    it('getNearestFunctionScope', function () {
+        const globalScope = new GlobalScope();
+        const funcScope1 = new FunctionScope(globalScope);
+        const blockScope1 = new BlockScope(funcScope1);
+        const funcScope2 = new FunctionScope(funcScope1);
+        const funcScope3 = new FunctionScope(blockScope1);
+        const blockScope2 = new BlockScope(funcScope2);
+
+        expect(blockScope1.getNearestFunctionScope()).eq(funcScope1);
+        expect(funcScope3.getNearestFunctionScope()).eq(funcScope3);
+        expect(blockScope2.getNearestFunctionScope()).eq(funcScope2);
+    });
+
+    it('getRootGloablScope', function () {
+        const globalScope1 = new GlobalScope();
+        const funcScope1 = new FunctionScope(globalScope1);
+        const blockScope1 = new BlockScope(funcScope1);
+        const globalScope2 = new GlobalScope();
+        const funcScope2 = new FunctionScope(globalScope2);
+        const blockScope2 = new BlockScope(funcScope2);
+
+        expect(blockScope1.getRootGloablScope()).eq(globalScope1);
+        expect(blockScope2.getRootGloablScope()).eq(globalScope2);
+    });
+
+    it('getTypeFromCurrentScope', function () {
+        const globalScope = new GlobalScope();
+        const funcScope = new FunctionScope(globalScope);
+        const stringType = new Primitive('string');
+        funcScope.namedTypeMap.set('string', stringType);
+        const blockScope = new BlockScope(funcScope);
+        const numberType = new Primitive('number');
+        blockScope.namedTypeMap.set('number', numberType);
+
+        expect(funcScope.getTypeFromCurrentScope('string')).eq(stringType);
+        expect(blockScope.getTypeFromCurrentScope('number')).eq(numberType);
     });
 });

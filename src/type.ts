@@ -167,11 +167,15 @@ export class TSArray extends Type {
     constructor(private elemType: Type) {
         super();
     }
+
+    get elementType(): Type {
+        return this.elemType;
+    }
 }
 
 export class TSFunction extends Type {
     typeKind = TypeKind.FUNCTION;
-    private parameterTypes: Parameter[] = [];
+    private parameterTypes: Type[] = [];
     private _returnType: Type = new Primitive('void'); // TODO: or default: Type.void
     // iff last parameter is rest paremeter
     private hasRestParameter = false;
@@ -188,20 +192,11 @@ export class TSFunction extends Type {
         return this._returnType;
     }
 
-    addParameter(parameter: Parameter) {
-        this.parameterTypes.push(parameter);
+    addParamType(paramType: Type) {
+        this.parameterTypes.push(paramType);
     }
 
-    getParameter(name: string): Parameter | null {
-        for (const parameter of this.parameterTypes) {
-            if (parameter.varName === name) {
-                return parameter;
-            }
-        }
-        return null;
-    }
-
-    getParameters(): Parameter[] {
+    get paramTypes(): Type[] {
         return this.parameterTypes;
     }
 
@@ -313,33 +308,37 @@ export default class TypeCompiler {
             }
             case ts.SyntaxKind.FunctionType: {
                 const funcTypeNode = <ts.FunctionTypeNode>node;
-                const funcType = new TSFunction();
-                const paramList = funcTypeNode.parameters;
-                const returnTypeNode = funcTypeNode.type;
-                const paramTypeList = [];
-                for (const param of paramList) {
-                    const paramNode = <ts.ParameterDeclaration>param;
-                    paramTypeList.push(this.generateNodeType(paramNode.type!));
-                }
-                const returnType = this.generateNodeType(returnTypeNode);
-                // TODO: set paramTypeList and returnType into funcType
-                return funcType;
+                return this.generateFunctionType(funcTypeNode);
             }
             case ts.SyntaxKind.TypeLiteral: {
                 const typeLiteralNode = <ts.TypeLiteralNode>node;
-                const objLiteral = new TSClass();
+                const objLiteralType = new TSClass();
                 for (const member of typeLiteralNode.members) {
-                    const memberNode = <ts.PropertySignature>member;
-                    const memberIdentifier = <ts.Identifier>memberNode.name;
-                    const fieldName = memberIdentifier.escapedText.toString();
-                    const fieldType = this.generateNodeType(memberNode.type!);
-                    const objField: TsClassField = {
-                        name: fieldName,
-                        type: fieldType,
-                    };
-                    objLiteral.addMemberField(objField);
+                    if (member.kind === ts.SyntaxKind.PropertySignature) {
+                        const memberNode = <ts.PropertySignature>member;
+                        const memberIdentifier = <ts.Identifier>memberNode.name;
+                        const fieldName =
+                            memberIdentifier.escapedText.toString();
+                        const fieldType = this.generateNodeType(
+                            memberNode.type!,
+                        );
+                        const objField: TsClassField = {
+                            name: fieldName,
+                            type: fieldType,
+                        };
+                        objLiteralType.addMemberField(objField);
+                    } else if (member.kind === ts.SyntaxKind.MethodSignature) {
+                        const memberNode = <ts.MethodSignature>member;
+                        const memberIdentifier = <ts.Identifier>memberNode.name;
+                        const funcName =
+                            memberIdentifier.escapedText.toString();
+                        const funcType = this.generateFunctionType(memberNode);
+                        objLiteralType.addMethod(funcName, funcType);
+                    } else {
+                        throw new Error('unexpected node type ' + member.kind);
+                    }
                 }
-                return objLiteral;
+                return objLiteralType;
             }
             case ts.SyntaxKind.ArrayType: {
                 const arrayTypeNode = <ts.ArrayTypeNode>node;
@@ -436,5 +435,24 @@ export default class TypeCompiler {
             throw new Error('current scope is null');
         }
         this.currentScope = currentScope;
+    }
+
+    generateFunctionType(
+        node: ts.MethodSignature | ts.FunctionTypeNode,
+    ): TSFunction {
+        const funcType = new TSFunction();
+        const paramList = node.parameters;
+        const returnTypeNode = node.type;
+        for (const param of paramList) {
+            const paramNode = <ts.ParameterDeclaration>param;
+            const paramType = this.generateNodeType(paramNode);
+            funcType.addParamType(paramType);
+            // paramTypeList.push(this.generateNodeType(paramNode.type!));
+        }
+        if (returnTypeNode) {
+            const returnType = this.generateNodeType(returnTypeNode);
+            funcType.returnType = returnType;
+        }
+        return funcType;
     }
 }
