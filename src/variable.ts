@@ -10,6 +10,7 @@ import {
     VAR_KEYWORD,
     getCurScope,
     getNearestFunctionScopeFromCurrent,
+    generateNodeExpression,
 } from './utils.js';
 import { FunctionScope, GlobalScope, Scope } from './scope.js';
 
@@ -165,7 +166,7 @@ export class VariableScanner {
                                   this.typechecker!,
                               ).typeName,
                           );
-                const paramIndex = functionScope.getParamArray().length;
+                const paramIndex = functionScope.paramArray.length;
                 const paramObj = new Parameter(
                     paramName,
                     paramType,
@@ -190,12 +191,12 @@ export class VariableScanner {
                     nearestScope = <GlobalScope>(
                         currentScope.getRootGloablScope()
                     );
-                    variableIndex = nearestScope.getVariableArray().length;
+                    variableIndex = nearestScope.varArray.length;
                 } else {
                     nearestScope = <FunctionScope>functionScope;
                     variableIndex =
-                        nearestScope.getParamArray().length +
-                        nearestScope.getVariableArray().length;
+                        nearestScope.paramArray.length +
+                        nearestScope.varArray.length;
                 }
                 let variableModifier = ModifierKind.default;
                 const variableAssignText =
@@ -234,16 +235,6 @@ export class VariableScanner {
             }
         }
         ts.forEachChild(node, this.visitNode.bind(this));
-    }
-
-    // TODO: get expression obj from expressionCompiler
-    generateNodeExpression(node: ts.Node): Expression {
-        switch (node.kind) {
-            case ts.SyntaxKind.BinaryExpression: {
-                const binaryExprNode = <ts.BinaryExpression>node;
-            }
-        }
-        return new Expression();
     }
 
     getCurrentScope() {
@@ -299,7 +290,8 @@ export class VariableInit {
                     );
                 }
                 if (parameterNode.initializer) {
-                    const paramInit = this.generateNodeExpression(
+                    const paramInit = generateNodeExpression(
+                        this.compilerCtx.expressionCompiler,
                         parameterNode.initializer,
                     );
                     paramObj.initExpression = paramInit;
@@ -317,7 +309,8 @@ export class VariableInit {
                     );
                 }
                 if (variableDeclarationNode.initializer) {
-                    const variableInit = this.generateNodeExpression(
+                    const variableInit = generateNodeExpression(
+                        this.compilerCtx.expressionCompiler,
                         variableDeclarationNode.initializer,
                     );
                     variableObj.initExpression = variableInit;
@@ -326,16 +319,6 @@ export class VariableInit {
             }
         }
         ts.forEachChild(node, this.visitNode.bind(this));
-    }
-
-    generateNodeExpression(node: ts.Node): Expression {
-        switch (node.kind) {
-            case ts.SyntaxKind.BinaryExpression: {
-                const binaryExprNode = <ts.BinaryExpression>node;
-                // TODO: get binary expression information, put into class
-            }
-        }
-        return new Expression();
     }
 
     getCurrentScope() {

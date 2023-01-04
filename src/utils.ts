@@ -1,6 +1,7 @@
 import binaryen from 'binaryen';
 import ts from 'typescript';
 import { Scope } from './scope.js';
+import ExpressionCompiler, { Expression } from './expression.js';
 
 export enum AssignKind {
     default,
@@ -157,4 +158,11 @@ export function getNearestFunctionScopeFromCurrent(currentScope: Scope | null) {
         return null;
     }
     return functionScope;
+}
+
+export function generateNodeExpression(
+    exprCompiler: ExpressionCompiler,
+    node: ts.Node,
+): Expression {
+    return exprCompiler.visitNode(node);
 }

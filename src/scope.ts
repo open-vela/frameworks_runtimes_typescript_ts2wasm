@@ -1,10 +1,9 @@
 import ts from 'typescript';
-import binaryen from 'binaryen';
-import { VariableInfo } from './utils.js';
-import { Type } from './type.js';
+import { Type, TSFunction, Primitive } from './type.js';
 import { Compiler } from './compiler.js';
 import { Stack } from './utils.js';
 import { Parameter, Variable } from './variable.js';
+import { Statement } from './statement.js';
 
 export enum ScopeKind {
     Scope,
@@ -15,11 +14,10 @@ export enum ScopeKind {
 
 export class Scope {
     kind = ScopeKind.Scope;
-    variableArray: Variable[] = [];
     children: Scope[] = [];
     parent: Scope | null;
-    judgedGlobalVariable = '';
     namedTypeMap: Map<string, Type> = new Map();
+    private variableArray: Variable[] = [];
 
     constructor(parent: Scope | null) {
         this.parent = parent;
@@ -32,7 +30,7 @@ export class Scope {
         this.variableArray.push(variableObj);
     }
 
-    getVariableArray() {
+    get varArray(): Variable[] {
         return this.variableArray;
     }
 
@@ -40,25 +38,14 @@ export class Scope {
         this.children.push(child);
     }
 
-    getChildren() {
-        return this.children;
-    }
-
-    getParent() {
-        return this.parent;
-    }
-
     findVariable(variableName: string, nested = true): Variable | undefined {
         if (nested) {
             let currentScope: Scope | null = this;
             while (currentScope != null) {
                 if (currentScope.findVariable(variableName, false)) {
-                    if (currentScope.kind === ScopeKind.GlobalScope) {
-                        this.setJudgedGlobalVariable(variableName);
-                    }
                     return currentScope.findVariable(variableName, false);
                 }
-                currentScope = currentScope.getParent();
+                currentScope = currentScope.parent;
             }
         } else {
             for (let i = 0; i < this.variableArray.length; i++) {
@@ -67,17 +54,6 @@ export class Scope {
                 }
             }
         }
-    }
-
-    setJudgedGlobalVariable(variableName: string) {
-        this.judgedGlobalVariable = variableName;
-    }
-
-    isGlobalVariable(variableName: string) {
-        if (this.judgedGlobalVariable === variableName) {
-            return true;
-        }
-        return false;
     }
 
     findFunctionScope(
@@ -90,13 +66,13 @@ export class Scope {
                 if (currentScope.findFunctionScope(functionName, false)) {
                     return currentScope.findFunctionScope(functionName, false);
                 }
-                currentScope = currentScope.getParent();
+                currentScope = currentScope.parent;
             }
         } else {
             for (let i = 0; i < this.children.length; i++) {
                 if (this.children[i].kind === ScopeKind.FunctionScope) {
                     const functionScope = <FunctionScope>this.children[i];
-                    if (functionScope.getFuncName() === functionName) {
+                    if (functionScope.funcName === functionName) {
                         return functionScope;
                     }
                 }
@@ -110,7 +86,7 @@ export class Scope {
             if (currentScope.kind === ScopeKind.FunctionScope) {
                 return currentScope;
             }
-            currentScope = currentScope.getParent();
+            currentScope = currentScope.parent;
         }
         return null;
     }
@@ -121,7 +97,7 @@ export class Scope {
             if (currentScope.kind === ScopeKind.GlobalScope) {
                 return currentScope;
             }
-            currentScope = currentScope.getParent();
+            currentScope = currentScope.parent;
         }
         return null;
     }
@@ -141,134 +117,81 @@ export class Scope {
 
 export class GlobalScope extends Scope {
     kind = ScopeKind.GlobalScope;
-    funcName = '';
-    returnType: binaryen.Type = binaryen.none;
-    returnTypeUndefined = false;
-    body: binaryen.ExpressionRef = binaryen.none;
-    modifiers: ts.SyntaxKind[] = [];
-    statementArray: binaryen.ExpressionRef[] = [];
-    startFunctionVariableArray: VariableInfo[] = [];
+    private functionName = '~start';
+    private statementArray: Statement[] = [];
+    private startFunctionVariableArray: Variable[] = [];
+    private functionType = new TSFunction();
 
     constructor(parent: Scope | null = null) {
         super(parent);
     }
 
-    addStartFunctionVariable(variableInfo: VariableInfo) {
-        this.startFunctionVariableArray.push(variableInfo);
+    addStartFuncVar(variableObj: Variable) {
+        this.startFunctionVariableArray.push(variableObj);
     }
 
-    getStartFunctionVariableArray() {
+    get startFuncVarArray(): Variable[] {
         return this.startFunctionVariableArray;
     }
 
-    setFuncName(name: string) {
-        this.funcName = name;
+    get startFuncName(): string {
+        return this.functionName;
     }
 
-    getFuncName() {
-        return this.funcName;
-    }
-
-    setReturnType(returnType: binaryen.Type) {
-        this.returnType = returnType;
-    }
-
-    getReturnType() {
-        return this.returnType;
-    }
-
-    setReturnTypeUndefined(returnTypeUndefined: boolean) {
-        this.returnTypeUndefined = returnTypeUndefined;
-    }
-
-    getReturnTypeUndefined() {
-        return this.returnTypeUndefined;
-    }
-
-    setBody(body: binaryen.ExpressionRef) {
-        this.body = body;
-    }
-
-    getBody() {
-        return this.body;
-    }
-
-    addModifier(modifier: ts.SyntaxKind) {
-        this.modifiers.push(modifier);
-    }
-
-    getModifiers() {
-        return this.modifiers;
-    }
-
-    addStatement(statement: binaryen.ExpressionRef) {
+    addStatement(statement: Statement) {
         this.statementArray.push(statement);
     }
 
-    getStatementArray() {
+    get startStateArray(): Statement[] {
         return this.statementArray;
+    }
+
+    get startFuncType(): TSFunction {
+        return this.functionType;
     }
 }
 
 export class FunctionScope extends Scope {
     kind = ScopeKind.FunctionScope;
-    funcName = '';
-    paramArray: Parameter[] = [];
-    returnType: binaryen.Type = binaryen.none;
-    returnTypeUndefined = false;
-    body: binaryen.ExpressionRef = binaryen.none;
-    modifiers: ts.SyntaxKind[] = [];
+    private functionName = '';
+    private parameterArray: Parameter[] = [];
+    private modifiers: ts.SyntaxKind[] = [];
+    private functionType = new TSFunction();
 
     constructor(parent: Scope) {
         super(parent);
     }
 
     addParameter(parameter: Parameter) {
-        this.paramArray.push(parameter);
+        this.parameterArray.push(parameter);
     }
 
-    getParamArray() {
-        return this.paramArray;
+    get paramArray(): Parameter[] {
+        return this.parameterArray;
     }
 
     setFuncName(name: string) {
-        this.funcName = name;
+        this.functionName = name;
     }
 
-    getFuncName() {
-        return this.funcName;
-    }
-
-    setReturnType(returnType: binaryen.Type) {
-        this.returnType = returnType;
-    }
-
-    getReturnType() {
-        return this.returnType;
-    }
-
-    setReturnTypeUndefined(returnTypeUndefined: boolean) {
-        this.returnTypeUndefined = returnTypeUndefined;
-    }
-
-    getReturnTypeUndefined() {
-        return this.returnTypeUndefined;
-    }
-
-    setBody(body: binaryen.ExpressionRef) {
-        this.body = body;
-    }
-
-    getBody() {
-        return this.body;
+    get funcName(): string {
+        return this.functionName;
     }
 
     addModifier(modifier: ts.SyntaxKind) {
         this.modifiers.push(modifier);
     }
 
-    getModifiers() {
+    get funcModifiers(): ts.SyntaxKind[] {
         return this.modifiers;
+    }
+
+    setFuncType(type: TSFunction) {
+        this.functionType = type;
+    }
+
+    get funcType(): TSFunction {
+        return this.functionType;
     }
 
     findVariable(variableName: string, nested = true): Variable | undefined {
@@ -276,17 +199,19 @@ export class FunctionScope extends Scope {
             let currentScope: Scope | null = this;
             while (currentScope != null) {
                 if (currentScope.findVariable(variableName, false)) {
-                    if (currentScope.kind === ScopeKind.GlobalScope) {
-                        this.setJudgedGlobalVariable(variableName);
-                    }
                     return currentScope.findVariable(variableName, false);
                 }
-                currentScope = currentScope.getParent();
+                currentScope = currentScope.parent;
             }
         } else {
             for (let i = 0; i < this.paramArray.length; i++) {
                 if (this.paramArray[i].varName === variableName) {
                     return this.paramArray[i];
+                }
+            }
+            for (let i = 0; i < this.varArray.length; i++) {
+                if (this.varArray[i].varName === variableName) {
+                    return this.varArray[i];
                 }
             }
         }
@@ -295,17 +220,17 @@ export class FunctionScope extends Scope {
 
 export class BlockScope extends Scope {
     kind = ScopeKind.BlockScope;
-    statementArray: binaryen.ExpressionRef[] = [];
+    private statementArray: Statement[] = [];
 
     constructor(parent: Scope) {
         super(parent);
     }
 
-    addStatement(statement: binaryen.ExpressionRef) {
+    addStatement(statement: Statement) {
         this.statementArray.push(statement);
     }
 
-    getStatementArray() {
+    get stateArray(): Statement[] {
         return this.statementArray;
     }
 }
@@ -448,10 +373,10 @@ export class ScopeScanner {
 
     removeOutOfLoopScope() {
         const currentScope = this.getCurrentScope();
-        if (!currentScope.getParent()) {
+        if (!currentScope.parent) {
             throw new Error('CurrentScope parent is null');
         }
-        const parentScope = <Scope>currentScope.getParent();
+        const parentScope = <Scope>currentScope.parent;
         this.setCurrentScope(parentScope);
     }
 

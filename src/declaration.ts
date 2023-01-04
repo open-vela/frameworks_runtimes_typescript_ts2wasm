@@ -180,9 +180,7 @@ export default class DeclarationCompiler extends BaseCompiler {
 
                 currentFunctionScope.addVariable(variableInfo);
             } else {
-                this.getGlobalScopeStack()
-                    .peek()
-                    .addStartFunctionVariable(variableInfo);
+                this.getGlobalScopeStack().peek().addStartFuncVar(variableInfo);
             }
         }
         // add variableInfo into current scope
