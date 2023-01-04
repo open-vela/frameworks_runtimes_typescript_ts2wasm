@@ -20,7 +20,7 @@ export class Compiler {
     private scopeScanner;
     private typeCompiler;
     private variableScanner;
-    private VariableInit;
+    private variableInit;
     private exprCompiler;
 
     typeChecker: ts.TypeChecker | undefined;
@@ -41,7 +41,7 @@ export class Compiler {
         this.scopeScanner = new ScopeScanner(this);
         this.typeCompiler = new TypeCompiler(this);
         this.variableScanner = new VariableScanner(this);
-        this.VariableInit = new VariableInit(this);
+        this.variableInit = new VariableInit(this);
         this.exprCompiler = new ExpressionCompiler(this);
     }
 
@@ -65,7 +65,7 @@ export class Compiler {
         /* Step2: Resolve all type declarations */
         this.typeCompiler.visit(sourceFileList);
         this.variableScanner.visit(sourceFileList);
-        this.VariableInit.visit(sourceFileList);
+        this.variableInit.visit(sourceFileList);
 
         // TODO: other steps
         /* Step3: Resolve all variables */
