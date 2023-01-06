@@ -75,6 +75,10 @@ export class Compiler {
         // this.condegen.visit(sourceFileList);
     }
 
+    get typeComp() {
+        return this.typeCompiler;
+    }
+
     get expressionCompiler(): ExpressionCompiler {
         return this.exprCompiler;
     }

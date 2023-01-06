@@ -242,16 +242,9 @@ export default class TypeCompiler {
             case ts.SyntaxKind.Identifier: {
                 // const dd = [{ a: 1 }, { a: 2 }, { a: 3, b: 3 }];
                 // In this case, identifier's type is not equal with array's type.
-                if (node.parent.kind === ts.SyntaxKind.NewExpression) {
-                    break;
+                if (node.parent.kind === ts.SyntaxKind.VariableDeclaration) {
+                    this.setType(node);
                 }
-                this.setType(node);
-                break;
-            }
-            case ts.SyntaxKind.ArrayType:
-            case ts.SyntaxKind.ArrayLiteralExpression:
-            case ts.SyntaxKind.ObjectLiteralExpression: {
-                this.setComplexLiteralType(node);
                 break;
             }
             case ts.SyntaxKind.NewExpression: {
@@ -259,12 +252,15 @@ export default class TypeCompiler {
                 const identifierName = newExpressionNode.expression.getText()!;
                 switch (identifierName) {
                     case 'Array': {
-                        this.setComplexLiteralType(newExpressionNode);
+                        this.setType(newExpressionNode);
                         break;
                     }
                 }
                 break;
             }
+            case ts.SyntaxKind.ArrayType:
+            case ts.SyntaxKind.ArrayLiteralExpression:
+            case ts.SyntaxKind.ObjectLiteralExpression:
             case ts.SyntaxKind.NumberKeyword:
             case ts.SyntaxKind.NumericLiteral:
             case ts.SyntaxKind.StringKeyword:
@@ -273,7 +269,7 @@ export default class TypeCompiler {
             case ts.SyntaxKind.TrueKeyword:
             case ts.SyntaxKind.FalseKeyword:
             case ts.SyntaxKind.NullKeyword: {
-                this.setPrimitiveLiteralType(node);
+                this.setType(node);
                 break;
             }
         }
@@ -372,14 +368,7 @@ export default class TypeCompiler {
     }
 
     generatePrimitiveType(typeName: string): Type {
-        let TSType: Type;
-        if (!this.currentScope!.namedTypeMap.has(typeName)) {
-            TSType = new Primitive(typeName);
-            this.currentScope!.namedTypeMap.set(typeName, TSType);
-        } else {
-            TSType = this.currentScope!.namedTypeMap.get(typeName)!;
-        }
-        return TSType;
+        return new Primitive(typeName);
     }
 
     setType(node: ts.Node) {
@@ -390,43 +379,7 @@ export default class TypeCompiler {
         }
         const typeNode = typeCheckerInfo.typeNode;
         const TSType = this.generateNodeType(typeNode);
-        if (this.isPrimitiveType(TSType)) {
-            this.setPrimitiveLiteralType(node);
-        } else {
-            this.setComplexLiteralType(node);
-        }
-    }
-
-    isPrimitiveType(TSType: Type) {
-        if (
-            TSType.kind === TypeKind.NUMBER ||
-            TSType.kind === TypeKind.STRING ||
-            TSType.kind === TypeKind.BOOLEAN ||
-            TSType.kind === TypeKind.ANY ||
-            TSType.kind === TypeKind.NULL ||
-            TSType.kind === TypeKind.VOID
-        ) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    setComplexLiteralType(node: ts.Node) {
-        const typeCheckerInfo = getNodeTypeInfo(node, this.typechecker!);
-        const typeName = typeCheckerInfo.typeName;
-        if (this.currentScope!.namedTypeMap.has(typeName)) {
-            return;
-        }
-        const typeNode = typeCheckerInfo.typeNode;
-        const TSType = this.generateNodeType(typeNode);
         this.currentScope!.namedTypeMap.set(typeName, TSType);
-    }
-
-    setPrimitiveLiteralType(node: ts.Node) {
-        const typeCheckerInfo = getNodeTypeInfo(node, this.typechecker!);
-        const typeNode = typeCheckerInfo.typeNode;
-        this.generateNodeType(typeNode);
     }
 
     findCurrentScope(node: ts.Node) {
@@ -447,7 +400,6 @@ export default class TypeCompiler {
             const paramNode = <ts.ParameterDeclaration>param;
             const paramType = this.generateNodeType(paramNode);
             funcType.addParamType(paramType);
-            // paramTypeList.push(this.generateNodeType(paramNode.type!));
         }
         if (returnTypeNode) {
             const returnType = this.generateNodeType(returnTypeNode);
