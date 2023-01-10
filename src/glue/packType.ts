@@ -1,4 +1,18 @@
-import { stringArrayTypeInfo, stringStructTypeInfo } from './transform.js';
+import {
+    charArrayTypeInformation,
+    stringTypeInformation,
+    numberArrayTypeInformation,
+    stringArrayTypeInformation,
+    boolArrayTypeInformation,
+    anyArrayTypeInformation,
+    objectStructTypeInformation,
+} from './transform.js';
 import { typeInfo } from './utils.js';
-export const strArrayTypeInfo: typeInfo = stringArrayTypeInfo;
-export const strStructTypeInfo: typeInfo = stringStructTypeInfo;
+
+export const charArrayTypeInfo: typeInfo = charArrayTypeInformation;
+export const stringTypeInfo: typeInfo = stringTypeInformation;
+export const numberArrayTypeInfo = numberArrayTypeInformation;
+export const stringArrayTypeInfo = stringArrayTypeInformation;
+export const boolArrayTypeInfo = boolArrayTypeInformation;
+export const anyArrayTypeInfo = anyArrayTypeInformation;
+export const objectStructTypeInfo = objectStructTypeInformation;
