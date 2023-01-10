@@ -71,6 +71,7 @@ export interface TsClassField {
 
 export class TSClass extends Type {
     typeKind = TypeKind.CLASS;
+    private name = '';
     private memberFields: Array<TsClassField> = [];
     private staticFields: Array<TsClassField> = [];
     private constructorMethodName = '';
@@ -118,6 +119,15 @@ export class TSClass extends Type {
         return null;
     }
 
+    getMemberFieldIndex(name: string): number {
+        for (let i = 0; i < this.memberFields.length; i++) {
+            if (this.memberFields[i].name === name) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     addStaticMemberField(memberField: TsClassField): void {
         this.staticFields.push(memberField);
     }
@@ -159,6 +169,14 @@ export class TSClass extends Type {
             );
         }
         return method;
+    }
+
+    setClassName(name: string) {
+        this.name = name;
+    }
+
+    get className(): string {
+        return this.name;
     }
 }
 
@@ -347,6 +365,12 @@ export default class TypeCompiler {
                 const typeRefNode = <ts.TypeReferenceNode>node;
                 const typeNameNode = <ts.Identifier>typeRefNode.typeName;
                 const refName = typeNameNode.escapedText.toString();
+                if (refName === 'Array') {
+                    const typeArgNode = typeRefNode.typeArguments![0];
+                    const elementType = this.generateNodeType(typeArgNode);
+                    const TSArrayType = new TSArray(elementType);
+                    return TSArrayType;
+                }
                 if (!this.currentScope!.namedTypeMap.has(refName)) {
                     this.compilerCtx.reportError(
                         typeRefNode,

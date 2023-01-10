@@ -32,12 +32,22 @@ export function ptrToArray(ptrInfo: ptrInfo): number[] {
         array.push(val);
         idx += 4;
     }
+    binaryenCAPI._free(ptr);
     return array;
+}
+
+export function i32(
+    module: binaryen.Module,
+    alloc: binaryenCAPI.usize,
+    value: binaryenCAPI.i32,
+): binaryen.ExpressionRef {
+    binaryenCAPI._BinaryenLiteralInt32(alloc, value);
+    return binaryenCAPI._BinaryenConst(module.ptr, alloc);
 }
 
 export function initArrayType(
     elementType: binaryenCAPI.TypeRef,
-    elementPackedTyype: binaryenCAPI.PackedType,
+    elementPackedType: binaryenCAPI.PackedType,
     elementMutable: binaryenCAPI.bool,
     nullable: binaryenCAPI.bool,
 ): typeInfo {
@@ -46,7 +56,7 @@ export function initArrayType(
         tb,
         0,
         elementType,
-        elementPackedTyype,
+        elementPackedType,
         elementMutable,
     );
     const builtHeapType: binaryenCAPI.HeapTypeRef[] = new Array(1);
@@ -98,29 +108,34 @@ export function initStructType(
     return structTypeInfo;
 }
 
-export const stringArrayTypeInfo = genarateStrArrayTypeInfo();
-export const stringStructTypeInfo = generateStrStructTypeInfo();
+export const charArrayTypeInformation = genarateCharArrayTypeInfo();
+export const stringTypeInformation = generateStringTypeInfo();
+export const numberArrayTypeInformation = genarateNumberArrayTypeInfo();
+export const stringArrayTypeInformation = genarateStringArrayTypeInfo();
+export const boolArrayTypeInformation = genarateBoolArrayTypeInfo();
+export const anyArrayTypeInformation = genarateAnyArrayTypeInfo();
+export const objectStructTypeInformation = genarateObjectStructTypeInfo();
 
-// generate array type to store string context
-function genarateStrArrayTypeInfo(): typeInfo {
-    const strArrayTypeInfo = initArrayType(
+// generate array type to store character context
+function genarateCharArrayTypeInfo(): typeInfo {
+    const charArrayTypeInfo = initArrayType(
         binaryenCAPI._BinaryenTypeInt32(),
         binaryenCAPI._BinaryenPackedTypeNotPacked(),
         true,
         true,
     );
-    return strArrayTypeInfo;
+    return charArrayTypeInfo;
 }
 
 // generate struct type to store string information
-function generateStrStructTypeInfo(): typeInfo {
+function generateStringTypeInfo(): typeInfo {
     const module = new binaryen.Module();
-    const strArrayTypeInfo = stringArrayTypeInfo;
-    const strStructTypeInfo = initStructType(
+    const charArrayTypeInfo = charArrayTypeInformation;
+    const stringTypeInfo = initStructType(
         [
             binaryenCAPI._BinaryenTypeInt32(),
             binaryenCAPI._BinaryenTypeFromHeapType(
-                strArrayTypeInfo.heapTypeRef,
+                charArrayTypeInfo.heapTypeRef,
                 true,
             ),
         ],
@@ -132,5 +147,56 @@ function generateStrStructTypeInfo(): typeInfo {
         2,
         true,
     );
-    return strStructTypeInfo;
+    return stringTypeInfo;
+}
+
+// generate number array type
+function genarateNumberArrayTypeInfo(): typeInfo {
+    const numberArrayTypeInfo = initArrayType(
+        binaryenCAPI._BinaryenTypeFloat64(),
+        binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        true,
+        true,
+    );
+    return numberArrayTypeInfo;
+}
+
+// generate string array type
+function genarateStringArrayTypeInfo(): typeInfo {
+    const stringTypeInfo = stringTypeInformation;
+    const stringArrayTypeInfo = initArrayType(
+        stringTypeInfo.typeRef,
+        binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        true,
+        true,
+    );
+    return stringArrayTypeInfo;
+}
+
+// generate bool array type
+function genarateBoolArrayTypeInfo(): typeInfo {
+    const boolArrayTypeInfo = initArrayType(
+        binaryenCAPI._BinaryenTypeInt32(),
+        binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        true,
+        true,
+    );
+    return boolArrayTypeInfo;
+}
+
+// generate any array type
+function genarateAnyArrayTypeInfo(): typeInfo {
+    const anyArrayTypeInfo = initArrayType(
+        binaryenCAPI._BinaryenTypeAnyref(),
+        binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        true,
+        true,
+    );
+    return anyArrayTypeInfo;
+}
+
+// generate object empty struct type
+function genarateObjectStructTypeInfo(): typeInfo {
+    const emptyStructTypeInfo = initStructType([], [], [], 0, true);
+    return emptyStructTypeInfo;
 }

@@ -28,6 +28,16 @@ export enum ExpressionKind {
     prefixUnaryExpression,
 }
 
+export enum MatchKind {
+    ExactMatch,
+    ToAnyMatch,
+    FromAnyMatch,
+    ClassMatch,
+    ToArrayAnyMatch,
+    FromArrayAnyMatch,
+    MisMatch,
+}
+
 export const CONST_KEYWORD = 'const';
 export const LET_KEYWORD = 'let';
 export const VAR_KEYWORD = 'var';

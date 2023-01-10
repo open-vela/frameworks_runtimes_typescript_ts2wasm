@@ -25,6 +25,12 @@ export class Expression {
     }
 }
 
+export class NullKeywordExpression extends Expression {
+    constructor() {
+        super(ts.SyntaxKind.NullKeyword);
+    }
+}
+
 export class NumberLiteralExpression extends Expression {
     private value: number;
 
@@ -212,11 +218,13 @@ export class ThisExpression extends Expression {
 export class PropertyAccessExpression extends Expression {
     private expr: Expression;
     private property: Expression;
+    private parent: Expression;
 
-    constructor(expr: Expression, property: Expression) {
+    constructor(expr: Expression, property: Expression, parent: Expression) {
         super(ts.SyntaxKind.PropertyAccessExpression);
         this.expr = expr;
         this.property = property;
+        this.parent = parent;
     }
 
     get propertyAccessExpr(): Expression {
@@ -225,6 +233,10 @@ export class PropertyAccessExpression extends Expression {
 
     get propertyExpr(): Expression {
         return this.property;
+    }
+
+    get parentExpr(): Expression {
+        return this.parent;
     }
 }
 
@@ -237,6 +249,38 @@ export class ParenthesizedExpression extends Expression {
     }
 
     get parentesizedExpr(): Expression {
+        return this.expr;
+    }
+}
+
+export class ElementAccessExpression extends Expression {
+    private expr: Expression;
+    private argumentExpr: Expression;
+
+    constructor(expr: Expression, argExpr: Expression) {
+        super(ts.SyntaxKind.ElementAccessExpression);
+        this.expr = expr;
+        this.argumentExpr = argExpr;
+    }
+
+    get accessExpr(): Expression {
+        return this.expr;
+    }
+
+    get argExpr(): Expression {
+        return this.argumentExpr;
+    }
+}
+
+export class AsExpression extends Expression {
+    private expr: Expression;
+
+    constructor(expr: Expression) {
+        super(ts.SyntaxKind.AsExpression);
+        this.expr = expr;
+    }
+
+    get expression(): Expression {
         return this.expr;
     }
 }
@@ -257,6 +301,11 @@ export default class ExpressionCompiler {
 
     visitNode(node: ts.Node): Expression {
         switch (node.kind) {
+            case ts.SyntaxKind.NullKeyword: {
+                const nullExpr = new NullKeywordExpression();
+                nullExpr.setExprType(this.typeCompiler.generateNodeType(node));
+                return nullExpr;
+            }
             case ts.SyntaxKind.NumericLiteral: {
                 const numberLiteralExpr = new NumberLiteralExpression(
                     parseFloat((<ts.NumericLiteral>node).getText()),
@@ -355,6 +404,7 @@ export default class ExpressionCompiler {
             }
             case ts.SyntaxKind.PropertyAccessExpression: {
                 const propAccessExprNode = <ts.PropertyAccessExpression>node;
+                const parent = this.visitNode(propAccessExprNode.parent);
                 const property = this.visitNode(propAccessExprNode.name);
                 if (
                     propAccessExprNode.expression.kind ===
@@ -366,6 +416,7 @@ export default class ExpressionCompiler {
                 const propAccessExpr = new PropertyAccessExpression(
                     expr,
                     property,
+                    parent,
                 );
                 propAccessExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),
@@ -413,6 +464,16 @@ export default class ExpressionCompiler {
                     this.typeCompiler.generateNodeType(node),
                 );
                 return arrLiteralExpr;
+            }
+            case ts.SyntaxKind.AsExpression: {
+                const asExprNode = <ts.AsExpression>node;
+                const expr = this.visitNode(asExprNode.expression);
+                const typeNode = asExprNode.type;
+                const asExpr = new AsExpression(expr);
+                asExpr.setExprType(
+                    this.typeCompiler.generateNodeType(typeNode),
+                );
+                return asExpr;
             }
             default:
                 return new Expression(ts.SyntaxKind.Unknown);
