@@ -63,6 +63,10 @@ export class Variable {
         return this.isClosure;
     }
 
+    setVarIndex(varIndex: number) {
+        this.index = varIndex;
+    }
+
     get varIndex(): number {
         return this.index;
     }

@@ -34,12 +34,14 @@ import {
 } from './glue/packType.js';
 
 export class WASMGen {
+    private scopeStatementMap = new Map<Scope, binaryen.ExpressionRef[]>();
     private binaryenModule = new binaryen.Module();
-    private wasmTypeCompiler = new WASMType();
-    private wasmExprCompiler = new WASMExpressionGen(this);
+    private wasmTypeCompiler = new WASMTypeGen(this);
+    wasmExprBase = new WASMExpressionBase(this);
+    wasmExprCompiler = new WASMExpressionGen(this);
+    wasmDynExprCompiler = new WASMDynExpressionGen(this);
     private wasmStmtCompiler = new WASMStatementGen(this);
     private currentScope: Scope | null = null;
-    private scopeStatementMap = new Map<Scope, binaryen.ExpressionRef[]>();
 
     constructor(private globalScopes: Stack<GlobalScope>) {}
 
@@ -162,6 +164,7 @@ export class WASMValue {
 }
 
 class WASMExpressionBase {
+    wasmCompiler;
     module;
     wasmType;
     currentScope;
@@ -169,10 +172,11 @@ class WASMExpressionBase {
     globalTmpVarStack;
     localTmpVarStack;
     constructor(WASMCompiler: WASMGen) {
-        this.module = WASMCompiler.module;
-        this.wasmType = WASMCompiler.wasmType;
-        this.currentScope = WASMCompiler.curScope!;
-        this.statementArray = WASMCompiler.scopeStateMap.get(
+        this.wasmCompiler = WASMCompiler;
+        this.module = this.wasmCompiler.module;
+        this.wasmType = this.wasmCompiler.wasmType;
+        this.currentScope = this.wasmCompiler.curScope!;
+        this.statementArray = this.wasmCompiler.scopeStateMap.get(
             this.currentScope,
         )!;
         this.globalTmpVarStack = new Stack<string>();
@@ -254,6 +258,7 @@ class WASMExpressionBase {
                 funcScope.paramArray.length + funcScope.varArray.length;
             funcScope.addVariable(variable);
         }
+        variable.setVarIndex(variableIndex);
     }
 
     setVariableToCurrentScope(
@@ -615,7 +620,7 @@ class WASMExpressionGen extends WASMExpressionBase {
     private dynValueGen;
     constructor(WASMCompiler: WASMGen) {
         super(WASMCompiler);
-        this.dynValueGen = new WASMDynExpressionGen(WASMCompiler);
+        this.dynValueGen = this.wasmCompiler.wasmDynExprCompiler;
     }
 
     WASMExprGen(expr: Expression): binaryen.ExpressionRef {
@@ -1361,7 +1366,7 @@ class WASMDynExpressionGen extends WASMExpressionBase {
     private staticValueGen;
     constructor(WASMCompiler: WASMGen) {
         super(WASMCompiler);
-        this.staticValueGen = new WASMExpressionGen(WASMCompiler);
+        this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
     }
 
     WASMDynExprGen(expr: Expression): binaryen.ExpressionRef {
