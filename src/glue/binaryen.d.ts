@@ -935,6 +935,58 @@ export declare function _BinaryenSetTypeSystem(typeSystem: TypeSystem): void;
 
 // Helpers
 
+export declare function _BinaryenCallRef(
+    module: ModuleRef,
+    target: ExpressionRef,
+    operands: ArrayRef<ExpressionRef>,
+    numOperands: Index,
+    type: TypeRef,
+    isReturn: bool,
+): ExpressionRef;
+export declare function _BinaryenCallRefGetNumOperands(
+    expr: ExpressionRef,
+): Index;
+export declare function _BinaryenCallRefGetOperandAt(
+    expr: ExpressionRef,
+    index: Index,
+): ExpressionRef;
+export declare function _BinaryenCallRefSetOperandAt(
+    expr: ExpressionRef,
+    index: Index,
+    operandExpr: ExpressionRef,
+): void;
+export declare function _BinaryenCallRefAppendOperand(
+    expr: ExpressionRef,
+    operandExpr: ExpressionRef,
+): Index;
+export declare function _BinaryenCallRefInsertOperandAt(
+    expr: ExpressionRef,
+    index: Index,
+    operandExpr: ExpressionRef,
+): void;
+export declare function _BinaryenCallRefRemoveOperandAt(
+    expr: ExpressionRef,
+    index: Index,
+): ExpressionRef;
+export declare function _BinaryenCallRefGetTarget(
+    expr: ExpressionRef,
+): ExpressionRef;
+export declare function _BinaryenCallRefSetTarget(
+    expr: ExpressionRef,
+    targetExpr: ExpressionRef,
+): void;
+export declare function _BinaryenCallRefIsReturn(expr: ExpressionRef): bool;
+export declare function _BinaryenCallRefSetReturn(
+    expr: ExpressionRef,
+    isReturn: bool,
+): void;
+
+export declare function _BinaryenRefCast(
+    module: ModuleRef,
+    refExpr: ExpressionRef,
+    intendedType: HeapTypeRef,
+): ExpressionRef;
+
 export declare function _malloc(size: usize): usize;
 export declare function _free(ptr: usize): void;
 export declare function __i32_store8(ptr: usize, value: number): void;

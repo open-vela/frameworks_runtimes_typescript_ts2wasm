@@ -23,6 +23,7 @@ export enum ModifierKind {
 }
 export class Variable {
     private isClosure = false;
+    private closureIndex = 0;
     constructor(
         private name: string,
         private type: Type,
@@ -61,6 +62,14 @@ export class Variable {
 
     get varIsClosure(): boolean {
         return this.isClosure;
+    }
+
+    setClosureIndex(index: number) {
+        this.closureIndex = index;
+    }
+
+    getClosureIndex(): number {
+        return this.closureIndex;
     }
 
     setVarIndex(varIndex: number) {
@@ -144,18 +153,18 @@ export class VariableScanner {
                 ) {
                     isDestructuring = true;
                 }
-                const isOptional =
+                let isOptional =
                     parameterNode.questionToken === undefined ? false : true;
-                const hasModifier =
-                    parameterNode.modifiers === undefined ? false : true;
-                let paramModifier = ModifierKind.default;
-                if (hasModifier) {
-                    const paramModifiers = parameterNode.modifiers!;
-                    paramModifier =
-                        paramModifiers[0].kind === ts.SyntaxKind.ReadonlyKeyword
-                            ? ModifierKind.readonly
-                            : ModifierKind.default;
-                }
+                isOptional =
+                    isOptional || parameterNode.initializer === undefined
+                        ? false
+                        : true;
+                const paramModifier =
+                    parameterNode.modifiers !== undefined &&
+                    parameterNode.modifiers[0].kind ===
+                        ts.SyntaxKind.ReadonlyKeyword
+                        ? ModifierKind.readonly
+                        : ModifierKind.default;
                 const paramType =
                     parameterNode.type === undefined
                         ? functionScope.getTypeFromCurrentScope(
@@ -313,6 +322,7 @@ export class VariableInit {
                     );
                 }
                 if (variableDeclarationNode.initializer) {
+                    this.compilerCtx.currentScope = currentScope;
                     const variableInit = generateNodeExpression(
                         this.compilerCtx.expressionCompiler,
                         variableDeclarationNode.initializer,

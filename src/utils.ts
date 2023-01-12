@@ -65,12 +65,6 @@ export interface BinaryExpressionInfo {
     rightType: binaryen.Type;
 }
 
-export interface IfStatementInfo {
-    condition: binaryen.ExpressionRef;
-    ifTrue: binaryen.ExpressionRef;
-    ifFalse: binaryen.ExpressionRef;
-}
-
 export interface LoopStatementInfo {
     kind: LoopKind;
     label: string;

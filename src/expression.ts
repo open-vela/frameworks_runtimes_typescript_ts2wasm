@@ -1,9 +1,12 @@
 import ts from 'typescript';
 import { Compiler } from './compiler.js';
+import { Scope, FunctionScope, GlobalScope, ScopeKind } from './scope.js';
+import { Variable } from './variable.js';
 import { Type } from './type.js';
 
 type OperatorKind = ts.SyntaxKind;
 type ExpressionKind = ts.SyntaxKind;
+
 export class Expression {
     private kind: ExpressionKind;
     private type: Type = new Type();
@@ -139,7 +142,7 @@ export class UnaryExpression extends Expression {
     private _operand: Expression;
 
     constructor(
-        kind: OperatorKind,
+        kind: ExpressionKind,
         operator: OperatorKind,
         operand: Expression,
     ) {
@@ -201,6 +204,19 @@ export class CallExpression extends Expression {
     }
 }
 
+export class SuperCallExpression extends Expression {
+    private args: Expression[];
+
+    constructor(args: Expression[] = new Array<Expression>(0)) {
+        super(ts.SyntaxKind.SuperKeyword);
+        this.args = args;
+    }
+
+    get callArgs(): Expression[] {
+        return this.args;
+    }
+}
+
 export class ThisExpression extends Expression {
     // private expr: string = 'this';
     private property: Expression;
@@ -237,6 +253,25 @@ export class PropertyAccessExpression extends Expression {
 
     get parentExpr(): Expression {
         return this.parent;
+    }
+}
+
+export class NewExpression extends Expression {
+    private expr: Expression;
+    private arguments: Array<Expression> | undefined;
+
+    constructor(expr: Expression, args: Array<Expression> | undefined) {
+        super(ts.SyntaxKind.NewExpression);
+        this.expr = expr;
+        this.arguments = args;
+    }
+
+    get NewExpr(): Expression {
+        return this.expr;
+    }
+
+    get NewArgs(): Array<Expression> | undefined {
+        return this.arguments;
     }
 }
 
@@ -286,17 +321,11 @@ export class AsExpression extends Expression {
 }
 
 export default class ExpressionCompiler {
+    // private currentScope: Scope | null = null;
+
     private typeCompiler;
     constructor(private compilerCtx: Compiler) {
         this.typeCompiler = this.compilerCtx.typeComp;
-    }
-
-    visit(nodes: Array<ts.SourceFile>) {
-        /* TODO: invoke visitNode on interested nodes */
-        this.typeCompiler = this.compilerCtx.typeComp;
-        for (const sourceFile of nodes) {
-            ts.forEachChild(sourceFile, this.visitNode);
-        }
     }
 
     visitNode(node: ts.Node): Expression {
@@ -330,6 +359,34 @@ export default class ExpressionCompiler {
                 return trueLiteralExpr;
             }
             case ts.SyntaxKind.Identifier: {
+                const targetIdentifier = (<ts.Identifier>node).getText();
+                let scope = this.compilerCtx.currentScope;
+                if (scope !== null) {
+                    const nearestFuncScope = scope.getNearestFunctionScope();
+                    let variable: Variable | undefined = undefined;
+                    let isFreeVar = false;
+                    while (scope !== null) {
+                        variable = scope.findVariable(targetIdentifier, false);
+                        if (
+                            variable === undefined &&
+                            nearestFuncScope !== null &&
+                            scope === nearestFuncScope
+                        ) {
+                            isFreeVar = true;
+                            (<FunctionScope>nearestFuncScope).setIsClosure();
+                        }
+                        if (variable !== undefined) {
+                            if (
+                                !isFreeVar &&
+                                scope.kind === ScopeKind.FunctionScope
+                            ) {
+                                variable.setVarIsClosure();
+                            }
+                            break;
+                        }
+                        scope = scope.parent;
+                    }
+                }
                 const identifierExpr = new IdentifierExpression(
                     (<ts.Identifier>node).getText(),
                 );
@@ -398,6 +455,15 @@ export default class ExpressionCompiler {
                 for (let i = 0; i != args.length; ++i) {
                     args[i] = this.visitNode(callExprNode.arguments[i]);
                 }
+                if (
+                    callExprNode.expression.kind === ts.SyntaxKind.SuperKeyword
+                ) {
+                    const callExpr = new SuperCallExpression(args);
+                    callExpr.setExprType(
+                        this.typeCompiler.generateNodeType(node),
+                    );
+                    return callExpr;
+                }
                 const callExpr = new CallExpression(expr, args);
                 callExpr.setExprType(this.typeCompiler.generateNodeType(node));
                 return callExpr;
@@ -432,6 +498,20 @@ export default class ExpressionCompiler {
                     this.typeCompiler.generateNodeType(node),
                 );
                 return parentesizedExpr;
+            }
+            case ts.SyntaxKind.NewExpression: {
+                const newExprNode = <ts.NewExpression>node;
+                const expr = this.visitNode(newExprNode.expression);
+                const args = new Array<Expression>();
+                if (newExprNode.arguments !== undefined) {
+                    for (const arg of newExprNode.arguments) {
+                        args.push(this.visitNode(arg));
+                    }
+                }
+                return new NewExpression(
+                    expr,
+                    newExprNode.arguments === undefined ? undefined : args,
+                );
             }
             case ts.SyntaxKind.ObjectLiteralExpression: {
                 const objLiteralNode = <ts.ObjectLiteralExpression>node;

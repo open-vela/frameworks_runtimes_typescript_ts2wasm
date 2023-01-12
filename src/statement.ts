@@ -1,15 +1,27 @@
 import { assert } from 'console';
 import ts from 'typescript';
-import { Compiler } from './compiler';
-import { Expression } from './expression';
+import { Compiler } from './compiler.js';
+import { Expression } from './expression.js';
+import { GlobalScope, Scope } from './scope.js';
+import { Stack } from './utils.js';
 
 type StatementKind = ts.SyntaxKind;
 
 export class Statement {
+    private _scope: Scope | null = null;
+
     constructor(private kind: StatementKind) {}
 
     get statementKind(): StatementKind {
         return this.kind;
+    }
+
+    setScope(scope: Scope) {
+        this._scope = scope;
+    }
+
+    getScope(): Scope | null {
+        return this._scope;
     }
 }
 
@@ -36,8 +48,18 @@ export class IfStatement extends Statement {
 }
 
 export class BlockStatement extends Statement {
+    private _isFunctionBlock = false;
+
     constructor(private blockStatements: Statement[]) {
         super(ts.SyntaxKind.Block);
+    }
+
+    setFunctionBlock(): void {
+        this._isFunctionBlock = true;
+    }
+
+    isFunctionBlock(): boolean {
+        return this._isFunctionBlock;
     }
 
     get statements(): Statement[] {
@@ -59,7 +81,8 @@ export class ReturnStatement extends Statement {
 export class BaseLoopStatement extends Statement {
     constructor(
         kind: StatementKind,
-        private label: string,
+        private _loopLabel: string,
+        private _blockLabel: string,
         private cond: Expression,
         private body: Statement,
     ) {
@@ -67,7 +90,11 @@ export class BaseLoopStatement extends Statement {
     }
 
     get loopLabel(): string {
-        return this.label;
+        return this._loopLabel;
+    }
+
+    get loopBlockLabel(): string {
+        return this._blockLabel;
     }
 
     get loopCondtion(): Expression {
@@ -82,6 +109,7 @@ export class BaseLoopStatement extends Statement {
 export class ForStatement extends Statement {
     constructor(
         private label: string,
+        private blockLabel: string,
         private cond: Expression | null,
         private body: Statement,
         private initializer: Statement | null,
@@ -92,6 +120,10 @@ export class ForStatement extends Statement {
 
     get forLoopLabel(): string {
         return this.label;
+    }
+
+    get forLoopBlockLabel(): string {
+        return this.blockLabel;
     }
 
     get forLoopCondtion(): Expression | null {
@@ -146,14 +178,26 @@ export class DefaultClause extends Statement {
         super(ts.SyntaxKind.DefaultClause);
     }
 
-    get defaultCaseStatements(): Statement[] {
+    get caseStatements(): Statement[] {
         return this.statements;
     }
 }
 
 export class CaseBlock extends Statement {
-    constructor(private causes: Statement[]) {
+    constructor(
+        private _switchLabel: string,
+        private _breakLabel: string,
+        private causes: Statement[],
+    ) {
         super(ts.SyntaxKind.CaseBlock);
+    }
+
+    get switchLabel(): string {
+        return this._switchLabel;
+    }
+
+    get breakLabel(): string {
+        return this._breakLabel;
     }
 
     get caseCauses(): Statement[] {
@@ -161,11 +205,7 @@ export class CaseBlock extends Statement {
     }
 }
 export class SwitchStatement extends Statement {
-    constructor(
-        private cond: Expression,
-        private caseBlock: Statement,
-        private breakLabel: string,
-    ) {
+    constructor(private cond: Expression, private caseBlock: Statement) {
         super(ts.SyntaxKind.SwitchStatement);
     }
 
@@ -175,10 +215,6 @@ export class SwitchStatement extends Statement {
 
     get switchCaseBlock(): Statement {
         return this.caseBlock;
-    }
-
-    get switchBreakLabel(): string {
-        return this.breakLabel;
     }
 }
 
@@ -193,17 +229,113 @@ export class BreakStatement extends Statement {
 }
 
 export default class StatementCompiler {
+    private loopLabelStack = new Stack<string>();
+    private breakLabelsStack = new Stack<string>();
+    private switchLabelStack = new Stack<number>();
+
     constructor(private compilerCtx: Compiler) {}
 
     visit(nodes: Array<ts.SourceFile>) {
-        /* TODO: invoke visitNode on interested nodes */
         for (const sourceFile of nodes) {
-            ts.forEachChild(sourceFile, this.visitNode);
+            const globalScope = this.compilerCtx.nodeScopeMap.get(
+                sourceFile,
+            ) as GlobalScope;
+            for (const stmt of sourceFile.statements) {
+                const compiledStmt = this.visitNode(stmt);
+                if (
+                    StatementCompiler.noNeedToCompileStmt(
+                        compiledStmt.statementKind,
+                    )
+                ) {
+                    continue;
+                }
+                globalScope.addStatement(compiledStmt);
+                this.visitNode(stmt);
+            }
         }
     }
 
     visitNode(node: ts.Node): Statement {
+        const prevScope = this.compilerCtx.currentScope;
         switch (node.kind) {
+            case ts.SyntaxKind.FunctionDeclaration: {
+                /* function scope and Type have been determined */
+                const funcDeclNode = <ts.FunctionDeclaration>node;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(funcDeclNode) as Scope;
+                if (funcDeclNode.body !== undefined) {
+                    this.compilerCtx.currentScope.addStatement(
+                        this.visitNode(funcDeclNode.body),
+                    );
+                }
+                this.compilerCtx.currentScope = prevScope;
+                return new Statement(ts.SyntaxKind.FunctionDeclaration);
+            }
+            case ts.SyntaxKind.ClassDeclaration: {
+                const classDeclNode = <ts.ClassDeclaration>node;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(classDeclNode) as Scope;
+                for (const member of classDeclNode.members) {
+                    if (
+                        member.kind === ts.SyntaxKind.MethodDeclaration ||
+                        member.kind === ts.SyntaxKind.SetAccessor ||
+                        member.kind === ts.SyntaxKind.GetAccessor ||
+                        member.kind === ts.SyntaxKind.Constructor
+                    ) {
+                        this.visitNode(member);
+                    }
+                }
+                this.compilerCtx.currentScope = prevScope;
+                return new Statement(ts.SyntaxKind.ClassDeclaration);
+            }
+            case ts.SyntaxKind.Constructor: {
+                const ctorNode = <ts.ConstructorDeclaration>node;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(ctorNode) as Scope;
+                if (ctorNode.body !== undefined) {
+                    this.compilerCtx.currentScope.addStatement(
+                        this.visitNode(ctorNode.body),
+                    );
+                }
+                this.compilerCtx.currentScope = prevScope;
+                return new Statement(ts.SyntaxKind.Constructor);
+            }
+            case ts.SyntaxKind.SetAccessor: {
+                const setAccessorNode = <ts.SetAccessorDeclaration>node;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(setAccessorNode) as Scope;
+                if (setAccessorNode.body !== undefined) {
+                    this.compilerCtx.currentScope.addStatement(
+                        this.visitNode(setAccessorNode.body),
+                    );
+                }
+                this.compilerCtx.currentScope = prevScope;
+                return new Statement(ts.SyntaxKind.SetAccessor);
+            }
+            case ts.SyntaxKind.GetAccessor: {
+                const getAccessorNode = <ts.GetAccessorDeclaration>node;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(getAccessorNode) as Scope;
+                if (getAccessorNode.body !== undefined) {
+                    this.compilerCtx.currentScope.addStatement(
+                        this.visitNode(getAccessorNode.body),
+                    );
+                }
+                this.compilerCtx.currentScope = prevScope;
+                return new Statement(ts.SyntaxKind.GetAccessor);
+            }
+            case ts.SyntaxKind.MethodDeclaration: {
+                const methodNode = <ts.MethodDeclaration>node;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(methodNode) as Scope;
+                if (methodNode.body !== undefined) {
+                    this.compilerCtx.currentScope.addStatement(
+                        this.visitNode(methodNode.body),
+                    );
+                }
+                this.compilerCtx.currentScope = prevScope;
+                return new Statement(ts.SyntaxKind.MethodDeclaration);
+            }
             case ts.SyntaxKind.IfStatement: {
                 const ifStatementNode = <ts.IfStatement>node;
                 const condtion: Expression =
@@ -220,11 +352,28 @@ export default class StatementCompiler {
             }
             case ts.SyntaxKind.Block: {
                 const blockNode = <ts.Block>node;
+                let scope: Scope | null = null;
+                if (
+                    blockNode.parent.kind !== ts.SyntaxKind.FunctionDeclaration
+                ) {
+                    this.compilerCtx.currentScope =
+                        this.compilerCtx.nodeScopeMap.get(blockNode) as Scope;
+                    scope = this.compilerCtx.nodeScopeMap.get(
+                        blockNode,
+                    ) as Scope;
+                }
+
                 const statements = new Array<Statement>();
-                for (let i = 0; i != blockNode.statements.length; ++i) {
+                for (let i = 0; i !== blockNode.statements.length; ++i) {
                     statements.push(this.visitNode(blockNode.statements[i]));
                 }
-                return new Statement(ts.SyntaxKind.Unknown);
+                const block = new BlockStatement(statements);
+                if (scope) {
+                    block.setScope(scope);
+                }
+                this.compilerCtx.currentScope = prevScope;
+
+                return block;
             }
             case ts.SyntaxKind.ReturnStatement: {
                 const returnStatementNode = <ts.ReturnStatement>node;
@@ -238,30 +387,44 @@ export default class StatementCompiler {
             }
             case ts.SyntaxKind.WhileStatement: {
                 const whileStatementNode = <ts.WhileStatement>node;
-                const loopLabel =
-                    'while_loop_' + this.compilerCtx.loopLabels.size();
-                const breakLabels = this.compilerCtx.breakLabels;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(
+                        whileStatementNode,
+                    ) as Scope;
+                const loopLabel = 'while_loop_' + this.loopLabelStack.size();
+                const breakLabels = this.breakLabelsStack;
                 breakLabels.push(loopLabel + 'block');
-                this.compilerCtx.loopLabels.push(loopLabel);
+                const blockLabel = breakLabels.peek();
+                this.loopLabelStack.push(loopLabel);
 
                 const expr = this.compilerCtx.expressionCompiler.visitNode(
                     whileStatementNode.expression,
                 );
                 const statement = this.visitNode(whileStatementNode.statement);
-                return new BaseLoopStatement(
+                this.breakLabelsStack.pop();
+                const loopStatment = new BaseLoopStatement(
                     ts.SyntaxKind.WhileStatement,
                     loopLabel,
+                    blockLabel,
                     expr,
                     statement,
                 );
+                this.compilerCtx.currentScope = prevScope;
+                // loopStatment.setScope(scope);
+                return loopStatment;
             }
             case ts.SyntaxKind.DoStatement: {
                 const doWhileStatementNode = <ts.DoStatement>node;
-                const loopLabel =
-                    'do_loop_' + this.compilerCtx.loopLabels.size();
-                const breakLabels = this.compilerCtx.breakLabels;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(
+                        doWhileStatementNode,
+                    ) as Scope;
+                // this.compilerCtx.currentScope = scope;
+                const loopLabel = 'do_loop_' + this.loopLabelStack.size();
+                const breakLabels = this.breakLabelsStack;
                 breakLabels.push(loopLabel + 'block');
-                this.compilerCtx.loopLabels.push(loopLabel);
+                const blockLabel = breakLabels.peek();
+                this.loopLabelStack.push(loopLabel);
 
                 const expr = this.compilerCtx.expressionCompiler.visitNode(
                     doWhileStatementNode.expression,
@@ -269,20 +432,31 @@ export default class StatementCompiler {
                 const statement = this.visitNode(
                     doWhileStatementNode.statement,
                 );
-                return new BaseLoopStatement(
+                this.breakLabelsStack.pop();
+                const loopStatment = new BaseLoopStatement(
                     ts.SyntaxKind.DoStatement,
                     loopLabel,
+                    blockLabel,
                     expr,
                     statement,
                 );
+                this.compilerCtx.currentScope = prevScope;
+                // loopStatment.setScope(scope);
+                return loopStatment;
             }
             case ts.SyntaxKind.ForStatement: {
                 const forStatementNode = <ts.ForStatement>node;
-                const loopLabel =
-                    'for_loop_' + this.compilerCtx.loopLabels.size();
-                const breakLabels = this.compilerCtx.breakLabels;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(
+                        forStatementNode,
+                    ) as Scope;
+                // this.compilerCtx.currentScope = scope;
+                const loopLabel = 'for_loop_' + this.loopLabelStack.size();
+                const breakLabels = this.breakLabelsStack;
                 breakLabels.push(loopLabel + 'block');
-                this.compilerCtx.loopLabels.push(loopLabel);
+                const blockLabel = breakLabels.peek();
+                this.loopLabelStack.push(loopLabel);
+
                 const initializer = forStatementNode.initializer
                     ? this.visitNode(forStatementNode.initializer)
                     : null;
@@ -297,14 +471,18 @@ export default class StatementCompiler {
                       )
                     : null;
                 const statement = this.visitNode(forStatementNode.statement);
-
-                return new ForStatement(
+                this.breakLabelsStack.pop();
+                const forStatement = new ForStatement(
                     loopLabel,
+                    blockLabel,
                     cond,
                     statement,
                     initializer,
                     incrementor,
                 );
+                this.compilerCtx.currentScope = prevScope;
+                // forStatement.setScope(scope);
+                return forStatement;
             }
             case ts.SyntaxKind.ExpressionStatement: {
                 const exprStatement = <ts.ExpressionStatement>node;
@@ -319,29 +497,45 @@ export default class StatementCompiler {
             }
             case ts.SyntaxKind.SwitchStatement: {
                 const switchStatementNode = <ts.SwitchStatement>node;
-                const switchLabels = this.compilerCtx.switchLabels;
+                const switchLabels = this.switchLabelStack;
                 switchLabels.push(switchLabels.size());
-                const breakLabels = this.compilerCtx.breakLabels;
+                const breakLabels = this.breakLabelsStack;
                 breakLabels.push('break-switch-' + switchLabels.size());
-                // xxx: do the below in generating wasm code?
-                // switchLabels.pop();
-                // breakLabels.pop();
                 const expr = this.compilerCtx.expressionCompiler.visitNode(
                     switchStatementNode.expression,
                 );
                 const caseBlock = this.visitNode(switchStatementNode.caseBlock);
-                return new SwitchStatement(expr, caseBlock, breakLabels.peek());
+                switchLabels.pop();
+                breakLabels.pop();
+                return new SwitchStatement(expr, caseBlock);
             }
             case ts.SyntaxKind.CaseBlock: {
                 const caseBlockNode = <ts.CaseBlock>node;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(caseBlockNode) as Scope;
+                // this.compilerCtx.currentScope = scope;
+                const breakLabelsStack = this.breakLabelsStack;
+                const switchLabels = this.switchLabelStack;
+                const switchLabel = '_' + switchLabels.peek().toString();
+
                 const clauses = new Array<Statement>();
                 for (let i = 0; i !== caseBlockNode.clauses.length; ++i) {
                     clauses.push(this.visitNode(caseBlockNode.clauses[i]));
                 }
-                return new CaseBlock(clauses);
+                const caseBlock = new CaseBlock(
+                    switchLabel,
+                    breakLabelsStack.peek(),
+                    clauses,
+                );
+                // caseBlock.setScope(scope);
+                this.compilerCtx.currentScope = prevScope;
+                return caseBlock;
             }
             case ts.SyntaxKind.CaseClause: {
                 const caseClauseNode = <ts.CaseClause>node;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(caseClauseNode) as Scope;
+                // this.compilerCtx.currentScope = scope;
                 const expr = this.compilerCtx.expressionCompiler.visitNode(
                     caseClauseNode.expression,
                 );
@@ -350,24 +544,48 @@ export default class StatementCompiler {
                 for (let i = 0; i != caseStatements.length; ++i) {
                     statements.push(this.visitNode(caseStatements[i]));
                 }
-                return new CaseClause(expr, statements);
+                const caseCause = new CaseClause(expr, statements);
+                this.compilerCtx.currentScope = prevScope;
+                // caseCause.setScope(scope);
+                return caseCause;
             }
             case ts.SyntaxKind.DefaultClause: {
                 const defaultClauseNode = <ts.DefaultClause>node;
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(
+                        defaultClauseNode,
+                    ) as Scope;
+                // this.compilerCtx.currentScope = scope;
                 const statements = new Array<Statement>();
                 const caseStatements = defaultClauseNode.statements;
                 for (let i = 0; i != caseStatements.length; ++i) {
                     statements.push(this.visitNode(caseStatements[i]));
                 }
-                return new DefaultClause(statements);
+                const defaultClause = new DefaultClause(statements);
+                this.compilerCtx.currentScope = prevScope;
+                // defaultClause.setScope(scope);
+                return defaultClause;
             }
             case ts.SyntaxKind.BreakStatement: {
                 const breakStatementNode = <ts.BreakStatement>node;
                 assert(!breakStatementNode.label, 'not support goto');
-                return new BreakStatement(this.compilerCtx.breakLabels.peek());
+                return new BreakStatement(this.breakLabelsStack.peek());
             }
             default:
                 return new Statement(ts.SyntaxKind.Unknown);
         }
+    }
+
+    static noNeedToCompileStmt(stmtKind: ts.SyntaxKind): boolean {
+        switch (stmtKind) {
+            case ts.SyntaxKind.FunctionDeclaration:
+            case ts.SyntaxKind.ClassDeclaration:
+            case ts.SyntaxKind.Constructor:
+            case ts.SyntaxKind.SetAccessor:
+            case ts.SyntaxKind.GetAccessor:
+            case ts.SyntaxKind.MethodDeclaration:
+                return true;
+        }
+        return false;
     }
 }

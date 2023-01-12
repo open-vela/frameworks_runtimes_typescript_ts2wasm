@@ -1,8 +1,7 @@
-import ts from 'typescript';
+import ts, { SyntaxKind } from 'typescript';
 import { Compiler } from './compiler.js';
 import { Stack, getNodeTypeInfo, getCurScope } from './utils.js';
-import { GlobalScope, Scope } from './scope.js';
-import { Parameter } from './variable.js';
+import { FunctionScope, GlobalScope, Scope, ScopeKind } from './scope.js';
 
 export const enum TypeKind {
     VOID,
@@ -77,7 +76,7 @@ export class TSClass extends Type {
     private constructorMethodName = '';
     private constructorMethod: TSFunction | null = null;
     private methods: Map<string, TSFunction> = new Map();
-    private methodsOverride: Map<string, boolean> = new Map();
+    private methodsOverride: Set<string> = new Set();
     private staticMethods: Map<string, TSFunction> = new Map();
     private baseClass: TSClass | null = null;
 
@@ -91,6 +90,25 @@ export class TSClass extends Type {
 
     get classConstructorType(): TSFunction | null {
         return this.constructorMethod;
+    }
+
+    get fields(): Array<TsClassField> {
+        return this.memberFields;
+    }
+
+    get memberFuncs(): Map<string, TSFunction> {
+        return this.methods;
+    }
+
+    setOverrideMethod(name: string): void {
+        this.methodsOverride.add(name);
+    }
+
+    isOverrideMethod(name: string): boolean {
+        if (this.methodsOverride.has(name)) {
+            return true;
+        }
+        return false;
     }
 
     setClassConstructor(name: string, functionType: TSFunction) {
@@ -145,13 +163,8 @@ export class TSClass extends Type {
         this.methods.set(name, methodType);
     }
 
-    getMethod(name: string): TSFunction {
+    getMethod(name: string): TSFunction | undefined {
         const method = this.methods.get(name);
-        if (method === undefined) {
-            throw new Error(
-                'method function not found, function name <' + name + '>',
-            );
-        }
         return method;
     }
 
@@ -214,7 +227,7 @@ export class TSFunction extends Type {
         this.parameterTypes.push(paramType);
     }
 
-    get paramTypes(): Type[] {
+    getParamTypes(): Type[] {
         return this.parameterTypes;
     }
 
@@ -233,12 +246,13 @@ export default class TypeCompiler {
     currentScope: Scope | null = null;
     nodeScopeMap = new Map<ts.Node, Scope>();
 
-    constructor(private compilerCtx: Compiler) {}
+    constructor(private compilerCtx: Compiler) {
+        this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
+        this.globalScopeStack = this.compilerCtx.globalScopeStack;
+    }
 
     visit(nodes: Array<ts.SourceFile>) {
         this.typechecker = this.compilerCtx.typeChecker;
-        this.globalScopeStack = this.compilerCtx.globalScopeStack;
-        this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
         for (let i = 0; i < nodes.length; i++) {
             const sourceFile = nodes[i];
             this.currentScope = this.globalScopeStack.getItemAtIdx(i);
@@ -250,7 +264,21 @@ export default class TypeCompiler {
         this.findCurrentScope(node);
         switch (node.kind) {
             case ts.SyntaxKind.ClassDeclaration: {
-                /* TODO: new TSClass and insert to this.namedTypeMap */
+                const classNode = <ts.ClassDeclaration>node;
+                let className = '';
+                if (
+                    classNode.name !== undefined &&
+                    classNode.name.kind === ts.SyntaxKind.Identifier
+                ) {
+                    className = (<ts.Identifier>classNode.name).getText();
+                }
+                if (this.currentScope !== null) {
+                    this.currentScope.namedTypeMap.set(
+                        className,
+                        this.generateNodeType(classNode),
+                    );
+                }
+
                 break;
             }
             case ts.SyntaxKind.TypeAliasDeclaration: {
@@ -286,7 +314,8 @@ export default class TypeCompiler {
             case ts.SyntaxKind.BooleanKeyword:
             case ts.SyntaxKind.TrueKeyword:
             case ts.SyntaxKind.FalseKeyword:
-            case ts.SyntaxKind.NullKeyword: {
+            case ts.SyntaxKind.NullKeyword:
+            case ts.SyntaxKind.FunctionDeclaration: {
                 this.setType(node);
                 break;
             }
@@ -323,6 +352,10 @@ export default class TypeCompiler {
             case ts.SyntaxKind.FunctionType: {
                 const funcTypeNode = <ts.FunctionTypeNode>node;
                 return this.generateFunctionType(funcTypeNode);
+            }
+            case ts.SyntaxKind.ClassDeclaration: {
+                const classTypeNode = <ts.ClassDeclaration>node;
+                return this.generateClassType(classTypeNode);
             }
             case ts.SyntaxKind.TypeLiteral: {
                 const typeLiteralNode = <ts.TypeLiteralNode>node;
@@ -431,4 +464,121 @@ export default class TypeCompiler {
         }
         return funcType;
     }
+
+    generateClassType(node: ts.ClassDeclaration): TSClass {
+        const classType = new TSClass();
+        const heritage = node.heritageClauses;
+        if (heritage !== undefined) {
+            const heritageName = heritage[0].types[0].getText();
+            const scope = this.currentScope;
+            if (scope !== null) {
+                const heritageType = <TSClass>(
+                    scope.getTypeFromCurrentScope(heritageName)
+                );
+                classType.setBase(heritageType);
+
+                for (const field of heritageType.fields) {
+                    classType.addMemberField(field);
+                }
+            }
+        }
+        for (const member of node.members) {
+            if (member.kind === ts.SyntaxKind.PropertyDeclaration) {
+                if (!classType.getMemberField(member.getText())) {
+                    const field = <ts.PropertyDeclaration>member;
+                    const name = member.getText(),
+                        type = this.generateNodeType(field);
+                    const modifier = findModifier(
+                        field.modifiers,
+                        ts.SyntaxKind.ReadonlyKeyword,
+                    )
+                        ? 'readonly'
+                        : undefined;
+                    const staticModifier = findModifier(
+                        field.modifiers,
+                        ts.SyntaxKind.StaticKeyword,
+                    )
+                        ? 'static'
+                        : undefined;
+                    const classField: TsClassField = {
+                        name: name,
+                        type: type,
+                        modifier: modifier,
+                        visibility: 'public',
+                        static: staticModifier,
+                    };
+                    classType.addMemberField(classField);
+                }
+            }
+            // if (member.kind === ts.SyntaxKind.SetAccessor) {
+            //     const func = <ts.SetAccessorDeclaration>member;
+            //     const tsFuncType = this.generateFunctionType(func);
+            //     classType.addMethod('set_' + member.getText(), tsFuncType);
+            //     let base = classType.getBase();
+            //     while (base !== null) {
+            //         if (base.memberFuncs.has('set_' + member.getText())) {
+            //             if (!base.isOverrideMethod('set_' + member.getText())) {
+            //                 base.setOverrideMethod('set_' + member.getText());
+            //             }
+            //             classType.setOverrideMethod('set_' + member.getText());
+            //             break;
+            //         }
+            //         base = base.getBase();
+            //     }
+            // }
+            // if (member.kind === ts.SyntaxKind.GetAccessor) {
+            //     const func = <ts.SetAccessorDeclaration>member;
+            //     const tsFuncType = this.generateFunctionType(func);
+            //     classType.addMethod('get_' + member.getText(), tsFuncType);
+            //     let base = classType.getBase();
+            //     while (base !== null) {
+            //         if (base.memberFuncs.has('get_' + member.getText())) {
+            //             if (!base.isOverrideMethod('get_' + member.getText())) {
+            //                 base.setOverrideMethod('get_' + member.getText());
+            //             }
+            //             classType.setOverrideMethod('get_' + member.getText());
+            //             break;
+            //         }
+            //         base = base.getBase();
+            //     }
+            // }
+            // if (member.kind === ts.SyntaxKind.MethodDeclaration) {
+            //     const func = <ts.MethodDeclaration>member;
+            //     const tsFuncType = this.generateFunctionType(func);
+            //     classType.addMethod(member.getText(), tsFuncType);
+            //     let base = classType.getBase();
+            //     while (base !== null) {
+            //         if (base.memberFuncs.has(member.getText())) {
+            //             if (!base.isOverrideMethod(member.getText())) {
+            //                 base.setOverrideMethod(member.getText());
+            //             }
+            //             classType.setOverrideMethod(member.getText());
+            //             break;
+            //         }
+            //         base = base.getBase();
+            //     }
+            // }
+            // if (member.kind === ts.SyntaxKind.Constructor) {
+            //     const func = <ts.ConstructorDeclaration>member;
+            //     const tsFuncType = this.generateFunctionType(func);
+            //     classType.setClassConstructor('constructor', tsFuncType);
+            // }
+        }
+        return classType;
+    }
+}
+
+function findModifier(
+    modifiers: ts.NodeArray<ts.ModifierLike> | undefined,
+    kind: ts.SyntaxKind,
+): boolean {
+    if (modifiers === undefined) {
+        return false;
+    }
+    for (let i = 0; i !== modifiers.length; ++i) {
+        if (modifiers[i].kind === kind) {
+            return true;
+        }
+    }
+    return false;
 }
