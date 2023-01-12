@@ -526,25 +526,12 @@ export const {
     _BinaryenI31GetIsSigned,
     _BinaryenI31GetSetSigned,
 
-    _BinaryenCallRef,
-    _BinaryenCallRefGetNumOperands,
-    _BinaryenCallRefGetOperandAt,
-    _BinaryenCallRefSetOperandAt,
-    _BinaryenCallRefAppendOperand,
-    _BinaryenCallRefInsertOperandAt,
-    _BinaryenCallRefRemoveOperandAt,
-    _BinaryenCallRefGetTarget,
-    _BinaryenCallRefSetTarget,
-    _BinaryenCallRefIsReturn,
-    _BinaryenCallRefSetReturn,
-
     _BinaryenRefTest,
     _BinaryenRefTestGetRef,
     _BinaryenRefTestSetRef,
     _BinaryenRefTestGetIntendedType,
     _BinaryenRefTestSetIntendedType,
 
-    _BinaryenRefCast,
     _BinaryenRefCastGetRef,
     _BinaryenRefCastSetRef,
     _BinaryenRefCastGetIntendedType,
@@ -889,6 +876,20 @@ export const {
     _BinaryenSetTypeSystem,
 
     // Helpers
+
+    _BinaryenCallRef,
+    _BinaryenCallRefGetNumOperands,
+    _BinaryenCallRefGetOperandAt,
+    _BinaryenCallRefSetOperandAt,
+    _BinaryenCallRefAppendOperand,
+    _BinaryenCallRefInsertOperandAt,
+    _BinaryenCallRefRemoveOperandAt,
+    _BinaryenCallRefGetTarget,
+    _BinaryenCallRefSetTarget,
+    _BinaryenCallRefIsReturn,
+    _BinaryenCallRefSetReturn,
+
+    _BinaryenRefCast,
 
     _malloc,
     _free,
