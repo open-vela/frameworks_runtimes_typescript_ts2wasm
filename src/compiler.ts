@@ -7,10 +7,13 @@ import {
     FunctionScope,
     GlobalScope,
     Scope,
+    ScopeKind,
     ScopeScanner,
 } from './scope.js';
 import { VariableScanner, VariableInit } from './variable.js';
 import ExpressionCompiler from './expression.js';
+import StatementCompiler from './statement.js';
+import { WASMGen } from './wasmgen.js';
 
 export const COMPILER_OPTIONS: ts.CompilerOptions = {
     module: ts.ModuleKind.ESNext,
@@ -22,6 +25,8 @@ export class Compiler {
     private variableScanner;
     private variableInit;
     private exprCompiler;
+    private stmtCompiler;
+    private wasmGen;
 
     typeChecker: ts.TypeChecker | undefined;
     globalScopeStack = new Stack<GlobalScope>();
@@ -31,10 +36,8 @@ export class Compiler {
     binaryenModule = new binaryen.Module();
     functionScopeStack = new Stack<FunctionScope>();
     blockScopeStack = new Stack<BlockScope>();
+    scopesStack = new Stack<Scope>();
     currentScope: Scope | null = null;
-    loopLabelStack = new Stack<string>();
-    breakLabelsStack = new Stack<string>();
-    switchLabelStack = new Stack<number>();
     anonymousFunctionNameStack = new Stack<string>();
 
     constructor() {
@@ -43,6 +46,8 @@ export class Compiler {
         this.variableScanner = new VariableScanner(this);
         this.variableInit = new VariableInit(this);
         this.exprCompiler = new ExpressionCompiler(this);
+        this.stmtCompiler = new StatementCompiler(this);
+        this.wasmGen = new WASMGen(this);
     }
 
     compile(fileNames: string[]): void {
@@ -62,17 +67,15 @@ export class Compiler {
 
         /* Step1: Resolve all scopes */
         this.scopeScanner.visit(sourceFileList);
-        /* Step2: Resolve all type declarations */
+        // /* Step2: Resolve all type declarations */
         this.typeCompiler.visit(sourceFileList);
         this.variableScanner.visit(sourceFileList);
         this.variableInit.visit(sourceFileList);
+        /* Step3: Add statements to scopes */
+        this.stmtCompiler.visit(sourceFileList);
 
-        // TODO: other steps
-        /* Step3: Resolve all variables */
-
-        /* Step3: additional type checking rules (optional) */
         /* Step4: code generation */
-        // this.condegen.visit(sourceFileList);
+        this.wasmGen.WASMGenerate();
     }
 
     get typeComp() {
@@ -81,18 +84,6 @@ export class Compiler {
 
     get expressionCompiler(): ExpressionCompiler {
         return this.exprCompiler;
-    }
-
-    get loopLabels(): Stack<string> {
-        return this.loopLabelStack;
-    }
-
-    get breakLabels(): Stack<string> {
-        return this.breakLabels;
-    }
-
-    get switchLabels(): Stack<number> {
-        return this.switchLabelStack;
     }
 
     reportError(node: ts.Node, message: string) {

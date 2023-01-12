@@ -116,6 +116,7 @@ export const boolArrayTypeInformation = genarateBoolArrayTypeInfo();
 export const anyArrayTypeInformation = genarateAnyArrayTypeInfo();
 export const objectStructTypeInformation = genarateObjectStructTypeInfo();
 
+export const emptyStructType = initStructType([], [], [], 0, false);
 // generate array type to store character context
 function genarateCharArrayTypeInfo(): typeInfo {
     const charArrayTypeInfo = initArrayType(
@@ -199,4 +200,48 @@ function genarateAnyArrayTypeInfo(): typeInfo {
 function genarateObjectStructTypeInfo(): typeInfo {
     const emptyStructTypeInfo = initStructType([], [], [], 0, true);
     return emptyStructTypeInfo;
+}
+
+export function createSignatureTypeRefAndHeapTypeRef(
+    parameterTypes: Array<binaryenCAPI.TypeRef>,
+    returnType: binaryenCAPI.TypeRef,
+): typeInfo {
+    const parameterLen = parameterTypes.length;
+    const builder = binaryenCAPI._TypeBuilderCreate(1);
+    const tempSignatureIndex = 0;
+    let tempParamTypes = !parameterLen ? binaryen.none : parameterTypes[0];
+    if (parameterLen > 1) {
+        const tempPtr = arrayToPtr(parameterTypes).ptr;
+        tempParamTypes = binaryenCAPI._TypeBuilderGetTempTupleType(
+            builder,
+            tempPtr,
+            parameterLen,
+        );
+        binaryenCAPI._free(tempPtr);
+    }
+    binaryenCAPI._TypeBuilderSetSignatureType(
+        builder,
+        tempSignatureIndex,
+        tempParamTypes,
+        returnType,
+    );
+    const builtHeapType: binaryenCAPI.HeapTypeRef[] = new Array(1);
+    const builtHeapTypePtr = arrayToPtr(builtHeapType);
+    binaryenCAPI._TypeBuilderBuildAndDispose(
+        builder,
+        builtHeapTypePtr.ptr,
+        0,
+        0,
+    );
+    const signatureType = binaryenCAPI._BinaryenTypeFromHeapType(
+        ptrToArray(builtHeapTypePtr)[0],
+        false,
+    );
+    const signatureHeapType =
+        binaryenCAPI._BinaryenTypeGetHeapType(signatureType);
+    const signature: typeInfo = {
+        typeRef: signatureType,
+        heapTypeRef: signatureHeapType,
+    };
+    return signature;
 }
