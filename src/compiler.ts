@@ -67,13 +67,12 @@ export class Compiler {
 
         /* Step1: Resolve all scopes */
         this.scopeScanner.visit(sourceFileList);
-        // /* Step2: Resolve all type declarations */
+        /* Step2: Resolve all type declarations */
         this.typeCompiler.visit(sourceFileList);
         this.variableScanner.visit(sourceFileList);
         this.variableInit.visit(sourceFileList);
         /* Step3: Add statements to scopes */
         this.stmtCompiler.visit(sourceFileList);
-
         /* Step4: code generation */
         this.wasmGen.WASMGenerate();
     }
@@ -84,17 +83,6 @@ export class Compiler {
 
     get expressionCompiler(): ExpressionCompiler {
         return this.exprCompiler;
-    }
-
-    reportError(node: ts.Node, message: string) {
-        const file = node.getSourceFile();
-        const fileName = file.fileName;
-        const start = node.getStart(file);
-        const pos = file.getLineAndCharacterOfPosition(start);
-        const fullMessage = `${fileName}:${pos.line + 1}:${
-            pos.character + 1
-        }: ${message}`;
-        throw new Error(fullMessage);
     }
 
     private getCompilerOptions() {

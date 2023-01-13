@@ -148,11 +148,11 @@ describe('testScope', function () {
         globalScope.addStatement(new Statement(ts.SyntaxKind.IfStatement));
         globalScope.addStatement(new Statement(ts.SyntaxKind.ForInStatement));
 
-        expect(globalScope.startStateArray.length).eq(2);
-        expect(globalScope.startStateArray[0].statementKind).eq(
+        expect(globalScope.statements.length).eq(2);
+        expect(globalScope.statements[0].statementKind).eq(
             ts.SyntaxKind.IfStatement,
         );
-        expect(globalScope.startStateArray[1].statementKind).eq(
+        expect(globalScope.statements[1].statementKind).eq(
             ts.SyntaxKind.ForInStatement,
         );
     });

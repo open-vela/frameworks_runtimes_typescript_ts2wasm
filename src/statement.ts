@@ -584,6 +584,7 @@ export default class StatementCompiler {
             case ts.SyntaxKind.SetAccessor:
             case ts.SyntaxKind.GetAccessor:
             case ts.SyntaxKind.MethodDeclaration:
+            case ts.SyntaxKind.Unknown:
                 return true;
         }
         return false;

@@ -20,6 +20,7 @@ describe('testStatement', function () {
         const emptyStatement = new EmptyStatement();
         const forStatement = new ForStatement(
             'loop0',
+            'break0',
             binaryExpression,
             emptyStatement,
             null,
@@ -27,6 +28,7 @@ describe('testStatement', function () {
         );
 
         expect(forStatement.forLoopLabel).eq('loop0');
+        expect(forStatement.forLoopBlockLabel).eq('break0');
         expect(forStatement.forLoopCondtion).eq(binaryExpression);
         expect(forStatement.forLoopBody).eq(emptyStatement);
         expect(forStatement.forLoopInitializer).eq(null);
