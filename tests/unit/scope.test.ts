@@ -10,6 +10,7 @@ import {
 import { Variable, Parameter, ModifierKind } from '../../src/variable.js';
 import { Primitive, Type } from '../../src/type.js';
 import { Statement } from '../../src/statement.js';
+import { Expression } from '../../src/expression.js';
 
 describe('testScope', function () {
     it('nestedScope', function () {
@@ -193,5 +194,28 @@ describe('testScope', function () {
 
         expect(funcScope.getTypeFromCurrentScope('string')).eq(stringType);
         expect(blockScope.getTypeFromCurrentScope('number')).eq(numberType);
+    });
+
+    it('InsertVarAtStart', function () {
+        const globalScope = new GlobalScope();
+        const var1 = new Variable('var1', new Type(), ModifierKind.default, 0);
+        globalScope.addVariable(var1);
+        const var2 = new Variable('var2', new Type(), ModifierKind.default, 1);
+        globalScope.addVariable(var2);
+        const context = new Variable(
+            'dyntype_context',
+            new Primitive('any'),
+            ModifierKind.default,
+            0,
+        );
+        globalScope.addVariableAtStart(context);
+
+        expect(globalScope.varArray.length).eq(3);
+        expect(globalScope.varArray[0].varName).eq('dyntype_context');
+        expect(globalScope.varArray[1].varName).eq('var1');
+        expect(globalScope.varArray[2].varName).eq('var2');
+        expect(globalScope.varArray[0].varIndex).eq(0);
+        expect(globalScope.varArray[1].varIndex).eq(1);
+        expect(globalScope.varArray[2].varIndex).eq(2);
     });
 });
