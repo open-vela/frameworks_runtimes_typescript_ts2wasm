@@ -1,7 +1,6 @@
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './binaryen.js';
 import { ptrInfo, typeInfo } from './utils.js';
-
 export function arrayToPtr(array: number[]): ptrInfo {
     const ptrInfo: ptrInfo = {
         ptr: 0,
@@ -19,6 +18,18 @@ export function arrayToPtr(array: number[]): ptrInfo {
     ptrInfo.ptr = ptrAddress;
     ptrInfo.len = len;
     return ptrInfo;
+}
+
+function allocU32Array(u32s: number[] | null): binaryenCAPI.usize {
+    if (!u32s) return 0;
+    const len = u32s.length;
+    const ptr = binaryenCAPI._malloc(len << 2);
+    let idx = ptr;
+    for (let i = 0; i < len; ++i) {
+        binaryenCAPI.__i32_store(idx, u32s[i]);
+        idx += 4;
+    }
+    return ptr;
 }
 
 export function ptrToArray(ptrInfo: ptrInfo): number[] {
@@ -75,15 +86,15 @@ export function initArrayType(
 }
 
 export function initStructType(
-    fieldTypesList: binaryenCAPI.ArrayRef<binaryenCAPI.TypeRef>[],
-    fieldPackedTypesList: binaryenCAPI.ArrayRef<binaryenCAPI.PackedType>[],
-    fieldMutablesList: binaryenCAPI.ArrayRef<binaryenCAPI.bool>[],
+    fieldTypesList: Array<binaryenCAPI.TypeRef>,
+    fieldPackedTypesList: Array<binaryenCAPI.PackedType>,
+    fieldMutablesList: Array<number>,
     numFields: binaryenCAPI.i32,
     nullable: binaryenCAPI.bool,
 ): typeInfo {
     const fieldTypes = arrayToPtr(fieldTypesList).ptr;
-    const fieldPackedTypes = arrayToPtr(fieldPackedTypesList).ptr;
-    const fieldMutables = arrayToPtr(fieldMutablesList).ptr;
+    const fieldPackedTypes = allocU32Array(fieldPackedTypesList);
+    const fieldMutables = allocU32Array(fieldMutablesList);
     const tb: binaryenCAPI.TypeBuilderRef = binaryenCAPI._TypeBuilderCreate(1);
     binaryenCAPI._TypeBuilderSetStructType(
         tb,
@@ -144,7 +155,7 @@ function generateStringTypeInfo(): typeInfo {
             binaryenCAPI._BinaryenPackedTypeNotPacked(),
             binaryenCAPI._BinaryenPackedTypeNotPacked(),
         ],
-        [module.i32.const(1), module.i32.const(1)],
+        [1, 1],
         2,
         true,
     );
