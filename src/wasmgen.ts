@@ -172,17 +172,46 @@ export class WASMGen {
         // add global variable
         const globalVars = globalScope.varArray;
         for (const globalVar of globalVars) {
-            const varInitExprRef = this.wasmExpr.WASMExprGen(
-                globalVar.initExpression,
-            );
             const varTypeRef = this.wasmType.getWASMType(globalVar.varType);
             const mutable =
                 globalVar.varModifier === ModifierKind.const ? false : true;
-            if (globalVar.varType.kind === TypeKind.NUMBER) {
-                if (
-                    globalVar.initExpression.expressionKind ===
-                    ts.SyntaxKind.NumericLiteral
-                ) {
+            if (globalVar.initExpression === null) {
+                this.module.addGlobal(
+                    globalVar.varName,
+                    varTypeRef,
+                    mutable,
+                    this.getVariableInitValue(globalVar.varType),
+                );
+            } else {
+                const varInitExprRef = this.wasmExpr.WASMExprGen(
+                    globalVar.initExpression,
+                );
+                if (globalVar.varType.kind === TypeKind.NUMBER) {
+                    if (
+                        globalVar.initExpression.expressionKind ===
+                        ts.SyntaxKind.NumericLiteral
+                    ) {
+                        this.module.addGlobal(
+                            globalVar.varName,
+                            varTypeRef,
+                            mutable,
+                            varInitExprRef,
+                        );
+                    } else {
+                        this.module.addGlobal(
+                            globalVar.varName,
+                            varTypeRef,
+                            true,
+                            this.module.f64.const(0),
+                        );
+                        globalStatementRef.push(
+                            this.module.global.set(
+                                globalVar.varName,
+                                varInitExprRef,
+                            ),
+                        );
+                    }
+                } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
                     this.module.addGlobal(
                         globalVar.varName,
                         varTypeRef,
@@ -194,47 +223,30 @@ export class WASMGen {
                         globalVar.varName,
                         varTypeRef,
                         true,
-                        this.module.f64.const(0),
-                    );
-                    globalStatementRef.push(
-                        this.module.global.set(
-                            globalVar.varName,
-                            varInitExprRef,
+                        binaryenCAPI._BinaryenRefNull(
+                            this.module.ptr,
+                            varTypeRef,
                         ),
                     );
-                }
-            } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
-                this.module.addGlobal(
-                    globalVar.varName,
-                    varTypeRef,
-                    mutable,
-                    varInitExprRef,
-                );
-            } else {
-                this.module.addGlobal(
-                    globalVar.varName,
-                    varTypeRef,
-                    true,
-                    binaryenCAPI._BinaryenRefNull(this.module.ptr, varTypeRef),
-                );
-                if (globalVar.varType.kind === TypeKind.ANY) {
-                    const dynInitExprRef =
-                        this.wasmDynExprCompiler.WASMDynExprGen(
-                            globalVar.initExpression,
+                    if (globalVar.varType.kind === TypeKind.ANY) {
+                        const dynInitExprRef =
+                            this.wasmDynExprCompiler.WASMDynExprGen(
+                                globalVar.initExpression,
+                            );
+                        globalStatementRef.push(
+                            this.module.global.set(
+                                globalVar.varName,
+                                dynInitExprRef,
+                            ),
                         );
-                    globalStatementRef.push(
-                        this.module.global.set(
-                            globalVar.varName,
-                            dynInitExprRef,
-                        ),
-                    );
-                } else {
-                    globalStatementRef.push(
-                        this.module.global.set(
-                            globalVar.varName,
-                            varInitExprRef,
-                        ),
-                    );
+                    } else {
+                        globalStatementRef.push(
+                            this.module.global.set(
+                                globalVar.varName,
+                                varInitExprRef,
+                            ),
+                        );
+                    }
                 }
             }
         }
@@ -279,19 +291,21 @@ export class WASMGen {
         // add local variable
         const localVars = functionScope.varArray;
         for (const localVar of localVars) {
-            let varInitExprRef: binaryen.ExpressionRef;
-            if (localVar.varType.kind === TypeKind.ANY) {
-                varInitExprRef = this.wasmDynExprCompiler.WASMDynExprGen(
-                    localVar.initExpression,
-                );
-            } else {
-                varInitExprRef = this.wasmExpr.WASMExprGen(
-                    localVar.initExpression,
+            if (localVar.initExpression !== null) {
+                let varInitExprRef: binaryen.ExpressionRef;
+                if (localVar.varType.kind === TypeKind.ANY) {
+                    varInitExprRef = this.wasmDynExprCompiler.WASMDynExprGen(
+                        localVar.initExpression,
+                    );
+                } else {
+                    varInitExprRef = this.wasmExpr.WASMExprGen(
+                        localVar.initExpression,
+                    );
+                }
+                funcStatementRef.push(
+                    this.module.local.set(localVar.varIndex, varInitExprRef),
                 );
             }
-            funcStatementRef.push(
-                this.module.local.set(localVar.varIndex, varInitExprRef),
-            );
         }
 
         const tsFuncType = functionScope.funcType;
@@ -459,6 +473,16 @@ export class WASMGen {
             varWASMTypes,
             wasmFuncStmts,
         );
+    }
+
+    getVariableInitValue(varType: Type): binaryen.ExpressionRef {
+        const module = this.module;
+        if (varType.kind === TypeKind.NUMBER) {
+            return module.f64.const(0);
+        } else if (varType.kind === TypeKind.BOOLEAN) {
+            return module.i32.const(0);
+        }
+        return binaryenCAPI._BinaryenRefNull(module.ptr, binaryen.anyref);
     }
 }
 
@@ -813,6 +837,8 @@ class WASMExpressionBase {
             variableType = new Primitive('any');
         } else if (typeName === 'address') {
             variableType = new Primitive('boolean');
+        } else if (typeName === 'number') {
+            variableType = new Primitive('number');
         } else {
             variableType = varType;
         }
@@ -821,7 +847,7 @@ class WASMExpressionBase {
             variableType,
             ModifierKind.default,
             0,
-            false,
+            true,
         );
         this.addVariableToCurrentScope(tmpVar);
         return tmpVar;
@@ -846,6 +872,7 @@ class WASMExpressionBase {
         if (currentScope.kind === ScopeKind.GlobalScope) {
             variableIndex = (<GlobalScope>currentScope).startFuncVarArray
                 .length;
+            variable.setVarIndex(variableIndex);
             const globalScope = <GlobalScope>currentScope;
             globalScope.addStartFuncVar(variable);
         } else {
@@ -853,30 +880,20 @@ class WASMExpressionBase {
             const funcScope = <FunctionScope>nearestFunctionScope!;
             variableIndex =
                 funcScope.paramArray.length + funcScope.varArray.length;
+            variable.setVarIndex(variableIndex);
             funcScope.addVariable(variable);
         }
-        variable.setVarIndex(variableIndex);
     }
 
     setVariableToCurrentScope(
         variable: Variable,
         value: binaryen.ExpressionRef,
     ): binaryen.ExpressionRef {
-        const currentScope = this.currentScope!;
-        if (currentScope.kind === ScopeKind.GlobalScope) {
-            return this.module.global.set(variable.varName, value);
-        } else {
-            return this.module.local.set(variable.varIndex, value);
-        }
+        return this.module.local.set(variable.varIndex, value);
     }
 
     getVariableValue(variable: Variable, type: binaryen.Type) {
-        const currentScope = this.currentScope!;
-        if (currentScope.kind === ScopeKind.GlobalScope) {
-            return this.getGlobalValue(variable.varName, type);
-        } else {
-            return this.getLocalValue(variable.varIndex, type);
-        }
+        return this.getLocalValue(variable.varIndex, type);
     }
 
     convertTypeToI32(
@@ -2459,8 +2476,8 @@ class WASMDynExpressionGen extends WASMExpressionBase {
             rightExprType.kind === TypeKind.ANY
         ) {
             return this.operateAnyAny(
-                this.WASMDynExprGen(leftExpr),
-                this.WASMDynExprGen(rightExpr),
+                this.staticValueGen.WASMExprGen(leftExpr),
+                this.staticValueGen.WASMExprGen(rightExpr),
                 operatorKind,
             );
         }
