@@ -2,6 +2,7 @@ import ts from 'typescript';
 import 'mocha';
 import { expect } from 'chai';
 import {
+    Expression,
     BinaryExpression,
     IdentifierExpression,
     NumberLiteralExpression,
@@ -24,9 +25,11 @@ describe('testExpression', function () {
             numberLiteralExpression,
             stringLiteralExpression,
         );
+        const baseExpr = new Expression(ts.SyntaxKind.Unknown);
         const propertyAccessExpression = new PropertyAccessExpression(
             objectLiteralExpression,
             identifierExpression,
+            baseExpr,
         );
 
         expect(identifierExpression.identifierName).eq('a');
@@ -36,5 +39,6 @@ describe('testExpression', function () {
             objectLiteralExpression,
         );
         expect(propertyAccessExpression.propertyExpr).eq(identifierExpression);
+        expect(propertyAccessExpression.parentExpr).eq(baseExpr);
     });
 });

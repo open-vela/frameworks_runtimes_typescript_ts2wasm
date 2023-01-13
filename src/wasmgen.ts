@@ -38,6 +38,7 @@ import ts from 'typescript';
 import {
     arrayToPtr,
     emptyStructType,
+    initArrayType,
     initStructType,
     createSignatureTypeRefAndHeapTypeRef,
 } from './glue/transform.js';
@@ -60,17 +61,18 @@ import {
 } from './glue/packType.js';
 import { typeInfo, FlattenLoop, IfStatementInfo } from './glue/utils.js';
 import { Compiler } from './compiler.js';
+import {
+    importLibApi,
+    isDynFunc,
+    freeDynContext,
+    getReturnTypeRef,
+} from './envInit.js';
 
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
 
 export class WASMGen {
     private scopeStatementMap = new Map<Scope, binaryen.ExpressionRef[]>();
     private binaryenModule = new binaryen.Module();
-    private wasmTypeCompiler = new WASMTypeGen(this);
-    wasmExprBase = new WASMExpressionBase(this);
-    wasmExprCompiler = new WASMExpressionGen(this);
-    wasmDynExprCompiler = new WASMDynExpressionGen(this);
-    private wasmStmtCompiler = new WASMStatementGen(this);
     private currentScope: Scope | null = null;
     private currentFuncScope: FunctionScope | null = null;
     private globalScopeStack: Stack<GlobalScope>;
@@ -78,6 +80,11 @@ export class WASMGen {
         FunctionScope,
         typeInfo
     >();
+    private wasmTypeCompiler = new WASMTypeGen(this);
+    wasmExprBase = new WASMExpressionBase(this);
+    wasmExprCompiler = new WASMExpressionGen(this);
+    wasmDynExprCompiler = new WASMDynExpressionGen(this);
+    private wasmStmtCompiler = new WASMStatementGen(this);
 
     constructor(private compilerCtx: Compiler) {
         this.binaryenModule = compilerCtx.binaryenModule;
@@ -149,29 +156,96 @@ export class WASMGen {
     WASMStartFunctionGen(globalScope: GlobalScope) {
         this.currentScope = globalScope;
         this.currentFuncScope = null;
-
-        // 1. parse global scope statements, and generate start function body
         const globalStatementRef = new Array<binaryen.ExpressionRef>();
         this.scopeStatementMap.set(globalScope, globalStatementRef);
+        importLibApi(this.module);
+
+        // add global variable
+        const globalVars = globalScope.varArray;
+        for (const globalVar of globalVars) {
+            const varInitExprRef = this.wasmExpr.WASMExprGen(
+                globalVar.initExpression,
+            );
+            const varTypeRef = this.wasmType.getWASMType(globalVar.varType);
+            const mutable =
+                globalVar.varModifier === ModifierKind.const ? false : true;
+            if (globalVar.varType.kind === TypeKind.NUMBER) {
+                if (
+                    globalVar.initExpression.expressionKind ===
+                    ts.SyntaxKind.NumericLiteral
+                ) {
+                    this.module.addGlobal(
+                        globalVar.varName,
+                        varTypeRef,
+                        mutable,
+                        varInitExprRef,
+                    );
+                } else {
+                    this.module.addGlobal(
+                        globalVar.varName,
+                        varTypeRef,
+                        true,
+                        this.module.f64.const(0),
+                    );
+                    globalStatementRef.push(
+                        this.module.global.set(
+                            globalVar.varName,
+                            varInitExprRef,
+                        ),
+                    );
+                }
+            } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
+                this.module.addGlobal(
+                    globalVar.varName,
+                    varTypeRef,
+                    mutable,
+                    varInitExprRef,
+                );
+            } else {
+                this.module.addGlobal(
+                    globalVar.varName,
+                    varTypeRef,
+                    true,
+                    binaryenCAPI._BinaryenRefNull(this.module.ptr, varTypeRef),
+                );
+                if (globalVar.varType.kind === TypeKind.ANY) {
+                    const dynInitExprRef =
+                        this.wasmDynExprCompiler.WASMDynExprGen(
+                            globalVar.initExpression,
+                        );
+                    globalStatementRef.push(
+                        this.module.global.set(
+                            globalVar.varName,
+                            dynInitExprRef,
+                        ),
+                    );
+                } else {
+                    globalStatementRef.push(
+                        this.module.global.set(
+                            globalVar.varName,
+                            varInitExprRef,
+                        ),
+                    );
+                }
+            }
+        }
+
+        // parse global scope statements, generate start function body
+        freeDynContext(globalScope);
         for (const stmt of globalScope.statements) {
             const statement = this.wasmStmtCompiler.WASMStmtGen(stmt);
             globalStatementRef.push(statement);
         }
-
         const body = this.module.block(null, globalStatementRef);
-        // 2. add global variable
-        // TODO
-        // 3. wasm start function vars
-        const wasmStartVarArray = new Array<binaryenCAPI.TypeRef>();
-        for (const startVar of globalScope.startFuncVarArray) {
-            wasmStartVarArray.push(this.wasmType.getWASMType(startVar.varType));
-        }
 
+        // generate wasm start function
         const startFunctionRef = this.module.addFunction(
             globalScope.startFuncName,
             binaryen.none,
             binaryen.none,
-            wasmStartVarArray,
+            globalScope.startFuncVarArray.map((variable: Variable) =>
+                this.wasmType.getWASMType(variable.varType),
+            ),
             body,
         );
         this.module.setStart(startFunctionRef);
@@ -382,7 +456,35 @@ class WASMTypeGen {
                 WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.f64);
                 break;
             case TypeKind.STRING: {
-                // TODO
+                WASMTypeGen.tsType2WASMTypeMap.set(
+                    type,
+                    stringTypeInfo.typeRef,
+                );
+                WASMTypeGen.tsType2WASMHeapTypeMap.set(
+                    type,
+                    stringTypeInfo.heapTypeRef,
+                );
+                break;
+            }
+            case TypeKind.ANY: {
+                WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.anyref);
+                break;
+            }
+            case TypeKind.ARRAY: {
+                const arrayType = <TSArray>type;
+                const elemType = arrayType.elementType;
+                const elemTypeRef = this.getWASMType(elemType);
+                const arrayTypeInfo = initArrayType(
+                    elemTypeRef,
+                    binaryenCAPI._BinaryenPackedTypeNotPacked(),
+                    true,
+                    true,
+                );
+                WASMTypeGen.tsType2WASMTypeMap.set(type, arrayTypeInfo.typeRef);
+                WASMTypeGen.tsType2WASMHeapTypeMap.set(
+                    type,
+                    arrayTypeInfo.heapTypeRef,
+                );
                 break;
             }
             case TypeKind.FUNCTION: {
@@ -670,6 +772,7 @@ class WASMExpressionBase {
         this.wasmCompiler = WASMCompiler;
         this.module = this.wasmCompiler.module;
         this.wasmType = this.wasmCompiler.wasmType;
+        // TODO: bug: this.currentScope is null
         this.currentScope = this.wasmCompiler.curScope!;
         this.statementArray = this.wasmCompiler.scopeStateMap.get(
             this.currentScope,
@@ -1138,8 +1241,11 @@ class WASMExpressionGen extends WASMExpressionBase {
             case ts.SyntaxKind.ConditionalExpression:
                 return this.WASMConditionalExpr(<ConditionalExpression>expr);
             case ts.SyntaxKind.CallExpression: {
-                // TODO
-                return binaryen.none;
+                // return this.WASMCallExpr(<CallExpression>expr);
+                return binaryenCAPI._BinaryenRefNull(
+                    this.module.ptr,
+                    binaryen.anyref,
+                );
             }
             case ts.SyntaxKind.SuperKeyword: {
                 return this.WASMSuperExpr(<SuperCallExpression>expr);
@@ -1657,6 +1763,21 @@ class WASMExpressionGen extends WASMExpressionBase {
     WASMCallExpr(expr: CallExpression): binaryen.ExpressionRef {
         const callExpr = expr.callExpr;
         const callWASMArgs = new Array<binaryen.ExpressionRef>();
+        // call import functions
+        if (callExpr.expressionKind === ts.SyntaxKind.Identifier) {
+            const calledFuncName = (<IdentifierExpression>callExpr)
+                .identifierName;
+            if (isDynFunc(calledFuncName)) {
+                for (let i = 0; i < expr.callArgs.length; ++i) {
+                    callWASMArgs.push(this.WASMExprGen(expr.callArgs[i]));
+                }
+                return this.module.call(
+                    calledFuncName,
+                    callWASMArgs,
+                    getReturnTypeRef(calledFuncName),
+                );
+            }
+        }
         callWASMArgs.push(
             binaryenCAPI._BinaryenStructNew(
                 this.module.ptr,
@@ -2255,6 +2376,8 @@ class WASMDynExpressionGen extends WASMExpressionBase {
                 return this.WASMDynArrayExpr(<ArrayLiteralExpression>expr);
             case ts.SyntaxKind.ObjectLiteralExpression:
                 return this.WASMDynObjExpr(<ObjectLiteralExpression>expr);
+            case ts.SyntaxKind.CallExpression:
+                return this.staticValueGen.WASMExprGen(expr);
             default:
                 throw new Error('unexpected expr kind ' + expr.expressionKind);
         }
@@ -3021,11 +3144,7 @@ class WASMStatementGen {
 
     WASMExpressionStmt(stmt: ExpressionStatement): binaryen.ExpressionRef {
         const innerExpr = stmt.expression;
-        if (innerExpr.expressionKind !== ts.SyntaxKind.BinaryExpression) {
-            throw new Error('unexpected situation');
-        }
-        const binaryExpr = <BinaryExpression>innerExpr;
-        return this.WASMCompiler.wasmExpr.WASMExprGen(binaryExpr);
+        return this.WASMCompiler.wasmExpr.WASMExprGen(innerExpr);
     }
 
     flattenLoopStatement(

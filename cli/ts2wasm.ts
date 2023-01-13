@@ -235,7 +235,7 @@ function main() {
         } else if (args.wat || args.validate) {
             console.warn('WARNING: No wasm file specified.');
         } else {
-            // console.log(compiler.binaryenModule.emitText());
+            console.log(compiler.binaryenModule.emitText());
         }
     } catch (e) {
         const error = <Error>e;

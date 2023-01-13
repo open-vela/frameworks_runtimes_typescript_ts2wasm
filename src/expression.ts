@@ -344,6 +344,15 @@ export default class ExpressionCompiler {
                 );
                 return numberLiteralExpr;
             }
+            case ts.SyntaxKind.StringLiteral: {
+                const stringLiteralExpr = new StringLiteralExpression(
+                    (<ts.StringLiteral>node).getText(),
+                );
+                stringLiteralExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return stringLiteralExpr;
+            }
             case ts.SyntaxKind.FalseKeyword: {
                 const falseLiteralExpr = new FalseLiteralExpression();
                 falseLiteralExpr.setExprType(

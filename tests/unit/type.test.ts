@@ -42,9 +42,9 @@ describe('testType', function () {
         funcType.addParamType(numberType);
         funcType.returnType = numberType;
 
-        expect(funcType.paramTypes.length).eq(2);
-        expect(funcType.paramTypes[0]).eq(numberType);
-        expect(funcType.paramTypes[1]).eq(numberType);
+        expect(funcType.getParamTypes().length).eq(2);
+        expect(funcType.getParamTypes()[0]).eq(numberType);
+        expect(funcType.getParamTypes()[1]).eq(numberType);
         expect(funcType.returnType).eq(numberType);
         expect(funcType.hasRest()).eq(false);
 

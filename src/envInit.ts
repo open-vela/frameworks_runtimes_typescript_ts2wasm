@@ -160,6 +160,63 @@ export function importLibApi(module: binaryen.Module) {
     );
 }
 
+export function isDynFunc(funcName: string) {
+    switch (funcName) {
+        case dyntype.dyntype_context_init:
+        case dyntype.dyntype_context_destroy:
+        case dyntype.dyntype_new_number:
+        case dyntype.dyntype_new_string:
+        case dyntype.dyntype_new_boolean:
+        case dyntype.dyntype_typeof:
+        case dyntype.dyntype_type_eq:
+        case dyntype.dyntype_is_number:
+        case dyntype.dyntype_to_number:
+        case dyntype.dyntype_new_undefined:
+        case dyntype.dyntype_new_null:
+        case dyntype.dyntype_new_object:
+        case dyntype.dyntype_new_array:
+        case dyntype.dyntype_set_property:
+        case dyntype.dyntype_get_property:
+        case dyntype.dyntype_has_property:
+        case dyntype.dyntype_new_extref:
+        case dyntype.dyntype_is_extref:
+            return true;
+        default:
+            return false;
+    }
+}
+
+export function getReturnTypeRef(funcName: string) {
+    switch (funcName) {
+        case dyntype.dyntype_context_init:
+            return dyntype.dyn_ctx_t;
+        case dyntype.dyntype_context_destroy:
+            return dyntype.cvoid;
+        case dyntype.dyntype_typeof:
+            return dyntype.dyn_type_t;
+        case dyntype.dyntype_to_number:
+            return dyntype.int;
+        case dyntype.dyntype_new_number:
+        case dyntype.dyntype_new_string:
+        case dyntype.dyntype_new_boolean:
+        case dyntype.dyntype_new_undefined:
+        case dyntype.dyntype_new_null:
+        case dyntype.dyntype_new_object:
+        case dyntype.dyntype_new_array:
+        case dyntype.dyntype_set_property:
+        case dyntype.dyntype_get_property:
+        case dyntype.dyntype_has_property:
+        case dyntype.dyntype_new_extref:
+            return dyntype.dyn_value_t;
+        case dyntype.dyntype_is_extref:
+        case dyntype.dyntype_type_eq:
+        case dyntype.dyntype_is_number:
+            return dyntype.bool;
+        default:
+            return dyntype.cvoid;
+    }
+}
+
 export function initDynContext(gloalScope: GlobalScope) {
     let contextType: Type;
     if (gloalScope.namedTypeMap.has('any')) {
