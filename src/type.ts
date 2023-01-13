@@ -405,10 +405,7 @@ export default class TypeCompiler {
                     return TSArrayType;
                 }
                 if (!this.currentScope!.namedTypeMap.has(refName)) {
-                    this.compilerCtx.reportError(
-                        typeRefNode,
-                        'can not find the ref type ' + refName,
-                    );
+                    throw new Error('can not find the ref type ' + refName);
                 }
                 return this.currentScope!.namedTypeMap.get(refName)!;
             }
