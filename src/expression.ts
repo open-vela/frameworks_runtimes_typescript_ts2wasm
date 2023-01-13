@@ -386,7 +386,7 @@ export default class ExpressionCompiler {
                         }
                         if (variable !== undefined) {
                             if (
-                                !isFreeVar &&
+                                isFreeVar &&
                                 scope.kind === ScopeKind.FunctionScope
                             ) {
                                 variable.setVarIsClosure();

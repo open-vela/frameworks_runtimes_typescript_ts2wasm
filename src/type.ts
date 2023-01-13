@@ -325,6 +325,14 @@ export default class TypeCompiler {
 
     generateNodeType(node: ts.Node): Type {
         switch (node.kind) {
+            case ts.SyntaxKind.Identifier: {
+                const typeCheckerInfo = getNodeTypeInfo(
+                    node,
+                    this.typechecker!,
+                );
+                const typeNode = typeCheckerInfo.typeNode;
+                return this.generateNodeType(typeNode);
+            }
             case ts.SyntaxKind.NumberKeyword:
             case ts.SyntaxKind.NumericLiteral: {
                 return this.generatePrimitiveType('number');

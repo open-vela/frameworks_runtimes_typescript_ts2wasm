@@ -42,6 +42,13 @@ export class Scope {
         this.variableArray.push(variableObj);
     }
 
+    addVariableAtStart(variableObj: Variable) {
+        this.variableArray.unshift(variableObj);
+        this.variableArray.forEach((item, index) => {
+            item.setVarIndex(index);
+        });
+    }
+
     get varArray(): Variable[] {
         return this.variableArray;
     }

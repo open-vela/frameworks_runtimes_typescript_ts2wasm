@@ -1,6 +1,13 @@
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
-import { TSArray, TSClass, TSFunction, Type, TypeKind } from './type.js';
+import {
+    Primitive,
+    TSArray,
+    TSClass,
+    TSFunction,
+    Type,
+    TypeKind,
+} from './type.js';
 import { ModifierKind, Variable } from './variable.js';
 import {
     BinaryExpression,
@@ -64,6 +71,7 @@ import { Compiler } from './compiler.js';
 import {
     importLibApi,
     isDynFunc,
+    initDynContext,
     freeDynContext,
     getReturnTypeRef,
 } from './envInit.js';
@@ -81,9 +89,9 @@ export class WASMGen {
         typeInfo
     >();
     private wasmTypeCompiler = new WASMTypeGen(this);
-    wasmExprBase = new WASMExpressionBase(this);
     wasmExprCompiler = new WASMExpressionGen(this);
     wasmDynExprCompiler = new WASMDynExpressionGen(this);
+    wasmExprBase = new WASMExpressionBase(this);
     private wasmStmtCompiler = new WASMStatementGen(this);
 
     constructor(private compilerCtx: Compiler) {
@@ -159,6 +167,7 @@ export class WASMGen {
         const globalStatementRef = new Array<binaryen.ExpressionRef>();
         this.scopeStatementMap.set(globalScope, globalStatementRef);
         importLibApi(this.module);
+        initDynContext(<GlobalScope>this.currentScope);
 
         // add global variable
         const globalVars = globalScope.varArray;
@@ -233,8 +242,9 @@ export class WASMGen {
         // parse global scope statements, generate start function body
         freeDynContext(globalScope);
         for (const stmt of globalScope.statements) {
+            // TODO: the push operation should be placed here.
             const statement = this.wasmStmtCompiler.WASMStmtGen(stmt);
-            globalStatementRef.push(statement);
+            // globalStatementRef.push(statement);
         }
         const body = this.module.block(null, globalStatementRef);
 
@@ -265,6 +275,24 @@ export class WASMGen {
 
         const funcStatementRef = new Array<binaryen.ExpressionRef>();
         this.scopeStatementMap.set(functionScope, funcStatementRef);
+
+        // add local variable
+        const localVars = functionScope.varArray;
+        for (const localVar of localVars) {
+            let varInitExprRef: binaryen.ExpressionRef;
+            if (localVar.varType.kind === TypeKind.ANY) {
+                varInitExprRef = this.wasmDynExprCompiler.WASMDynExprGen(
+                    localVar.initExpression,
+                );
+            } else {
+                varInitExprRef = this.wasmExpr.WASMExprGen(
+                    localVar.initExpression,
+                );
+            }
+            funcStatementRef.push(
+                this.module.local.set(localVar.varIndex, varInitExprRef),
+            );
+        }
 
         const tsFuncType = functionScope.funcType;
         // 1. generate function wasm type
@@ -723,55 +751,6 @@ class WASMTypeGen {
     }
 }
 
-// class WASMValue {
-//     varInfo: Variable;
-//     binaryenTypeRef: binaryenCAPI.TypeRef = binaryen.none;
-//     binaryenHeapTypeRef: binaryenCAPI.HeapTypeRef =
-//         binaryenCAPI._BinaryenHeapTypeNone();
-//     index: binaryenCAPI.Index;
-//     expression: binaryen.ExpressionRef = binaryen.none;
-
-//     constructor(varInfo: Variable, index: binaryenCAPI.Index) {
-//         this.varInfo = varInfo;
-//         this.index = index;
-//     }
-
-//     // TODO: Set TypeRef through varInfo
-//     setBinaryenTypeRef() {
-//         // TODO
-//     }
-
-//     getBinaryenTypeRef(): binaryenCAPI.TypeRef {
-//         return binaryen.none;
-//     }
-
-//     setBinaryenHeapTypeRef() {
-//         // TODO
-//     }
-
-//     getBinaryenHeapTypeRef(): binaryenCAPI.HeapTypeRef {
-//         return binaryen.none;
-//     }
-
-//     // getVarInfo(): Variable {
-
-//     // }
-
-//     getIndex(): binaryenCAPI.Index {
-//         // TODO
-//         return binaryen.none;
-//     }
-
-//     // setExpression() {
-
-//     // }
-
-//     getExpression(): binaryen.ExpressionRef {
-//         // TODO
-//         return binaryen.none;
-//     }
-// }
-
 class WASMExpressionBase {
     wasmCompiler;
     module;
@@ -780,6 +759,9 @@ class WASMExpressionBase {
     statementArray: binaryen.ExpressionRef[];
     globalTmpVarStack;
     localTmpVarStack;
+    staticValueGen;
+    dynValueGen;
+
     constructor(WASMCompiler: WASMGen) {
         this.wasmCompiler = WASMCompiler;
         this.module = this.wasmCompiler.module;
@@ -791,6 +773,8 @@ class WASMExpressionBase {
         )!;
         this.globalTmpVarStack = new Stack<string>();
         this.localTmpVarStack = new Stack<string>();
+        this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
+        this.dynValueGen = this.wasmCompiler.wasmDynExprCompiler;
     }
 
     setLocalValue(
@@ -825,10 +809,12 @@ class WASMExpressionBase {
         // add tmp value to current scope
         const tmpNumberName = this.getTmpVariableName(prefix);
         let variableType;
-        if (typeName === '') {
-            variableType = varType;
+        if (typeName === 'any') {
+            variableType = new Primitive('any');
+        } else if (typeName === 'address') {
+            variableType = new Primitive('boolean');
         } else {
-            variableType = this.currentScope.namedTypeMap.get(typeName)!;
+            variableType = varType;
         }
         const tmpVar = new Variable(
             tmpNumberName,
@@ -858,7 +844,8 @@ class WASMExpressionBase {
         const currentScope = this.currentScope!;
         let variableIndex: number;
         if (currentScope.kind === ScopeKind.GlobalScope) {
-            variableIndex = currentScope.varArray.length;
+            variableIndex = (<GlobalScope>currentScope).startFuncVarArray
+                .length;
             const globalScope = <GlobalScope>currentScope;
             globalScope.addStartFuncVar(variable);
         } else {
@@ -1166,7 +1153,7 @@ class WASMExpressionBase {
 
     generatePointerVar(bit: number) {
         const module = this.module;
-        const tmpAddressVar = this.generateTmpVar('~address|', 'boolean');
+        const tmpAddressVar = this.generateTmpVar('~address|', 'address');
         const tmpAddressValue = this.getGlobalValue(
             BuiltinNames.stack_pointer,
             binaryen.i32,
@@ -1239,13 +1226,19 @@ class WASMExpressionBase {
 }
 
 class WASMExpressionGen extends WASMExpressionBase {
-    private dynValueGen;
     constructor(WASMCompiler: WASMGen) {
         super(WASMCompiler);
-        this.dynValueGen = this.wasmCompiler.wasmDynExprCompiler;
     }
 
     WASMExprGen(expr: Expression): binaryen.ExpressionRef {
+        this.module = this.wasmCompiler.module;
+        this.wasmType = this.wasmCompiler.wasmType;
+        this.currentScope = this.wasmCompiler.curScope!;
+        this.statementArray = this.wasmCompiler.scopeStateMap.get(
+            this.currentScope,
+        )!;
+        this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
+        this.dynValueGen = this.wasmCompiler.wasmDynExprCompiler;
         switch (expr.expressionKind) {
             case ts.SyntaxKind.NumericLiteral:
                 return this.WASMNumberLiteral(<NumberLiteralExpression>expr);
@@ -1265,11 +1258,7 @@ class WASMExpressionGen extends WASMExpressionBase {
             case ts.SyntaxKind.ConditionalExpression:
                 return this.WASMConditionalExpr(<ConditionalExpression>expr);
             case ts.SyntaxKind.CallExpression: {
-                // return this.WASMCallExpr(<CallExpression>expr);
-                return binaryenCAPI._BinaryenRefNull(
-                    this.module.ptr,
-                    binaryen.anyref,
-                );
+                return this.WASMCallExpr(<CallExpression>expr);
             }
             case ts.SyntaxKind.SuperKeyword: {
                 return this.WASMSuperExpr(<SuperCallExpression>expr);
@@ -2376,13 +2365,19 @@ class WASMExpressionGen extends WASMExpressionBase {
 }
 
 class WASMDynExpressionGen extends WASMExpressionBase {
-    private staticValueGen;
     constructor(WASMCompiler: WASMGen) {
         super(WASMCompiler);
-        this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
     }
 
     WASMDynExprGen(expr: Expression): binaryen.ExpressionRef {
+        this.module = this.wasmCompiler.module;
+        this.wasmType = this.wasmCompiler.wasmType;
+        this.currentScope = this.wasmCompiler.curScope!;
+        this.statementArray = this.wasmCompiler.scopeStateMap.get(
+            this.currentScope,
+        )!;
+        this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
+        this.dynValueGen = this.wasmCompiler.wasmDynExprCompiler;
         switch (expr.expressionKind) {
             case ts.SyntaxKind.NumericLiteral:
                 return this.generateDynNumber(
