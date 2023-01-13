@@ -13,7 +13,6 @@ import {
     generateNodeExpression,
 } from './utils.js';
 import { FunctionScope, GlobalScope, Scope } from './scope.js';
-import { initDynContext } from './envInit.js';
 
 export enum ModifierKind {
     default,
@@ -133,7 +132,6 @@ export class VariableScanner {
         for (let i = 0; i < nodes.length; i++) {
             const sourceFile = nodes[i];
             this.currentScope = this.globalScopeStack.getItemAtIdx(i);
-            initDynContext(<GlobalScope>this.currentScope);
             this.visitNode(sourceFile);
         }
     }

@@ -233,11 +233,11 @@ export function initDynContext(gloalScope: GlobalScope) {
         dyntype.dyntype_context,
         contextType,
         ModifierKind.default,
-        gloalScope.varArray.length,
+        0,
         false,
         ctxInitExpr,
     );
-    gloalScope.addVariable(context);
+    gloalScope.addVariableAtStart(context);
 }
 
 export function freeDynContext(gloalScope: GlobalScope) {
