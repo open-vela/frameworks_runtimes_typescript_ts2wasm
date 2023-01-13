@@ -160,7 +160,6 @@ export class FunctionScope extends Scope {
     private parameterArray: Parameter[] = [];
     private modifiers: ts.SyntaxKind[] = [];
     private functionType = new TSFunction();
-    private _export = false;
     private isClosure = false;
     /* iff the function is a member function, which class it belong to */
     private _classNmae = '';
@@ -251,14 +250,6 @@ export class FunctionScope extends Scope {
         return undefined;
     }
 
-    setExport(): void {
-        this._export = true;
-    }
-
-    isExport(): boolean {
-        return this._export;
-    }
-
     setIsClosure(): void {
         this.isClosure = true;
     }
@@ -335,6 +326,11 @@ export class ScopeScanner {
                 const functionDeclarationNode = <ts.FunctionDeclaration>node;
                 const parentScope = this.getCurrentScope();
                 const functionScope = new FunctionScope(parentScope);
+                if (functionDeclarationNode.modifiers !== undefined) {
+                    for (const modifier of functionDeclarationNode.modifiers) {
+                        functionScope.addModifier(modifier.kind);
+                    }
+                }
                 let functionName: string;
                 if (functionDeclarationNode.name !== undefined) {
                     functionName = functionDeclarationNode.name.getText();

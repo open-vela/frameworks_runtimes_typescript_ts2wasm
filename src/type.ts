@@ -207,7 +207,7 @@ export class TSArray extends Type {
 export class TSFunction extends Type {
     typeKind = TypeKind.FUNCTION;
     private parameterTypes: Type[] = [];
-    private _returnType: Type = new Primitive('void'); // TODO: or default: Type.void
+    private _returnType: Type = new Primitive('void');
     // iff last parameter is rest paremeter
     private hasRestParameter = false;
 
@@ -434,6 +434,13 @@ export default class TypeCompiler {
         const typeNode = typeCheckerInfo.typeNode;
         const TSType = this.generateNodeType(typeNode);
         this.currentScope!.namedTypeMap.set(typeName, TSType);
+        if (
+            this.currentScope &&
+            this.currentScope.kind === ScopeKind.FunctionScope &&
+            node.kind === ts.SyntaxKind.FunctionDeclaration
+        ) {
+            (<FunctionScope>this.currentScope).setFuncType(<TSFunction>TSType);
+        }
     }
 
     findCurrentScope(node: ts.Node) {
