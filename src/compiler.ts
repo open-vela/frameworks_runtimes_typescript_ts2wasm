@@ -7,7 +7,6 @@ import {
     FunctionScope,
     GlobalScope,
     Scope,
-    ScopeKind,
     ScopeScanner,
 } from './scope.js';
 import { VariableScanner, VariableInit } from './variable.js';
