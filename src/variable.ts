@@ -45,18 +45,11 @@ export class Variable {
         return this.modifier;
     }
 
-    set initExpression(init: Expression) {
-        this.init = init;
+    setInitExpr(expr: Expression) {
+        this.init = expr;
     }
 
-    get initExpression(): Expression {
-        if (this.init === null) {
-            throw new Error(
-                'variable has not been initialized, variable name is <' +
-                    this.name +
-                    '>',
-            );
-        }
+    get initExpression(): Expression | null {
         return this.init;
     }
 
@@ -307,7 +300,7 @@ export class VariableInit {
                         this.compilerCtx.expressionCompiler,
                         parameterNode.initializer,
                     );
-                    paramObj.initExpression = paramInit;
+                    paramObj.setInitExpr(paramInit);
                 }
                 break;
             }
@@ -327,7 +320,7 @@ export class VariableInit {
                         this.compilerCtx.expressionCompiler,
                         variableDeclarationNode.initializer,
                     );
-                    variableObj.initExpression = variableInit;
+                    variableObj.setInitExpr(variableInit);
                 }
                 break;
             }
