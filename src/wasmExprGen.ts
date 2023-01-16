@@ -121,7 +121,7 @@ export class WASMExpressionBase {
             tmpNumberName,
             variableType,
             ModifierKind.default,
-            0,
+            -1,
             true,
         );
         this.addVariableToCurrentScope(tmpVar);
@@ -1843,8 +1843,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
         // add objValue to current scope, push assign statement
         const objLocalVar = this.generateTmpVar('~obj|', 'any');
         const objLocalVarType = objLocalVar.varType;
-        const objLocalVarWasmType =
-            this.wasmType.getWASMHeapType(objLocalVarType);
+        const objLocalVarWasmType = this.wasmType.getWASMType(objLocalVarType);
         this.statementArray.push(
             this.setVariableToCurrentScope(objLocalVar, objValue),
         );
