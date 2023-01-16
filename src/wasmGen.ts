@@ -321,10 +321,7 @@ export class WASMGen {
                 );
             }
         }
-        // 3. generate wasm function
-        for (const stmt of functionScope.statements) {
-            binaryenExprRefs.push(this.wasmStmtCompiler.WASMStmtGen(stmt));
-        }
+
         const paramWASMType =
             this.wasmTypeCompiler.getWASMFuncParamType(tsFuncType);
 
@@ -338,7 +335,6 @@ export class WASMGen {
             );
         }
         // add local variable
-        let exprRefs = new Array<binaryen.ExpressionRef>();
         const localVars = functionScope.varArray;
         for (const localVar of localVars) {
             if (localVar.initExpression !== null) {
@@ -352,12 +348,16 @@ export class WASMGen {
                         localVar.initExpression,
                     );
                 }
-                exprRefs.push(
+                binaryenExprRefs.push(
                     this.module.local.set(localVar.varIndex, varInitExprRef),
                 );
             }
         }
-        exprRefs = exprRefs.concat(binaryenExprRefs);
+
+        // generate wasm statements
+        for (const stmt of functionScope.statements) {
+            binaryenExprRefs.push(this.wasmStmtCompiler.WASMStmtGen(stmt));
+        }
         // iff not a member function
         if (functionScope.className === '') {
             varWASMTypes.push(
@@ -422,8 +422,10 @@ export class WASMGen {
             functionName,
             paramWASMType,
             returnWASMType,
-            varWASMTypes,
-            this.module.block(null, exprRefs),
+            functionScope.varArray.map((variable: Variable) =>
+                this.wasmType.getWASMType(variable.varType),
+            ),
+            this.module.block(null, binaryenExprRefs),
         );
     }
 
