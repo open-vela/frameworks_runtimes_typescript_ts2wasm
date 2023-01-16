@@ -26,6 +26,11 @@ import {
     WASMExpressionBase,
 } from './wasmExprGen.js';
 import { WASMStatementGen } from './wasmStmtGen.js';
+import {
+    initGlobalOffset,
+    initDefaultMemory,
+    initDefaultTable,
+} from './memory.js';
 
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
 
@@ -118,6 +123,9 @@ export class WASMGen {
         this.currentFuncScope = null;
         const globalStatementRef = new Array<binaryen.ExpressionRef>();
         this.scopeStatementMap.set(globalScope, globalStatementRef);
+        initGlobalOffset(this.module);
+        initDefaultMemory(this.module);
+        initDefaultTable(this.module);
         importLibApi(this.module);
         initDynContext(<GlobalScope>this.currentScope);
 

@@ -479,7 +479,15 @@ export default class ExpressionCompiler {
             }
             case ts.SyntaxKind.PropertyAccessExpression: {
                 const propAccessExprNode = <ts.PropertyAccessExpression>node;
-                const parent = this.visitNode(propAccessExprNode.parent);
+                let parent;
+                if (
+                    propAccessExprNode.parent.kind ===
+                    ts.SyntaxKind.BinaryExpression
+                ) {
+                    parent = new Expression(ts.SyntaxKind.BinaryExpression);
+                } else {
+                    parent = this.visitNode(propAccessExprNode.parent);
+                }
                 const property = this.visitNode(propAccessExprNode.name);
                 if (
                     propAccessExprNode.expression.kind ===
