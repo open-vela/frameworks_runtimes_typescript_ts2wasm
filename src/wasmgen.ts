@@ -379,6 +379,7 @@ export class WASMGen {
             );
         }
         // add local variable
+        let exprRefs = new Array<binaryen.ExpressionRef>();
         const localVars = functionScope.varArray;
         for (const localVar of localVars) {
             if (localVar.initExpression !== null) {
@@ -392,11 +393,12 @@ export class WASMGen {
                         localVar.initExpression,
                     );
                 }
-                binaryenExprRefs.push(
+                exprRefs.push(
                     this.module.local.set(localVar.varIndex, varInitExprRef),
                 );
             }
         }
+        exprRefs = exprRefs.concat(binaryenExprRefs);
         // iff not a member function
         if (functionScope.className === '') {
             varWASMTypes.push(
@@ -462,7 +464,7 @@ export class WASMGen {
             paramWASMType,
             returnWASMType,
             varWASMTypes,
-            this.module.block(null, binaryenExprRefs),
+            this.module.block(null, exprRefs),
         );
     }
 
