@@ -64,7 +64,12 @@ describe('testType', function () {
         funcType.addParamType(numberType);
         funcType.addParamType(numberType);
         funcType.returnType = numberType;
-        objLiteralType.addMethod('add', funcType);
+        objLiteralType.addMethod({
+            name: 'add',
+            type: funcType,
+            isSetter: false,
+            isGetter: false,
+        });
 
         expect(objLiteralType.getMemberField('a')).eq(objField);
         expect(objLiteralType.getMethod('add')).eq(funcType);
@@ -84,7 +89,13 @@ describe('testType', function () {
         baseFuncType.addParamType(numberType);
         baseFuncType.addParamType(numberType);
         baseFuncType.returnType = numberType;
-        baseClassType.addMethod('add', baseFuncType);
+
+        baseClassType.addMethod({
+            name: 'add',
+            type: baseFuncType,
+            isGetter: false,
+            isSetter: false,
+        });
 
         const classType = new TSClass();
         const classField1: TsClassField = {
@@ -101,7 +112,12 @@ describe('testType', function () {
         funcType.addParamType(numberType);
         funcType.addParamType(numberType);
         funcType.returnType = stringType;
-        classType.addMethod('add', funcType);
+        classType.addMethod({
+            name: 'add',
+            type: funcType,
+            isSetter: false,
+            isGetter: false,
+        });
         classType.setBase(baseClassType);
 
         expect(baseClassType.getMemberField('b')).eq(baseClassField);
@@ -128,7 +144,12 @@ describe('testType', function () {
             type: new Primitive('number'),
         };
         objLiteralType.addMemberField(objField);
-        objLiteralType.addMethod('add', funcType);
+        objLiteralType.addMethod({
+            name: 'add',
+            type: funcType,
+            isSetter: false,
+            isGetter: false,
+        });
         const arrayType4 = new TSArray(objLiteralType);
 
         expect(arrayType1.elementType).eq(numberType);

@@ -255,7 +255,10 @@ export class WASMGen {
         // parse global scope statements, generate start function body
         freeDynContext(globalScope);
         for (const stmt of globalScope.statements) {
-            this.wasmStmtCompiler.WASMStmtGen(stmt);
+            if (stmt.statementKind === ts.SyntaxKind.Unknown) {
+                continue;
+            }
+            globalStatementRef.push(this.wasmStmtCompiler.WASMStmtGen(stmt));
         }
         const body = this.module.block(null, globalStatementRef);
 
@@ -2038,8 +2041,12 @@ class WASMExpressionGen extends WASMExpressionBase {
         //     vtable.length,
         //     vtableHeapType,
         // );
-        // propRefList[0] = vptr;
-        propRefList[0] = emptyStructType.typeRef;
+        propRefList[0] = binaryenCAPI._BinaryenStructNew(
+            module.ptr,
+            arrayToPtr([]).ptr,
+            0,
+            emptyStructType.heapTypeRef,
+        );
         const objectLiteralValue = binaryenCAPI._BinaryenStructNew(
             module.ptr,
             arrayToPtr(propRefList).ptr,
