@@ -12,7 +12,7 @@ import {
 import { VariableScanner, VariableInit } from './variable.js';
 import ExpressionCompiler from './expression.js';
 import StatementCompiler from './statement.js';
-import { WASMGen } from './wasmgen.js';
+import { WASMGen } from './wasmGen.js';
 
 export const COMPILER_OPTIONS: ts.CompilerOptions = {
     module: ts.ModuleKind.ESNext,

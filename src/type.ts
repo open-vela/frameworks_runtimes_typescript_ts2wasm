@@ -344,38 +344,10 @@ export default class TypeCompiler {
 
     generateNodeType(node: ts.Node): Type {
         switch (node.kind) {
-            case ts.SyntaxKind.Identifier: {
-                const typeCheckerInfo = getNodeTypeInfo(
-                    node,
-                    this.typechecker!,
-                );
-                const typeNode = typeCheckerInfo.typeNode;
-                return this.generateNodeType(typeNode);
-            }
-            case ts.SyntaxKind.BinaryExpression: {
-                const typeCheckerInfo = getNodeTypeInfo(
-                    node,
-                    this.typechecker!,
-                );
-                const typeNode = typeCheckerInfo.typeNode;
-                return this.generateNodeType(typeNode);
-            }
-            case ts.SyntaxKind.PostfixUnaryExpression: {
-                const typeCheckerInfo = getNodeTypeInfo(
-                    node,
-                    this.typechecker!,
-                );
-                const typeNode = typeCheckerInfo.typeNode;
-                return this.generateNodeType(typeNode);
-            }
-            case ts.SyntaxKind.PrefixUnaryExpression: {
-                const typeCheckerInfo = getNodeTypeInfo(
-                    node,
-                    this.typechecker!,
-                );
-                const typeNode = typeCheckerInfo.typeNode;
-                return this.generateNodeType(typeNode);
-            }
+            case ts.SyntaxKind.Identifier:
+            case ts.SyntaxKind.BinaryExpression:
+            case ts.SyntaxKind.PostfixUnaryExpression:
+            case ts.SyntaxKind.PrefixUnaryExpression:
             case ts.SyntaxKind.ObjectLiteralExpression: {
                 const typeCheckerInfo = getNodeTypeInfo(
                     node,
