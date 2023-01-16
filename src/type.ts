@@ -348,7 +348,8 @@ export default class TypeCompiler {
             case ts.SyntaxKind.BinaryExpression:
             case ts.SyntaxKind.PostfixUnaryExpression:
             case ts.SyntaxKind.PrefixUnaryExpression:
-            case ts.SyntaxKind.ObjectLiteralExpression: {
+            case ts.SyntaxKind.ObjectLiteralExpression:
+            case ts.SyntaxKind.PropertyAccessExpression: {
                 const typeCheckerInfo = getNodeTypeInfo(
                     node,
                     this.typechecker!,
