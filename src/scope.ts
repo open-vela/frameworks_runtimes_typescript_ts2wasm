@@ -2,7 +2,7 @@ import ts from 'typescript';
 import { Type, TSFunction, TSClass } from './type.js';
 import { Compiler } from './compiler.js';
 import { Stack } from './utils.js';
-import { Parameter, Variable } from './variable.js';
+import { ModifierKind, Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
 
 export enum ScopeKind {
@@ -131,6 +131,18 @@ export class Scope {
             throw new Error(typeName + 'do not exist');
         }
         return TSType;
+    }
+
+    /* currently, this API is used by TypeReference to find classType */
+    getTypeFromScope(typeName: string): Type {
+        const currentScope = this;
+        while (currentScope !== null) {
+            const TSType = currentScope.namedTypeMap.get(typeName);
+            if (TSType !== undefined) {
+                return TSType;
+            }
+        }
+        throw new Error('type not found, type name <' + typeName + '>');
     }
 }
 
@@ -333,6 +345,17 @@ export class ScopeScanner {
                 const functionDeclarationNode = <ts.FunctionDeclaration>node;
                 const parentScope = this.getCurrentScope();
                 const functionScope = new FunctionScope(parentScope);
+                /* function context struct placeholder */
+                functionScope.addParameter(
+                    new Parameter(
+                        '',
+                        new Type(),
+                        ModifierKind.default,
+                        0,
+                        false,
+                        false,
+                    ),
+                );
                 if (functionDeclarationNode.modifiers !== undefined) {
                     for (const modifier of functionDeclarationNode.modifiers) {
                         functionScope.addModifier(modifier.kind);

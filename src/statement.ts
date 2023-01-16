@@ -50,7 +50,7 @@ export class IfStatement extends Statement {
 export class BlockStatement extends Statement {
     private _isFunctionBlock = false;
 
-    constructor(private blockStatements: Statement[]) {
+    constructor() {
         super(ts.SyntaxKind.Block);
     }
 
@@ -60,10 +60,6 @@ export class BlockStatement extends Statement {
 
     isFunctionBlock(): boolean {
         return this._isFunctionBlock;
-    }
-
-    get statements(): Statement[] {
-        return this.blockStatements;
     }
 }
 
@@ -242,15 +238,10 @@ export default class StatementCompiler {
             ) as GlobalScope;
             for (const stmt of sourceFile.statements) {
                 const compiledStmt = this.visitNode(stmt);
-                if (
-                    StatementCompiler.noNeedToCompileStmt(
-                        compiledStmt.statementKind,
-                    )
-                ) {
+                if (compiledStmt.statementKind === ts.SyntaxKind.Unknown) {
                     continue;
                 }
                 globalScope.addStatement(compiledStmt);
-                this.visitNode(stmt);
             }
         }
     }
@@ -258,18 +249,28 @@ export default class StatementCompiler {
     visitNode(node: ts.Node): Statement {
         const prevScope = this.compilerCtx.currentScope;
         switch (node.kind) {
+            case ts.SyntaxKind.VariableStatement: {
+                return new Statement(ts.SyntaxKind.Unknown);
+            }
             case ts.SyntaxKind.FunctionDeclaration: {
                 /* function scope and Type have been determined */
                 const funcDeclNode = <ts.FunctionDeclaration>node;
                 this.compilerCtx.currentScope =
                     this.compilerCtx.nodeScopeMap.get(funcDeclNode) as Scope;
+                const scope = this.compilerCtx.currentScope;
                 if (funcDeclNode.body !== undefined) {
-                    this.compilerCtx.currentScope.addStatement(
-                        this.visitNode(funcDeclNode.body),
-                    );
+                    for (const stmt of funcDeclNode.body.statements) {
+                        const compiledStmt = this.visitNode(stmt);
+                        if (
+                            compiledStmt.statementKind === ts.SyntaxKind.Unknown
+                        ) {
+                            continue;
+                        }
+                        scope.addStatement(compiledStmt);
+                    }
                 }
                 this.compilerCtx.currentScope = prevScope;
-                return new Statement(ts.SyntaxKind.FunctionDeclaration);
+                return new Statement(ts.SyntaxKind.Unknown);
             }
             case ts.SyntaxKind.ClassDeclaration: {
                 const classDeclNode = <ts.ClassDeclaration>node;
@@ -286,55 +287,63 @@ export default class StatementCompiler {
                     }
                 }
                 this.compilerCtx.currentScope = prevScope;
-                return new Statement(ts.SyntaxKind.ClassDeclaration);
+                return new Statement(ts.SyntaxKind.Unknown);
             }
             case ts.SyntaxKind.Constructor: {
                 const ctorNode = <ts.ConstructorDeclaration>node;
                 this.compilerCtx.currentScope =
                     this.compilerCtx.nodeScopeMap.get(ctorNode) as Scope;
                 if (ctorNode.body !== undefined) {
-                    this.compilerCtx.currentScope.addStatement(
-                        this.visitNode(ctorNode.body),
-                    );
+                    for (const stmt of ctorNode.body.statements) {
+                        this.compilerCtx.currentScope.addStatement(
+                            this.visitNode(stmt),
+                        );
+                    }
                 }
                 this.compilerCtx.currentScope = prevScope;
-                return new Statement(ts.SyntaxKind.Constructor);
+                return new Statement(ts.SyntaxKind.Unknown);
             }
             case ts.SyntaxKind.SetAccessor: {
                 const setAccessorNode = <ts.SetAccessorDeclaration>node;
                 this.compilerCtx.currentScope =
                     this.compilerCtx.nodeScopeMap.get(setAccessorNode) as Scope;
                 if (setAccessorNode.body !== undefined) {
-                    this.compilerCtx.currentScope.addStatement(
-                        this.visitNode(setAccessorNode.body),
-                    );
+                    for (const stmt of setAccessorNode.body.statements) {
+                        this.compilerCtx.currentScope.addStatement(
+                            this.visitNode(stmt),
+                        );
+                    }
                 }
                 this.compilerCtx.currentScope = prevScope;
-                return new Statement(ts.SyntaxKind.SetAccessor);
+                return new Statement(ts.SyntaxKind.Unknown);
             }
             case ts.SyntaxKind.GetAccessor: {
                 const getAccessorNode = <ts.GetAccessorDeclaration>node;
                 this.compilerCtx.currentScope =
                     this.compilerCtx.nodeScopeMap.get(getAccessorNode) as Scope;
                 if (getAccessorNode.body !== undefined) {
-                    this.compilerCtx.currentScope.addStatement(
-                        this.visitNode(getAccessorNode.body),
-                    );
+                    for (const stmt of getAccessorNode.body.statements) {
+                        this.compilerCtx.currentScope.addStatement(
+                            this.visitNode(stmt),
+                        );
+                    }
                 }
                 this.compilerCtx.currentScope = prevScope;
-                return new Statement(ts.SyntaxKind.GetAccessor);
+                return new Statement(ts.SyntaxKind.Unknown);
             }
             case ts.SyntaxKind.MethodDeclaration: {
                 const methodNode = <ts.MethodDeclaration>node;
                 this.compilerCtx.currentScope =
                     this.compilerCtx.nodeScopeMap.get(methodNode) as Scope;
                 if (methodNode.body !== undefined) {
-                    this.compilerCtx.currentScope.addStatement(
-                        this.visitNode(methodNode.body),
-                    );
+                    for (const stmt of methodNode.body.statements) {
+                        this.compilerCtx.currentScope.addStatement(
+                            this.visitNode(stmt),
+                        );
+                    }
                 }
                 this.compilerCtx.currentScope = prevScope;
-                return new Statement(ts.SyntaxKind.MethodDeclaration);
+                return new Statement(ts.SyntaxKind.Unknown);
             }
             case ts.SyntaxKind.IfStatement: {
                 const ifStatementNode = <ts.IfStatement>node;
@@ -351,30 +360,21 @@ export default class StatementCompiler {
                 return new IfStatement(condtion, ifTrue, ifFalse);
             }
             case ts.SyntaxKind.Block: {
+                /* every ts.Block(without function.body) has a corresponding block scope and BlockStatement */
                 const blockNode = <ts.Block>node;
-                let scope: Scope | null = null;
-                if (
-                    blockNode.parent.kind !==
-                        ts.SyntaxKind.FunctionDeclaration &&
-                    blockNode.parent.kind !== ts.SyntaxKind.MethodDeclaration &&
-                    blockNode.parent.kind !== ts.SyntaxKind.SetAccessor &&
-                    blockNode.parent.kind !== ts.SyntaxKind.GetAccessor
-                ) {
-                    this.compilerCtx.currentScope =
-                        this.compilerCtx.nodeScopeMap.get(blockNode) as Scope;
-                    scope = this.compilerCtx.nodeScopeMap.get(
-                        blockNode,
-                    ) as Scope;
-                }
+                this.compilerCtx.currentScope =
+                    this.compilerCtx.nodeScopeMap.get(blockNode) as Scope;
+                const scope = <Scope>this.compilerCtx.currentScope;
 
-                const statements = new Array<Statement>();
-                for (let i = 0; i !== blockNode.statements.length; ++i) {
-                    statements.push(this.visitNode(blockNode.statements[i]));
+                for (const stmt of blockNode.statements) {
+                    const compiledStmt = this.visitNode(stmt);
+                    if (compiledStmt.statementKind === ts.SyntaxKind.Unknown) {
+                        continue;
+                    }
+                    scope.addStatement(compiledStmt);
                 }
-                const block = new BlockStatement(statements);
-                if (scope) {
-                    block.setScope(scope);
-                }
+                const block = new BlockStatement();
+                block.setScope(scope);
                 this.compilerCtx.currentScope = prevScope;
 
                 return block;
@@ -579,19 +579,5 @@ export default class StatementCompiler {
             default:
                 return new Statement(ts.SyntaxKind.Unknown);
         }
-    }
-
-    static noNeedToCompileStmt(stmtKind: ts.SyntaxKind): boolean {
-        switch (stmtKind) {
-            case ts.SyntaxKind.FunctionDeclaration:
-            case ts.SyntaxKind.ClassDeclaration:
-            case ts.SyntaxKind.Constructor:
-            case ts.SyntaxKind.SetAccessor:
-            case ts.SyntaxKind.GetAccessor:
-            case ts.SyntaxKind.MethodDeclaration:
-            case ts.SyntaxKind.Unknown:
-                return true;
-        }
-        return false;
     }
 }
