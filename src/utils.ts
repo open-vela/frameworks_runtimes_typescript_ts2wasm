@@ -33,6 +33,7 @@ export enum MatchKind {
     ToAnyMatch,
     FromAnyMatch,
     ClassMatch,
+    ClassInheritMatch,
     ToArrayAnyMatch,
     FromArrayAnyMatch,
     MisMatch,
