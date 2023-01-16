@@ -112,6 +112,8 @@ export class WASMExpressionBase {
             variableType = new Primitive('boolean');
         } else if (typeName === 'number') {
             variableType = new Primitive('number');
+        } else if (typeName === 'boolean') {
+            variableType = new Primitive('boolean');
         } else {
             variableType = varType;
         }
@@ -877,7 +879,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
             case ts.SyntaxKind.PropertyAccessExpression: {
                 // sample: const obj: any = {}; obj.a = 2;
                 const objExprRef = this.WASMExprGen(leftExpr);
-                const propIdenExpr = <IdentifierExpression>rightExpr;
+                const propIdenExpr = <IdentifierExpression>(
+                    (<PropertyAccessExpression>leftExpr).propertyExpr
+                );
                 const propName = propIdenExpr.identifierName;
                 const initDynValue = this.dynValueGen.WASMDynExprGen(rightExpr);
                 if (propName === '__proto__') {
@@ -1016,8 +1020,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             if (
                 leftExprType.kind === TypeKind.NUMBER ||
                 leftExprType.kind === TypeKind.STRING ||
-                leftExprType.kind === TypeKind.BOOLEAN ||
-                leftExprType.kind === TypeKind.ANY
+                leftExprType.kind === TypeKind.BOOLEAN
             ) {
                 return MatchKind.ExactMatch;
             }
@@ -1745,9 +1748,14 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                 if (identifierExpr.identifierName === 'undefined') {
                     return this.generateDynUndefined();
                 } else {
-                    return this.generateDynExtref(
-                        this.staticValueGen.WASMExprGen(identifierExpr),
-                    );
+                    if (identifierExpr.exprType.kind === TypeKind.ANY) {
+                        return this.staticValueGen.WASMExprGen(identifierExpr);
+                    } else {
+                        // generate dynExtref iff identifier's type is not any
+                        return this.generateDynExtref(
+                            this.staticValueGen.WASMExprGen(identifierExpr),
+                        );
+                    }
                 }
             }
             case ts.SyntaxKind.BinaryExpression:
