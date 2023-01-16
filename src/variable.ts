@@ -77,6 +77,10 @@ export class Variable {
         return this.isLocal;
     }
 
+    setIsLocalVar(isLocal: boolean): void {
+        this.isLocal = isLocal;
+    }
+
     setVarIsClosure(): void {
         this.isClosure = true;
     }
@@ -213,40 +217,44 @@ export class VariableScanner {
                                   this.typechecker!,
                               ).typeName,
                           );
-                let isLocalVar = true;
                 const variable = new Variable(
                     variableName,
                     variableType,
                     variableModifier,
                     -1,
-                    isLocalVar,
+                    true,
                 );
                 /* iff in a global scope, set index based on global scope variable array */
                 if (currentScope.kind === ScopeKind.GlobalScope) {
-                    isLocalVar = false;
+                    variable.setIsLocalVar(false);
                     variable.setVarIndex(currentScope.varArray.length);
-                }
-                const functionScope =
-                    getNearestFunctionScopeFromCurrent(currentScope);
-                /* under global scope, set index based on start function variable array */
-                if (!functionScope) {
-                    if (currentScope.getRootGloablScope() === null) {
-                        throw new Error('global scope is null');
-                    }
-                    variable.setVarIndex(
-                        (<GlobalScope>currentScope.getRootGloablScope())
-                            .startFuncVarArray.length,
-                    );
-                    (<GlobalScope>(
-                        currentScope.getRootGloablScope()
-                    )).addStartFuncVar(variable);
                 } else {
-                    /* under function scope, set index based on function variable array */
-                    variable.setVarIndex(functionScope.varArray.length);
-                    if (currentScope.kind !== ScopeKind.FunctionScope) {
-                        functionScope.addVariable(variable);
+                    const functionScope =
+                        getNearestFunctionScopeFromCurrent(currentScope);
+                    /* under global scope, set index based on start function variable array */
+                    if (!functionScope) {
+                        if (currentScope.getRootGloablScope() === null) {
+                            throw new Error('global scope is null');
+                        }
+                        variable.setVarIndex(
+                            (<GlobalScope>currentScope.getRootGloablScope())
+                                .startFuncVarArray.length,
+                        );
+                        (<GlobalScope>(
+                            currentScope.getRootGloablScope()
+                        )).addStartFuncVar(variable);
+                    } else {
+                        /* under function scope, set index based on function variable array */
+                        variable.setVarIndex(
+                            (<FunctionScope>functionScope).paramArray.length +
+                                functionScope.varArray.length,
+                        );
+                        if (currentScope.kind !== ScopeKind.FunctionScope) {
+                            functionScope.addVariable(variable);
+                        }
                     }
                 }
+
                 if (variable.varIndex === -1) {
                     throw new Error(
                         'variable index is not set, variable name is <' +
