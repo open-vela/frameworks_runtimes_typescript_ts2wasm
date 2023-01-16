@@ -127,7 +127,7 @@ export const boolArrayTypeInformation = genarateBoolArrayTypeInfo();
 export const anyArrayTypeInformation = genarateAnyArrayTypeInfo();
 export const objectStructTypeInformation = genarateObjectStructTypeInfo();
 
-export const emptyStructType = initStructType([], [], [], 0, false);
+export const emptyStructType = initStructType([], [], [], 0, true);
 // generate array type to store character context
 function genarateCharArrayTypeInfo(): typeInfo {
     const charArrayTypeInfo = initArrayType(
