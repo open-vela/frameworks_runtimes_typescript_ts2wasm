@@ -178,6 +178,31 @@ export class WASMGen {
                         mutable,
                         varInitExprRef,
                     );
+                } else if (globalVar.varType.kind === TypeKind.I64) {
+                    if (
+                        globalVar.initExpression.expressionKind ===
+                        ts.SyntaxKind.NumericLiteral
+                    ) {
+                        this.module.addGlobal(
+                            globalVar.varName,
+                            varTypeRef,
+                            mutable,
+                            varInitExprRef,
+                        );
+                    } else {
+                        this.module.addGlobal(
+                            globalVar.varName,
+                            varTypeRef,
+                            true,
+                            this.module.i64.const(0, 0),
+                        );
+                        globalStatementRef.push(
+                            this.module.global.set(
+                                globalVar.varName,
+                                varInitExprRef,
+                            ),
+                        );
+                    }
                 } else {
                     this.module.addGlobal(
                         globalVar.varName,
@@ -435,6 +460,8 @@ export class WASMGen {
             return module.f64.const(0);
         } else if (varType.kind === TypeKind.BOOLEAN) {
             return module.i32.const(0);
+        } else if (varType.kind === TypeKind.I64) {
+            return module.i64.const(0, 0);
         }
         return binaryenCAPI._BinaryenRefNull(module.ptr, binaryen.anyref);
     }

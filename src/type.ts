@@ -14,6 +14,7 @@ export const enum TypeKind {
     CLASS,
     UNKNOWN,
     NULL,
+    I64,
 }
 
 export class Type {
@@ -51,6 +52,10 @@ export class Primitive extends Type {
             }
             case 'null': {
                 this.typeKind = TypeKind.NULL;
+                break;
+            }
+            case 'i64': {
+                this.typeKind = TypeKind.I64;
                 break;
             }
             default: {
@@ -363,8 +368,17 @@ export default class TypeCompiler {
             }
             case ts.SyntaxKind.AnyKeyword:
             case ts.SyntaxKind.UnionType: {
-                // treat union as any
-                return this.generatePrimitiveType('any');
+                // check if all nodes type is equal
+                const unionTypeNode = <ts.UnionTypeNode>node;
+                const firstTypeNode = unionTypeNode.types[0];
+                const firstTypeKind = firstTypeNode.kind;
+                for (let i = 1; i < unionTypeNode.types.length; i++) {
+                    if (unionTypeNode.types[i].kind !== firstTypeKind) {
+                        // treat union as any
+                        return this.generatePrimitiveType('any');
+                    }
+                }
+                return this.generateNodeType(firstTypeNode);
             }
             case ts.SyntaxKind.StringKeyword:
             case ts.SyntaxKind.StringLiteral: {
@@ -506,7 +520,7 @@ export default class TypeCompiler {
         const returnTypeNode = node.type;
         for (const param of paramList) {
             const paramNode = <ts.ParameterDeclaration>param;
-            const paramType = this.generateNodeType(paramNode);
+            const paramType = this.generateNodeType(paramNode.type!);
             funcType.addParamType(paramType);
         }
         if (returnTypeNode) {
