@@ -45,6 +45,9 @@ export class WASMTypeGen {
             return;
         }
         switch (type.typeKind) {
+            case TypeKind.I64:
+                WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.i64);
+                break;
             case TypeKind.VOID:
                 WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.none);
                 break;
