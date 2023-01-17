@@ -339,7 +339,8 @@ export default class TypeCompiler {
             case ts.SyntaxKind.TrueKeyword:
             case ts.SyntaxKind.FalseKeyword:
             case ts.SyntaxKind.NullKeyword:
-            case ts.SyntaxKind.FunctionDeclaration: {
+            case ts.SyntaxKind.FunctionDeclaration:
+            case ts.SyntaxKind.TypeReference: {
                 this.setType(node);
                 break;
             }
@@ -354,7 +355,9 @@ export default class TypeCompiler {
             case ts.SyntaxKind.PostfixUnaryExpression:
             case ts.SyntaxKind.PrefixUnaryExpression:
             case ts.SyntaxKind.ObjectLiteralExpression:
-            case ts.SyntaxKind.PropertyAccessExpression: {
+            case ts.SyntaxKind.PropertyAccessExpression:
+            case ts.SyntaxKind.ElementAccessExpression:
+            case ts.SyntaxKind.ArrayLiteralExpression: {
                 const typeCheckerInfo = getNodeTypeInfo(
                     node,
                     this.typechecker!,
@@ -450,12 +453,6 @@ export default class TypeCompiler {
                 const typeRefNode = <ts.TypeReferenceNode>node;
                 const typeNameNode = <ts.Identifier>typeRefNode.typeName;
                 const refName = typeNameNode.escapedText.toString();
-                if (refName === 'Array') {
-                    const typeArgNode = typeRefNode.typeArguments![0];
-                    const elementType = this.generateNodeType(typeArgNode);
-                    const TSArrayType = new TSArray(elementType);
-                    return TSArrayType;
-                }
                 if (!this.currentScope!.namedTypeMap.has(refName)) {
                     throw new Error('can not find the ref type ' + refName);
                 }
@@ -484,7 +481,23 @@ export default class TypeCompiler {
             return;
         }
         const typeNode = typeCheckerInfo.typeNode;
-        const TSType = this.generateNodeType(typeNode);
+        let TSType;
+        if (node.kind === ts.SyntaxKind.TypeReference) {
+            const typeRefNode = <ts.TypeReferenceNode>node;
+            const typeNameNode = <ts.Identifier>typeRefNode.typeName;
+            const refName = typeNameNode.escapedText.toString();
+            if (refName === 'Array') {
+                const elemNode = typeCheckerInfo.elemNode!;
+                TSType = this.generateArrayType(
+                    <ts.TypeReferenceNode>node,
+                    elemNode,
+                );
+            } else {
+                TSType = this.generateNodeType(typeNode);
+            }
+        } else {
+            TSType = this.generateNodeType(typeNode);
+        }
         this.currentScope!.namedTypeMap.set(typeName, TSType);
         if (
             this.currentScope &&
@@ -661,6 +674,11 @@ export default class TypeCompiler {
             }
         }
         return classType;
+    }
+
+    generateArrayType(node: ts.TypeReferenceNode, elemNode: ts.Node) {
+        const elemType = this.generateNodeType(elemNode);
+        return new TSArray(elemType);
     }
 }
 
