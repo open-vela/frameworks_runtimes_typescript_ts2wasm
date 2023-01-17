@@ -13,7 +13,10 @@ export enum ScopeKind {
     ClassScope,
 }
 
-export const funcNames: Set<string> = new Set<string>();
+export const funcDefs: Map<string, FunctionScope> = new Map<
+    string,
+    FunctionScope
+>();
 
 export class Scope {
     kind = ScopeKind.Scope;
@@ -351,10 +354,13 @@ export class ScopeScanner {
                         '',
                         new Type(),
                         ModifierKind.default,
-                        0,
+                        -1,
                         false,
                         false,
                     ),
+                );
+                functionScope.addVariable(
+                    new Variable('', new Type(), ModifierKind.default, -1),
                 );
                 if (functionDeclarationNode.modifiers !== undefined) {
                     for (const modifier of functionDeclarationNode.modifiers) {
@@ -377,7 +383,7 @@ export class ScopeScanner {
                         functionName;
                 }
                 functionScope.setFuncName(functionName);
-                funcNames.add(functionName);
+                funcDefs.set(functionName, functionScope);
                 this.setCurrentScope(functionScope);
                 this.nodeScopeMap.set(functionDeclarationNode, functionScope);
                 this.visitNode(functionDeclarationNode.body!);
@@ -415,7 +421,7 @@ export class ScopeScanner {
                     functionScope.className +
                     '_set_' +
                     setAccessorNode.name.getText();
-                funcNames.add(functionName);
+                funcDefs.set(functionName, functionScope);
                 functionScope.setFuncName(functionName);
                 this.setCurrentScope(functionScope);
                 this.nodeScopeMap.set(setAccessorNode, functionScope);
@@ -432,7 +438,7 @@ export class ScopeScanner {
                     functionScope.className +
                     '_get_' +
                     getAccessorNode.name.getText();
-                funcNames.add(functionName);
+                funcDefs.set(functionName, functionScope);
                 functionScope.setFuncName(functionName);
                 this.setCurrentScope(functionScope);
                 this.nodeScopeMap.set(getAccessorNode, functionScope);
@@ -446,7 +452,7 @@ export class ScopeScanner {
                 const functionScope = new FunctionScope(parentScope);
                 functionScope.setClassName((<ClassScope>parentScope).className);
                 const functionName = functionScope.className + '_constructor';
-                funcNames.add(functionName);
+                funcDefs.set(functionName, functionScope);
                 functionScope.setFuncName(functionName);
                 this.setCurrentScope(functionScope);
                 this.nodeScopeMap.set(ctorNode, functionScope);
@@ -460,8 +466,8 @@ export class ScopeScanner {
                 const functionScope = new FunctionScope(parentScope);
                 functionScope.setClassName((<ClassScope>parentScope).className);
                 const functionName =
-                    functionScope.className + methodNode.name.getText();
-                funcNames.add(functionName);
+                    functionScope.className + '_' + methodNode.name.getText();
+                funcDefs.set(functionName, functionScope);
                 functionScope.setFuncName(functionName);
                 this.setCurrentScope(functionScope);
                 this.nodeScopeMap.set(methodNode, functionScope);

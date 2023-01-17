@@ -21,6 +21,10 @@ export class WASMTypeGen {
     // the format is : {context: struct{}, funcref: ref $func}
     private static tsFuncType2WASMStructType: Map<Type, binaryenCAPI.TypeRef> =
         new Map();
+    private static tsFuncType2WASMStructHeapType: Map<
+        Type,
+        binaryenCAPI.HeapTypeRef
+    > = new Map();
     private static tsFuncParamType: Map<Type, binaryenCAPI.TypeRef> = new Map();
     private static tsFuncReturnType: Map<Type, binaryenCAPI.TypeRef> =
         new Map();
@@ -45,7 +49,7 @@ export class WASMTypeGen {
             return;
         }
         switch (type.typeKind) {
-            case TypeKind.I64:
+            case TypeKind.DYNCONTEXTTYPE:
                 WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.i64);
                 break;
             case TypeKind.VOID:
@@ -93,16 +97,16 @@ export class WASMTypeGen {
                 const funcType = <TSFunction>type;
                 const paramTypes = funcType.getParamTypes();
                 const paramWASMTypes = new Array<binaryenCAPI.TypeRef>(
-                    paramTypes.length,
+                    paramTypes.length + 1,
                 );
                 paramWASMTypes[0] = emptyStructType.typeRef;
-                for (let i = 1; i < paramTypes.length; ++i) {
+                for (let i = 0; i < paramTypes.length; ++i) {
                     if (paramTypes[i].typeKind === TypeKind.FUNCTION) {
-                        paramWASMTypes[i] = this.getWASMFuncStructType(
+                        paramWASMTypes[i + 1] = this.getWASMFuncStructType(
                             paramTypes[i],
                         );
                     } else {
-                        paramWASMTypes[i] = this.getWASMType(paramTypes[i]);
+                        paramWASMTypes[i + 1] = this.getWASMType(paramTypes[i]);
                     }
                 }
                 WASMTypeGen.tsFuncParamType.set(
@@ -129,15 +133,20 @@ export class WASMTypeGen {
                     type,
                     signature.heapTypeRef,
                 );
+                const funcStructType = initStructType(
+                    [emptyStructType.typeRef, signature.typeRef],
+                    [typeNotPacked, typeNotPacked],
+                    [0, 0],
+                    2,
+                    true,
+                );
                 WASMTypeGen.tsFuncType2WASMStructType.set(
                     type,
-                    initStructType(
-                        [emptyStructType.typeRef, signature.typeRef],
-                        [typeNotPacked, typeNotPacked],
-                        [0, 0],
-                        2,
-                        true,
-                    ).typeRef,
+                    funcStructType.typeRef,
+                );
+                WASMTypeGen.tsFuncType2WASMStructHeapType.set(
+                    type,
+                    funcStructType.heapTypeRef,
                 );
                 break;
             }
@@ -281,6 +290,16 @@ export class WASMTypeGen {
         return WASMTypeGen.tsFuncType2WASMStructType.get(
             type,
         ) as binaryenCAPI.TypeRef;
+    }
+
+    getWASMFuncStructHeapType(type: Type): binaryenCAPI.TypeRef {
+        assert(type.typeKind === TypeKind.FUNCTION);
+        if (!WASMTypeGen.tsFuncType2WASMStructType.has(type)) {
+            this.createWASMType(type);
+        }
+        return WASMTypeGen.tsFuncType2WASMStructHeapType.get(
+            type,
+        ) as binaryenCAPI.HeapTypeRef;
     }
 
     getWASMFuncParamType(type: Type): binaryenCAPI.TypeRef {

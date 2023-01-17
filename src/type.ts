@@ -14,7 +14,7 @@ export const enum TypeKind {
     CLASS,
     UNKNOWN,
     NULL,
-    I64,
+    DYNCONTEXTTYPE,
 }
 
 export class Type {
@@ -55,7 +55,7 @@ export class Primitive extends Type {
                 break;
             }
             case 'i64': {
-                this.typeKind = TypeKind.I64;
+                this.typeKind = TypeKind.DYNCONTEXTTYPE;
                 break;
             }
             default: {
@@ -367,6 +367,7 @@ export default class TypeCompiler {
                 return this.generatePrimitiveType('number');
             }
             case ts.SyntaxKind.AnyKeyword:
+                return this.generatePrimitiveType('any');
             case ts.SyntaxKind.UnionType: {
                 // check if all nodes type is equal
                 const unionTypeNode = <ts.UnionTypeNode>node;

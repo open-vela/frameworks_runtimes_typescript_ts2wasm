@@ -1,5 +1,6 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
+import * as binaryenCAPI from './glue/binaryen.js';
 import {
     Statement,
     IfStatement,
@@ -14,10 +15,12 @@ import {
     BlockStatement,
     ExpressionStatement,
 } from './statement.js';
-import { Scope } from './scope.js';
-import { FlattenLoop, IfStatementInfo } from './glue/utils.js';
+import { FunctionScope, Scope } from './scope.js';
+import { FlattenLoop, IfStatementInfo, typeInfo } from './glue/utils.js';
 import { WASMGen } from './wasmGen.js';
-
+import { TypeKind } from './type.js';
+import { IdentifierExpression } from './expression.js';
+import { arrayToPtr } from './glue/transform.js';
 export class WASMStatementGen {
     private scope2stmts: Map<Scope, binaryen.ExpressionRef[]>;
 
@@ -122,11 +125,46 @@ export class WASMStatementGen {
     WASMReturnStmt(stmt: ReturnStatement): binaryen.ExpressionRef {
         if (stmt.returnExpression === null) {
             return this.WASMCompiler.module.return();
-        } else {
-            const WASMReturnExpr: binaryen.ExpressionRef =
-                this.WASMCompiler.wasmExpr.WASMExprGen(stmt.returnExpression);
-            return this.WASMCompiler.module.return(WASMReturnExpr);
         }
+        const currentScope = <Scope>this.WASMCompiler.curScope;
+        const nearestFuncScope = <FunctionScope>(
+            currentScope.getNearestFunctionScope()
+        );
+        const type = nearestFuncScope.funcType;
+        if (type.returnType.kind === TypeKind.FUNCTION) {
+            const returnedFuncName =
+                nearestFuncScope.funcName +
+                '|' +
+                (<IdentifierExpression>stmt.returnExpression).identifierName;
+
+            const module = this.WASMCompiler.module;
+            const array = [
+                module.local.get(
+                    nearestFuncScope.paramArray.length,
+                    (<typeInfo>WASMGen.contextOfFunc.get(nearestFuncScope))
+                        .typeRef,
+                ),
+                module.ref.func(
+                    returnedFuncName,
+                    this.WASMCompiler.wasmType.getWASMType(type.returnType),
+                ),
+            ];
+
+            return module.return(
+                binaryenCAPI._BinaryenStructNew(
+                    module.ptr,
+                    arrayToPtr(array).ptr,
+                    2,
+                    this.WASMCompiler.wasmType.getWASMFuncStructHeapType(
+                        type.returnType,
+                    ),
+                ),
+            );
+        }
+
+        const WASMReturnExpr: binaryen.ExpressionRef =
+            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.returnExpression);
+        return this.WASMCompiler.module.return(WASMReturnExpr);
     }
 
     WASMEmptyStmt(): binaryen.ExpressionRef {
@@ -134,6 +172,7 @@ export class WASMStatementGen {
     }
 
     WASMBaseLoopStmt(stmt: BaseLoopStatement): binaryen.ExpressionRef {
+        const prevScope = this.WASMCompiler.curScope;
         this.WASMCompiler.setCurScope(stmt.getScope() as Scope);
         const WASMCond: binaryen.ExpressionRef =
             this.WASMCompiler.wasmExpr.WASMExprGen(stmt.loopCondtion);
@@ -154,6 +193,9 @@ export class WASMStatementGen {
             condition: WASMCond,
             statements: WASMStmts,
         };
+        if (prevScope !== null) {
+            this.WASMCompiler.setCurScope(prevScope);
+        }
         return this.WASMCompiler.module.block(stmt.loopBlockLabel, [
             this.WASMCompiler.module.loop(
                 stmt.loopLabel,
@@ -163,6 +205,7 @@ export class WASMStatementGen {
     }
 
     WASMForStmt(stmt: ForStatement): binaryen.ExpressionRef {
+        const prevScope = this.WASMCompiler.curScope;
         this.WASMCompiler.setCurScope(stmt.getScope() as Scope);
         const scope = stmt.getScope() as Scope;
         const binaryenExprRefs = new Array<binaryen.ExpressionRef>();
@@ -200,6 +243,9 @@ export class WASMStatementGen {
                 this.flattenLoopStatement(flattenLoop, stmt.statementKind),
             ),
         );
+        if (prevScope !== null) {
+            this.WASMCompiler.setCurScope(prevScope);
+        }
         return this.WASMCompiler.module.block(
             stmt.forLoopBlockLabel,
             binaryenExprRefs,
@@ -224,6 +270,7 @@ export class WASMStatementGen {
         stmt: CaseBlock,
         condtion: binaryen.ExpressionRef,
     ): binaryen.ExpressionRef {
+        const prevScope = this.WASMCompiler.curScope;
         this.WASMCompiler.setCurScope(stmt.getScope() as Scope);
         const clauses = stmt.caseCauses;
         if (clauses.length === 0) {
@@ -267,17 +314,23 @@ export class WASMStatementGen {
                 [block].concat(this.WASMClauseStmt(clause)),
             );
         }
-
+        if (prevScope !== null) {
+            this.WASMCompiler.setCurScope(prevScope);
+        }
         return block;
     }
 
     WASMClauseStmt(clause: CaseClause | DefaultClause): binaryen.ExpressionRef {
+        const prevScope = this.WASMCompiler.curScope;
         this.WASMCompiler.setCurScope(clause.getScope() as Scope);
         const scope = clause.getScope() as Scope;
         const binaryenExprRefs = new Array<binaryen.ExpressionRef>();
         this.scope2stmts.set(scope, binaryenExprRefs);
         for (const statement of clause.caseStatements) {
             binaryenExprRefs.push(this.WASMStmtGen(statement));
+        }
+        if (prevScope !== null) {
+            this.WASMCompiler.setCurScope(prevScope);
         }
         return this.WASMCompiler.module.block(null, binaryenExprRefs);
     }

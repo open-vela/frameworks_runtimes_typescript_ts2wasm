@@ -217,30 +217,37 @@ export class SuperCallExpression extends Expression {
     }
 }
 
-export class ThisExpression extends Expression {
-    // private expr: string = 'this';
-    private property: Expression;
+// export class ThisExpression extends Expression {
+//     // private expr: string = 'this';
+//     private property: Expression;
 
-    constructor(property: Expression) {
-        super(ts.SyntaxKind.ThisKeyword);
-        this.property = property;
-    }
+//     constructor(property: Expression) {
+//         super(ts.SyntaxKind.ThisKeyword);
+//         this.property = property;
+//     }
 
-    get propertyExpr(): Expression {
-        return this.property;
-    }
-}
+//     get propertyExpr(): Expression {
+//         return this.property;
+//     }
+// }
 
 export class PropertyAccessExpression extends Expression {
     private expr: Expression;
     private property: Expression;
     private parent: Expression;
+    private _isThis: boolean;
 
-    constructor(expr: Expression, property: Expression, parent: Expression) {
+    constructor(
+        expr: Expression,
+        property: Expression,
+        parent: Expression,
+        isThis: boolean,
+    ) {
         super(ts.SyntaxKind.PropertyAccessExpression);
         this.expr = expr;
         this.property = property;
         this.parent = parent;
+        this._isThis = isThis;
     }
 
     get propertyAccessExpr(): Expression {
@@ -253,6 +260,10 @@ export class PropertyAccessExpression extends Expression {
 
     get parentExpr(): Expression {
         return this.parent;
+    }
+
+    get isThis(): boolean {
+        return this._isThis;
     }
 }
 
@@ -382,7 +393,7 @@ export default class ExpressionCompiler {
                             scope === nearestFuncScope
                         ) {
                             isFreeVar = true;
-                            (<FunctionScope>nearestFuncScope).setIsClosure();
+                            // (<FunctionScope>nearestFuncScope).setIsClosure();
                         }
                         if (variable !== undefined) {
                             if (
@@ -390,6 +401,7 @@ export default class ExpressionCompiler {
                                 scope.kind === ScopeKind.FunctionScope
                             ) {
                                 variable.setVarIsClosure();
+                                (<FunctionScope>scope).setIsClosure();
                             }
                             break;
                         }
@@ -489,17 +501,22 @@ export default class ExpressionCompiler {
                     parent = this.visitNode(propAccessExprNode.parent);
                 }
                 const property = this.visitNode(propAccessExprNode.name);
+                let isThis = false;
+                let expr: Expression;
                 if (
                     propAccessExprNode.expression.kind ===
                     ts.SyntaxKind.ThisKeyword
                 ) {
-                    return new ThisExpression(property);
+                    isThis = true;
+                    expr = new Expression(ts.SyntaxKind.ThisKeyword);
+                } else {
+                    expr = this.visitNode(propAccessExprNode.expression);
                 }
-                const expr = this.visitNode(propAccessExprNode.expression);
                 const propAccessExpr = new PropertyAccessExpression(
                     expr,
                     property,
                     parent,
+                    isThis,
                 );
                 propAccessExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),
