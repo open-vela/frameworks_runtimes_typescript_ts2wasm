@@ -219,11 +219,11 @@ export function getReturnTypeRef(funcName: string) {
 
 export function initDynContext(gloalScope: GlobalScope) {
     let contextType: Type;
-    if (gloalScope.namedTypeMap.has('any')) {
-        contextType = gloalScope.namedTypeMap.get('any')!;
+    if (gloalScope.namedTypeMap.has('i64')) {
+        contextType = gloalScope.namedTypeMap.get('i64')!;
     } else {
-        contextType = new Primitive('any');
-        gloalScope.namedTypeMap.set('any', contextType);
+        contextType = new Primitive('i64');
+        gloalScope.namedTypeMap.set('i64', contextType);
     }
 
     const ctxInitExpr = new CallExpression(

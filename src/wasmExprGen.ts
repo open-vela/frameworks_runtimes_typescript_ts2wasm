@@ -899,18 +899,20 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     );
                 }
                 const propNameRef = this.generateStringRef(propName);
-                const setPropertyExpression = module.call(
-                    dyntype.dyntype_set_property,
-                    [
-                        module.global.get(
-                            dyntype.dyntype_context,
-                            dyntype.dyn_ctx_t,
-                        ),
-                        objExprRef,
-                        propNameRef,
-                        initDynValue,
-                    ],
-                    dyntype.int,
+                const setPropertyExpression = module.drop(
+                    module.call(
+                        dyntype.dyntype_set_property,
+                        [
+                            module.global.get(
+                                dyntype.dyntype_context,
+                                dyntype.dyn_ctx_t,
+                            ),
+                            objExprRef,
+                            propNameRef,
+                            initDynValue,
+                        ],
+                        dyntype.int,
+                    ),
                 );
                 return setPropertyExpression;
             }
@@ -1855,21 +1857,23 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
             );
             const propValueExpr = values[i];
             const propValueExprRef = this.WASMDynExprGen(propValueExpr);
-            const setPropertyExpression = module.call(
-                dyntype.dyntype_set_property,
-                [
-                    module.global.get(
-                        dyntype.dyntype_context,
-                        dyntype.dyn_ctx_t,
-                    ),
-                    this.getLocalValue(
-                        objLocalVar.varIndex,
-                        objLocalVarWasmType,
-                    ),
-                    propNameExprRef,
-                    propValueExprRef,
-                ],
-                dyntype.int,
+            const setPropertyExpression = module.drop(
+                module.call(
+                    dyntype.dyntype_set_property,
+                    [
+                        module.global.get(
+                            dyntype.dyntype_context,
+                            dyntype.dyn_ctx_t,
+                        ),
+                        this.getLocalValue(
+                            objLocalVar.varIndex,
+                            objLocalVarWasmType,
+                        ),
+                        propNameExprRef,
+                        propValueExprRef,
+                    ],
+                    dyntype.int,
+                ),
             );
             this.statementArray.push(setPropertyExpression);
         }
