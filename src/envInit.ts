@@ -138,7 +138,7 @@ export function importLibApi(module: binaryen.Module) {
             dyntype.dyn_value_t,
             dyntype.cstring,
         ]),
-        dyntype.dyn_value_t,
+        dyntype.int,
     );
     module.addFunctionImport(
         dyntype.dyntype_new_extref,
@@ -155,6 +155,13 @@ export function importLibApi(module: binaryen.Module) {
         dyntype.dyntype_is_extref,
         dyntype.module_name,
         dyntype.dyntype_is_extref,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.bool,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_is_object,
+        dyntype.module_name,
+        dyntype.dyntype_is_object,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
         dyntype.bool,
     );
@@ -180,6 +187,7 @@ export function isDynFunc(funcName: string) {
         case dyntype.dyntype_has_property:
         case dyntype.dyntype_new_extref:
         case dyntype.dyntype_is_extref:
+        case dyntype.dyntype_is_object:
             return true;
         default:
             return false;
@@ -195,6 +203,7 @@ export function getReturnTypeRef(funcName: string) {
         case dyntype.dyntype_typeof:
             return dyntype.dyn_type_t;
         case dyntype.dyntype_to_number:
+        case dyntype.dyntype_has_property:
             return dyntype.int;
         case dyntype.dyntype_new_number:
         case dyntype.dyntype_new_string:
@@ -205,12 +214,12 @@ export function getReturnTypeRef(funcName: string) {
         case dyntype.dyntype_new_array:
         case dyntype.dyntype_set_property:
         case dyntype.dyntype_get_property:
-        case dyntype.dyntype_has_property:
         case dyntype.dyntype_new_extref:
             return dyntype.dyn_value_t;
         case dyntype.dyntype_is_extref:
         case dyntype.dyntype_type_eq:
         case dyntype.dyntype_is_number:
+        case dyntype.dyntype_is_object:
             return dyntype.bool;
         default:
             return dyntype.cvoid;

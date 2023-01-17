@@ -403,6 +403,176 @@ export class WASMExpressionBase {
         }
     }
 
+    operateAnyAny(
+        leftExprRef: binaryen.ExpressionRef,
+        rightExprRef: binaryen.ExpressionRef,
+        operatorKind: ts.SyntaxKind,
+    ) {
+        const module = this.module;
+        const dynEq = module.call(
+            dyntype.dyntype_type_eq,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                leftExprRef,
+                rightExprRef,
+            ],
+            dyntype.bool,
+        );
+        const dynTypeIsNumber = module.call(
+            dyntype.dyntype_is_number,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                leftExprRef,
+            ],
+            dyntype.bool,
+        );
+
+        // address corresponding to binaryen.i32
+        const varAndStates = this.generatePointerVar(8);
+        const tmpAddressVar = <Variable>varAndStates[0];
+        const setTmpAddressExpression = <binaryen.ExpressionRef>varAndStates[1];
+        const setTmpGlobalExpression = <binaryen.ExpressionRef>varAndStates[2];
+        const resetGlobalExpression = <binaryen.ExpressionRef>varAndStates[3];
+
+        const leftTrunExpression = this.turnDyntypeToNumber(
+            leftExprRef,
+            tmpAddressVar,
+        );
+        const rightTrunExpression = this.turnDyntypeToNumber(
+            rightExprRef,
+            tmpAddressVar,
+        );
+        const tmpLeftNumberVar = <Variable>leftTrunExpression[0];
+        const leftNumberExpression = <binaryen.ExpressionRef>(
+            leftTrunExpression[1]
+        );
+        const tmpRightNumberVar = <Variable>rightTrunExpression[0];
+        const rightNumberExpression = <binaryen.ExpressionRef>(
+            rightTrunExpression[1]
+        );
+
+        const tmpTotalNumberName = this.getTmpVariableName('~numberTotal|');
+        const tmpTotalNumberVar: Variable = new Variable(
+            tmpTotalNumberName,
+            this.currentScope!.namedTypeMap.get('any')!,
+            ModifierKind.default,
+            0,
+        );
+
+        const setTotalNumberExpression = this.oprateF64F64ToDyn(
+            this.getVariableValue(tmpLeftNumberVar, binaryen.f64),
+            this.getVariableValue(tmpRightNumberVar, binaryen.f64),
+            operatorKind,
+            tmpTotalNumberVar,
+        );
+
+        // add statements to a block
+        const getNumberArray: binaryen.ExpressionRef[] = [];
+        getNumberArray.push(setTmpAddressExpression);
+        getNumberArray.push(setTmpGlobalExpression);
+        getNumberArray.push(leftNumberExpression);
+        getNumberArray.push(resetGlobalExpression);
+        getNumberArray.push(setTmpAddressExpression);
+        getNumberArray.push(setTmpGlobalExpression);
+        getNumberArray.push(rightNumberExpression);
+        getNumberArray.push(resetGlobalExpression);
+        getNumberArray.push(setTotalNumberExpression);
+
+        const anyOperation = module.if(
+            module.i32.eq(dynEq, dyntype.bool_true),
+            module.if(
+                module.i32.eq(dynTypeIsNumber, dyntype.bool_true),
+                module.block('getNumber', getNumberArray),
+            ),
+        );
+        // store the external operations into currentScope's statementArray
+        this.statementArray.push(anyOperation);
+
+        return this.getVariableValue(tmpTotalNumberVar, binaryen.anyref);
+    }
+
+    operateAnyNumber(
+        leftExprRef: binaryen.ExpressionRef,
+        rightExprRef: binaryen.ExpressionRef,
+        operatorKind: ts.SyntaxKind,
+    ) {
+        const module = this.module;
+        const dynTypeIsNumber = module.call(
+            dyntype.dyntype_is_number,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                leftExprRef,
+            ],
+            dyntype.bool,
+        );
+
+        // address corresponding to binaryen.i32
+        const varAndStates = this.generatePointerVar(8);
+        const tmpAddressVar = <Variable>varAndStates[0];
+        const setTmpAddressExpression = <binaryen.ExpressionRef>varAndStates[1];
+        const setTmpGlobalExpression = <binaryen.ExpressionRef>varAndStates[2];
+        const resetGlobalExpression = <binaryen.ExpressionRef>varAndStates[3];
+
+        const leftTrunExpression = this.turnDyntypeToNumber(
+            leftExprRef,
+            tmpAddressVar,
+        );
+        const tmpLeftNumberVar = <Variable>leftTrunExpression[0];
+        const leftNumberExpression = <binaryen.ExpressionRef>(
+            leftTrunExpression[1]
+        );
+        const tmpTotalNumberName = this.getTmpVariableName('~numberTotal|');
+        const tmpTotalNumberVar: Variable = new Variable(
+            tmpTotalNumberName,
+            this.currentScope!.namedTypeMap.get('any')!,
+            ModifierKind.default,
+            0,
+        );
+        const setTotalNumberExpression = this.oprateF64F64ToDyn(
+            this.getVariableValue(tmpLeftNumberVar, binaryen.f64),
+            rightExprRef,
+            operatorKind,
+            tmpTotalNumberVar,
+        );
+
+        // add statements to a block
+        const getNumberArray: binaryen.ExpressionRef[] = [];
+        getNumberArray.push(setTmpAddressExpression);
+        getNumberArray.push(setTmpGlobalExpression);
+        getNumberArray.push(leftNumberExpression);
+        getNumberArray.push(resetGlobalExpression);
+        getNumberArray.push(setTotalNumberExpression);
+
+        const anyOperation = module.if(
+            module.i32.eq(dynTypeIsNumber, dyntype.bool_true),
+            module.block('getNumber', getNumberArray),
+        );
+        // store the external operations into currentScope's statementArray
+        this.statementArray.push(anyOperation);
+        return this.getVariableValue(tmpTotalNumberVar, binaryen.anyref);
+    }
+
+    oprateF64F64ToDyn(
+        leftNumberExpression: binaryen.ExpressionRef,
+        rightNumberExpression: binaryen.ExpressionRef,
+        operatorKind: ts.SyntaxKind,
+        tmpTotalNumberVar: Variable,
+    ) {
+        // operate left expression and right expression
+        const operateTotalNumber = this.operateF64F64(
+            leftNumberExpression,
+            rightNumberExpression,
+            operatorKind,
+        );
+        // add tmp total number value to current scope
+        this.addVariableToCurrentScope(tmpTotalNumberVar);
+        const setTotalNumberExpression = this.setVariableToCurrentScope(
+            tmpTotalNumberVar,
+            this.generateDynNumber(operateTotalNumber),
+        );
+        return setTotalNumberExpression;
+    }
+
     defaultValue(typeKind: TypeKind) {
         switch (typeKind) {
             case TypeKind.BOOLEAN:
@@ -513,6 +683,190 @@ export class WASMExpressionBase {
             setExtrefExpression,
         );
         return [tmpObjVarInfo, extrefExpression];
+    }
+
+    turnDyntypeToNumber(
+        expression: binaryen.ExpressionRef,
+        tmpAddressVar: Variable,
+    ) {
+        const module = this.module;
+        const numberPointer = this.getVariableValue(
+            tmpAddressVar,
+            binaryen.i32,
+        );
+        const expressionToNumber = module.call(
+            dyntype.dyntype_to_number,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                expression,
+                numberPointer,
+            ],
+            dyntype.int,
+        );
+        const tmpNumber = module.f64.load(
+            0,
+            8,
+            this.getVariableValue(tmpAddressVar, binaryen.i32),
+        );
+        const tmpNumberVar = this.generateTmpVar('~number|', 'number');
+
+        const setNumberExpression = this.setVariableToCurrentScope(
+            tmpNumberVar,
+            tmpNumber,
+        );
+        const numberExpression = module.if(
+            module.i32.eq(expressionToNumber, dyntype.DYNTYPE_SUCCESS),
+            setNumberExpression,
+        );
+        return [tmpNumberVar, numberExpression];
+    }
+
+    generateDynNumber(dynValue: binaryen.ExpressionRef) {
+        const module = this.module;
+        return module.call(
+            dyntype.dyntype_new_number,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                dynValue,
+            ],
+            dyntype.dyn_value_t,
+        );
+    }
+
+    generateDynBoolean(dynValue: binaryen.ExpressionRef) {
+        const module = this.module;
+        return module.call(
+            dyntype.dyntype_new_boolean,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                dynValue,
+            ],
+            dyntype.dyn_value_t,
+        );
+    }
+
+    generateDynString(dynValue: binaryen.ExpressionRef) {
+        const module = this.module;
+        return module.call(
+            dyntype.dyntype_new_string,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                dynValue,
+            ],
+            dyntype.dyn_value_t,
+        );
+    }
+
+    generateDynNull() {
+        const module = this.module;
+        return module.call(
+            dyntype.dyntype_new_null,
+            [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
+            dyntype.dyn_value_t,
+        );
+    }
+
+    generateDynUndefined() {
+        const module = this.module;
+        return module.call(
+            dyntype.dyntype_new_undefined,
+            [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
+            dyntype.dyn_value_t,
+        );
+    }
+
+    generateDynArray() {
+        const module = this.module;
+        return module.call(
+            dyntype.dyntype_new_array,
+            [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
+            dyntype.dyn_value_t,
+        );
+    }
+
+    generateDynObj() {
+        const module = this.module;
+        return module.call(
+            dyntype.dyntype_new_object,
+            [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
+            dyntype.dyn_value_t,
+        );
+    }
+
+    generateDynExtref(dynValue: binaryen.ExpressionRef) {
+        const module = this.module;
+        // cast obj ref type to ref ${}
+        const objTarget = binaryenCAPI._BinaryenRefCast(
+            module.ptr,
+            dynValue,
+            objectStructTypeInfo.heapTypeRef,
+        );
+        // put table index into a local
+        const tmpTableIndexVar = this.generateTmpVar('~tableIdx|', 'boolean');
+        const setTableIdxExpr = this.setVariableToCurrentScope(
+            tmpTableIndexVar,
+            module.table.size(BuiltinNames.obj_table),
+        );
+        this.statementArray.push(setTableIdxExpr);
+        const tableCurIndex = this.getVariableValue(
+            tmpTableIndexVar,
+            binaryen.i32,
+        );
+        const tableGrowExpr = module.table.grow(
+            BuiltinNames.obj_table,
+            objTarget,
+            module.i32.const(1),
+        );
+        this.statementArray.push(module.drop(tableGrowExpr));
+        const varAndStates = this.generatePointerVar(4);
+        const tmpAddressVar = <Variable>varAndStates[0];
+        const setTmpAddressExpression = <binaryen.ExpressionRef>varAndStates[1];
+        const setTmpGlobalExpression = <binaryen.ExpressionRef>varAndStates[2];
+        const tmpAddressValue = <binaryen.ExpressionRef>varAndStates[4];
+        this.statementArray.push(setTmpAddressExpression);
+        this.statementArray.push(setTmpGlobalExpression);
+        const storeIdxExpression = module.i32.store(
+            0,
+            4,
+            tmpAddressValue,
+            tableCurIndex,
+        );
+        this.statementArray.push(storeIdxExpression);
+        const numberPointer = this.getVariableValue(
+            tmpAddressVar,
+            binaryen.i32,
+        );
+        return module.call(
+            dyntype.dyntype_new_extref,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                numberPointer,
+                dyntype.ExtObj,
+            ],
+            dyntype.dyn_value_t,
+        );
+    }
+
+    getArrayInitFromArrayType(arrayType: TSArray): binaryen.ExpressionRef {
+        const module = this.module;
+        const elemType = arrayType.elementType;
+        switch (elemType.kind) {
+            case TypeKind.NUMBER: {
+                return module.f64.const(0);
+            }
+            case TypeKind.STRING: {
+                return this.generateStringRef('');
+            }
+            case TypeKind.BOOLEAN: {
+                return module.i32.const(0);
+            }
+            default: {
+                return binaryenCAPI._BinaryenRefNull(
+                    module.ptr,
+                    binaryen.anyref,
+                );
+            }
+        }
     }
 }
 
@@ -715,6 +1069,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     rightExpr,
                     leftExprType,
                     rightExprType,
+                    rightExprRef,
                 );
                 if (
                     rightExpr.expressionKind ===
@@ -860,6 +1215,32 @@ export class WASMExpressionGen extends WASMExpressionBase {
         ) {
             return this.operateI32I32(leftExprRef, rightExprRef, operatorKind);
         }
+        if (
+            leftExprType.kind === TypeKind.ANY &&
+            rightExprType.kind === TypeKind.ANY
+        ) {
+            return this.operateAnyAny(leftExprRef, rightExprRef, operatorKind);
+        }
+        if (
+            leftExprType.kind === TypeKind.ANY &&
+            rightExprType.kind === TypeKind.NUMBER
+        ) {
+            return this.operateAnyNumber(
+                leftExprRef,
+                rightExprRef,
+                operatorKind,
+            );
+        }
+        if (
+            leftExprType.kind === TypeKind.NUMBER &&
+            rightExprType.kind === TypeKind.ANY
+        ) {
+            return this.operateAnyNumber(
+                rightExprRef,
+                leftExprRef,
+                operatorKind,
+            );
+        }
         return this.module.unreachable();
     }
 
@@ -868,6 +1249,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         rightExpr: Expression,
         leftExprType: Type,
         rightExprType: Type,
+        rightExprRef?: binaryen.ExpressionRef,
     ): binaryen.ExpressionRef {
         const module = this.module;
         const matchKind = this.matchType(leftExprType, rightExprType);
@@ -897,32 +1279,36 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     const initDynValue =
                         this.dynValueGen.WASMDynExprGen(rightExpr);
                     if (propName === '__proto__') {
-                        return module.call(
-                            dyntype.dyntype_set_prototype,
+                        return module.drop(
+                            module.call(
+                                dyntype.dyntype_set_prototype,
+                                [
+                                    module.global.get(
+                                        dyntype.dyntype_context,
+                                        dyntype.dyn_ctx_t,
+                                    ),
+                                    objExprRef,
+                                    this.WASMExprGen(rightExpr),
+                                ],
+                                dyntype.int,
+                            ),
+                        );
+                    }
+                    const propNameRef = this.generateStringRef(propName);
+                    const setPropertyExpression = module.drop(
+                        module.call(
+                            dyntype.dyntype_set_property,
                             [
                                 module.global.get(
                                     dyntype.dyntype_context,
                                     dyntype.dyn_ctx_t,
                                 ),
                                 objExprRef,
-                                this.WASMExprGen(rightExpr),
+                                propNameRef,
+                                initDynValue,
                             ],
                             dyntype.int,
-                        );
-                    }
-                    const propNameRef = this.generateStringRef(propName);
-                    const setPropertyExpression = module.call(
-                        dyntype.dyntype_set_property,
-                        [
-                            module.global.get(
-                                dyntype.dyntype_context,
-                                dyntype.dyn_ctx_t,
-                            ),
-                            objExprRef,
-                            propNameRef,
-                            initDynValue,
-                        ],
-                        dyntype.int,
+                        ),
                     );
                     return setPropertyExpression;
                 } else {
@@ -993,7 +1379,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 if (matchKind === MatchKind.ToAnyMatch) {
                     assignValue = this.dynValueGen.WASMDynExprGen(rightExpr);
                 } else {
-                    assignValue = this.WASMExprGen(rightExpr);
+                    if (rightExprRef) {
+                        assignValue = rightExprRef;
+                    } else {
+                        assignValue = this.WASMExprGen(rightExpr);
+                    }
                 }
                 if (!variable.isLocalVar) {
                     return this.setGlobalValue(variable.varName, assignValue);
@@ -1064,7 +1454,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
             if (
                 leftExprType.kind === TypeKind.NUMBER ||
                 leftExprType.kind === TypeKind.STRING ||
-                leftExprType.kind === TypeKind.BOOLEAN
+                leftExprType.kind === TypeKind.BOOLEAN ||
+                leftExprType.kind === TypeKind.ANY
             ) {
                 return MatchKind.ExactMatch;
             }
@@ -1282,7 +1673,14 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const elemExpr = elements[i];
             let elemExprRef: binaryen.ExpressionRef;
             if (arrType.kind === TypeKind.ANY) {
-                elemExprRef = this.dynValueGen.WASMDynExprGen(elemExpr);
+                elemExprRef = this.dynValueGen.WASMDynExprGen(expr);
+            } else if (arrType.kind === TypeKind.ARRAY) {
+                const arrayType = <TSArray>arrType;
+                if (arrayType.elementType.kind === TypeKind.ANY) {
+                    elemExprRef = this.dynValueGen.WASMDynExprGen(elemExpr);
+                } else {
+                    elemExprRef = this.WASMExprGen(elemExpr);
+                }
             } else {
                 elemExprRef = this.WASMExprGen(elemExpr);
             }
@@ -1425,7 +1823,45 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private WASMNewExpr(expr: NewExpression): binaryen.ExpressionRef {
         const type = expr.exprType;
         const module = this.module;
-        if (type.typeKind === TypeKind.CLASS) {
+        if (type.kind === TypeKind.ARRAY) {
+            const arrayHeapType = this.wasmType.getWASMHeapType(type);
+            if (!expr.NewArgs || (expr.NewArgs && expr.NewArgs.length === 0)) {
+                const arraySize = this.convertTypeToI32(
+                    module.f64.const(expr.arrayLen),
+                    binaryen.f64,
+                );
+                const arrayInit = this.getArrayInitFromArrayType(<TSArray>type);
+                return binaryenCAPI._BinaryenArrayNew(
+                    module.ptr,
+                    arrayHeapType,
+                    arraySize,
+                    arrayInit,
+                );
+            } else {
+                const arrayType = <TSArray>type;
+                const arrayLen = expr.arrayLen;
+                const array = [];
+                for (let i = 0; i < expr.arrayLen; i++) {
+                    const elemExpr = expr.NewArgs[i];
+                    let elemExprRef: binaryen.ExpressionRef;
+                    if (arrayType.elementType.kind === TypeKind.ANY) {
+                        elemExprRef = this.dynValueGen.WASMDynExprGen(elemExpr);
+                    } else {
+                        elemExprRef = this.WASMExprGen(elemExpr);
+                    }
+
+                    array.push(elemExprRef);
+                }
+                const arrayValue = binaryenCAPI._BinaryenArrayInit(
+                    module.ptr,
+                    arrayHeapType,
+                    arrayToPtr(array).ptr,
+                    arrayLen,
+                );
+                return arrayValue;
+            }
+        }
+        if (type.kind === TypeKind.CLASS) {
             const classType = <TSClass>type;
             const className = classType.className;
             const initStructFields = new Array<binaryen.ExpressionRef>();
@@ -1821,67 +2257,17 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                     }
                 }
             }
-            case ts.SyntaxKind.BinaryExpression:
-                return this.WASMDynBinaryExpr(<BinaryExpression>expr);
             case ts.SyntaxKind.ArrayLiteralExpression:
                 return this.WASMDynArrayExpr(<ArrayLiteralExpression>expr);
             case ts.SyntaxKind.ObjectLiteralExpression:
                 return this.WASMDynObjExpr(<ObjectLiteralExpression>expr);
+            case ts.SyntaxKind.BinaryExpression:
             case ts.SyntaxKind.CallExpression:
+            case ts.SyntaxKind.PropertyAccessExpression:
                 return this.staticValueGen.WASMExprGen(expr);
             default:
                 throw new Error('unexpected expr kind ' + expr.expressionKind);
         }
-    }
-
-    private WASMDynBinaryExpr(expr: BinaryExpression): binaryen.ExpressionRef {
-        const module = this.module;
-        const leftExpr = expr.leftOperand;
-        const rightExpr = expr.rightOperand;
-        const leftExprType = leftExpr.exprType;
-        const rightExprType = rightExpr.exprType;
-        const operatorKind = expr.operatorKind;
-
-        if (
-            leftExprType.kind === TypeKind.NUMBER &&
-            rightExprType.kind === TypeKind.NUMBER
-        ) {
-            const binaryStaticValue = this.staticValueGen.WASMExprGen(expr);
-            return this.generateDynNumber(binaryStaticValue);
-        }
-        if (
-            (leftExprType.kind === TypeKind.NUMBER &&
-                rightExprType.kind === TypeKind.BOOLEAN) ||
-            (leftExprType.kind === TypeKind.BOOLEAN &&
-                rightExprType.kind === TypeKind.NUMBER)
-        ) {
-            const binaryStaticValue = this.staticValueGen.WASMExprGen(expr);
-            const binaryStaticType =
-                binaryen.getExpressionType(binaryStaticValue);
-            if (binaryStaticType === binaryen.i32) {
-                return this.generateDynBoolean(binaryStaticValue);
-            } else {
-                return this.generateDynNumber(binaryStaticValue);
-            }
-        }
-        if (
-            leftExprType.kind === TypeKind.BOOLEAN &&
-            rightExprType.kind === TypeKind.BOOLEAN
-        ) {
-            const binaryStaticValue = this.staticValueGen.WASMExprGen(expr);
-            return this.generateDynBoolean(binaryStaticValue);
-        }
-        if (
-            leftExprType.kind === TypeKind.ANY &&
-            rightExprType.kind === TypeKind.ANY
-        ) {
-            return this.operateAnyAny(
-                this.staticValueGen.WASMExprGen(leftExpr),
-                this.staticValueGen.WASMExprGen(rightExpr),
-                operatorKind,
-            );
-        }
-        return module.unreachable();
     }
 
     private WASMDynArrayExpr(
@@ -1939,276 +2325,5 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
             this.statementArray.push(setPropertyExpression);
         }
         return this.getVariableValue(objLocalVar, objLocalVarWasmType);
-    }
-
-    private generateDynNumber(dynValue: binaryen.ExpressionRef) {
-        const module = this.module;
-        return module.call(
-            dyntype.dyntype_new_number,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                dynValue,
-            ],
-            dyntype.dyn_value_t,
-        );
-    }
-
-    private generateDynBoolean(dynValue: binaryen.ExpressionRef) {
-        const module = this.module;
-        return module.call(
-            dyntype.dyntype_new_boolean,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                dynValue,
-            ],
-            dyntype.dyn_value_t,
-        );
-    }
-
-    private generateDynString(dynValue: binaryen.ExpressionRef) {
-        const module = this.module;
-        return module.call(
-            dyntype.dyntype_new_string,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                dynValue,
-            ],
-            dyntype.dyn_value_t,
-        );
-    }
-
-    private generateDynNull() {
-        const module = this.module;
-        return module.call(
-            dyntype.dyntype_new_null,
-            [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
-            dyntype.dyn_value_t,
-        );
-    }
-
-    private generateDynUndefined() {
-        const module = this.module;
-        return module.call(
-            dyntype.dyntype_new_undefined,
-            [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
-            dyntype.dyn_value_t,
-        );
-    }
-
-    private generateDynArray() {
-        const module = this.module;
-        return module.call(
-            dyntype.dyntype_new_array,
-            [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
-            dyntype.dyn_value_t,
-        );
-    }
-
-    private generateDynObj() {
-        const module = this.module;
-        return module.call(
-            dyntype.dyntype_new_object,
-            [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
-            dyntype.dyn_value_t,
-        );
-    }
-
-    private generateDynExtref(dynValue: binaryen.ExpressionRef) {
-        const module = this.module;
-        // cast obj ref type to ref ${}
-        const objTarget = binaryenCAPI._BinaryenRefCast(
-            module.ptr,
-            dynValue,
-            objectStructTypeInfo.heapTypeRef,
-        );
-        // put table index into a local
-        const tmpTableIndexVar = this.generateTmpVar('~tableIdx|', 'boolean');
-        const setTableIdxExpr = this.setVariableToCurrentScope(
-            tmpTableIndexVar,
-            module.table.size(BuiltinNames.obj_table),
-        );
-        this.statementArray.push(setTableIdxExpr);
-        const tableCurIndex = this.getVariableValue(
-            tmpTableIndexVar,
-            binaryen.i32,
-        );
-        const tableGrowExpr = module.table.grow(
-            BuiltinNames.obj_table,
-            objTarget,
-            module.i32.const(1),
-        );
-        this.statementArray.push(module.drop(tableGrowExpr));
-        const varAndStates = this.generatePointerVar(4);
-        const tmpAddressVar = <Variable>varAndStates[0];
-        const setTmpAddressExpression = <binaryen.ExpressionRef>varAndStates[1];
-        const setTmpGlobalExpression = <binaryen.ExpressionRef>varAndStates[2];
-        const tmpAddressValue = <binaryen.ExpressionRef>varAndStates[4];
-        this.statementArray.push(setTmpAddressExpression);
-        this.statementArray.push(setTmpGlobalExpression);
-        const storeIdxExpression = module.i32.store(
-            0,
-            4,
-            tmpAddressValue,
-            tableCurIndex,
-        );
-        this.statementArray.push(storeIdxExpression);
-        const numberPointer = this.getVariableValue(
-            tmpAddressVar,
-            binaryen.i32,
-        );
-        return module.call(
-            dyntype.dyntype_new_extref,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                numberPointer,
-                dyntype.ExtObj,
-            ],
-            dyntype.dyn_value_t,
-        );
-    }
-
-    private turnDyntypeToNumber(
-        expression: binaryen.ExpressionRef,
-        tmpAddressVar: Variable,
-    ) {
-        const module = this.module;
-        const numberPointer = this.getVariableValue(
-            tmpAddressVar,
-            binaryen.i32,
-        );
-        const expressionToNumber = module.call(
-            dyntype.dyntype_to_number,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                expression,
-                numberPointer,
-            ],
-            dyntype.int,
-        );
-        const tmpNumber = module.f64.load(
-            0,
-            8,
-            this.getVariableValue(tmpAddressVar, binaryen.i32),
-        );
-        const tmpNumberVar = this.generateTmpVar('~number|', 'number');
-
-        const setNumberExpression = this.setVariableToCurrentScope(
-            tmpNumberVar,
-            tmpNumber,
-        );
-        const numberExpression = module.if(
-            module.i32.eq(expressionToNumber, dyntype.DYNTYPE_SUCCESS),
-            setNumberExpression,
-        );
-        return [tmpNumberVar, numberExpression];
-    }
-
-    oprateF64F64ToDyn(
-        leftNumberExpression: binaryen.ExpressionRef,
-        rightNumberExpression: binaryen.ExpressionRef,
-        operatorKind: ts.SyntaxKind,
-        tmpTotalNumberVar: Variable,
-    ) {
-        // operate left expression and right expression
-        const operateTotalNumber = this.operateF64F64(
-            leftNumberExpression,
-            rightNumberExpression,
-            operatorKind,
-        );
-        // add tmp total number value to current scope
-        this.addVariableToCurrentScope(tmpTotalNumberVar);
-        const setTotalNumberExpression = this.setVariableToCurrentScope(
-            tmpTotalNumberVar,
-            this.generateDynNumber(operateTotalNumber),
-        );
-        return setTotalNumberExpression;
-    }
-
-    operateAnyAny(
-        leftExprRef: binaryen.ExpressionRef,
-        rightExprRef: binaryen.ExpressionRef,
-        operatorKind: ts.SyntaxKind,
-    ) {
-        const module = this.module;
-        const dynEq = module.call(
-            dyntype.dyntype_type_eq,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                leftExprRef,
-                rightExprRef,
-            ],
-            dyntype.bool,
-        );
-        const dynTypeIsNumber = module.call(
-            dyntype.dyntype_is_number,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                leftExprRef,
-            ],
-            dyntype.bool,
-        );
-
-        // address corresponding to binaryen.i32
-        const varAndStates = this.generatePointerVar(8);
-        const tmpAddressVar = <Variable>varAndStates[0];
-        const setTmpAddressExpression = <binaryen.ExpressionRef>varAndStates[1];
-        const setTmpGlobalExpression = <binaryen.ExpressionRef>varAndStates[2];
-        const resetGlobalExpression = <binaryen.ExpressionRef>varAndStates[3];
-
-        const leftTrunExpression = this.turnDyntypeToNumber(
-            leftExprRef,
-            tmpAddressVar,
-        );
-        const rightTrunExpression = this.turnDyntypeToNumber(
-            rightExprRef,
-            tmpAddressVar,
-        );
-        const tmpLeftNumberVar = <Variable>leftTrunExpression[0];
-        const leftNumberExpression = <binaryen.ExpressionRef>(
-            leftTrunExpression[1]
-        );
-        const tmpRightNumberVar = <Variable>rightTrunExpression[0];
-        const rightNumberExpression = <binaryen.ExpressionRef>(
-            rightTrunExpression[1]
-        );
-
-        const tmpTotalNumberName = this.getTmpVariableName('~numberTotal|');
-        const tmpTotalNumberVar: Variable = new Variable(
-            tmpTotalNumberName,
-            this.currentScope!.namedTypeMap.get('any')!,
-            ModifierKind.default,
-            0,
-        );
-
-        const setTotalNumberExpression = this.oprateF64F64ToDyn(
-            this.getVariableValue(tmpLeftNumberVar, binaryen.f64),
-            this.getVariableValue(tmpRightNumberVar, binaryen.f64),
-            operatorKind,
-            tmpTotalNumberVar,
-        );
-
-        // add statements to a block
-        const getNumberArray: binaryen.ExpressionRef[] = [];
-        getNumberArray.push(setTmpAddressExpression);
-        getNumberArray.push(setTmpGlobalExpression);
-        getNumberArray.push(leftNumberExpression);
-        getNumberArray.push(resetGlobalExpression);
-        getNumberArray.push(setTmpAddressExpression);
-        getNumberArray.push(setTmpGlobalExpression);
-        getNumberArray.push(rightNumberExpression);
-        getNumberArray.push(resetGlobalExpression);
-        getNumberArray.push(setTotalNumberExpression);
-
-        const anyOperation = module.if(
-            module.i32.eq(dynEq, dyntype.bool_true),
-            module.if(
-                module.i32.eq(dynTypeIsNumber, dyntype.bool_true),
-                module.block('getNumber', getNumberArray),
-            ),
-        );
-        // store the external operations into currentScope's statementArray
-        this.statementArray.push(anyOperation);
-
-        return this.getVariableValue(tmpTotalNumberVar, binaryen.anyref);
     }
 }

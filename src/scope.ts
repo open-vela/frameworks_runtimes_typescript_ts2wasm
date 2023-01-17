@@ -131,7 +131,7 @@ export class Scope {
         }
         const TSType = currentScope.namedTypeMap.get(typeName);
         if (!TSType) {
-            throw new Error(typeName + 'do not exist');
+            throw new Error(typeName + ' do not exist');
         }
         return TSType;
     }

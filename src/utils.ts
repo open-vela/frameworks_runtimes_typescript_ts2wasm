@@ -13,6 +13,7 @@ export enum AssignKind {
 export interface TypeCheckerInfo {
     typeName: string;
     typeNode: ts.Node;
+    elemNode?: ts.Node;
 }
 
 export enum LoopKind {
@@ -121,8 +122,13 @@ export function getNodeTypeInfo(
     checker: ts.TypeChecker,
 ): TypeCheckerInfo {
     let variableType: ts.Type;
+    let elemNode: ts.Node | undefined = undefined;
     if (ts.isTypeReferenceNode(node)) {
-        node = (node as ts.TypeReferenceNode).typeName;
+        const typeRefNode = node as ts.TypeReferenceNode;
+        node = typeRefNode.typeName;
+        if (typeRefNode.typeArguments) {
+            elemNode = typeRefNode.typeArguments[0];
+        }
     }
     const symbol = checker.getSymbolAtLocation(node);
     if (symbol === undefined) {
@@ -140,6 +146,7 @@ export function getNodeTypeInfo(
     const typeCheckerInfo: TypeCheckerInfo = {
         typeName: checker.typeToString(variableType),
         typeNode: checker.typeToTypeNode(variableType, undefined, undefined)!,
+        elemNode: elemNode,
     };
     return typeCheckerInfo;
 }

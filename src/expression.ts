@@ -2,7 +2,7 @@ import ts from 'typescript';
 import { Compiler } from './compiler.js';
 import { Scope, FunctionScope, GlobalScope, ScopeKind } from './scope.js';
 import { Variable } from './variable.js';
-import { Type } from './type.js';
+import { Primitive, TSArray, Type, TypeKind } from './type.js';
 
 type OperatorKind = ts.SyntaxKind;
 type ExpressionKind = ts.SyntaxKind;
@@ -270,8 +270,9 @@ export class PropertyAccessExpression extends Expression {
 export class NewExpression extends Expression {
     private expr: Expression;
     private arguments: Array<Expression> | undefined;
+    private newArrayLen = 0;
 
-    constructor(expr: Expression, args: Array<Expression> | undefined) {
+    constructor(expr: Expression, args?: Array<Expression>) {
         super(ts.SyntaxKind.NewExpression);
         this.expr = expr;
         this.arguments = args;
@@ -281,8 +282,20 @@ export class NewExpression extends Expression {
         return this.expr;
     }
 
+    setArgs(args: Array<Expression>) {
+        this.arguments = args;
+    }
+
     get NewArgs(): Array<Expression> | undefined {
         return this.arguments;
+    }
+
+    setArrayLen(arrayLen: number) {
+        this.newArrayLen = arrayLen;
+    }
+
+    get arrayLen(): number {
+        return this.newArrayLen;
     }
 }
 
@@ -380,6 +393,9 @@ export default class ExpressionCompiler {
             }
             case ts.SyntaxKind.Identifier: {
                 const targetIdentifier = (<ts.Identifier>node).getText();
+                if (targetIdentifier === 'Array') {
+                    return new IdentifierExpression('Array');
+                }
                 let scope = this.compilerCtx.currentScope;
                 if (scope !== null) {
                     const nearestFuncScope = scope.getNearestFunctionScope();
@@ -536,6 +552,43 @@ export default class ExpressionCompiler {
             case ts.SyntaxKind.NewExpression: {
                 const newExprNode = <ts.NewExpression>node;
                 const expr = this.visitNode(newExprNode.expression);
+                if (
+                    expr.expressionKind === ts.SyntaxKind.Identifier &&
+                    (<IdentifierExpression>expr).identifierName === 'Array'
+                ) {
+                    const newExpr = new NewExpression(expr);
+                    if (!newExprNode.arguments) {
+                        newExpr.setExprType(new TSArray(new Primitive('any')));
+                    } else {
+                        const argLen = newExprNode.arguments.length;
+                        newExpr.setArrayLen(argLen);
+                        const elemType = this.typeCompiler.generateNodeType(
+                            newExprNode.arguments[0],
+                        );
+                        const arrayLireralExprList = [];
+                        if (argLen === 1) {
+                            const elem = newExprNode.arguments[0];
+                            const elemExpr = this.visitNode(elem);
+                            if (elemExpr.exprType.kind === TypeKind.NUMBER) {
+                                newExpr.setExprType(
+                                    new TSArray(new Primitive('any')),
+                                );
+                            } else {
+                                newExpr.setExprType(new TSArray(elemType));
+                                arrayLireralExprList.push(elemExpr);
+                            }
+                        } else {
+                            newExpr.setExprType(new TSArray(elemType));
+                            for (let i = 0; i < argLen; i++) {
+                                const elem = newExprNode.arguments[i];
+                                const elemExpr = this.visitNode(elem);
+                                arrayLireralExprList.push(elemExpr);
+                            }
+                        }
+                        newExpr.setArgs(arrayLireralExprList);
+                    }
+                    return newExpr;
+                }
                 const args = new Array<Expression>();
                 if (newExprNode.arguments !== undefined) {
                     for (const arg of newExprNode.arguments) {
@@ -588,6 +641,21 @@ export default class ExpressionCompiler {
                     this.typeCompiler.generateNodeType(typeNode),
                 );
                 return asExpr;
+            }
+            case ts.SyntaxKind.ElementAccessExpression: {
+                const elementAccessExprNode = <ts.ElementAccessExpression>node;
+                const expr = this.visitNode(elementAccessExprNode.expression);
+                const argExpr = this.visitNode(
+                    elementAccessExprNode.argumentExpression,
+                );
+                const elementAccessExpr = new ElementAccessExpression(
+                    expr,
+                    argExpr,
+                );
+                elementAccessExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return elementAccessExpr;
             }
             default:
                 return new Expression(ts.SyntaxKind.Unknown);
