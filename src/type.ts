@@ -627,21 +627,22 @@ export default class TypeCompiler {
                         }
                     }
                 }
+                const tsFuncType = this.generateFunctionType(func);
                 if (!isOverride) {
-                    const tsFuncType = this.generateFunctionType(func);
                     classType.addMethod({
                         name: methodName,
                         type: tsFuncType,
                         isSetter: true,
                         isGetter: false,
                     });
-                    const targetFuncDef = funcDefs.get(
-                        classType.className + '_set_' + methodName,
-                    );
-                    if (targetFuncDef !== undefined) {
-                        targetFuncDef.setFuncType(tsFuncType);
-                    }
                 }
+                const targetFuncDef = funcDefs.get(
+                    classType.className + '_set_' + methodName,
+                );
+                if (targetFuncDef !== undefined) {
+                    targetFuncDef.setFuncType(tsFuncType);
+                }
+
                 classType.overrideOrOwnMethods.add('_set_' + methodName);
             }
             if (member.kind === ts.SyntaxKind.GetAccessor) {
@@ -659,12 +660,18 @@ export default class TypeCompiler {
                 }
                 if (!isOverride) {
                     const tsFuncType = this.generateFunctionType(func);
-                    classType.addMethod({
-                        name: methodName,
-                        type: tsFuncType,
-                        isSetter: false,
-                        isGetter: true,
-                    });
+                    const returnType = this.generateNodeType(
+                        getNodeTypeInfo(func, this.typechecker!).typeNode,
+                    );
+                    tsFuncType.returnType = returnType;
+                    if (!isOverride) {
+                        classType.addMethod({
+                            name: methodName,
+                            type: tsFuncType,
+                            isSetter: false,
+                            isGetter: true,
+                        });
+                    }
                     const targetFuncDef = funcDefs.get(
                         classType.className + '_get_' + methodName,
                     );
@@ -687,20 +694,24 @@ export default class TypeCompiler {
                         }
                     }
                 }
+                const typeNode = getNodeTypeInfo(
+                    func,
+                    this.typechecker!,
+                ).typeNode;
+                const tsFuncType = <TSFunction>this.generateNodeType(typeNode);
                 if (!isOverride) {
-                    const tsFuncType = this.generateFunctionType(func);
                     classType.addMethod({
                         name: methodName,
                         type: tsFuncType,
                         isSetter: false,
                         isGetter: false,
                     });
-                    const targetFuncDef = funcDefs.get(
-                        classType.className + '_' + methodName,
-                    );
-                    if (targetFuncDef !== undefined) {
-                        targetFuncDef.setFuncType(tsFuncType);
-                    }
+                }
+                const targetFuncDef = funcDefs.get(
+                    classType.className + '_' + methodName,
+                );
+                if (targetFuncDef !== undefined) {
+                    targetFuncDef.setFuncType(tsFuncType);
                 }
                 classType.overrideOrOwnMethods.add(methodName);
             }
