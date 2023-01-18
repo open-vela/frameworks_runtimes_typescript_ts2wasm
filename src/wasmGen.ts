@@ -1,7 +1,7 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
-import { Type, TypeKind } from './type.js';
+import { TSClass, Type, TypeKind } from './type.js';
 import { ModifierKind, Variable } from './variable.js';
 import {
     arrayToPtr,
@@ -33,7 +33,7 @@ import {
 } from './memory.js';
 
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
-
+export let varIndex = 0;
 export class WASMGen {
     private scopeStatementMap = new Map<Scope, binaryen.ExpressionRef[]>();
     private binaryenModule = new binaryen.Module();
@@ -132,7 +132,10 @@ export class WASMGen {
         // add global variable
         const globalVars = globalScope.varArray;
         for (const globalVar of globalVars) {
-            const varTypeRef = this.wasmType.getWASMType(globalVar.varType);
+            const varTypeRef =
+                globalVar.varType.kind === TypeKind.FUNCTION
+                    ? this.wasmType.getWASMFuncStructType(globalVar.varType)
+                    : this.wasmType.getWASMType(globalVar.varType);
             const mutable =
                 globalVar.varModifier === ModifierKind.const ? false : true;
             if (globalVar.initExpression === null) {
@@ -372,6 +375,7 @@ export class WASMGen {
         // add local variable, the first one is context struct, no need to parse
         const localVars = functionScope.varArray.slice(1);
         for (const localVar of localVars) {
+            varIndex = localVar.varIndex;
             if (localVar.initExpression !== null) {
                 let varInitExprRef: binaryen.ExpressionRef;
                 if (localVar.varType.kind === TypeKind.ANY) {
@@ -382,10 +386,19 @@ export class WASMGen {
                     varInitExprRef = this.wasmExpr.WASMExprGen(
                         localVar.initExpression,
                     );
+                    if (
+                        localVar.varType.typeKind !== TypeKind.CLASS ||
+                        (<TSClass>localVar.varType).className === 'Array' ||
+                        (<TSClass>localVar.varType).className === ''
+                    ) {
+                        binaryenExprRefs.push(
+                            this.module.local.set(
+                                localVar.varIndex,
+                                varInitExprRef,
+                            ),
+                        );
+                    }
                 }
-                binaryenExprRefs.push(
-                    this.module.local.set(localVar.varIndex, varInitExprRef),
-                );
             }
         }
 
@@ -425,7 +438,6 @@ export class WASMGen {
                 ),
             );
         }
-
         // generate wasm statements
         for (const stmt of functionScope.statements) {
             binaryenExprRefs.push(this.wasmStmtCompiler.WASMStmtGen(stmt));
@@ -439,9 +451,7 @@ export class WASMGen {
             );
         } else {
             const classScope = <ClassScope>functionScope.parent;
-            varWASMTypes.push(
-                this.wasmTypeCompiler.getWASMType(classScope.classType),
-            );
+            varWASMTypes.push(this.wasmType.getWASMType(classScope.classType));
         }
         /* the first one is context struct, no need to parse */
         for (const variable of functionScope.varArray.slice(1)) {
@@ -472,24 +482,24 @@ export class WASMGen {
                         this.wasmTypeCompiler.getWASMType(p),
                     ),
                 );
+            const targetCall = this.module.call(
+                functionScope.funcName,
+                [
+                    binaryenCAPI._BinaryenRefNull(
+                        this.module.ptr,
+                        emptyStructType.typeRef,
+                    ),
+                ].concat(tempLocGetParams),
+                returnWASMType,
+            );
+            const isReturn = returnWASMType === binaryen.none ? false : true;
             this.module.addFunction(
                 functionScope.funcName + '-wrapper',
                 this.wasmTypeCompiler.getWASMFuncOrignalParamType(tsFuncType),
                 returnWASMType,
                 [],
                 this.module.block(null, [
-                    this.module.return(
-                        this.module.call(
-                            functionScope.funcName,
-                            [
-                                binaryenCAPI._BinaryenRefNull(
-                                    this.module.ptr,
-                                    emptyStructType.typeRef,
-                                ),
-                            ].concat(tempLocGetParams),
-                            returnWASMType,
-                        ),
-                    ),
+                    isReturn ? this.module.return(targetCall) : targetCall,
                 ]),
             );
             this.module.addFunctionExport(
@@ -505,6 +515,8 @@ export class WASMGen {
             this.module.block(null, binaryenExprRefs),
         );
     }
+
+    // [this.wasmType.getWASMType((<ClassScope>functionScope.parent).classType), binaryen.f64],
 
     getVariableInitValue(varType: Type): binaryen.ExpressionRef {
         const module = this.module;

@@ -2,6 +2,7 @@ import ts from 'typescript';
 import { Compiler } from './compiler.js';
 import { Scope, FunctionScope, GlobalScope, ScopeKind } from './scope.js';
 import { Variable } from './variable.js';
+import { getNodeTypeInfo } from './utils.js';
 import { Primitive, TSArray, Type, TypeKind } from './type.js';
 
 type OperatorKind = ts.SyntaxKind;
@@ -595,10 +596,20 @@ export default class ExpressionCompiler {
                         args.push(this.visitNode(arg));
                     }
                 }
-                return new NewExpression(
+                const newExpr = new NewExpression(
                     expr,
                     newExprNode.arguments === undefined ? undefined : args,
                 );
+                const typeCheckerInfo = getNodeTypeInfo(
+                    node,
+                    this.typeCompiler.typechecker!,
+                );
+                newExpr.setExprType(
+                    this.typeCompiler.generateNodeType(
+                        typeCheckerInfo.typeNode,
+                    ),
+                );
+                return newExpr;
             }
             case ts.SyntaxKind.ObjectLiteralExpression: {
                 const objLiteralNode = <ts.ObjectLiteralExpression>node;

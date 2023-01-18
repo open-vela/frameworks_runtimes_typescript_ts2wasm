@@ -246,7 +246,7 @@ export function createSignatureTypeRefAndHeapTypeRef(
     );
     const signatureType = binaryenCAPI._BinaryenTypeFromHeapType(
         ptrToArray(builtHeapTypePtr)[0],
-        false,
+        true,
     );
     const signatureHeapType =
         binaryenCAPI._BinaryenTypeGetHeapType(signatureType);
