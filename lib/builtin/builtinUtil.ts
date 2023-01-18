@@ -23,4 +23,7 @@ export namespace BuiltinNames {
     export const string_length_func = '~lib/string-length';
     export const string_concat_func = '~lib/string-concat';
     export const string_slice_func = '~lib/string-slice';
+
+    // other builtin Identifiers
+    export const builtinIdentifiers = ['Array', 'Math'];
 }
