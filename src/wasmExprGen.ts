@@ -1867,55 +1867,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return objectLiteralValue;
     }
 
-    // private WASMThisExpr(
-    //     expr: ThisExpression,
-    //     isEqualToken = false,
-    //     rightWASMExpr: binaryen.ExpressionRef = binaryen.none,
-    // ): binaryen.ExpressionRef {
-    //     const module = this.module;
-    //     const scope = <FunctionScope>this.currentScope;
-    //     const classScope = <ClassScope>scope.parent;
-    //     const classType = classScope.classType;
-    //     const wasmRefType = this.wasmType.getWASMType(classType);
-    //     const ref = module.local.get(
-    //         scope.paramArray.length + scope.varArray.length,
-    //         wasmRefType,
-    //     );
-    //     let index = -1;
-    //     for (let i = 0; i !== classType.fields.length; ++i) {
-    //         if (
-    //             classType.fields[i].name ===
-    //             (<IdentifierExpression>expr.propertyExpr).identifierName
-    //         ) {
-    //             index = i;
-    //             break;
-    //         }
-    //     }
-    //     if (index === -1) {
-    //         throw new Error(
-    //             'class field not found, class field name <' +
-    //                 (<IdentifierExpression>expr.propertyExpr).identifierName +
-    //                 '>',
-    //         );
-    //     }
-    //     if (isEqualToken) {
-    //         return binaryenCAPI._BinaryenStructSet(
-    //             module.ptr,
-    //             index + 1,
-    //             ref,
-    //             rightWASMExpr,
-    //         );
-    //     } else {
-    //         return binaryenCAPI._BinaryenStructGet(
-    //             module.ptr,
-    //             index + 1,
-    //             ref,
-    //             wasmRefType,
-    //             false,
-    //         );
-    //     }
-    // }
-
     private WASMSuperExpr(expr: SuperCallExpression): binaryen.ExpressionRef {
         // must in a constructor
         const module = this.module;
@@ -2092,36 +2043,51 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     return module.f64.sqrt(operandRef);
                 }
                 default: {
-                    // class get method
+                    // class method
                     const variable = this.currentScope.findVariable(
                         (<IdentifierExpression>expr.propertyAccessExpr)
                             .identifierName,
                     )!;
                     const wasmArgs = new Array<binaryen.ExpressionRef>();
                     wasmArgs.push(objExprRef);
-                    const callExpr = <CallExpression>expr.parentExpr;
-                    const callArgs = callExpr.callArgs;
+                    // const callExpr = <CallExpression>expr.parentExpr;
+                    const callArgs = expr.callArgs;
                     for (const arg of callArgs) {
                         wasmArgs.push(this.WASMExprGen(arg));
                     }
-                    let type: TSClass | null = <TSClass>variable.varType;
-                    while (type !== null) {
-                        if (type.getMethod(propName)) {
-                            const methodType = <TSFunction>(
-                                type.getMethod(propName)?.type
-                            );
-                            const name = type.className + '_' + propName;
-                            return this.module.call(
-                                name,
-                                wasmArgs,
-                                this.wasmType.getWASMFuncReturnType(methodType),
-                            );
-                        }
-                        type = type.getBase();
-                    }
-                    if (type === null) {
+                    const type: TSClass = <TSClass>variable.varType;
+                    const method = type.getMethod(propName);
+                    if (method === null) {
                         throw new Error('method not found, <' + propName + '>');
                     }
+                    const methodType = method.type;
+                    const methodIndex = type.getMethodIndex(propName);
+                    const object = this.module.local.get(
+                        variable.varIndex,
+                        this.wasmType.getWASMType(variable.varType),
+                    );
+                    const vtable = binaryenCAPI._BinaryenStructGet(
+                        this.module.ptr,
+                        0,
+                        object,
+                        this.wasmType.getWASMClassVtableType(variable.varType),
+                        false,
+                    );
+                    const targetFunction = binaryenCAPI._BinaryenStructGet(
+                        this.module.ptr,
+                        methodIndex,
+                        vtable,
+                        this.wasmType.getWASMType(methodType),
+                        false,
+                    );
+                    return binaryenCAPI._BinaryenCallRef(
+                        this.module.ptr,
+                        targetFunction,
+                        arrayToPtr(wasmArgs).ptr,
+                        wasmArgs.length,
+                        this.wasmType.getWASMType(methodType),
+                        false,
+                    );
                 }
             }
         } else {

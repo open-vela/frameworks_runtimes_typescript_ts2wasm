@@ -172,13 +172,26 @@ export class TSClass extends Type {
         this.methods.push(classMethod);
     }
 
+    /* when calling a getter, it's not a CallExpression */
     getMethod(name: string): TsClassFunc | null {
         for (const method of this.memberFuncs) {
-            if (name === method.name) {
+            if (name === method.name && !method.isGetter) {
                 return method;
             }
         }
         return null;
+    }
+
+    getMethodIndex(name: string): number {
+        for (let i = 0; i !== this.memberFuncs.length; ++i) {
+            if (
+                name === this.memberFuncs[i].name &&
+                !this.memberFuncs[i].isGetter
+            ) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     addStaticMethod(name: string, methodType: TSFunction): void {

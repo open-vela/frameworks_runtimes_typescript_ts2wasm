@@ -219,20 +219,6 @@ export class SuperCallExpression extends Expression {
     }
 }
 
-// export class ThisExpression extends Expression {
-//     // private expr: string = 'this';
-//     private property: Expression;
-
-//     constructor(property: Expression) {
-//         super(ts.SyntaxKind.ThisKeyword);
-//         this.property = property;
-//     }
-
-//     get propertyExpr(): Expression {
-//         return this.property;
-//     }
-// }
-
 export class PropertyAccessExpression extends Expression {
     private expr: Expression;
     private property: Expression;
