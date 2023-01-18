@@ -659,37 +659,42 @@ export class ScopeScanner {
 
 /* try to find function scope base on unique function name */
 export function findTargetFunction(
-    funcScope: FunctionScope | null,
+    scope: Scope | null,
     name: string,
 ): FunctionScope | undefined {
     /* iff in global scope */
-    if (funcScope === null) {
+    if (scope === null) {
         return funcDefs.get(name);
     }
-    let curFuncScope: FunctionScope = <FunctionScope>funcScope;
-
-    /* iff in function scope */
-    let maybeFuncName = curFuncScope.funcName + '|' + name;
-    let targetFuncDef = funcDefs.get(maybeFuncName);
-    while (targetFuncDef === undefined) {
-        if (
-            curFuncScope.parent !== null &&
-            curFuncScope.parent.kind !== ScopeKind.GlobalScope
-        ) {
-            curFuncScope = <FunctionScope>(
-                curFuncScope.parent.getNearestFunctionScope()
-            );
-            maybeFuncName = curFuncScope.funcName + '|' + maybeFuncName;
-            targetFuncDef = funcDefs.get(maybeFuncName);
-            if (targetFuncDef !== undefined) {
+    const nearestFuncscope = scope.getNearestFunctionScope();
+    let targetFuncDef = undefined;
+    if (nearestFuncscope !== null) {
+        let curFuncScope = nearestFuncscope;
+        let maybeFuncName = curFuncScope.funcName + '|' + name;
+        targetFuncDef = funcDefs.get(maybeFuncName);
+        /* iff in function scope */
+        while (targetFuncDef === undefined) {
+            if (
+                curFuncScope.parent !== null &&
+                curFuncScope.parent.kind !== ScopeKind.GlobalScope
+            ) {
+                curFuncScope = <FunctionScope>(
+                    curFuncScope.parent.getNearestFunctionScope()
+                );
+                maybeFuncName = curFuncScope.funcName + '|' + maybeFuncName;
+                targetFuncDef = funcDefs.get(maybeFuncName);
+                if (targetFuncDef !== undefined) {
+                    break;
+                }
+            } else {
                 break;
             }
-        } else {
-            break;
         }
     }
+
     if (targetFuncDef === undefined) {
         targetFuncDef = funcDefs.get(name);
     }
+
     return targetFuncDef;
 }

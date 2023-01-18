@@ -972,8 +972,49 @@ export class WASMExpressionGen extends WASMExpressionBase {
             true,
         );
         if (variable === undefined) {
-            throw new Error(
-                'identifier not found, <' + expr.identifierName + '>',
+            /* maybe it's a function */
+            // const maybeFuncScope = this.currentScope.getNearestFunctionScope();
+            const maybeFuncDef = findTargetFunction(
+                this.currentScope,
+                expr.identifierName,
+            );
+            if (maybeFuncDef === undefined) {
+                throw new Error(
+                    'variable not find, name is <' + expr.identifierName + '>',
+                );
+            }
+            const wasmFuncType = this.wasmType.getWASMType(
+                maybeFuncDef.funcType,
+            );
+            const wasmFuncStructHeapType =
+                this.wasmType.getWASMFuncStructHeapType(maybeFuncDef.funcType);
+            let context = binaryenCAPI._BinaryenRefNull(
+                this.module.ptr,
+                emptyStructType.typeRef,
+            );
+            if (maybeFuncDef !== null) {
+                const parentScope = maybeFuncDef.parent;
+                if (
+                    parentScope !== null &&
+                    parentScope.kind === ScopeKind.FunctionScope
+                ) {
+                    const parentContextType = (<typeInfo>(
+                        WASMGen.contextOfFunc.get(<FunctionScope>parentScope)
+                    )).typeRef;
+                    context = this.module.local.get(
+                        (<FunctionScope>parentScope).paramArray.length,
+                        parentContextType,
+                    );
+                }
+            }
+            return binaryenCAPI._BinaryenStructNew(
+                this.module.ptr,
+                arrayToPtr([
+                    context,
+                    this.module.ref.func(maybeFuncDef.funcName, wasmFuncType),
+                ]).ptr,
+                2,
+                wasmFuncStructHeapType,
             );
         }
         const varType = this.wasmType.getWASMType(variable.varType);
