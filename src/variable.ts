@@ -137,6 +137,9 @@ export class VariableScanner {
         this.findCurrentScope(node);
         switch (node.kind) {
             case ts.SyntaxKind.Parameter: {
+                if (node.parent.kind === ts.SyntaxKind.FunctionType) {
+                    break;
+                }
                 const parameterNode = <ts.ParameterDeclaration>node;
                 const functionScope = <FunctionScope>(
                     getNearestFunctionScopeFromCurrent(this.currentScope)
@@ -203,20 +206,37 @@ export class VariableScanner {
                     variableModifier = ModifierKind.var;
                 }
                 const variableName = variableDeclarationNode.name.getText();
+                let typeName = '';
+                if (variableDeclarationNode.type === undefined) {
+                    typeName = getNodeTypeInfo(
+                        variableDeclarationNode.name,
+                        this.typechecker!,
+                    ).typeName;
+                } else {
+                    typeName = getNodeTypeInfo(
+                        variableDeclarationNode.type,
+                        this.typechecker!,
+                    ).typeName;
+                }
+                if (typeName.startsWith('typeof')) {
+                    typeName = typeName.substring(7);
+                }
                 const variableType =
-                    variableDeclarationNode.type === undefined
-                        ? currentScope.getTypeFromCurrentScope(
-                              getNodeTypeInfo(
-                                  variableDeclarationNode.name,
-                                  this.typechecker!,
-                              ).typeName,
-                          )
-                        : currentScope.getTypeFromCurrentScope(
-                              getNodeTypeInfo(
-                                  variableDeclarationNode.type,
-                                  this.typechecker!,
-                              ).typeName,
-                          );
+                    currentScope.getTypeFromCurrentScope(typeName);
+                // const variableType =
+                //     variableDeclarationNode.type === undefined
+                //         ? currentScope.getTypeFromCurrentScope(
+                //               getNodeTypeInfo(
+                //                   variableDeclarationNode.name,
+                //                   this.typechecker!,
+                //               ).typeName,
+                //           )
+                //         : currentScope.getTypeFromCurrentScope(
+                //               getNodeTypeInfo(
+                //                   variableDeclarationNode.type,
+                //                   this.typechecker!,
+                //               ).typeName,
+                //           );
                 const variable = new Variable(
                     variableName,
                     variableType,
@@ -311,6 +331,9 @@ export class VariableInit {
         this.findCurrentScope(node);
         switch (node.kind) {
             case ts.SyntaxKind.Parameter: {
+                if (node.parent.kind === ts.SyntaxKind.FunctionType) {
+                    break;
+                }
                 const parameterNode = <ts.ParameterDeclaration>node;
                 const functionScope = <FunctionScope>(
                     getNearestFunctionScopeFromCurrent(this.currentScope)

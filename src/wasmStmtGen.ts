@@ -174,6 +174,9 @@ export class WASMStatementGen {
     WASMBaseLoopStmt(stmt: BaseLoopStatement): binaryen.ExpressionRef {
         const prevScope = this.WASMCompiler.curScope;
         this.WASMCompiler.setCurScope(stmt.getScope() as Scope);
+        const scope = stmt.getScope() as Scope;
+        const binaryenExprRefs = new Array<binaryen.ExpressionRef>();
+        this.scope2stmts.set(scope, binaryenExprRefs);
         const WASMCond: binaryen.ExpressionRef =
             this.WASMCompiler.wasmExpr.WASMExprGen(stmt.loopCondtion);
         const WASMStmts: binaryen.ExpressionRef = this.WASMStmtGen(

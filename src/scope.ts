@@ -106,7 +106,7 @@ export class Scope {
         let currentScope: Scope | null = this;
         while (currentScope !== null) {
             if (currentScope.kind === ScopeKind.FunctionScope) {
-                return currentScope;
+                return <FunctionScope>currentScope;
             }
             currentScope = currentScope.parent;
         }
@@ -138,12 +138,13 @@ export class Scope {
 
     /* currently, this API is used by TypeReference to find classType */
     getTypeFromScope(typeName: string): Type {
-        const currentScope = this;
+        let currentScope: Scope | null = this;
         while (currentScope !== null) {
             const TSType = currentScope.namedTypeMap.get(typeName);
             if (TSType !== undefined) {
                 return TSType;
             }
+            currentScope = currentScope.parent;
         }
         throw new Error('type not found, type name <' + typeName + '>');
     }
@@ -303,7 +304,7 @@ export class ClassScope extends Scope {
         return this._className;
     }
 
-    set classType(type: TSClass) {
+    setClassType(type: TSClass) {
         this._classType = type;
     }
 
@@ -416,6 +417,19 @@ export class ScopeScanner {
                 const setAccessorNode = <ts.SetAccessorDeclaration>node;
                 const parentScope = this.getCurrentScope();
                 const functionScope = new FunctionScope(parentScope);
+                functionScope.addParameter(
+                    new Parameter(
+                        '',
+                        new Type(),
+                        ModifierKind.default,
+                        -1,
+                        false,
+                        false,
+                    ),
+                );
+                functionScope.addVariable(
+                    new Variable('', new Type(), ModifierKind.default, -1),
+                );
                 functionScope.setClassName((<ClassScope>parentScope).className);
                 const functionName =
                     functionScope.className +
@@ -433,6 +447,19 @@ export class ScopeScanner {
                 const getAccessorNode = <ts.GetAccessorDeclaration>node;
                 const parentScope = this.getCurrentScope();
                 const functionScope = new FunctionScope(parentScope);
+                functionScope.addParameter(
+                    new Parameter(
+                        '',
+                        new Type(),
+                        ModifierKind.default,
+                        -1,
+                        false,
+                        false,
+                    ),
+                );
+                functionScope.addVariable(
+                    new Variable('', new Type(), ModifierKind.default, -1),
+                );
                 functionScope.setClassName((<ClassScope>parentScope).className);
                 const functionName =
                     functionScope.className +
@@ -450,6 +477,20 @@ export class ScopeScanner {
                 const ctorNode = <ts.ConstructorDeclaration>node;
                 const parentScope = this.getCurrentScope();
                 const functionScope = new FunctionScope(parentScope);
+                /* function context struct placeholder */
+                functionScope.addParameter(
+                    new Parameter(
+                        '',
+                        new Type(),
+                        ModifierKind.default,
+                        -1,
+                        false,
+                        false,
+                    ),
+                );
+                functionScope.addVariable(
+                    new Variable('', new Type(), ModifierKind.default, -1),
+                );
                 functionScope.setClassName((<ClassScope>parentScope).className);
                 const functionName = functionScope.className + '_constructor';
                 funcDefs.set(functionName, functionScope);
@@ -464,6 +505,19 @@ export class ScopeScanner {
                 const methodNode = <ts.MethodDeclaration>node;
                 const parentScope = this.getCurrentScope();
                 const functionScope = new FunctionScope(parentScope);
+                functionScope.addParameter(
+                    new Parameter(
+                        '',
+                        new Type(),
+                        ModifierKind.default,
+                        -1,
+                        false,
+                        false,
+                    ),
+                );
+                functionScope.addVariable(
+                    new Variable('', new Type(), ModifierKind.default, -1),
+                );
                 functionScope.setClassName((<ClassScope>parentScope).className);
                 const functionName =
                     functionScope.className + '_' + methodNode.name.getText();
@@ -542,7 +596,12 @@ export class ScopeScanner {
 
     setBlockScopeStructure(node: ts.BlockLike | ts.CaseBlock) {
         const parentScope = this.getCurrentScope();
-        if (node.parent.kind !== ts.SyntaxKind.FunctionDeclaration) {
+        if (
+            node.parent.kind !== ts.SyntaxKind.FunctionDeclaration &&
+            node.parent.kind !== ts.SyntaxKind.MethodDeclaration &&
+            node.parent.kind !== ts.SyntaxKind.SetAccessor &&
+            node.parent.kind !== ts.SyntaxKind.GetAccessor
+        ) {
             const blockScope = new BlockScope(parentScope);
             this.setCurrentScope(blockScope);
             this.nodeScopeMap.set(node, blockScope);
@@ -561,6 +620,14 @@ export class ScopeScanner {
             }
         }
         if (node.parent.kind !== ts.SyntaxKind.FunctionDeclaration) {
+            this.setCurrentScope(parentScope);
+        }
+        if (
+            node.parent.kind !== ts.SyntaxKind.FunctionDeclaration &&
+            node.parent.kind !== ts.SyntaxKind.MethodDeclaration &&
+            node.parent.kind !== ts.SyntaxKind.SetAccessor &&
+            node.parent.kind !== ts.SyntaxKind.GetAccessor
+        ) {
             this.setCurrentScope(parentScope);
         }
     }
@@ -588,4 +655,41 @@ export class ScopeScanner {
         this.visitNode(node.statement);
         this.removeOutOfLoopScope();
     }
+}
+
+/* try to find function scope base on unique function name */
+export function findTargetFunction(
+    funcScope: FunctionScope | null,
+    name: string,
+): FunctionScope | undefined {
+    /* iff in global scope */
+    if (funcScope === null) {
+        return funcDefs.get(name);
+    }
+    let curFuncScope: FunctionScope = <FunctionScope>funcScope;
+
+    /* iff in function scope */
+    let maybeFuncName = curFuncScope.funcName + '|' + name;
+    let targetFuncDef = funcDefs.get(maybeFuncName);
+    while (targetFuncDef === undefined) {
+        if (
+            curFuncScope.parent !== null &&
+            curFuncScope.parent.kind !== ScopeKind.GlobalScope
+        ) {
+            curFuncScope = <FunctionScope>(
+                curFuncScope.parent.getNearestFunctionScope()
+            );
+            maybeFuncName = curFuncScope.funcName + '|' + maybeFuncName;
+            targetFuncDef = funcDefs.get(maybeFuncName);
+            if (targetFuncDef !== undefined) {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    if (targetFuncDef === undefined) {
+        targetFuncDef = funcDefs.get(name);
+    }
+    return targetFuncDef;
 }
