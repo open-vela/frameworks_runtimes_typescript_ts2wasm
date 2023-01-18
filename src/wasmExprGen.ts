@@ -1641,6 +1641,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private WASMCallExpr(expr: CallExpression): binaryen.ExpressionRef {
         const callExpr = expr.callExpr;
         const callWASMArgs = new Array<binaryen.ExpressionRef>();
+        // sample: Math.sqrt(xx)
+        if (
+            callExpr.expressionKind === ts.SyntaxKind.PropertyAccessExpression
+        ) {
+            return this.WASMExprGen(callExpr);
+        }
         // call import functions
         if (callExpr.expressionKind === ts.SyntaxKind.Identifier) {
             const calledFuncName = (<IdentifierExpression>callExpr)
@@ -2032,15 +2038,20 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const module = this.module;
         const objPropAccessExpr = expr.propertyAccessExpr;
         let objExprRef: binaryen.ExpressionRef = binaryen.none;
-        if (!expr.isThis) {
-            objExprRef = this.WASMExprGen(objPropAccessExpr);
+        if (objPropAccessExpr.expressionKind === ts.SyntaxKind.Identifier) {
+            const identifierName = (<IdentifierExpression>objPropAccessExpr)
+                .identifierName;
+            if (!BuiltinNames.builtinIdentifiers.includes(identifierName)) {
+                if (!expr.isThis) {
+                    objExprRef = this.WASMExprGen(objPropAccessExpr);
+                }
+            }
         }
         const propExpr = expr.propertyExpr;
         const propIdenExpr = <IdentifierExpression>propExpr;
         const propName = propIdenExpr.identifierName;
         if (expr.parentExpr.expressionKind === ts.SyntaxKind.CallExpression) {
-            const callExpr = <CallExpression>expr.parentExpr;
-            const callArgs = callExpr.callArgs;
+            const callArgs = expr.callArgs;
             switch (propName) {
                 case 'concat': {
                     const strRef = this.WASMExprGen(callArgs[0]);
