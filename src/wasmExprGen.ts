@@ -35,6 +35,7 @@ import {
     ClassScope,
     ScopeKind,
     funcDefs,
+    findTargetFunction,
 } from './scope.js';
 import { MatchKind, Stack } from './utils.js';
 import * as dyntype from '../lib/dyntype/utils.js';
@@ -46,7 +47,7 @@ import {
 } from './glue/packType.js';
 import { typeInfo } from './glue/utils.js';
 import { isDynFunc, getReturnTypeRef } from './envInit.js';
-import { WASMGen } from './wasmGen.js';
+import { varIndex, WASMGen } from './wasmGen.js';
 
 export class WASMExpressionBase {
     wasmCompiler;
@@ -579,6 +580,11 @@ export class WASMExpressionBase {
                 return this.module.i32.const(0);
             case TypeKind.NUMBER:
                 return this.module.f64.const(0);
+            case TypeKind.STRING:
+                return binaryenCAPI._BinaryenRefNull(
+                    this.module.ptr,
+                    emptyStructType.typeRef,
+                );
             default:
                 // TODO
                 return binaryen.none;
@@ -1258,11 +1264,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
         }
         switch (leftExpr.expressionKind) {
             case ts.SyntaxKind.PropertyAccessExpression: {
-                // sample: const obj: any = {}; obj.a = 2;
                 const propAccessExpr = <PropertyAccessExpression>leftExpr;
                 let objType: Type;
                 if (!propAccessExpr.isThis) {
-                    objType = leftExpr.exprType;
+                    objType = propAccessExpr.propertyAccessExpr.exprType;
                 } else {
                     const scope = <FunctionScope>(
                         this.wasmCompiler.curScope?.getNearestFunctionScope()
@@ -1270,6 +1275,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     objType = (<ClassScope>scope.parent).classType;
                 }
 
+                // sample: const obj: any = {}; obj.a = 2;
                 if (objType.kind === TypeKind.ANY) {
                     const objExprRef = this.WASMExprGen(leftExpr);
                     const propIdenExpr = <IdentifierExpression>(
@@ -1334,14 +1340,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
                             targeObjectType,
                         );
                     } else {
-                        objExprRef = this.WASMExprGen(leftExpr);
+                        objExprRef = this.WASMExprGen(
+                            propAccessExpr.propertyAccessExpr,
+                        );
                     }
 
                     return binaryenCAPI._BinaryenStructSet(
                         module.ptr,
-                        propIndex,
+                        propIndex + 1,
                         objExprRef,
-                        this.staticValueGen.WASMExprGen(leftExpr),
+                        this.staticValueGen.WASMExprGen(rightExpr),
                     );
                 }
             }
@@ -1408,6 +1416,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                             assignValue,
                         );
                     } else {
+                        let prevFuncScope = nearestFuncScope;
                         let scope = nearestFuncScope.parent;
                         let targetCtxTypeRef = binaryen.none;
                         while (scope !== null) {
@@ -1420,16 +1429,19 @@ export class WASMExpressionGen extends WASMExpressionBase {
                                 targetCtxTypeRef = (<typeInfo>(
                                     WASMGen.contextOfFunc.get(funcScope)
                                 )).typeRef;
-                                localGet = binaryenCAPI._BinaryenStructGet(
-                                    this.module.ptr,
-                                    0,
-                                    localGet,
-                                    targetCtxTypeRef,
-                                    false,
-                                );
-                                if (target !== undefined) {
-                                    break;
+                                if (prevFuncScope.getIsClosure()) {
+                                    localGet = binaryenCAPI._BinaryenStructGet(
+                                        this.module.ptr,
+                                        0,
+                                        localGet,
+                                        targetCtxTypeRef,
+                                        false,
+                                    );
+                                    if (target !== undefined) {
+                                        break;
+                                    }
                                 }
+                                prevFuncScope = funcScope;
                             }
                             scope = scope.parent;
                         }
@@ -1603,24 +1615,77 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 emptyStructType.typeRef,
             ),
         );
+        const maybeFuncScope = this.currentScope.getNearestFunctionScope();
         for (let i = 0; i !== expr.callArgs.length; ++i) {
-            callWASMArgs.push(this.WASMExprGen(expr.callArgs[i]));
+            /* here iff argument is IdentifierExpr, try to find it in scopes, iff not find, maybe it's a function
+               TODO: should we add FunctionDeclaration as variable to currentScope??
+            */
+            let isArgIsFunc = false;
+            if (expr.callArgs[i].expressionKind === ts.SyntaxKind.Identifier) {
+                const argExprName = (<IdentifierExpression>expr.callArgs[i])
+                    .identifierName;
+                /* iff not find target variable ==> it's a function name */
+                if (this.currentScope.findVariable(argExprName) === undefined) {
+                    const maybeFuncDef = findTargetFunction(
+                        maybeFuncScope,
+                        argExprName,
+                    );
+                    if (maybeFuncDef === undefined) {
+                        throw new Error(
+                            'argument variable not find, name is <' +
+                                argExprName +
+                                '>',
+                        );
+                    }
+                    const wasmFuncType = this.wasmType.getWASMType(
+                        maybeFuncDef.funcType,
+                    );
+                    const wasmFuncStructHeapType =
+                        this.wasmType.getWASMFuncStructHeapType(
+                            maybeFuncDef.funcType,
+                        );
+                    const wasmArgStructOperands = [
+                        binaryenCAPI._BinaryenRefNull(
+                            this.module.ptr,
+                            emptyStructType.typeRef,
+                        ),
+                        this.module.ref.func(
+                            maybeFuncDef.funcName,
+                            wasmFuncType,
+                        ),
+                    ];
+                    const wasmArg = binaryenCAPI._BinaryenStructNew(
+                        this.module.ptr,
+                        arrayToPtr(wasmArgStructOperands).ptr,
+                        wasmArgStructOperands.length,
+                        wasmFuncStructHeapType,
+                    );
+                    callWASMArgs.push(wasmArg);
+                    isArgIsFunc = true;
+                }
+            }
+            if (!isArgIsFunc) {
+                callWASMArgs.push(this.WASMExprGen(expr.callArgs[i]));
+            }
         }
-        // TODO: change function name like foo|bar
         if (callExpr.expressionKind === ts.SyntaxKind.Identifier) {
             const maybeFuncName = (<IdentifierExpression>callExpr)
                 .identifierName;
-            // iff identifierName is a function name
-            if (funcDefs.has(maybeFuncName)) {
-                const funcDef = <FunctionScope>funcDefs.get(maybeFuncName);
-                const type = funcDef.funcType;
+            // const maybeFuncScope = this.currentScope.getNearestFunctionScope();
+            const maybeFuncDef = findTargetFunction(
+                maybeFuncScope,
+                maybeFuncName,
+            );
+            // iff identifierName is a function name, call it directly
+            if (maybeFuncDef !== undefined) {
+                const type = maybeFuncDef.funcType;
                 return this.module.call(
                     maybeFuncName,
                     callWASMArgs,
                     this.wasmType.getWASMFuncReturnType(type),
                 );
             } else {
-                // iff identifier is a functionType
+                /* iff identifier is a functionType, parameter or variable*/
                 const variable = this.currentScope.findVariable(maybeFuncName);
                 if (variable === undefined) {
                     throw new Error(
@@ -1631,18 +1696,21 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 }
                 const type = variable.varType;
                 const wasmType = this.wasmType.getWASMFuncStructType(type);
+                const getTargetVar = variable.isLocalVar
+                    ? this.module.local.get(variable.varIndex, wasmType)
+                    : this.module.global.get(variable.varName, wasmType);
                 // context
                 const context = binaryenCAPI._BinaryenStructGet(
                     this.module.ptr,
                     0,
-                    this.module.local.get(variable.varIndex, wasmType),
+                    getTargetVar,
                     wasmType,
                     false,
                 );
                 const funcref = binaryenCAPI._BinaryenStructGet(
                     this.module.ptr,
                     1,
-                    this.module.local.get(variable.varIndex, wasmType),
+                    getTargetVar,
                     wasmType,
                     false,
                 );
@@ -1733,11 +1801,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
         //     vtable.length,
         //     vtableHeapType,
         // );
-        propRefList[0] = binaryenCAPI._BinaryenStructNew(
+        propRefList[0] = binaryenCAPI._BinaryenRefNull(
             module.ptr,
-            arrayToPtr([]).ptr,
-            0,
-            emptyStructType.heapTypeRef,
+            emptyStructType.typeRef,
         );
         const objectLiteralValue = binaryenCAPI._BinaryenStructNew(
             module.ptr,
@@ -1817,7 +1883,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
         for (const arg of expr.callArgs) {
             wasmArgs.push(this.WASMExprGen(arg));
         }
-        return module.call('', wasmArgs, binaryen.none);
+        return module.call(
+            baseClassType.className + '_constructor',
+            wasmArgs,
+            binaryen.none,
+        );
     }
 
     private WASMNewExpr(expr: NewExpression): binaryen.ExpressionRef {
@@ -1876,18 +1946,35 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 initStructFields.length,
                 this.wasmType.getWASMHeapType(type),
             );
+            const scope = this.wasmCompiler.curScope!;
+            const binaryenStmts = this.wasmCompiler.scopeStateMap.get(scope);
+            if (binaryenStmts !== undefined) {
+                binaryenStmts.push(this.module.local.set(varIndex, newStruct));
+            }
             const args = new Array<binaryen.ExpressionRef>();
-            args.push(newStruct);
+            args.push(
+                this.module.local.get(
+                    varIndex,
+                    this.wasmType.getWASMType(type),
+                ),
+            );
             if (expr.NewArgs) {
                 for (const arg of expr.NewArgs) {
                     args.push(this.WASMExprGen(arg));
                 }
             }
-            return this.module.call(
-                className + '_constructor',
-                args,
-                this.wasmType.getWASMType(<Type>classType.classConstructorType),
-            );
+            if (binaryenStmts !== undefined) {
+                binaryenStmts.push(
+                    this.module.call(
+                        className + '_constructor',
+                        args,
+                        this.wasmType.getWASMType(
+                            <Type>classType.classConstructorType,
+                        ),
+                    ),
+                );
+            }
+            return newStruct;
         }
         return binaryen.none;
     }

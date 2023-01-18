@@ -293,11 +293,16 @@ export default class StatementCompiler {
                 const ctorNode = <ts.ConstructorDeclaration>node;
                 this.compilerCtx.currentScope =
                     this.compilerCtx.nodeScopeMap.get(ctorNode) as Scope;
+                const scope = this.compilerCtx.currentScope;
                 if (ctorNode.body !== undefined) {
                     for (const stmt of ctorNode.body.statements) {
-                        this.compilerCtx.currentScope.addStatement(
-                            this.visitNode(stmt),
-                        );
+                        const compiledStmt = this.visitNode(stmt);
+                        if (
+                            compiledStmt.statementKind === ts.SyntaxKind.Unknown
+                        ) {
+                            continue;
+                        }
+                        scope.addStatement(compiledStmt);
                     }
                 }
                 this.compilerCtx.currentScope = prevScope;
@@ -307,11 +312,16 @@ export default class StatementCompiler {
                 const setAccessorNode = <ts.SetAccessorDeclaration>node;
                 this.compilerCtx.currentScope =
                     this.compilerCtx.nodeScopeMap.get(setAccessorNode) as Scope;
+                const scope = this.compilerCtx.currentScope;
                 if (setAccessorNode.body !== undefined) {
                     for (const stmt of setAccessorNode.body.statements) {
-                        this.compilerCtx.currentScope.addStatement(
-                            this.visitNode(stmt),
-                        );
+                        const compiledStmt = this.visitNode(stmt);
+                        if (
+                            compiledStmt.statementKind === ts.SyntaxKind.Unknown
+                        ) {
+                            continue;
+                        }
+                        scope.addStatement(compiledStmt);
                     }
                 }
                 this.compilerCtx.currentScope = prevScope;
@@ -321,11 +331,16 @@ export default class StatementCompiler {
                 const getAccessorNode = <ts.GetAccessorDeclaration>node;
                 this.compilerCtx.currentScope =
                     this.compilerCtx.nodeScopeMap.get(getAccessorNode) as Scope;
+                const scope = this.compilerCtx.currentScope;
                 if (getAccessorNode.body !== undefined) {
                     for (const stmt of getAccessorNode.body.statements) {
-                        this.compilerCtx.currentScope.addStatement(
-                            this.visitNode(stmt),
-                        );
+                        const compiledStmt = this.visitNode(stmt);
+                        if (
+                            compiledStmt.statementKind === ts.SyntaxKind.Unknown
+                        ) {
+                            continue;
+                        }
+                        scope.addStatement(compiledStmt);
                     }
                 }
                 this.compilerCtx.currentScope = prevScope;
@@ -335,11 +350,16 @@ export default class StatementCompiler {
                 const methodNode = <ts.MethodDeclaration>node;
                 this.compilerCtx.currentScope =
                     this.compilerCtx.nodeScopeMap.get(methodNode) as Scope;
+                const scope = this.compilerCtx.currentScope;
                 if (methodNode.body !== undefined) {
                     for (const stmt of methodNode.body.statements) {
-                        this.compilerCtx.currentScope.addStatement(
-                            this.visitNode(stmt),
-                        );
+                        const compiledStmt = this.visitNode(stmt);
+                        if (
+                            compiledStmt.statementKind === ts.SyntaxKind.Unknown
+                        ) {
+                            continue;
+                        }
+                        scope.addStatement(compiledStmt);
                     }
                 }
                 this.compilerCtx.currentScope = prevScope;

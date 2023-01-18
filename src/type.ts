@@ -1,7 +1,14 @@
 import ts, { SyntaxKind } from 'typescript';
 import { Compiler } from './compiler.js';
 import { Stack, getNodeTypeInfo, getCurScope } from './utils.js';
-import { FunctionScope, GlobalScope, Scope, ScopeKind } from './scope.js';
+import {
+    ClassScope,
+    funcDefs,
+    FunctionScope,
+    GlobalScope,
+    Scope,
+    ScopeKind,
+} from './scope.js';
 
 export const enum TypeKind {
     VOID,
@@ -109,23 +116,9 @@ export class TSClass extends Type {
         return this.memberFields;
     }
 
-    // get memberFuncs(): Map<string, TSFunction> {
-    //     return this.methods;
-    // }
     get memberFuncs(): Array<TsClassFunc> {
         return this.methods;
     }
-
-    // setOverrideMethod(name: string): void {
-    //     this.methodsOverride.add(name);
-    // }
-
-    // isOverrideMethod(name: string): boolean {
-    //     if (this.methodsOverride.has(name)) {
-    //         return true;
-    //     }
-    //     return false;
-    // }
 
     setClassConstructor(name: string, functionType: TSFunction) {
         this.constructorMethodName = name;
@@ -356,6 +349,7 @@ export default class TypeCompiler {
             case ts.SyntaxKind.PrefixUnaryExpression:
             case ts.SyntaxKind.ObjectLiteralExpression:
             case ts.SyntaxKind.PropertyAccessExpression:
+            case ts.SyntaxKind.PropertyDeclaration:
             case ts.SyntaxKind.ElementAccessExpression:
             case ts.SyntaxKind.ArrayLiteralExpression: {
                 const typeCheckerInfo = getNodeTypeInfo(
@@ -405,7 +399,11 @@ export default class TypeCompiler {
             }
             case ts.SyntaxKind.ClassDeclaration: {
                 const classTypeNode = <ts.ClassDeclaration>node;
-                return this.generateClassType(classTypeNode);
+                const type = this.generateClassType(classTypeNode);
+                if (this.currentScope?.kind === ScopeKind.ClassScope) {
+                    (<ClassScope>this.currentScope).setClassType(type);
+                }
+                return type;
             }
             case ts.SyntaxKind.TypeLiteral: {
                 const typeLiteralNode = <ts.TypeLiteralNode>node;
@@ -454,9 +452,20 @@ export default class TypeCompiler {
                 const typeNameNode = <ts.Identifier>typeRefNode.typeName;
                 const refName = typeNameNode.escapedText.toString();
                 if (!this.currentScope!.namedTypeMap.has(refName)) {
-                    throw new Error('can not find the ref type ' + refName);
+                    const scope = this.currentScope;
+                    if (scope === null) {
+                        throw new Error(
+                            'current scope is null when get TypeReference type',
+                        );
+                    }
+                    return scope.getTypeFromScope(refName);
                 }
                 return this.currentScope!.namedTypeMap.get(refName)!;
+
+                // if (!this.currentScope!.namedTypeMap.has(refName)) {
+                //     throw new Error('can not find the ref type ' + refName);
+                // }
+                // return this.currentScope!.namedTypeMap.get(refName)!;
             }
             case ts.SyntaxKind.ParenthesizedType: {
                 const parentheNode = <ts.ParenthesizedTypeNode>node;
@@ -536,6 +545,16 @@ export default class TypeCompiler {
             const paramNode = <ts.ParameterDeclaration>param;
             const paramType = this.generateNodeType(paramNode.type!);
             funcType.addParamType(paramType);
+            /**TODO: is it clearly??? */
+            if (paramType.kind === TypeKind.FUNCTION) {
+                const typeName = getNodeTypeInfo(
+                    paramNode.name,
+                    this.typechecker!,
+                ).typeName;
+                if (!this.currentScope?.namedTypeMap.has(typeName)) {
+                    this.currentScope?.namedTypeMap.set(typeName, paramType);
+                }
+            }
         }
         if (returnTypeNode) {
             const returnType = this.generateNodeType(returnTypeNode);
@@ -546,6 +565,7 @@ export default class TypeCompiler {
 
     generateClassType(node: ts.ClassDeclaration): TSClass {
         const classType = new TSClass();
+        classType.setClassName(node.name!.getText());
         const heritage = node.heritageClauses;
         if (heritage !== undefined) {
             /* base class node, iff it really has the one */
@@ -553,7 +573,7 @@ export default class TypeCompiler {
             const scope = this.currentScope;
             if (scope !== null) {
                 const heritageType = <TSClass>(
-                    scope.getTypeFromCurrentScope(heritageName)
+                    scope.getTypeFromScope(heritageName)
                 );
                 classType.setBase(heritageType);
 
@@ -571,7 +591,7 @@ export default class TypeCompiler {
                     continue;
                 }
                 const field = <ts.PropertyDeclaration>member;
-                const name = member.getText(),
+                const name = member.name!.getText(),
                     type = this.generateNodeType(field);
                 const modifier = findModifier(
                     field.modifiers,
@@ -615,6 +635,12 @@ export default class TypeCompiler {
                         isSetter: true,
                         isGetter: false,
                     });
+                    const targetFuncDef = funcDefs.get(
+                        classType.className + '_set_' + methodName,
+                    );
+                    if (targetFuncDef !== undefined) {
+                        targetFuncDef.setFuncType(tsFuncType);
+                    }
                 }
                 classType.overrideOrOwnMethods.add('_set_' + methodName);
             }
@@ -639,6 +665,12 @@ export default class TypeCompiler {
                         isSetter: false,
                         isGetter: true,
                     });
+                    const targetFuncDef = funcDefs.get(
+                        classType.className + '_get_' + methodName,
+                    );
+                    if (targetFuncDef !== undefined) {
+                        targetFuncDef.setFuncType(tsFuncType);
+                    }
                 }
                 classType.overrideOrOwnMethods.add('_get_' + methodName);
             }
@@ -663,6 +695,12 @@ export default class TypeCompiler {
                         isSetter: false,
                         isGetter: false,
                     });
+                    const targetFuncDef = funcDefs.get(
+                        classType.className + '_' + methodName,
+                    );
+                    if (targetFuncDef !== undefined) {
+                        targetFuncDef.setFuncType(tsFuncType);
+                    }
                 }
                 classType.overrideOrOwnMethods.add(methodName);
             }
@@ -670,7 +708,12 @@ export default class TypeCompiler {
                 const func = <ts.ConstructorDeclaration>member;
                 const tsFuncType = this.generateFunctionType(func);
                 classType.setClassConstructor('constructor', tsFuncType);
-                classType.setClassName('constructor');
+                const targetFuncDef = funcDefs.get(
+                    classType.className + '_constructor',
+                );
+                if (targetFuncDef !== undefined) {
+                    targetFuncDef.setFuncType(tsFuncType);
+                }
             }
         }
         return classType;
