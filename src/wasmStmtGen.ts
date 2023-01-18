@@ -14,13 +14,15 @@ import {
     DefaultClause,
     BlockStatement,
     ExpressionStatement,
+    VariableStatement,
 } from './statement.js';
-import { FunctionScope, Scope } from './scope.js';
+import { FunctionScope, Scope, ScopeKind } from './scope.js';
 import { FlattenLoop, IfStatementInfo, typeInfo } from './glue/utils.js';
 import { WASMGen } from './wasmGen.js';
-import { TypeKind } from './type.js';
+import { TSClass, TypeKind } from './type.js';
 import { IdentifierExpression } from './expression.js';
 import { arrayToPtr } from './glue/transform.js';
+import { ModifierKind } from './variable.js';
 export class WASMStatementGen {
     private scope2stmts: Map<Scope, binaryen.ExpressionRef[]>;
 
@@ -69,10 +71,13 @@ export class WASMStatementGen {
                 );
                 return exprStmt;
             }
+            case ts.SyntaxKind.VariableStatement: {
+                const varStatement = this.WASMVarStmt(<VariableStatement>stmt);
+                return varStatement;
+            }
             default:
-                break;
+                throw new Error('unexpected expr kind ' + stmt.statementKind);
         }
-        return binaryen.unreachable;
     }
 
     WASMIfStmt(stmt: IfStatement): binaryen.ExpressionRef {
@@ -106,7 +111,11 @@ export class WASMStatementGen {
         this.scope2stmts.set(scope, binaryenExprRefs);
 
         for (const stmt of scope.statements) {
-            binaryenExprRefs.push(this.WASMStmtGen(stmt));
+            const stmtRef = this.WASMStmtGen(stmt);
+            if (stmt.statementKind === ts.SyntaxKind.VariableStatement) {
+                continue;
+            }
+            binaryenExprRefs.push(stmtRef);
         }
 
         /* iff BlockStatement belongs to a function or member function, insertWASMCode !== [binaryen.none] */
@@ -219,7 +228,7 @@ export class WASMStatementGen {
             this.WASMCompiler.module.nop();
         let WASMStmts: binaryen.ExpressionRef = this.WASMCompiler.module.nop();
         if (stmt.forLoopInitializer !== null) {
-            binaryenExprRefs.push(this.WASMStmtGen(stmt.forLoopInitializer));
+            this.WASMStmtGen(stmt.forLoopInitializer);
         }
         if (stmt.forLoopCondtion !== null) {
             WASMCond = this.WASMCompiler.wasmExpr.WASMExprGen(
@@ -345,6 +354,140 @@ export class WASMStatementGen {
     WASMExpressionStmt(stmt: ExpressionStatement): binaryen.ExpressionRef {
         const innerExpr = stmt.expression;
         return this.WASMCompiler.wasmExpr.WASMExprGen(innerExpr);
+    }
+
+    WASMVarStmt(stmt: VariableStatement): binaryen.ExpressionRef {
+        const varArray = stmt.varArray;
+        const module = this.WASMCompiler.module;
+        const wasmType = this.WASMCompiler.wasmType;
+        const getVariableInitValue = this.WASMCompiler.getVariableInitValue;
+        const wasmExpr = this.WASMCompiler.wasmExpr;
+        const wasmDynExpr = this.WASMCompiler.wasmDynExprCompiler;
+        const currentScope = this.WASMCompiler.curScope;
+        if (!currentScope) {
+            throw new Error('current scope is null in WASMVarStmt');
+        }
+        // const binaryenExprRefs: binaryen.ExpressionRef[] = [];
+        const binaryenExprRefs =
+            this.WASMCompiler.scopeStateMap.get(currentScope);
+        if (!binaryenExprRefs) {
+            throw new Error('statementArray is undefined in WASMVarStmt');
+        }
+        if (currentScope.kind === ScopeKind.GlobalScope) {
+            for (const globalVar of varArray) {
+                const varTypeRef =
+                    globalVar.varType.kind === TypeKind.FUNCTION
+                        ? wasmType.getWASMFuncStructType(globalVar.varType)
+                        : wasmType.getWASMType(globalVar.varType);
+                const mutable =
+                    globalVar.varModifier === ModifierKind.const ? false : true;
+                if (globalVar.initExpression === null) {
+                    module.addGlobal(
+                        globalVar.varName,
+                        varTypeRef,
+                        mutable,
+                        getVariableInitValue(globalVar.varType),
+                    );
+                } else {
+                    const varInitExprRef = wasmExpr.WASMExprGen(
+                        globalVar.initExpression,
+                    );
+                    if (globalVar.varType.kind === TypeKind.NUMBER) {
+                        if (
+                            globalVar.initExpression.expressionKind ===
+                            ts.SyntaxKind.NumericLiteral
+                        ) {
+                            module.addGlobal(
+                                globalVar.varName,
+                                varTypeRef,
+                                mutable,
+                                varInitExprRef,
+                            );
+                        } else {
+                            module.addGlobal(
+                                globalVar.varName,
+                                varTypeRef,
+                                true,
+                                module.f64.const(0),
+                            );
+                            binaryenExprRefs.push(
+                                module.global.set(
+                                    globalVar.varName,
+                                    varInitExprRef,
+                                ),
+                            );
+                        }
+                    } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
+                        module.addGlobal(
+                            globalVar.varName,
+                            varTypeRef,
+                            mutable,
+                            varInitExprRef,
+                        );
+                    } else {
+                        module.addGlobal(
+                            globalVar.varName,
+                            varTypeRef,
+                            true,
+                            binaryenCAPI._BinaryenRefNull(
+                                module.ptr,
+                                varTypeRef,
+                            ),
+                        );
+                        if (globalVar.varType.kind === TypeKind.ANY) {
+                            const dynInitExprRef = wasmDynExpr.WASMDynExprGen(
+                                globalVar.initExpression,
+                            );
+                            binaryenExprRefs.push(
+                                module.global.set(
+                                    globalVar.varName,
+                                    dynInitExprRef,
+                                ),
+                            );
+                        } else {
+                            binaryenExprRefs.push(
+                                module.global.set(
+                                    globalVar.varName,
+                                    varInitExprRef,
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
+        } else {
+            // common variable assignment
+            for (const localVar of varArray) {
+                if (localVar.initExpression !== null) {
+                    let varInitExprRef: binaryen.ExpressionRef;
+                    if (localVar.varType.kind === TypeKind.ANY) {
+                        varInitExprRef = wasmDynExpr.WASMDynExprGen(
+                            localVar.initExpression,
+                        );
+                        binaryenExprRefs.push(
+                            module.local.set(localVar.varIndex, varInitExprRef),
+                        );
+                    } else {
+                        varInitExprRef = wasmExpr.WASMExprGen(
+                            localVar.initExpression,
+                        );
+                        if (
+                            localVar.varType.typeKind !== TypeKind.CLASS ||
+                            (<TSClass>localVar.varType).className === 'Array' ||
+                            (<TSClass>localVar.varType).className === ''
+                        ) {
+                            binaryenExprRefs.push(
+                                module.local.set(
+                                    localVar.varIndex,
+                                    varInitExprRef,
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        return module.unreachable();
     }
 
     flattenLoopStatement(
