@@ -6,6 +6,6 @@ function inner1() {
 function inner2() {
     //
 }
-function outer() {
+export function outer() {
     return [inner1, inner2];
 }

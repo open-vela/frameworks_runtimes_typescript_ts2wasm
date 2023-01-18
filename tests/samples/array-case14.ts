@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 
-function outer() {
+export function outer() {
     function inner1() {
         //
     }

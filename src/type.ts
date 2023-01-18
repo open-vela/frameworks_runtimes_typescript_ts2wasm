@@ -351,6 +351,9 @@ export default class TypeCompiler {
             case ts.SyntaxKind.PropertyAccessExpression:
             case ts.SyntaxKind.PropertyDeclaration:
             case ts.SyntaxKind.ElementAccessExpression:
+            case ts.SyntaxKind.ConditionalExpression:
+            case ts.SyntaxKind.CallExpression:
+            case ts.SyntaxKind.ParenthesizedExpression:
             case ts.SyntaxKind.ArrayLiteralExpression: {
                 const typeCheckerInfo = getNodeTypeInfo(
                     node,

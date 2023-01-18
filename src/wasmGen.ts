@@ -33,7 +33,7 @@ import {
 } from './memory.js';
 
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
-export let varIndex = 0;
+export const varIndex = 0;
 export class WASMGen {
     private scopeStatementMap = new Map<Scope, binaryen.ExpressionRef[]>();
     private binaryenModule = new binaryen.Module();
@@ -129,7 +129,7 @@ export class WASMGen {
         importLibApi(this.module);
         initDynContext(<GlobalScope>this.currentScope);
 
-        // add global variable
+        // add global dyn context variable
         const globalVars = globalScope.varArray;
         for (const globalVar of globalVars) {
             const varTypeRef =
@@ -149,39 +149,7 @@ export class WASMGen {
                 const varInitExprRef = this.wasmExpr.WASMExprGen(
                     globalVar.initExpression,
                 );
-                if (globalVar.varType.kind === TypeKind.NUMBER) {
-                    if (
-                        globalVar.initExpression.expressionKind ===
-                        ts.SyntaxKind.NumericLiteral
-                    ) {
-                        this.module.addGlobal(
-                            globalVar.varName,
-                            varTypeRef,
-                            mutable,
-                            varInitExprRef,
-                        );
-                    } else {
-                        this.module.addGlobal(
-                            globalVar.varName,
-                            varTypeRef,
-                            true,
-                            this.module.f64.const(0),
-                        );
-                        globalStatementRef.push(
-                            this.module.global.set(
-                                globalVar.varName,
-                                varInitExprRef,
-                            ),
-                        );
-                    }
-                } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
-                    this.module.addGlobal(
-                        globalVar.varName,
-                        varTypeRef,
-                        mutable,
-                        varInitExprRef,
-                    );
-                } else if (globalVar.varType.kind === TypeKind.DYNCONTEXTTYPE) {
+                if (globalVar.varType.kind === TypeKind.DYNCONTEXTTYPE) {
                     if (
                         globalVar.initExpression.expressionKind ===
                         ts.SyntaxKind.NumericLiteral
@@ -206,35 +174,6 @@ export class WASMGen {
                             ),
                         );
                     }
-                } else {
-                    this.module.addGlobal(
-                        globalVar.varName,
-                        varTypeRef,
-                        true,
-                        binaryenCAPI._BinaryenRefNull(
-                            this.module.ptr,
-                            varTypeRef,
-                        ),
-                    );
-                    if (globalVar.varType.kind === TypeKind.ANY) {
-                        const dynInitExprRef =
-                            this.wasmDynExprCompiler.WASMDynExprGen(
-                                globalVar.initExpression,
-                            );
-                        globalStatementRef.push(
-                            this.module.global.set(
-                                globalVar.varName,
-                                dynInitExprRef,
-                            ),
-                        );
-                    } else {
-                        globalStatementRef.push(
-                            this.module.global.set(
-                                globalVar.varName,
-                                varInitExprRef,
-                            ),
-                        );
-                    }
                 }
             }
         }
@@ -242,10 +181,14 @@ export class WASMGen {
         // parse global scope statements, generate start function body
         freeDynContext(globalScope);
         for (const stmt of globalScope.statements) {
-            if (stmt.statementKind === ts.SyntaxKind.Unknown) {
+            const stmtRef = this.wasmStmtCompiler.WASMStmtGen(stmt);
+            if (
+                stmt.statementKind === ts.SyntaxKind.Unknown ||
+                stmt.statementKind === ts.SyntaxKind.VariableStatement
+            ) {
                 continue;
             }
-            globalStatementRef.push(this.wasmStmtCompiler.WASMStmtGen(stmt));
+            globalStatementRef.push(stmtRef);
         }
         const body = this.module.block(null, globalStatementRef);
 
@@ -372,36 +315,6 @@ export class WASMGen {
         const returnWASMType =
             this.wasmTypeCompiler.getWASMFuncReturnType(tsFuncType);
 
-        // add local variable, the first one is context struct, no need to parse
-        const localVars = functionScope.varArray.slice(1);
-        for (const localVar of localVars) {
-            varIndex = localVar.varIndex;
-            if (localVar.initExpression !== null) {
-                let varInitExprRef: binaryen.ExpressionRef;
-                if (localVar.varType.kind === TypeKind.ANY) {
-                    varInitExprRef = this.wasmDynExprCompiler.WASMDynExprGen(
-                        localVar.initExpression,
-                    );
-                } else {
-                    varInitExprRef = this.wasmExpr.WASMExprGen(
-                        localVar.initExpression,
-                    );
-                    if (
-                        localVar.varType.typeKind !== TypeKind.CLASS ||
-                        (<TSClass>localVar.varType).className === 'Array' ||
-                        (<TSClass>localVar.varType).className === ''
-                    ) {
-                        binaryenExprRefs.push(
-                            this.module.local.set(
-                                localVar.varIndex,
-                                varInitExprRef,
-                            ),
-                        );
-                    }
-                }
-            }
-        }
-
         /* context struct variable index */
         const targetVarIndex = functionScope.paramArray.length;
         if (functionScope.className === '') {
@@ -440,7 +353,11 @@ export class WASMGen {
         }
         // generate wasm statements
         for (const stmt of functionScope.statements) {
-            binaryenExprRefs.push(this.wasmStmtCompiler.WASMStmtGen(stmt));
+            const stmtRef = this.wasmStmtCompiler.WASMStmtGen(stmt);
+            if (stmt.statementKind === ts.SyntaxKind.VariableStatement) {
+                continue;
+            }
+            binaryenExprRefs.push(stmtRef);
         }
 
         const varWASMTypes = new Array<binaryen.ExpressionRef>();

@@ -1,4 +1,4 @@
-function outer() {
+export function outer() {
     let i = 10;
     function inner1() {
         i++;

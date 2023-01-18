@@ -26,6 +26,7 @@ import {
     PropertyAccessExpression,
     ElementAccessExpression,
     AsExpression,
+    ParenthesizedExpression,
 } from './expression.js';
 import { arrayToPtr, emptyStructType } from './glue/transform.js';
 import { assert } from 'console';
@@ -921,8 +922,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 return this.WASMSuperExpr(<SuperCallExpression>expr);
             }
             case ts.SyntaxKind.ParenthesizedExpression: {
-                // TODO
-                return binaryen.none;
+                const parentesizedExpr = <ParenthesizedExpression>expr;
+                return this.WASMExprGen(parentesizedExpr.parentesizedExpr);
             }
             case ts.SyntaxKind.ArrayLiteralExpression:
                 return this.WASMArrayLiteralExpr(<ArrayLiteralExpression>expr);
@@ -944,7 +945,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             case ts.SyntaxKind.AsExpression:
                 return this.WASMAsExpr(<AsExpression>expr);
             default:
-                return this.module.unreachable();
+                throw new Error('unexpected expr kind ' + expr.expressionKind);
         }
     }
 
@@ -1288,7 +1289,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 operatorKind,
             );
         }
-        return this.module.unreachable();
+        throw new Error(
+            'unexpected left expr type ' +
+                leftExprType.kind +
+                'unexpected right expr type ' +
+                rightExprType.kind,
+        );
     }
 
     private assignBinaryExpr(
