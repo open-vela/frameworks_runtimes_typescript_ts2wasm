@@ -4,6 +4,7 @@ import { Compiler } from './compiler.js';
 import { Expression } from './expression.js';
 import { GlobalScope, Scope } from './scope.js';
 import { Stack } from './utils.js';
+import { Variable } from './variable.js';
 
 type StatementKind = ts.SyntaxKind;
 
@@ -224,6 +225,22 @@ export class BreakStatement extends Statement {
     }
 }
 
+export class VariableStatement extends Statement {
+    private variableArray: Variable[] = [];
+
+    constructor() {
+        super(ts.SyntaxKind.VariableStatement);
+    }
+
+    addVariable(variable: Variable) {
+        this.variableArray.push(variable);
+    }
+
+    get varArray(): Variable[] {
+        return this.variableArray;
+    }
+}
+
 export default class StatementCompiler {
     private loopLabelStack = new Stack<string>();
     private breakLabelsStack = new Stack<string>();
@@ -250,7 +267,11 @@ export default class StatementCompiler {
         const prevScope = this.compilerCtx.currentScope;
         switch (node.kind) {
             case ts.SyntaxKind.VariableStatement: {
-                return new Statement(ts.SyntaxKind.Unknown);
+                const varStatementNode = <ts.VariableStatement>node;
+                const varStatement = new VariableStatement();
+                const varDeclarationList = varStatementNode.declarationList;
+                this.addVariableInVarStmt(varDeclarationList, varStatement);
+                return varStatement;
             }
             case ts.SyntaxKind.FunctionDeclaration: {
                 /* function scope and Type have been determined */
@@ -482,9 +503,17 @@ export default class StatementCompiler {
                 const blockLabel = breakLabels.peek();
                 this.loopLabelStack.push(loopLabel);
 
-                const initializer = forStatementNode.initializer
-                    ? this.visitNode(forStatementNode.initializer)
-                    : null;
+                let initializer;
+                if (forStatementNode.initializer) {
+                    const varStatement = new VariableStatement();
+                    const varDeclarationList = <ts.VariableDeclarationList>(
+                        forStatementNode.initializer
+                    );
+                    this.addVariableInVarStmt(varDeclarationList, varStatement);
+                    initializer = varStatement;
+                } else {
+                    initializer = null;
+                }
                 const cond = forStatementNode.condition
                     ? this.compilerCtx.expressionCompiler.visitNode(
                           forStatementNode.condition,
@@ -598,6 +627,24 @@ export default class StatementCompiler {
             }
             default:
                 return new Statement(ts.SyntaxKind.Unknown);
+        }
+    }
+
+    addVariableInVarStmt(
+        varDeclarationList: ts.VariableDeclarationList,
+        varStatement: VariableStatement,
+    ) {
+        for (const varDeclaration of varDeclarationList.declarations) {
+            const varDecNode = <ts.VariableDeclaration>varDeclaration;
+            const varName = (<ts.Identifier>varDecNode.name).getText()!;
+            const variable =
+                this.compilerCtx.currentScope!.findVariable(varName);
+            if (!variable) {
+                throw new Error(
+                    'can not find ' + varName + ' in current scope',
+                );
+            }
+            varStatement.addVariable(variable);
         }
     }
 }

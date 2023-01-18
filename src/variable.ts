@@ -283,7 +283,6 @@ export class VariableScanner {
                     );
                 }
                 currentScope.addVariable(variable);
-
                 break;
             }
         }
