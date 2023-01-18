@@ -79,7 +79,10 @@ export class WASMTypeGen {
             case TypeKind.ARRAY: {
                 const arrayType = <TSArray>type;
                 const elemType = arrayType.elementType;
-                const elemTypeRef = this.getWASMType(elemType);
+                let elemTypeRef = this.getWASMType(elemType);
+                if (elemType.kind === TypeKind.FUNCTION) {
+                    elemTypeRef = this.getWASMFuncStructType(elemType);
+                }
                 const arrayTypeInfo = initArrayType(
                     elemTypeRef,
                     binaryenCAPI._BinaryenPackedTypeNotPacked(),
