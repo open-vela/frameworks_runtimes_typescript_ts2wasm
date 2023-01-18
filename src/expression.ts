@@ -4,6 +4,7 @@ import { Scope, FunctionScope, GlobalScope, ScopeKind } from './scope.js';
 import { Variable } from './variable.js';
 import { getNodeTypeInfo } from './utils.js';
 import { Primitive, TSArray, Type, TypeKind } from './type.js';
+import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
 type OperatorKind = ts.SyntaxKind;
 type ExpressionKind = ts.SyntaxKind;
@@ -237,6 +238,7 @@ export class PropertyAccessExpression extends Expression {
     private property: Expression;
     private parent: Expression;
     private _isThis: boolean;
+    private callArguments: Expression[] = [];
 
     constructor(
         expr: Expression,
@@ -265,6 +267,14 @@ export class PropertyAccessExpression extends Expression {
 
     get isThis(): boolean {
         return this._isThis;
+    }
+
+    addCallArg(callArg: Expression) {
+        this.callArguments.push(callArg);
+    }
+
+    get callArgs(): Expression[] {
+        return this.callArguments;
     }
 }
 
@@ -394,8 +404,10 @@ export default class ExpressionCompiler {
             }
             case ts.SyntaxKind.Identifier: {
                 const targetIdentifier = (<ts.Identifier>node).getText();
-                if (targetIdentifier === 'Array') {
-                    return new IdentifierExpression('Array');
+                if (
+                    BuiltinNames.builtinIdentifiers.includes(targetIdentifier)
+                ) {
+                    return new IdentifierExpression(targetIdentifier);
                 }
                 let scope = this.compilerCtx.currentScope;
                 if (scope !== null) {
@@ -508,15 +520,7 @@ export default class ExpressionCompiler {
             }
             case ts.SyntaxKind.PropertyAccessExpression: {
                 const propAccessExprNode = <ts.PropertyAccessExpression>node;
-                let parent;
-                if (
-                    propAccessExprNode.parent.kind ===
-                    ts.SyntaxKind.BinaryExpression
-                ) {
-                    parent = new Expression(ts.SyntaxKind.BinaryExpression);
-                } else {
-                    parent = this.visitNode(propAccessExprNode.parent);
-                }
+                const parent = new Expression(propAccessExprNode.parent.kind);
                 const property = this.visitNode(propAccessExprNode.name);
                 let isThis = false;
                 let expr: Expression;
@@ -535,6 +539,16 @@ export default class ExpressionCompiler {
                     parent,
                     isThis,
                 );
+                if (parent.expressionKind === ts.SyntaxKind.CallExpression) {
+                    const callNode = <ts.CallExpression>(
+                        propAccessExprNode.parent
+                    );
+                    for (let i = 0; i < callNode.arguments.length; ++i) {
+                        propAccessExpr.addCallArg(
+                            this.visitNode(callNode.arguments[i]),
+                        );
+                    }
+                }
                 propAccessExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),
                 );
