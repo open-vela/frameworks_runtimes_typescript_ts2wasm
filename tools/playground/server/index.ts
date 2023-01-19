@@ -3,7 +3,6 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { Compiler } from '../../../src/compiler.js';
-import { checkTSFiles, hasError } from '../../../src/checker.js';
 import sqlite3 from 'better-sqlite3';
 
 const storage_dir = path.join(os.homedir(), ".ts2wasm_playground");
