@@ -48,7 +48,7 @@ import {
 } from './glue/packType.js';
 import { typeInfo } from './glue/utils.js';
 import { isDynFunc, getReturnTypeRef } from './envInit.js';
-import { varIndex, WASMGen } from './wasmGen.js';
+import { WASMGen } from './wasmGen.js';
 
 export class WASMExpressionBase {
     wasmCompiler;
@@ -1953,12 +1953,14 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const scope = this.wasmCompiler.curScope!;
             const binaryenStmts = this.wasmCompiler.scopeStateMap.get(scope);
             if (binaryenStmts !== undefined) {
-                binaryenStmts.push(this.module.local.set(varIndex, newStruct));
+                binaryenStmts.push(
+                    this.module.local.set(WASMGen.varIndex, newStruct),
+                );
             }
             const args = new Array<binaryen.ExpressionRef>();
             args.push(
                 this.module.local.get(
-                    varIndex,
+                    WASMGen.varIndex,
                     this.wasmType.getWASMType(type),
                 ),
             );

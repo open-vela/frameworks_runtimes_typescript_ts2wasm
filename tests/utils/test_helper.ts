@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { Compiler } from '../../src/compiler.js';
+import { funcDefs } from '../../src/scope.js';
 
 const doCompile = (filename: string) => {
     const compiler = new Compiler();
@@ -15,8 +16,7 @@ const doCompile = (filename: string) => {
     /* Compile to a temporary file */
     try {
         compiler.compile([filename]);
-    }
-    catch {
+    } catch {
         return null;
     }
     const output = compiler.binaryenModule.emitBinary();
@@ -24,10 +24,8 @@ const doCompile = (filename: string) => {
     const tempdir = fs.mkdtempSync(path.join(os.tmpdir(), 'ts2wasm-test-'));
     const tempfile = path.join(tempdir, 'case.wasm');
     fs.writeFileSync(tempfile, output, { flag: 'w' });
-
     return tempfile;
 };
-
 
 /**
  * Compile the typescript source file, check if it success
@@ -35,16 +33,14 @@ const doCompile = (filename: string) => {
  * @param filename the source file to be tested
  * @returns true if success, false otherwise
  */
-export function testCompile(
-    filename: string
-): boolean {
+export function testCompile(filename: string): boolean {
     try {
+        funcDefs.clear();
         const wasmFile = doCompile(filename);
         if (!wasmFile) return false;
         /* TODO: check wasm file */
         return fs.existsSync(wasmFile);
-    }
-    catch {
+    } catch {
         return false;
     }
 }
