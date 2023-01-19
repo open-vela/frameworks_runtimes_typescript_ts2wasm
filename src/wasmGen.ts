@@ -1,7 +1,7 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
-import { TSClass, Type, TypeKind } from './type.js';
+import { TSClass, TSFunction, Type, TypeKind } from './type.js';
 import { ModifierKind, Variable } from './variable.js';
 import {
     arrayToPtr,
@@ -33,8 +33,8 @@ import {
 } from './memory.js';
 
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
-export const varIndex = 0;
 export class WASMGen {
+    static varIndex = 0;
     private scopeStatementMap = new Map<Scope, binaryen.ExpressionRef[]>();
     private binaryenModule = new binaryen.Module();
     private currentScope: Scope | null = null;
@@ -211,6 +211,18 @@ export class WASMGen {
         const tsClassType = classScope.classType;
         this.currentScope = classScope;
         this.wasmTypeCompiler.createWASMType(tsClassType);
+        /* iff a class haven't a constructor, create a default on for it */
+        if (tsClassType.classConstructorType === null) {
+            const tsFuncType = new TSFunction();
+            tsClassType.setClassConstructor('constructor', tsFuncType);
+            this.module.addFunction(
+                classScope.className + '_constructor',
+                binaryen.createType([]),
+                binaryen.none,
+                [],
+                this.module.block(null, []),
+            );
+        }
     }
 
     /* parse function scope */

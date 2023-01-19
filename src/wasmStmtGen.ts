@@ -284,6 +284,8 @@ export class WASMStatementGen {
     ): binaryen.ExpressionRef {
         const prevScope = this.WASMCompiler.curScope;
         this.WASMCompiler.setCurScope(stmt.getScope() as Scope);
+        const binaryenExprRefs = new Array<binaryen.ExpressionRef>();
+        this.scope2stmts.set(stmt.getScope() as Scope, binaryenExprRefs);
         const clauses = stmt.caseCauses;
         if (clauses.length === 0) {
             return this.WASMCompiler.module.nop();
@@ -471,7 +473,37 @@ export class WASMStatementGen {
                         varInitExprRef = wasmExpr.WASMExprGen(
                             localVar.initExpression,
                         );
-                        if (
+                        /* In this version, we put free variable to context struct when parsing variable declaration */
+                        if (localVar.varIsClosure) {
+                            const scope = this.WASMCompiler.curScope;
+                            if (
+                                scope === null ||
+                                scope.kind !== ScopeKind.FunctionScope
+                            ) {
+                                throw new Error(
+                                    'free variable not in function scope or current scope is null',
+                                );
+                            }
+                            const funcScope = <FunctionScope>scope;
+                            /* free variable index in context struct */
+                            const index = localVar.getClosureIndex();
+                            const ctxStructType = <typeInfo>(
+                                WASMGen.contextOfFunc.get(funcScope)
+                            );
+                            const contextStruct = module.local.get(
+                                (<FunctionScope>scope).paramArray.length,
+                                ctxStructType.typeRef,
+                            );
+                            const freeVarSetWasmStmt =
+                                binaryenCAPI._BinaryenStructSet(
+                                    module.ptr,
+                                    index,
+                                    contextStruct,
+                                    varInitExprRef,
+                                );
+                            binaryenExprRefs.push(freeVarSetWasmStmt);
+                        } else if (
+                            /* TODO: there can be optimize in constructor */
                             localVar.varType.typeKind !== TypeKind.CLASS ||
                             (<TSClass>localVar.varType).className === 'Array' ||
                             (<TSClass>localVar.varType).className === ''
@@ -486,6 +518,7 @@ export class WASMStatementGen {
                     }
                 }
             }
+            WASMGen.varIndex++;
         }
         return module.unreachable();
     }
