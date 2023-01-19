@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Compiler } from '../src/compiler.js';
-import { checkTSFiles, hasError } from '../src/checker.js';
 import { HelpMessageCategory } from '../src/utils.js';
 
 function parseOptions(optionPath: string) {
@@ -176,11 +175,6 @@ function main() {
 
         if (!sourceFileList.length) {
             throw new Error('No ts file to be handled.');
-        }
-
-        checkTSFiles(sourceFileList);
-        if (hasError) {
-            throw new Error('\nErrors occur in source file.');
         }
 
         const compiler = new Compiler();
