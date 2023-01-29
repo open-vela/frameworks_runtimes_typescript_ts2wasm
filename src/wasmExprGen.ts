@@ -1976,33 +1976,18 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 this.wasmType.getWASMHeapType(type),
             );
 
-            this.currentFuncCtx.insert(
-                this.module.local.set(WASMGen.varIndex, newStruct),
-            );
             const args = new Array<binaryen.ExpressionRef>();
-            args.push(
-                this.module.local.get(
-                    WASMGen.varIndex,
-                    this.wasmType.getWASMType(type),
-                ),
-            );
+            args.push(newStruct);
             if (expr.NewArgs) {
                 for (const arg of expr.NewArgs) {
                     args.push(this.WASMExprGen(arg));
                 }
             }
-
-            this.currentFuncCtx.insert(
-                this.module.call(
-                    className + '_constructor',
-                    args,
-                    this.wasmType.getWASMType(
-                        <Type>classType.classConstructorType,
-                    ),
-                ),
+            return this.module.call(
+                className + '_constructor',
+                args,
+                this.wasmType.getWASMType(classType),
             );
-
-            return newStruct;
         }
         return binaryen.none;
     }
