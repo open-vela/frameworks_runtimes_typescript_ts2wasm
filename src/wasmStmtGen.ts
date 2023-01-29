@@ -83,8 +83,14 @@ export class WASMStatementGen {
     }
 
     WASMIfStmt(stmt: IfStatement): binaryen.ExpressionRef {
-        const wasmCond: binaryen.ExpressionRef =
+        let wasmCond: binaryen.ExpressionRef =
             this.WASMCompiler.wasmExpr.WASMExprGen(stmt.ifCondition);
+        if (binaryen.getExpressionType(wasmCond) === binaryen.f64) {
+            const module = this.WASMCompiler.module;
+            wasmCond = module.i32.eqz(
+                module.i32.eqz(module.i32.trunc_u_sat.f64(wasmCond)),
+            );
+        }
         const wasmIfTrue: binaryen.ExpressionRef = this.WASMStmtGen(
             stmt.ifIfTrue,
         );
@@ -387,12 +393,7 @@ export class WASMStatementGen {
                                     varInitExprRef,
                                 );
                             this.currentFuncCtx.insert(freeVarSetWasmStmt);
-                        } else if (
-                            /* TODO: there can be optimize in constructor */
-                            localVar.varType.typeKind !== TypeKind.CLASS ||
-                            (<TSClass>localVar.varType).className === 'Array' ||
-                            (<TSClass>localVar.varType).className === ''
-                        ) {
+                        } else {
                             this.currentFuncCtx.insert(
                                 module.local.set(
                                     localVar.varIndex,
@@ -403,7 +404,6 @@ export class WASMStatementGen {
                     }
                 }
             }
-            WASMGen.varIndex++;
         }
         return module.unreachable();
     }
