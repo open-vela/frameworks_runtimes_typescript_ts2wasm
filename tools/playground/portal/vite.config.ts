@@ -4,7 +4,7 @@ import monacoEditorPlugin from 'vite-plugin-monaco-editor';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command, mode }) => {
-    let config = {
+    const config = {
         plugins: [react(), monacoEditorPlugin.default({})],
         server: {
             host: '0.0.0.0',

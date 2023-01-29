@@ -11,6 +11,7 @@ import {
 import { assert } from 'console';
 import { stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './wasmGen.js';
+import { dyntype } from '../lib/dyntype/utils.js';
 
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
 export class WASMTypeGen {
@@ -50,7 +51,7 @@ export class WASMTypeGen {
         }
         switch (type.typeKind) {
             case TypeKind.DYNCONTEXTTYPE:
-                WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.i64);
+                WASMTypeGen.tsType2WASMTypeMap.set(type, dyntype.dyn_ctx_t);
                 break;
             case TypeKind.VOID:
                 WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.none);

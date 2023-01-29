@@ -6,5 +6,5 @@ export function objTest() {
     };
     const objAny: any = obj1;
     const objAny1 = objAny as typeof obj1;
-    // return objAny1.a;
+    return objAny1.a;
 }

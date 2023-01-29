@@ -41,7 +41,7 @@ import {
     findTargetFunction,
 } from './scope.js';
 import { MatchKind, Stack } from './utils.js';
-import * as dyntype from '../lib/dyntype/utils.js';
+import { dyntype } from '../lib/dyntype/utils.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 import {
     charArrayTypeInfo,
@@ -106,13 +106,13 @@ export class WASMExpressionBase {
         const tmpNumberName = this.getTmpVariableName(prefix);
         let variableType;
         if (typeName === 'any') {
-            variableType = new Primitive('any');
+            variableType = builtinTypes.get(TypeKind.ANY)!;
         } else if (typeName === 'address') {
-            variableType = new Primitive('boolean');
+            variableType = builtinTypes.get(TypeKind.BOOLEAN)!;
         } else if (typeName === 'number') {
-            variableType = new Primitive('number');
+            variableType = builtinTypes.get(TypeKind.NUMBER)!;
         } else if (typeName === 'boolean') {
-            variableType = new Primitive('boolean');
+            variableType = builtinTypes.get(TypeKind.BOOLEAN)!;
         } else {
             variableType = varType;
         }
@@ -454,7 +454,7 @@ export class WASMExpressionBase {
         const tmpTotalNumberName = this.getTmpVariableName('~numberTotal|');
         const tmpTotalNumberVar: Variable = new Variable(
             tmpTotalNumberName,
-            builtinTypes.get('any')!,
+            builtinTypes.get(TypeKind.ANY)!,
             ModifierKind.default,
             0,
         );
@@ -524,7 +524,7 @@ export class WASMExpressionBase {
         const tmpTotalNumberName = this.getTmpVariableName('~numberTotal|');
         const tmpTotalNumberVar: Variable = new Variable(
             tmpTotalNumberName,
-            builtinTypes.get('any')!,
+            builtinTypes.get(TypeKind.ANY)!,
             ModifierKind.default,
             0,
         );
@@ -2298,7 +2298,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const originObjExpr = <IdentifierExpression>expr.expression;
         const originObjExprRef = this.WASMExprGen(originObjExpr);
         const originObjName = originObjExpr.identifierName;
-        const targetType = expr.expression.exprType;
+        const targetType = expr.exprType;
         const isExtref = module.call(
             dyntype.dyntype_is_extref,
             [
@@ -2353,13 +2353,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
     }
 
     private WASMFuncExpr(expr: FunctionExpression): binaryen.ExpressionRef {
-        let funcScope = expr.funcScope;
-        let wasmFuncType = this.wasmType.getWASMType(funcScope.funcType);
-        let funcStructType = this.wasmType.getWASMFuncStructHeapType(
+        const funcScope = expr.funcScope;
+        const wasmFuncType = this.wasmType.getWASMType(funcScope.funcType);
+        const funcStructType = this.wasmType.getWASMFuncStructHeapType(
             funcScope.funcType,
         );
 
-        let context = binaryenCAPI._BinaryenRefNull(
+        const context = binaryenCAPI._BinaryenRefNull(
             this.module.ptr,
             emptyStructType.typeRef,
         );
@@ -2398,8 +2398,8 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                 return this.generateDynBoolean(
                     this.staticValueGen.WASMExprGen(expr),
                 );
-            case ts.SyntaxKind.StringLiteral:
-                let stringExpr = <StringLiteralExpression>expr;
+            case ts.SyntaxKind.StringLiteral: {
+                const stringExpr = <StringLiteralExpression>expr;
                 return this.generateDynString(
                     this.module.i32.const(
                         this.wasmCompiler.generateRawString(
@@ -2407,6 +2407,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                         ),
                     ),
                 );
+            }
             case ts.SyntaxKind.NullKeyword:
                 return this.generateDynNull();
             case ts.SyntaxKind.Identifier: {
