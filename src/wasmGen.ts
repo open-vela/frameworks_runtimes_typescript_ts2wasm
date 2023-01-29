@@ -173,9 +173,10 @@ class DataSegmentContext {
     }
 }
 
+/* used it when creating a wasm struct, to mark a field iff the field is not packed */
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
+
 export class WASMGen {
-    static varIndex = 0;
     private currentFuncCtx: WASMFunctionContext | null = null;
     private dataSegmentContext: DataSegmentContext | null = null;
     private binaryenModule = new binaryen.Module();
@@ -197,7 +198,6 @@ export class WASMGen {
     }
 
     WASMGenerate() {
-        WASMGen.varIndex = 0;
         WASMGen.contextOfFunc.clear();
 
         initGlobalOffset(this.module);
@@ -386,13 +386,19 @@ export class WASMGen {
         /* iff a class haven't a constructor, create a default on for it */
         if (tsClassType.classConstructorType === null) {
             const tsFuncType = new TSFunction();
+            const wasmClassType = this.wasmType.getWASMType(tsClassType);
             tsClassType.setClassConstructor('constructor', tsFuncType);
+            const classInstance = binaryenCAPI._BinaryenRefCast(
+                this.module.ptr,
+                this.module.local.get(0, emptyStructType.typeRef),
+                this.wasmType.getWASMHeapType(tsClassType),
+            );
             this.module.addFunction(
                 classScope.className + '_constructor',
-                binaryen.createType([]),
-                binaryen.none,
+                binaryen.createType([emptyStructType.typeRef]),
+                wasmClassType,
                 [],
-                this.module.block(null, []),
+                this.module.block(null, [this.module.return(classInstance)]),
             );
         }
     }
@@ -489,7 +495,7 @@ export class WASMGen {
         }
         const paramWASMType =
             this.wasmTypeCompiler.getWASMFuncParamType(tsFuncType);
-        const returnWASMType =
+        let returnWASMType =
             this.wasmTypeCompiler.getWASMFuncReturnType(tsFuncType);
 
         /* context struct variable index */
@@ -545,7 +551,22 @@ export class WASMGen {
             );
         } else {
             const classScope = <ClassScope>functionScope.parent;
+            const wasmClassType = this.wasmType.getWASMType(
+                classScope.classType,
+            );
             varWASMTypes.push(this.wasmType.getWASMType(classScope.classType));
+            /* iff constructor, return type is class type  */
+            if (
+                functionScope.funcName ===
+                functionScope.className + '_constructor'
+            ) {
+                this.currentFuncCtx!.insert(
+                    this.module.return(
+                        this.module.local.get(targetVarIndex, wasmClassType),
+                    ),
+                );
+                returnWASMType = wasmClassType;
+            }
         }
         /* the first one is context struct, no need to parse */
         for (const variable of functionScope.varArray.slice(1)) {
