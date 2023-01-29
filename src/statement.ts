@@ -257,7 +257,7 @@ export default class StatementCompiler {
                 scope.kind !== ScopeKind.ClassScope
             ) {
                 ts.forEachChild(node, (node) => {
-                    let stmt = this.visitNode(node);
+                    const stmt = this.visitNode(node);
                     if (stmt) {
                         scope.addStatement(stmt);
                     }
@@ -284,7 +284,6 @@ export default class StatementCompiler {
             case ts.SyntaxKind.SetAccessor:
             case ts.SyntaxKind.GetAccessor:
             case ts.SyntaxKind.MethodDeclaration:
-            /* Don't enter another scope */
             case ts.SyntaxKind.EndOfFileToken:
                 /* Ignore end of file token */
                 break;
@@ -300,7 +299,7 @@ export default class StatementCompiler {
                 const ifFalse: Statement | null = ifStatementNode.elseStatement
                     ? this.visitNode(ifStatementNode.elseStatement)
                     : null;
-                let ifStmt = new IfStatement(condtion, ifTrue, ifFalse);
+                const ifStmt = new IfStatement(condtion, ifTrue, ifFalse);
                 return ifStmt;
             }
             case ts.SyntaxKind.Block: {
@@ -328,7 +327,7 @@ export default class StatementCompiler {
             }
             case ts.SyntaxKind.ReturnStatement: {
                 const returnStatementNode = <ts.ReturnStatement>node;
-                let retStmt = new ReturnStatement(
+                const retStmt = new ReturnStatement(
                     returnStatementNode.expression
                         ? this.compilerCtx.expressionCompiler.visitNode(
                               returnStatementNode.expression,
@@ -435,7 +434,7 @@ export default class StatementCompiler {
             }
             case ts.SyntaxKind.ExpressionStatement: {
                 const exprStatement = <ts.ExpressionStatement>node;
-                let exprStmt = new ExpressionStatement(
+                const exprStmt = new ExpressionStatement(
                     this.compilerCtx.expressionCompiler.visitNode(
                         exprStatement.expression,
                     ),
@@ -443,7 +442,7 @@ export default class StatementCompiler {
                 return exprStmt;
             }
             case ts.SyntaxKind.EmptyStatement: {
-                let emptyStmt = new EmptyStatement();
+                const emptyStmt = new EmptyStatement();
                 return emptyStmt;
             }
             case ts.SyntaxKind.SwitchStatement: {
@@ -460,7 +459,7 @@ export default class StatementCompiler {
                 )!;
                 switchLabels.pop();
                 breakLabels.pop();
-                let swicthStmt = new SwitchStatement(expr, caseBlock);
+                const swicthStmt = new SwitchStatement(expr, caseBlock);
                 return swicthStmt;
             }
             case ts.SyntaxKind.CaseBlock: {
@@ -515,13 +514,13 @@ export default class StatementCompiler {
             case ts.SyntaxKind.BreakStatement: {
                 const breakStatementNode = <ts.BreakStatement>node;
                 assert(!breakStatementNode.label, 'not support goto');
-                let breakStmt = new BreakStatement(
+                const breakStmt = new BreakStatement(
                     this.breakLabelsStack.peek(),
                 );
                 return breakStmt;
             }
             case ts.SyntaxKind.BinaryExpression: {
-                let exprStmt = new ExpressionStatement(
+                const exprStmt = new ExpressionStatement(
                     this.compilerCtx.expressionCompiler.visitNode(node),
                 );
                 return exprStmt;

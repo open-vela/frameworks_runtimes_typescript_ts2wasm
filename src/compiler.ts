@@ -165,7 +165,7 @@ export class Compiler {
     }
 
     dumpScopes() {
-        let scopeInfos: Array<any> = [];
+        const scopeInfos: Array<any> = [];
         this.nodeScopeMap.forEach((scope) => {
             const scopeName = ScopeScanner.getPossibleScopeName(scope);
             let paramCount = 0;
@@ -184,7 +184,7 @@ export class Compiler {
                 child_cnt: scope.children.length,
             });
 
-            let varInfos: Array<any> = [];
+            const varInfos: Array<any> = [];
             if (scope.kind === ScopeKind.FunctionScope) {
                 (<FunctionScope>scope).paramArray.forEach((v) => {
                     if (v.varName === '') {
@@ -221,7 +221,7 @@ export class Compiler {
             );
             console.table(varInfos);
 
-            let typeInfos: Array<any> = [];
+            const typeInfos: Array<any> = [];
             scope.namedTypeMap.forEach((t, name) => {
                 typeInfos.push({
                     name: name,

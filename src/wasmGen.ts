@@ -1,7 +1,7 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
-import { TSClass, TSFunction, Type, TypeKind } from './type.js';
+import { builtinTypes, TSFunction, Type, TypeKind } from './type.js';
 import { ModifierKind, Variable } from './variable.js';
 import {
     arrayToPtr,
@@ -32,16 +32,17 @@ import {
     initDefaultTable,
 } from './memory.js';
 import { initStringBuiltin } from '../lib/builtin/stringBuiltin.js';
+import { dyntype } from '../lib/dyntype/utils.js';
 
 export class WASMFunctionContext {
-    private binaryenCtx: WASMGen
-    private currentScope: Scope
-    private funcScope: FunctionScope | GlobalScope
-    private funcOpcodeArray: Array<binaryen.ExpressionRef>
-    private opcodeArrayStack = new Stack<Array<binaryen.ExpressionRef>>
-    private returnIndex: number= 0
+    private binaryenCtx: WASMGen;
+    private currentScope: Scope;
+    private funcScope: FunctionScope | GlobalScope;
+    private funcOpcodeArray: Array<binaryen.ExpressionRef>;
+    private opcodeArrayStack = new Stack<Array<binaryen.ExpressionRef>>();
+    private returnIndex = 0;
 
-    constructor(binaryenCtx: WASMGen, scope : FunctionScope | GlobalScope) {
+    constructor(binaryenCtx: WASMGen, scope: FunctionScope | GlobalScope) {
         this.binaryenCtx = binaryenCtx;
         this.currentScope = scope;
         this.funcScope = scope;
@@ -58,7 +59,7 @@ export class WASMFunctionContext {
     }
 
     enterScope(scope: Scope) {
-        this.currentScope = scope
+        this.currentScope = scope;
         this.opcodeArrayStack.push(new Array<binaryen.ExpressionRef>());
     }
 
@@ -83,20 +84,20 @@ export class WASMFunctionContext {
 }
 
 interface segmentInfo {
-    data: Uint8Array
-    offset: number
+    data: Uint8Array;
+    offset: number;
 }
 
 class DataSegmentContext {
-    static readonly reservedSpace: number = 1024
-    private binaryenCtx: WASMGen
-    currentOffset
-    stringOffsetMap
-    dataArray: Array<segmentInfo> = []
+    static readonly reservedSpace: number = 1024;
+    private binaryenCtx: WASMGen;
+    currentOffset;
+    stringOffsetMap;
+    dataArray: Array<segmentInfo> = [];
 
     constructor(binaryenCtx: WASMGen) {
         /* Reserve 1024 bytes at beggining */
-        this.binaryenCtx = binaryenCtx
+        this.binaryenCtx = binaryenCtx;
         this.currentOffset = DataSegmentContext.reservedSpace;
         this.stringOffsetMap = new Map<string, number>();
     }
@@ -104,13 +105,13 @@ class DataSegmentContext {
     addData(data: Uint8Array) {
         /* there is no efficient approach to cache the data buffer,
             currently we don't cache it */
-        let offset = this.currentOffset;
+        const offset = this.currentOffset;
         this.currentOffset += data.length;
 
         this.dataArray.push({
             data: data,
-            offset: offset
-        })
+            offset: offset,
+        });
 
         return offset;
     }
@@ -121,11 +122,11 @@ class DataSegmentContext {
             return this.stringOffsetMap.get(str)!;
         }
 
-        let offset = this.currentOffset;
+        const offset = this.currentOffset;
         this.stringOffsetMap.set(str, offset);
         this.currentOffset += str.length + 1;
 
-        let buffer = new Uint8Array(str.length + 1);
+        const buffer = new Uint8Array(str.length + 1);
         for (let i = 0; i < str.length; i++) {
             const byte = str.charCodeAt(i);
             if (byte >= 256) {
@@ -137,8 +138,8 @@ class DataSegmentContext {
 
         this.dataArray.push({
             data: buffer,
-            offset: offset
-        })
+            offset: offset,
+        });
 
         return offset;
     }
@@ -151,19 +152,20 @@ class DataSegmentContext {
             return null;
         }
 
-        let data = new Uint8Array(size);
+        const data = new Uint8Array(size);
         this.dataArray.forEach((info) => {
             for (let i = 0; i < info.data.length; i++) {
-                const targetOffset = i + info.offset - DataSegmentContext.reservedSpace;
+                const targetOffset =
+                    i + info.offset - DataSegmentContext.reservedSpace;
                 data[targetOffset] = info.data[i];
             }
-        })
+        });
 
         return {
             offset: this.binaryenCtx.module.i32.const(offset),
             data: data,
             passive: false,
-        }
+        };
     }
 
     getDataEnd(): number {
@@ -174,7 +176,7 @@ class DataSegmentContext {
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
 export class WASMGen {
     static varIndex = 0;
-    private currentFuncCtx : WASMFunctionContext | null = null;
+    private currentFuncCtx: WASMFunctionContext | null = null;
     private dataSegmentContext: DataSegmentContext | null = null;
     private binaryenModule = new binaryen.Module();
     private globalScopeStack: Stack<GlobalScope>;
@@ -208,8 +210,8 @@ export class WASMGen {
             this.WASMGenHelper(globalScope);
         }
 
-        let segments = [];
-        let segmentInfo = this.dataSegmentContext!.generateSegment();
+        const segments = [];
+        const segmentInfo = this.dataSegmentContext!.generateSegment();
         if (segmentInfo) {
             segments.push(segmentInfo);
         }
@@ -281,8 +283,10 @@ export class WASMGen {
                 const varInitExprRef = this.wasmExpr.WASMExprGen(
                     globalVar.initExpression,
                 );
-                if (globalVar.varType.kind === TypeKind.NUMBER
-                    || globalVar.varType.kind === TypeKind.DYNCONTEXTTYPE) {
+                if (
+                    globalVar.varType.kind === TypeKind.NUMBER ||
+                    globalVar.varType.kind === TypeKind.DYNCONTEXTTYPE
+                ) {
                     if (
                         globalVar.initExpression.expressionKind ===
                         ts.SyntaxKind.NumericLiteral
@@ -327,9 +331,10 @@ export class WASMGen {
                         ),
                     );
                     if (globalVar.varType.kind === TypeKind.ANY) {
-                        const dynInitExprRef = this.wasmDynExprCompiler.WASMDynExprGen(
-                            globalVar.initExpression,
-                        );
+                        const dynInitExprRef =
+                            this.wasmDynExprCompiler.WASMDynExprGen(
+                                globalVar.initExpression,
+                            );
                         this.curFunctionCtx!.insert(
                             this.module.global.set(
                                 globalVar.varName,
@@ -412,7 +417,7 @@ export class WASMGen {
 
         /* parent level function's context type */
         let maybeParentFuncCtxType: typeInfo | null = null;
-        let parentFuncScope = functionScope.parent?.getNearestFunctionScope();
+        const parentFuncScope = functionScope.parent?.getNearestFunctionScope();
         if (parentFuncScope) {
             maybeParentFuncCtxType = <typeInfo>(
                 WASMGen.contextOfFunc.get(parentFuncScope)
@@ -554,13 +559,23 @@ export class WASMGen {
         }
 
         // 4: add wrapper function if exported
-        const isExport =
-            functionScope
-                .funcModifiers
-                .some(
-                    (v) => { return v === ts.SyntaxKind.ExportKeyword }
-                )
+        const isExport = functionScope.funcModifiers.some((v) => {
+            return v === ts.SyntaxKind.ExportKeyword;
+        });
         if (isExport) {
+            const functionStmts: binaryen.ExpressionRef[] = [];
+            // init dyntype contex
+            const initDynContextStmt = this.module.global.set(
+                dyntype.dyntype_context,
+                this.module.call(
+                    dyntype.dyntype_context_init,
+                    [],
+                    binaryen.none,
+                ),
+            );
+            functionStmts.push(initDynContextStmt);
+
+            // call origin function
             let idx = 0;
             const tempLocGetParams = tsFuncType
                 .getParamTypes()
@@ -581,15 +596,44 @@ export class WASMGen {
                 returnWASMType,
             );
             const isReturn = returnWASMType === binaryen.none ? false : true;
+            functionStmts.push(
+                isReturn ? this.module.local.set(idx, targetCall) : targetCall,
+            );
+
+            // free dyntype context
+            const freeDynContextStmt = this.module.call(
+                dyntype.dyntype_context_destroy,
+                [
+                    this.module.global.get(
+                        dyntype.dyntype_context,
+                        this.wasmType.getWASMType(
+                            builtinTypes.get(TypeKind.DYNCONTEXTTYPE)!,
+                        ),
+                    ),
+                ],
+                binaryen.none,
+            );
+            functionStmts.push(freeDynContextStmt);
+
+            // return value
+            const functionVars: binaryen.ExpressionRef[] = [];
+            if (isReturn) {
+                functionStmts.push(
+                    this.module.return(
+                        this.module.local.get(idx, returnWASMType),
+                    ),
+                );
+                functionVars.push(returnWASMType);
+            }
+            // add export function
             this.module.addFunction(
                 functionScope.funcName + '-wrapper',
                 this.wasmTypeCompiler.getWASMFuncOrignalParamType(tsFuncType),
                 returnWASMType,
-                [],
-                this.module.block(null, [
-                    isReturn ? this.module.return(targetCall) : targetCall,
-                ]),
+                functionVars,
+                this.module.block(null, functionStmts),
             );
+
             this.module.addFunctionExport(
                 functionScope.funcName + '-wrapper',
                 functionScope.funcName,
@@ -600,7 +644,11 @@ export class WASMGen {
             paramWASMType,
             returnWASMType,
             varWASMTypes,
-            this.module.block('entry', this.currentFuncCtx.getBody(), returnWASMType),
+            this.module.block(
+                'entry',
+                this.currentFuncCtx.getBody(),
+                returnWASMType,
+            ),
         );
     }
 
@@ -619,7 +667,7 @@ export class WASMGen {
     }
 
     generateRawString(str: string): number {
-        let offset = this.dataSegmentContext!.addString(str);
+        const offset = this.dataSegmentContext!.addString(str);
         return offset;
     }
 }

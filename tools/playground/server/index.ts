@@ -31,7 +31,7 @@ function get_feedback_db() {
     const db_dir = path.join(storage_dir, 'feedback.sqlite');
 
     if (!fs.existsSync(db_dir)) {
-        let db = new sqlite3(db_dir);
+        const db = new sqlite3(db_dir);
         db.exec(`
             CREATE TABLE suggestions
             (
@@ -76,7 +76,7 @@ app.post('/feedback', async (req: Request, res: Response) => {
     });
 
     req.on('end', () => {
-        let content = JSON.parse(buffer);
+        const content = JSON.parse(buffer);
         console.log(`[${content.user}] suggested:\n${content.suggests}`);
         const db = get_feedback_db();
         const stmt = db.prepare(
@@ -99,7 +99,7 @@ app.post('/compile', (req: Request, res: Response) => {
         try {
             const payloadJson = JSON.parse(buffer);
             tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-            let tempfile = path.join(tmpDir, 'index.ts');
+            const tempfile = path.join(tmpDir, 'index.ts');
             fs.writeFileSync(tempfile, payloadJson.code);
 
             console.log(`Saving data to temp file [${tempfile}]`);

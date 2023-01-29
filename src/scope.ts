@@ -116,7 +116,7 @@ export class Scope {
     }
 
     getTSType(typeName: string, nested = true): Type | undefined {
-        let res = builtinTypes.get(typeName);
+        const res = builtinTypes.get(typeName);
         if (res) {
             return res;
         }
@@ -313,7 +313,7 @@ export class ScopeScanner {
             new Variable('', new Type(), ModifierKind.default, -1),
         );
         functionScope.setClassName((<ClassScope>parentScope).className);
-        let methodName: string = '';
+        let methodName = '';
         switch (methodType) {
             case classFuncType.Constructor:
                 methodName = functionScope.className + '_constructor';
@@ -391,7 +391,7 @@ export class ScopeScanner {
                     functionName = 'anonymous' + ScopeScanner.anonymousIndex++;
                 }
 
-                let outerFuncScope =
+                const outerFuncScope =
                     functionScope.parent?.getNearestFunctionScope();
                 if (outerFuncScope) {
                     functionName = `${outerFuncScope.funcName}|${functionName}`;
@@ -509,7 +509,7 @@ export class ScopeScanner {
             this.nodeScopeMap.set(node, blockScope);
         }
 
-        let statements = node.statements;
+        const statements = node.statements;
         if (statements.length !== 0) {
             for (let i = 0; i < statements.length; i++) {
                 this.visitNode(statements[i]);
@@ -566,7 +566,7 @@ export function findTargetFunction(
     let nearestFuncscope = scope.getNearestFunctionScope();
     let targetFuncDef = undefined;
     while (nearestFuncscope) {
-        let maybeFuncName = `${nearestFuncscope.funcName}|${name}`;
+        const maybeFuncName = `${nearestFuncscope.funcName}|${name}`;
         targetFuncDef = funcDefs.get(maybeFuncName);
         if (targetFuncDef) {
             break;
