@@ -1,11 +1,11 @@
 import "./App.css";
 import "antd/dist/reset.css";
-import { Divider, Typography, Button, Card, Col, Row, Space, Layout, Modal, Input, message } from "antd";
+import { Divider, Typography, Button, Card, Col, Row, Space, Layout, Modal, Input, message, Switch, Select } from "antd";
 import { BrowserRouter as Router, Route } from "react-router-dom";
 import * as monaco from 'monaco-editor';
 import { useEffect, useRef, useState } from "react";
 import TextArea from "antd/es/input/TextArea";
-import { UserOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, UserOutlined } from "@ant-design/icons";
 
 const { Header, Footer, Sider, Content } = Layout;
 
@@ -20,6 +20,8 @@ function App() {
 
   const [userName, setUserName] = useState("");
   const [userComments, setUserComments] = useState("");
+  const [opt, setOpt] = useState(true);
+  const [resFormat, setResFormat] = useState("S-expression");
 
   const serverUrl = "http://" + import.meta.env.VITE_SERVER_IP
     + ":" + import.meta.env.VITE_SERVER_PORT;
@@ -86,16 +88,38 @@ function App() {
 }
 `
   const doCompile = async () => {
+    const payload = JSON.stringify({
+      code: (editorRef.current as any).getValue(),
+      options: {
+        opt: opt,
+        format: resFormat
+      }
+    })
     const response = await fetch(serverUrl + `/compile`, {
       method: 'POST',
       mode: 'cors',
       headers: {
-        'Content-Type': 'text/plain'
+        'Content-Type': 'application/json'
       },
-      body: (editorRef.current as any).getValue()
+      body: payload
     });
-    const content = await response.text();
-    setResult(content);
+    const resData = await response.json();
+    if (resData.error) {
+      setResult(resData.error);
+      message.error('Failed to build the source code');
+      return;
+    }
+
+    message.success(`Successfully built the source code in ${resData.duration / 1000}s`);
+    setResult(resData.content);
+  }
+
+  const toggleOpt = () => {
+    setOpt(!opt);
+  }
+
+  const handleFormatChange = (value: string) => {
+    setResFormat(value);
   }
 
   useEffect(() => {
@@ -161,7 +185,27 @@ function App() {
         <div className="static flex items-center justify-between">
           <span className="grow font-mono ml-10 h-full text-2xl text-white inline-block align-middle">Ts2wasm Playground</span>
           <div className="absolute mr-10 right-0">
-            <Button className="" onClick={doCompile}>Compile</Button>
+          <span className="grow font-mono ml-3 h-full text-2 text-white inline-block align-middle">Format: </span>
+            <Select
+              className="ml-2"
+              defaultValue="S-expression"
+              style={{ width: 130 }}
+              onChange={handleFormatChange}
+              options={[
+                { value: 'S-expression', label: 'S-expression' },
+                { value: 'Stack-IR', label: 'Stack-IR' },
+              ]}
+            />
+            <span className="grow font-mono ml-3 h-full text-2 text-white inline-block align-middle">Opt: </span>
+            <Switch
+              className="ml-2"
+              style={{ backgroundColor: opt ? 'seagreen' : 'gray' }}
+              checkedChildren={<CheckOutlined />}
+              unCheckedChildren={<CloseOutlined />}
+              onChange={toggleOpt}
+              defaultChecked
+            />
+            <Button className="ml-5" onClick={doCompile}>Compile</Button>
             <Button className="ml-5 " onClick={showModal}>Feedback</Button>
           </div>
         </div>

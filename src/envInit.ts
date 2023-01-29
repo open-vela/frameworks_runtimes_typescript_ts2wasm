@@ -159,11 +159,40 @@ export function importLibApi(module: binaryen.Module) {
         dyntype.bool,
     );
     module.addFunctionImport(
+        dyntype.dyntype_to_extref,
+        dyntype.module_name,
+        dyntype.dyntype_to_extref,
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.dyn_value_t,
+            dyntype.pointer,
+        ]),
+        dyntype.int,
+    );
+    module.addFunctionImport(
         dyntype.dyntype_is_object,
         dyntype.module_name,
         dyntype.dyntype_is_object,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
         dyntype.bool,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_get_prototype,
+        dyntype.module_name,
+        dyntype.dyntype_get_prototype,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.dyn_value_t,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_set_prototype,
+        dyntype.module_name,
+        dyntype.dyntype_set_prototype,
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.dyn_value_t,
+            dyntype.dyn_value_t,
+        ]),
+        dyntype.int,
     );
 }
 
@@ -187,7 +216,10 @@ export function isDynFunc(funcName: string) {
         case dyntype.dyntype_has_property:
         case dyntype.dyntype_new_extref:
         case dyntype.dyntype_is_extref:
+        case dyntype.dyntype_to_extref:
         case dyntype.dyntype_is_object:
+        case dyntype.dyntype_get_prototype:
+        case dyntype.dyntype_set_prototype:
             return true;
         default:
             return false;
@@ -204,6 +236,8 @@ export function getReturnTypeRef(funcName: string) {
             return dyntype.dyn_type_t;
         case dyntype.dyntype_to_number:
         case dyntype.dyntype_has_property:
+        case dyntype.dyntype_to_extref:
+        case dyntype.dyntype_set_prototype:
             return dyntype.int;
         case dyntype.dyntype_new_number:
         case dyntype.dyntype_new_string:
@@ -215,6 +249,7 @@ export function getReturnTypeRef(funcName: string) {
         case dyntype.dyntype_set_property:
         case dyntype.dyntype_get_property:
         case dyntype.dyntype_new_extref:
+        case dyntype.dyntype_get_prototype:
             return dyntype.dyn_value_t;
         case dyntype.dyntype_is_extref:
         case dyntype.dyntype_type_eq:
