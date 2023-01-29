@@ -11,15 +11,16 @@ import {
     getCurScope,
     getNearestFunctionScopeFromCurrent,
     generateNodeExpression,
+    parentIsFunctionLike,
 } from './utils.js';
 import { FunctionScope, GlobalScope, Scope, ScopeKind } from './scope.js';
 
 export enum ModifierKind {
-    default,
-    const,
-    let,
-    var,
-    readonly,
+    default = '',
+    const = 'const',
+    let = 'let',
+    var = 'var',
+    readonly = 'readonly',
 }
 export class Variable {
     private isClosure = false;
@@ -120,21 +121,21 @@ export class VariableScanner {
     currentScope: Scope | null = null;
     nodeScopeMap = new Map<ts.Node, Scope>();
 
-    constructor(private compilerCtx: Compiler) {}
+    constructor(private compilerCtx: Compiler) {
+        this.globalScopeStack = this.compilerCtx.globalScopeStack;
+        this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
+    }
 
     visit(nodes: Array<ts.SourceFile>) {
         this.typechecker = this.compilerCtx.typeChecker;
-        this.globalScopeStack = this.compilerCtx.globalScopeStack;
-        this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
-        for (let i = 0; i < nodes.length; i++) {
-            const sourceFile = nodes[i];
-            this.currentScope = this.globalScopeStack.getItemAtIdx(i);
-            this.visitNode(sourceFile);
-        }
+
+        this.nodeScopeMap.forEach((scope, node) => {
+            this.currentScope = scope;
+            ts.forEachChild(node, this.visitNode.bind(this));
+        });
     }
 
     visitNode(node: ts.Node): void {
-        this.findCurrentScope(node);
         switch (node.kind) {
             case ts.SyntaxKind.Parameter: {
                 if (node.parent.kind === ts.SyntaxKind.FunctionType) {
@@ -167,13 +168,13 @@ export class VariableScanner {
                         : ModifierKind.default;
                 const paramType =
                     parameterNode.type === undefined
-                        ? functionScope.getTypeFromCurrentScope(
+                        ? functionScope.getTSType(
                               getNodeTypeInfo(
                                   parameterNode.name,
                                   this.typechecker!,
                               ).typeName,
                           )
-                        : functionScope.getTypeFromCurrentScope(
+                        : functionScope.getTSType(
                               getNodeTypeInfo(
                                   parameterNode.type,
                                   this.typechecker!,
@@ -182,7 +183,7 @@ export class VariableScanner {
                 const paramIndex = functionScope.paramArray.length;
                 const paramObj = new Parameter(
                     paramName,
-                    paramType,
+                    paramType!,
                     paramModifier,
                     paramIndex,
                     isOptional,
@@ -193,7 +194,7 @@ export class VariableScanner {
             }
             case ts.SyntaxKind.VariableDeclaration: {
                 const variableDeclarationNode = <ts.VariableDeclaration>node;
-                const currentScope = this.getCurrentScope();
+                const currentScope = this.compilerCtx.getScopeByNode(node)!;
 
                 let variableModifier = ModifierKind.default;
                 const variableAssignText =
@@ -221,25 +222,10 @@ export class VariableScanner {
                 if (typeName.startsWith('typeof')) {
                     typeName = typeName.substring(7);
                 }
-                const variableType =
-                    currentScope.getTypeFromCurrentScope(typeName);
-                // const variableType =
-                //     variableDeclarationNode.type === undefined
-                //         ? currentScope.getTypeFromCurrentScope(
-                //               getNodeTypeInfo(
-                //                   variableDeclarationNode.name,
-                //                   this.typechecker!,
-                //               ).typeName,
-                //           )
-                //         : currentScope.getTypeFromCurrentScope(
-                //               getNodeTypeInfo(
-                //                   variableDeclarationNode.type,
-                //                   this.typechecker!,
-                //               ).typeName,
-                //           );
+                const variableType = currentScope.getTSType(typeName);
                 const variable = new Variable(
                     variableName,
-                    variableType,
+                    variableType!,
                     variableModifier,
                     -1,
                     true,
@@ -285,25 +271,29 @@ export class VariableScanner {
                 currentScope.addVariable(variable);
                 break;
             }
+            case ts.SyntaxKind.SourceFile:
+            case ts.SyntaxKind.FunctionDeclaration:
+            case ts.SyntaxKind.FunctionExpression:
+            case ts.SyntaxKind.ArrowFunction:
+            case ts.SyntaxKind.ClassDeclaration:
+            case ts.SyntaxKind.SetAccessor:
+            case ts.SyntaxKind.GetAccessor:
+            case ts.SyntaxKind.Constructor:
+            case ts.SyntaxKind.MethodDeclaration:
+            case ts.SyntaxKind.ForStatement:
+            case ts.SyntaxKind.WhileStatement:
+            case ts.SyntaxKind.DoStatement:
+                /* Don't enter other scopes */
+                break;
+            case ts.SyntaxKind.Block:
+                if (!parentIsFunctionLike(node)) {
+                    break;
+                }
+            /* Fall through */
+            default: {
+                ts.forEachChild(node, this.visitNode.bind(this));
+            }
         }
-        ts.forEachChild(node, this.visitNode.bind(this));
-    }
-
-    getCurrentScope() {
-        let scope = this.currentScope;
-        if (!scope) {
-            throw new Error('Current Scope is null');
-        }
-        scope = <Scope>scope;
-        return scope;
-    }
-
-    findCurrentScope(node: ts.Node) {
-        const currentScope = getCurScope(node, this.nodeScopeMap);
-        if (!currentScope) {
-            throw new Error('current scope is null');
-        }
-        this.currentScope = currentScope;
     }
 }
 
@@ -327,7 +317,7 @@ export class VariableInit {
     }
 
     visitNode(node: ts.Node): void {
-        this.findCurrentScope(node);
+        this.currentScope = this.compilerCtx.getScopeByNode(node)!;
         switch (node.kind) {
             case ts.SyntaxKind.Parameter: {
                 if (node.parent.kind === ts.SyntaxKind.FunctionType) {
@@ -355,7 +345,7 @@ export class VariableInit {
             }
             case ts.SyntaxKind.VariableDeclaration: {
                 const variableDeclarationNode = <ts.VariableDeclaration>node;
-                const currentScope = this.getCurrentScope();
+                const currentScope = this.currentScope!;
                 const variableName = variableDeclarationNode.name.getText();
                 const variableObj = currentScope.findVariable(variableName);
                 if (!variableObj) {
@@ -375,22 +365,5 @@ export class VariableInit {
             }
         }
         ts.forEachChild(node, this.visitNode.bind(this));
-    }
-
-    getCurrentScope() {
-        let scope = this.currentScope;
-        if (!scope) {
-            throw new Error('Current Scope is null');
-        }
-        scope = <Scope>scope;
-        return scope;
-    }
-
-    findCurrentScope(node: ts.Node) {
-        const currentScope = getCurScope(node, this.nodeScopeMap);
-        if (!currentScope) {
-            throw new Error('current scope is null');
-        }
-        this.currentScope = currentScope;
     }
 }

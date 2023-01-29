@@ -58,10 +58,15 @@ export function initGlobalOffset(module: binaryen.Module) {
     );
 }
 
-export function initDefaultMemory(module: binaryen.Module): void {
+export function initDefaultMemory(
+    module: binaryen.Module,
+    segments: binaryen.MemorySegment[],
+): void {
     module.setMemory(
         BuiltinNames.mem_initialPages,
         BuiltinNames.mem_maximumPages,
+        'default',
+        segments,
     );
 }
 

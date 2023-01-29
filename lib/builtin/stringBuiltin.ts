@@ -166,7 +166,7 @@ export function initStringBuiltin(module: binaryen.Module) {
             binaryen.i32,
         ]),
         stringTypeInfo.typeRef,
-        [],
+        [charArrayTypeInfo.typeRef],
         slice(module),
     );
 }

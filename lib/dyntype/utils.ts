@@ -15,7 +15,7 @@ export const cvoid = binaryen.none;
 export const double = binaryen.f64;
 export const int = binaryen.i32;
 export const bool = binaryen.i32;
-export const cstring = stringTypeInfo.typeRef;
+export const cstring = binaryen.i32;
 export const pointer = binaryen.i32;
 export const external_ref_tag = binaryen.f64;
 

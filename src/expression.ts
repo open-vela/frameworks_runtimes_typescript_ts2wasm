@@ -2,8 +2,12 @@ import ts from 'typescript';
 import { Compiler } from './compiler.js';
 import { Scope, FunctionScope, GlobalScope, ScopeKind } from './scope.js';
 import { Variable } from './variable.js';
-import { getNodeTypeInfo } from './utils.js';
-import { Primitive, TSArray, Type, TypeKind } from './type.js';
+import {
+    getCurScope,
+    getNearestFunctionScopeFromCurrent,
+    getNodeTypeInfo,
+} from './utils.js';
+import { builtinTypes, Primitive, TSArray, Type, TypeKind } from './type.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
 type OperatorKind = ts.SyntaxKind;
@@ -268,6 +272,7 @@ export class NewExpression extends Expression {
     private expr: Expression;
     private arguments: Array<Expression> | undefined;
     private newArrayLen = 0;
+    private lenExpression: Expression | null = null;
 
     constructor(expr: Expression, args?: Array<Expression>) {
         super(ts.SyntaxKind.NewExpression);
@@ -293,6 +298,14 @@ export class NewExpression extends Expression {
 
     get arrayLen(): number {
         return this.newArrayLen;
+    }
+
+    setLenExpr(len: Expression) {
+        this.lenExpression = len;
+    }
+
+    get lenExpr(): Expression | null {
+        return this.lenExpression;
     }
 }
 
@@ -341,12 +354,28 @@ export class AsExpression extends Expression {
     }
 }
 
+export class FunctionExpression extends Expression {
+    private _funcScope: FunctionScope;
+
+    constructor(func: FunctionScope) {
+        super(ts.SyntaxKind.FunctionExpression);
+        this._funcScope = func;
+    }
+
+    get funcScope(): FunctionScope {
+        return this._funcScope;
+    }
+}
+
 export default class ExpressionCompiler {
     // private currentScope: Scope | null = null;
 
     private typeCompiler;
+    private nodeScopeMap;
+
     constructor(private compilerCtx: Compiler) {
         this.typeCompiler = this.compilerCtx.typeComp;
+        this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
     }
 
     visitNode(node: ts.Node): Expression {
@@ -395,34 +424,32 @@ export default class ExpressionCompiler {
                 ) {
                     return new IdentifierExpression(targetIdentifier);
                 }
-                let scope = this.compilerCtx.currentScope;
-                if (scope !== null) {
-                    const nearestFuncScope = scope.getNearestFunctionScope();
-                    let variable: Variable | undefined = undefined;
-                    let isFreeVar = false;
+                let scope = this.compilerCtx.getScopeByNode(node) || null;
+                const currentFuncScope = scope!.getNearestFunctionScope();
+                let variable: Variable | undefined = undefined;
+                if (currentFuncScope) {
                     while (scope !== null) {
                         variable = scope.findVariable(targetIdentifier, false);
-                        if (
-                            variable === undefined &&
-                            nearestFuncScope !== null &&
-                            scope === nearestFuncScope
-                        ) {
-                            isFreeVar = true;
-                            // (<FunctionScope>nearestFuncScope).setIsClosure();
-                        }
-                        if (variable !== undefined) {
-                            if (
-                                isFreeVar &&
-                                scope.kind === ScopeKind.FunctionScope
-                            ) {
-                                variable.setVarIsClosure();
-                                (<FunctionScope>scope).setIsClosure();
-                            }
+                        if (variable) {
                             break;
                         }
                         scope = scope.parent;
                     }
+
+                    if (scope) {
+                        let varDefinedFuncScope =
+                            scope.getNearestFunctionScope();
+                        if (
+                            varDefinedFuncScope &&
+                            currentFuncScope !== varDefinedFuncScope
+                        ) {
+                            variable!.setVarIsClosure();
+                            varDefinedFuncScope.setIsClosure();
+                        }
+                        /* otherwise it's a global var */
+                    }
                 }
+
                 const identifierExpr = new IdentifierExpression(
                     (<ts.Identifier>node).getText(),
                 );
@@ -558,36 +585,98 @@ export default class ExpressionCompiler {
                     (<IdentifierExpression>expr).identifierName === 'Array'
                 ) {
                     const newExpr = new NewExpression(expr);
-                    if (!newExprNode.arguments) {
-                        newExpr.setExprType(new TSArray(new Primitive('any')));
-                    } else {
-                        const argLen = newExprNode.arguments.length;
-                        newExpr.setArrayLen(argLen);
-                        const elemType = this.typeCompiler.generateNodeType(
-                            newExprNode.arguments[0],
+                    let arrayType: TSArray | null = null;
+                    let isLiteral = false;
+
+                    /* Maybe we are assigning this new array to a variable,
+                        the array should have the same type with the target variable */
+                    let maybeIdentifierNode;
+                    let parentNode = node.parent;
+                    if (parentNode.kind === ts.SyntaxKind.VariableDeclaration) {
+                        /* Assign during variable declaration */
+                        const declNode = <ts.VariableDeclaration>parentNode;
+                        /* TODO: deal with binding pattern */
+                        maybeIdentifierNode = declNode.name;
+                    } else if (
+                        parentNode.kind === ts.SyntaxKind.BinaryExpression
+                    ) {
+                        /* Assign expression */
+                        const exprNode = <ts.BinaryExpression>parentNode;
+                        if (
+                            exprNode.operatorToken.kind ===
+                            ts.SyntaxKind.EqualsToken
+                        ) {
+                            maybeIdentifierNode = exprNode.left;
+                        }
+                    }
+
+                    if (
+                        maybeIdentifierNode?.kind === ts.SyntaxKind.Identifier
+                    ) {
+                        const identifierNode = <ts.Identifier>(
+                            maybeIdentifierNode
                         );
-                        const arrayLireralExprList = [];
-                        if (argLen === 1) {
+                        const currentScope =
+                            this.compilerCtx.getScopeByNode(node);
+                        const variable = currentScope?.findVariable(
+                            identifierNode.text,
+                        );
+                        if (variable) {
+                            if (variable.varType.kind !== TypeKind.ARRAY) {
+                                throw Error(
+                                    'Assign Array to non-array variable',
+                                );
+                            }
+                            arrayType = variable.varType as TSArray;
+                        }
+                    }
+
+                    if (newExprNode.arguments) {
+                        /* Check if it's created from a literal */
+                        const argLen = newExprNode.arguments.length;
+                        if (argLen > 1) {
+                            isLiteral = true;
+                        } else if (argLen === 1) {
                             const elem = newExprNode.arguments[0];
                             const elemExpr = this.visitNode(elem);
-                            if (elemExpr.exprType.kind === TypeKind.NUMBER) {
-                                newExpr.setExprType(
-                                    new TSArray(new Primitive('any')),
-                                );
-                            } else {
-                                newExpr.setExprType(new TSArray(elemType));
-                                arrayLireralExprList.push(elemExpr);
-                            }
-                        } else {
-                            newExpr.setExprType(new TSArray(elemType));
-                            for (let i = 0; i < argLen; i++) {
-                                const elem = newExprNode.arguments[i];
-                                const elemExpr = this.visitNode(elem);
-                                arrayLireralExprList.push(elemExpr);
+                            if (elemExpr.exprType.kind !== TypeKind.NUMBER) {
+                                isLiteral = true;
                             }
                         }
-                        newExpr.setArgs(arrayLireralExprList);
+
+                        if (isLiteral) {
+                            const elemExprs = newExprNode.arguments.map((a) => {
+                                return this.visitNode(a);
+                            });
+                            const elemTypes = elemExprs.map((e) => {
+                                return e.exprType;
+                            });
+
+                            let elemType: Type | null = null;
+                            /* Check types, if elements in different types, then it's any[] */
+                            if (elemTypes.every((v, _, arr) => v === arr[0])) {
+                                elemType = elemTypes[0];
+                            } else {
+                                elemType = builtinTypes.get('any')!;
+                            }
+                            arrayType = new TSArray(elemType!);
+
+                            newExpr.setArrayLen(argLen);
+                            newExpr.setArgs(elemExprs);
+                        } else if (argLen === 1) {
+                            newExpr.setLenExpr(
+                                this.visitNode(newExprNode.arguments[0]),
+                            );
+                        }
+                        /* else no arguments */
                     }
+
+                    if (!arrayType) {
+                        throw Error('Unhandled array creation pattern');
+                    }
+
+                    newExpr.setExprType(arrayType);
+
                     return newExpr;
                 }
                 const args = new Array<Expression>();
@@ -641,6 +730,9 @@ export default class ExpressionCompiler {
                 arrLiteralExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),
                 );
+                /* TODO(issue 241): get type from assignment target
+                    https://github.com/wasm-micro-runtime/ts2wasm/issues/241
+                */
                 return arrLiteralExpr;
             }
             case ts.SyntaxKind.AsExpression: {
@@ -667,6 +759,13 @@ export default class ExpressionCompiler {
                     this.typeCompiler.generateNodeType(node),
                 );
                 return elementAccessExpr;
+            }
+            case ts.SyntaxKind.FunctionExpression:
+            case ts.SyntaxKind.ArrowFunction: {
+                let funcScope = getCurScope(node, this.nodeScopeMap);
+                return new FunctionExpression(
+                    getNearestFunctionScopeFromCurrent(funcScope)!,
+                );
             }
             default:
                 return new Expression(ts.SyntaxKind.Unknown);

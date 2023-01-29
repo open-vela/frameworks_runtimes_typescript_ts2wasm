@@ -27,5 +27,10 @@
         "category": "Output",
         "description": "Specifies the base directory of output files.",
         "default": "."
+    },
+    "opt": {
+        "category": "General",
+        "description": "Specify optimization level",
+        "default": 0
     }
 }
