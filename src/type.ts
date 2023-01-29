@@ -61,7 +61,7 @@ export class Primitive extends Type {
                 this.typeKind = TypeKind.NULL;
                 break;
             }
-            case 'i64': {
+            case 'dyntype_context': {
                 this.typeKind = TypeKind.DYNCONTEXTTYPE;
                 break;
             }
@@ -79,6 +79,7 @@ export const builtinTypes = new Map<string, Type>([
     ['any', new Primitive('any')],
     ['void', new Primitive('void')],
     ['null', new Primitive('null')],
+    ['dyntype_context', new Primitive('dyntype_context')],
 ]);
 
 export interface TsClassField {
@@ -374,8 +375,8 @@ export default class TypeCompiler {
             case ts.SyntaxKind.ElementAccessExpression:
             case ts.SyntaxKind.ConditionalExpression:
             case ts.SyntaxKind.CallExpression:
-            case ts.SyntaxKind.ParenthesizedExpression:
-            case ts.SyntaxKind.ArrayLiteralExpression: {
+            case ts.SyntaxKind.TypeQuery:
+            case ts.SyntaxKind.ParenthesizedExpression: {
                 const typeCheckerInfo = getNodeTypeInfo(
                     node,
                     this.typechecker!,
@@ -383,15 +384,33 @@ export default class TypeCompiler {
                 const typeNode = typeCheckerInfo.typeNode;
                 return this.generateNodeType(typeNode);
             }
-            case ts.SyntaxKind.PrefixUnaryExpression:
+            case ts.SyntaxKind.ArrayLiteralExpression: {
+                const parentNode = node.parent;
+                if (parentNode.kind === ts.SyntaxKind.VariableDeclaration) {
+                    const varNode = <ts.VariableDeclaration>parentNode;
+                    return this.generateNodeType(varNode.name);
+                } else if (parentNode.kind === ts.SyntaxKind.BinaryExpression) {
+                    const binaryExprNode = <ts.BinaryExpression>parentNode;
+                    return this.generateNodeType(binaryExprNode.left);
+                } else {
+                    const typeCheckerInfo = getNodeTypeInfo(
+                        node,
+                        this.typechecker!,
+                    );
+                    const typeNode = typeCheckerInfo.typeNode;
+                    return this.generateNodeType(typeNode);
+                }
+            }
+            case ts.SyntaxKind.PrefixUnaryExpression: {
                 const UnaryExprNode = <ts.PrefixUnaryExpression>node;
                 return this.generateNodeType(UnaryExprNode.operand);
+            }
             case ts.SyntaxKind.NumberKeyword:
             case ts.SyntaxKind.NumericLiteral: {
-                return this.generatePrimitiveType('number');
+                return builtinTypes.get(TypeKind.NUMBER)!;
             }
             case ts.SyntaxKind.AnyKeyword:
-                return this.generatePrimitiveType('any');
+                return builtinTypes.get(TypeKind.ANY)!;
             case ts.SyntaxKind.UnionType: {
                 // check if all nodes type is equal
                 const unionTypeNode = <ts.UnionTypeNode>node;
@@ -400,25 +419,52 @@ export default class TypeCompiler {
                 for (let i = 1; i < unionTypeNode.types.length; i++) {
                     if (unionTypeNode.types[i].kind !== firstTypeKind) {
                         // treat union as any
-                        return this.generatePrimitiveType('any');
+                        return builtinTypes.get(TypeKind.ANY)!;
                     }
                 }
-                return this.generateNodeType(firstTypeNode);
+                const nodeType = this.generateNodeType(firstTypeNode);
+                if (
+                    nodeType.kind === TypeKind.CLASS &&
+                    (<TSClass>nodeType).className == ''
+                ) {
+                    // judge if objectLiteral's member type is all same
+                    const objType = <TSClass>nodeType;
+                    if (objType.fields && objType.memberFuncs) {
+                        // object has both field and method, treat as any
+                        return builtinTypes.get(TypeKind.ANY)!;
+                    } else if (objType.fields) {
+                        const isSameType = objType.fields.every(
+                            (field) => field.type === objType.fields[0].type,
+                        );
+                        if (!isSameType) {
+                            return builtinTypes.get(TypeKind.ANY)!;
+                        }
+                    } else {
+                        const isSameType = objType.memberFuncs.every(
+                            (memberFunc) =>
+                                memberFunc.type === objType.memberFuncs[0].type,
+                        );
+                        if (!isSameType) {
+                            return builtinTypes.get(TypeKind.ANY)!;
+                        }
+                    }
+                }
+                return nodeType;
             }
             case ts.SyntaxKind.StringKeyword:
             case ts.SyntaxKind.StringLiteral: {
-                return this.generatePrimitiveType('string');
+                return builtinTypes.get(TypeKind.STRING)!;
             }
             case ts.SyntaxKind.VoidKeyword: {
-                return this.generatePrimitiveType('void');
+                return builtinTypes.get(TypeKind.VOID)!;
             }
             case ts.SyntaxKind.FalseKeyword:
             case ts.SyntaxKind.TrueKeyword:
             case ts.SyntaxKind.BooleanKeyword: {
-                return this.generatePrimitiveType('boolean');
+                return builtinTypes.get(TypeKind.BOOLEAN)!;
             }
             case ts.SyntaxKind.NullKeyword: {
-                return this.generatePrimitiveType('null');
+                return builtinTypes.get(TypeKind.NULL)!;
             }
             case ts.SyntaxKind.FunctionType: {
                 const funcTypeNode = <ts.FunctionTypeNode>node;
@@ -504,10 +550,6 @@ export default class TypeCompiler {
             }
         }
         return new Type();
-    }
-
-    generatePrimitiveType(typeName: string): Type {
-        return new Primitive(typeName);
     }
 
     setType(node: ts.Node) {

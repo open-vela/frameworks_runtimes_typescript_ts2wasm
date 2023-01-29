@@ -437,7 +437,7 @@ export default class ExpressionCompiler {
                     }
 
                     if (scope) {
-                        let varDefinedFuncScope =
+                        const varDefinedFuncScope =
                             scope.getNearestFunctionScope();
                         if (
                             varDefinedFuncScope &&
@@ -591,7 +591,7 @@ export default class ExpressionCompiler {
                     /* Maybe we are assigning this new array to a variable,
                         the array should have the same type with the target variable */
                     let maybeIdentifierNode;
-                    let parentNode = node.parent;
+                    const parentNode = node.parent;
                     if (parentNode.kind === ts.SyntaxKind.VariableDeclaration) {
                         /* Assign during variable declaration */
                         const declNode = <ts.VariableDeclaration>parentNode;
@@ -657,7 +657,7 @@ export default class ExpressionCompiler {
                             if (elemTypes.every((v, _, arr) => v === arr[0])) {
                                 elemType = elemTypes[0];
                             } else {
-                                elemType = builtinTypes.get('any')!;
+                                elemType = builtinTypes.get(TypeKind.ANY)!;
                             }
                             arrayType = new TSArray(elemType!);
 
@@ -730,9 +730,6 @@ export default class ExpressionCompiler {
                 arrLiteralExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),
                 );
-                /* TODO(issue 241): get type from assignment target
-                    https://github.com/wasm-micro-runtime/ts2wasm/issues/241
-                */
                 return arrLiteralExpr;
             }
             case ts.SyntaxKind.AsExpression: {
@@ -762,7 +759,7 @@ export default class ExpressionCompiler {
             }
             case ts.SyntaxKind.FunctionExpression:
             case ts.SyntaxKind.ArrowFunction: {
-                let funcScope = getCurScope(node, this.nodeScopeMap);
+                const funcScope = getCurScope(node, this.nodeScopeMap);
                 return new FunctionExpression(
                     getNearestFunctionScopeFromCurrent(funcScope)!,
                 );

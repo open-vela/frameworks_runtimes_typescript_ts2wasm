@@ -1,8 +1,8 @@
 import binaryen from 'binaryen';
 import { GlobalScope } from './scope.js';
-import * as dyntype from '../lib/dyntype/utils.js';
+import { dyntype } from '../lib/dyntype/utils.js';
 import { ModifierKind, Variable } from './variable.js';
-import { Primitive, Type } from './type.js';
+import { builtinTypes, Type, TypeKind } from './type.js';
 import { CallExpression, IdentifierExpression } from './expression.js';
 import { ExpressionStatement } from './statement.js';
 
@@ -262,14 +262,7 @@ export function getReturnTypeRef(funcName: string) {
 }
 
 export function initDynContext(gloalScope: GlobalScope) {
-    let contextType: Type;
-    if (gloalScope.namedTypeMap.has('i64')) {
-        contextType = gloalScope.namedTypeMap.get('i64')!;
-    } else {
-        contextType = new Primitive('i64');
-        gloalScope.namedTypeMap.set('i64', contextType);
-    }
-
+    const contextType: Type = builtinTypes.get(TypeKind.DYNCONTEXTTYPE)!;
     const ctxInitExpr = new CallExpression(
         new IdentifierExpression(dyntype.dyntype_context_init),
     );

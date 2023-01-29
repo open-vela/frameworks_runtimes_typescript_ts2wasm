@@ -204,7 +204,7 @@ export class WASMStatementGen {
             ),
         );
 
-        let statements = this.currentFuncCtx.exitScope();
+        const statements = this.currentFuncCtx.exitScope();
         return this.WASMCompiler.module.block(stmt.loopBlockLabel, statements);
     }
 
@@ -246,7 +246,7 @@ export class WASMStatementGen {
             ),
         );
 
-        let statements = this.currentFuncCtx.exitScope();
+        const statements = this.currentFuncCtx.exitScope();
         return this.WASMCompiler.module.block(
             stmt.forLoopBlockLabel,
             statements,
@@ -325,7 +325,7 @@ export class WASMStatementGen {
             this.currentFuncCtx.insert(this.WASMStmtGen(statement));
         }
 
-        let statements = this.currentFuncCtx.exitScope();
+        const statements = this.currentFuncCtx.exitScope();
         return this.WASMCompiler.module.block(null, statements);
     }
 
