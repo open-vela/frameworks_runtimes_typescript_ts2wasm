@@ -1,4 +1,4 @@
-import ts, { SyntaxKind } from 'typescript';
+import ts from 'typescript';
 import { Compiler } from './compiler.js';
 import { Stack, getNodeTypeInfo, getCurScope } from './utils.js';
 import {
@@ -11,17 +11,17 @@ import {
 } from './scope.js';
 
 export const enum TypeKind {
-    VOID,
-    BOOLEAN,
-    NUMBER,
-    ANY,
-    STRING,
-    ARRAY,
-    FUNCTION,
-    CLASS,
-    UNKNOWN,
-    NULL,
-    DYNCONTEXTTYPE,
+    VOID = 'void',
+    BOOLEAN = 'boolean',
+    NUMBER = 'number',
+    ANY = 'any',
+    STRING = 'string',
+    ARRAY = 'array',
+    FUNCTION = 'function',
+    CLASS = 'class',
+    UNKNOWN = 'unknown',
+    NULL = 'null',
+    DYNCONTEXTTYPE = 'dyntype_context',
 }
 
 export class Type {
@@ -71,6 +71,15 @@ export class Primitive extends Type {
         }
     }
 }
+
+export const builtinTypes = new Map<string, Type>([
+    ['number', new Primitive('number')],
+    ['string', new Primitive('string')],
+    ['boolean', new Primitive('boolean')],
+    ['any', new Primitive('any')],
+    ['void', new Primitive('void')],
+    ['null', new Primitive('null')],
+]);
 
 export interface TsClassField {
     name: string;
@@ -268,9 +277,9 @@ export class TSFunction extends Type {
 
 export default class TypeCompiler {
     typechecker: ts.TypeChecker | undefined = undefined;
-    globalScopeStack = new Stack<GlobalScope>();
+    globalScopeStack: Stack<GlobalScope>;
     currentScope: Scope | null = null;
-    nodeScopeMap = new Map<ts.Node, Scope>();
+    nodeScopeMap: Map<ts.Node, Scope>;
 
     constructor(private compilerCtx: Compiler) {
         this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
@@ -279,15 +288,13 @@ export default class TypeCompiler {
 
     visit(nodes: Array<ts.SourceFile>) {
         this.typechecker = this.compilerCtx.typeChecker;
-        for (let i = 0; i < nodes.length; i++) {
-            const sourceFile = nodes[i];
-            this.currentScope = this.globalScopeStack.getItemAtIdx(i);
-            this.visitNode(sourceFile);
-        }
+        this.nodeScopeMap.forEach((scope, node) => {
+            ts.forEachChild(node, this.visitNode.bind(this));
+        });
     }
 
     visitNode(node: ts.Node): void {
-        this.findCurrentScope(node);
+        this.currentScope = this.compilerCtx.getScopeByNode(node)!;
         switch (node.kind) {
             case ts.SyntaxKind.ClassDeclaration: {
                 const classNode = <ts.ClassDeclaration>node;
@@ -346,6 +353,8 @@ export default class TypeCompiler {
             case ts.SyntaxKind.FalseKeyword:
             case ts.SyntaxKind.NullKeyword:
             case ts.SyntaxKind.FunctionDeclaration:
+            case ts.SyntaxKind.FunctionExpression:
+            case ts.SyntaxKind.ArrowFunction:
             case ts.SyntaxKind.TypeReference: {
                 this.setType(node);
                 break;
@@ -359,7 +368,6 @@ export default class TypeCompiler {
             case ts.SyntaxKind.Identifier:
             case ts.SyntaxKind.BinaryExpression:
             case ts.SyntaxKind.PostfixUnaryExpression:
-            case ts.SyntaxKind.PrefixUnaryExpression:
             case ts.SyntaxKind.ObjectLiteralExpression:
             case ts.SyntaxKind.PropertyAccessExpression:
             case ts.SyntaxKind.PropertyDeclaration:
@@ -375,6 +383,9 @@ export default class TypeCompiler {
                 const typeNode = typeCheckerInfo.typeNode;
                 return this.generateNodeType(typeNode);
             }
+            case ts.SyntaxKind.PrefixUnaryExpression:
+                const UnaryExprNode = <ts.PrefixUnaryExpression>node;
+                return this.generateNodeType(UnaryExprNode.operand);
             case ts.SyntaxKind.NumberKeyword:
             case ts.SyntaxKind.NumericLiteral: {
                 return this.generatePrimitiveType('number');
@@ -474,7 +485,7 @@ export default class TypeCompiler {
                             'current scope is null when get TypeReference type',
                         );
                     }
-                    return scope.getTypeFromScope(refName);
+                    return scope.getTSType(refName)!;
                 }
                 return this.currentScope!.namedTypeMap.get(refName)!;
 
@@ -528,6 +539,8 @@ export default class TypeCompiler {
             this.currentScope &&
             this.currentScope.kind === ScopeKind.FunctionScope &&
             (node.kind === ts.SyntaxKind.FunctionDeclaration ||
+                node.kind === ts.SyntaxKind.FunctionExpression ||
+                node.kind === ts.SyntaxKind.ArrowFunction ||
                 node.kind === ts.SyntaxKind.SetAccessor ||
                 node.kind === ts.SyntaxKind.GetAccessor ||
                 node.kind === ts.SyntaxKind.MethodDeclaration ||
@@ -535,14 +548,6 @@ export default class TypeCompiler {
         ) {
             (<FunctionScope>this.currentScope).setFuncType(<TSFunction>TSType);
         }
-    }
-
-    findCurrentScope(node: ts.Node) {
-        const currentScope = getCurScope(node, this.nodeScopeMap);
-        if (!currentScope) {
-            throw new Error('current scope is null');
-        }
-        this.currentScope = currentScope;
     }
 
     generateFunctionType(
@@ -588,9 +593,7 @@ export default class TypeCompiler {
             const heritageName = heritage[0].types[0].getText();
             const scope = this.currentScope;
             if (scope !== null) {
-                const heritageType = <TSClass>(
-                    scope.getTypeFromScope(heritageName)
-                );
+                const heritageType = <TSClass>scope.getTSType(heritageName);
                 classType.setBase(heritageType);
 
                 for (const field of heritageType.fields) {

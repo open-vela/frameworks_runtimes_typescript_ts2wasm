@@ -3,30 +3,10 @@ import ts from 'typescript';
 import { Scope } from './scope.js';
 import ExpressionCompiler, { Expression } from './expression.js';
 
-export enum AssignKind {
-    default,
-    const,
-    let,
-    var,
-}
-
 export interface TypeCheckerInfo {
     typeName: string;
     typeNode: ts.Node;
     elemNode?: ts.Node;
-}
-
-export enum LoopKind {
-    default,
-    for,
-    while,
-    do,
-}
-
-export enum ExpressionKind {
-    equalsExpression,
-    postfixUnaryExpression,
-    prefixUnaryExpression,
 }
 
 export enum MatchKind {
@@ -43,45 +23,6 @@ export enum MatchKind {
 export const CONST_KEYWORD = 'const';
 export const LET_KEYWORD = 'let';
 export const VAR_KEYWORD = 'var';
-
-export interface HelpMessageCategory {
-    General: string[];
-    Output: string[];
-    Validation: string[];
-    Other: string[];
-}
-
-export interface VariableInfo {
-    variableName: string;
-    variableType: binaryen.Type;
-    variableIndex: number;
-    variableInitial: binaryen.ExpressionRef | undefined;
-    variableAssign: AssignKind;
-}
-
-export interface BinaryExpressionInfo {
-    leftExpression: binaryen.ExpressionRef;
-    leftType: binaryen.Type;
-    operator: binaryen.ExpressionRef;
-    rightExpression: binaryen.ExpressionRef;
-    rightType: binaryen.Type;
-}
-
-export interface LoopStatementInfo {
-    kind: LoopKind;
-    label: string;
-    condition: binaryen.ExpressionRef;
-    statement: binaryen.ExpressionRef;
-}
-
-export interface ForStatementInfo extends LoopStatementInfo {
-    initializer: binaryen.ExpressionRef;
-    incrementor: binaryen.ExpressionRef;
-}
-
-export type WhileStatementInfo = LoopStatementInfo;
-
-export type DoStatementInfo = LoopStatementInfo;
 
 export class Stack<T> {
     private items: T[] = [];
@@ -177,4 +118,42 @@ export function generateNodeExpression(
     node: ts.Node,
 ): Expression {
     return exprCompiler.visitNode(node);
+}
+
+export function parentIsFunctionLike(node: ts.Node) {
+    if (
+        node.parent.kind === ts.SyntaxKind.FunctionDeclaration ||
+        node.parent.kind === ts.SyntaxKind.MethodDeclaration ||
+        node.parent.kind === ts.SyntaxKind.SetAccessor ||
+        node.parent.kind === ts.SyntaxKind.GetAccessor ||
+        node.parent.kind === ts.SyntaxKind.FunctionExpression ||
+        node.parent.kind === ts.SyntaxKind.ArrowFunction
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+export function parentIsLoopLike(node: ts.Node) {
+    if (
+        node.parent.kind === ts.SyntaxKind.ForStatement ||
+        node.parent.kind === ts.SyntaxKind.DoStatement ||
+        node.parent.kind === ts.SyntaxKind.WhileStatement
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+export function parentIsCaseClause(node: ts.Node) {
+    if (
+        node.parent.kind === ts.SyntaxKind.CaseClause ||
+        node.parent.kind === ts.SyntaxKind.DefaultClause
+    ) {
+        return true;
+    }
+
+    return false;
 }

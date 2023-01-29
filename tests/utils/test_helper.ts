@@ -8,11 +8,6 @@ import { funcDefs } from '../../src/scope.js';
 const doCompile = (filename: string) => {
     const compiler = new Compiler();
 
-    // checkTSFiles([filename]);
-    // if (hasError) {
-    //     return null;
-    // }
-
     /* Compile to a temporary file */
     try {
         compiler.compile([filename]);
@@ -20,6 +15,7 @@ const doCompile = (filename: string) => {
         return null;
     }
     const output = compiler.binaryenModule.emitBinary();
+    compiler.binaryenModule.dispose();
     // TODO: should cleanup the temp dir
     const tempdir = fs.mkdtempSync(path.join(os.tmpdir(), 'ts2wasm-test-'));
     const tempfile = path.join(tempdir, 'case.wasm');

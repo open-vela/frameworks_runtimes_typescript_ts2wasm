@@ -31,14 +31,152 @@ import {
     initDefaultMemory,
     initDefaultTable,
 } from './memory.js';
+import { initStringBuiltin } from '../lib/builtin/stringBuiltin.js';
+
+export class WASMFunctionContext {
+    private binaryenCtx: WASMGen
+    private currentScope: Scope
+    private funcScope: FunctionScope | GlobalScope
+    private funcOpcodeArray: Array<binaryen.ExpressionRef>
+    private opcodeArrayStack = new Stack<Array<binaryen.ExpressionRef>>
+    private returnIndex: number= 0
+
+    constructor(binaryenCtx: WASMGen, scope : FunctionScope | GlobalScope) {
+        this.binaryenCtx = binaryenCtx;
+        this.currentScope = scope;
+        this.funcScope = scope;
+        this.funcOpcodeArray = new Array<binaryen.ExpressionRef>();
+        this.opcodeArrayStack.push(this.funcOpcodeArray);
+    }
+
+    insert(insn: binaryen.ExpressionRef) {
+        this.opcodeArrayStack.peek().push(insn);
+    }
+
+    insertAtFuncEntry(insn: binaryen.ExpressionRef) {
+        this.funcOpcodeArray.push(insn);
+    }
+
+    enterScope(scope: Scope) {
+        this.currentScope = scope
+        this.opcodeArrayStack.push(new Array<binaryen.ExpressionRef>());
+    }
+
+    exitScope() {
+        const topMostArray = this.opcodeArrayStack.pop();
+        this.currentScope = this.currentScope.parent!;
+
+        return topMostArray;
+    }
+
+    getCurrentScope() {
+        return this.currentScope;
+    }
+
+    getFuncScope() {
+        return this.funcScope;
+    }
+
+    getBody() {
+        return this.funcOpcodeArray;
+    }
+}
+
+interface segmentInfo {
+    data: Uint8Array
+    offset: number
+}
+
+class DataSegmentContext {
+    static readonly reservedSpace: number = 1024
+    private binaryenCtx: WASMGen
+    currentOffset
+    stringOffsetMap
+    dataArray: Array<segmentInfo> = []
+
+    constructor(binaryenCtx: WASMGen) {
+        /* Reserve 1024 bytes at beggining */
+        this.binaryenCtx = binaryenCtx
+        this.currentOffset = DataSegmentContext.reservedSpace;
+        this.stringOffsetMap = new Map<string, number>();
+    }
+
+    addData(data: Uint8Array) {
+        /* there is no efficient approach to cache the data buffer,
+            currently we don't cache it */
+        let offset = this.currentOffset;
+        this.currentOffset += data.length;
+
+        this.dataArray.push({
+            data: data,
+            offset: offset
+        })
+
+        return offset;
+    }
+
+    addString(str: string) {
+        if (this.stringOffsetMap.has(str)) {
+            /* Re-use the string to save space */
+            return this.stringOffsetMap.get(str)!;
+        }
+
+        let offset = this.currentOffset;
+        this.stringOffsetMap.set(str, offset);
+        this.currentOffset += str.length + 1;
+
+        let buffer = new Uint8Array(str.length + 1);
+        for (let i = 0; i < str.length; i++) {
+            const byte = str.charCodeAt(i);
+            if (byte >= 256) {
+                throw Error('UTF-16 string not supported in data segment');
+            }
+            buffer[i] = byte;
+        }
+        buffer[str.length] = 0;
+
+        this.dataArray.push({
+            data: buffer,
+            offset: offset
+        })
+
+        return offset;
+    }
+
+    generateSegment(): binaryen.MemorySegment | null {
+        const offset = DataSegmentContext.reservedSpace;
+        const size = this.currentOffset - offset;
+
+        if (this.dataArray.length === 0) {
+            return null;
+        }
+
+        let data = new Uint8Array(size);
+        this.dataArray.forEach((info) => {
+            for (let i = 0; i < info.data.length; i++) {
+                const targetOffset = i + info.offset - DataSegmentContext.reservedSpace;
+                data[targetOffset] = info.data[i];
+            }
+        })
+
+        return {
+            offset: this.binaryenCtx.module.i32.const(offset),
+            data: data,
+            passive: false,
+        }
+    }
+
+    getDataEnd(): number {
+        return this.currentOffset;
+    }
+}
 
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
 export class WASMGen {
     static varIndex = 0;
-    private scopeStatementMap = new Map<Scope, binaryen.ExpressionRef[]>();
+    private currentFuncCtx : WASMFunctionContext | null = null;
+    private dataSegmentContext: DataSegmentContext | null = null;
     private binaryenModule = new binaryen.Module();
-    private currentScope: Scope | null = null;
-    private currentFuncScope: FunctionScope | null = null;
     private globalScopeStack: Stack<GlobalScope>;
     static contextOfFunc: Map<FunctionScope, typeInfo> = new Map<
         FunctionScope,
@@ -53,13 +191,29 @@ export class WASMGen {
     constructor(private compilerCtx: Compiler) {
         this.binaryenModule = compilerCtx.binaryenModule;
         this.globalScopeStack = compilerCtx.globalScopeStack;
+        this.dataSegmentContext = new DataSegmentContext(this);
     }
 
     WASMGenerate() {
+        WASMGen.varIndex = 0;
+        WASMGen.contextOfFunc.clear();
+
+        initGlobalOffset(this.module);
+        initDefaultTable(this.module);
+        importLibApi(this.module);
+        initStringBuiltin(this.module);
+
         while (!this.globalScopeStack.isEmpty()) {
             const globalScope = this.globalScopeStack.pop();
             this.WASMGenHelper(globalScope);
         }
+
+        let segments = [];
+        let segmentInfo = this.dataSegmentContext!.generateSegment();
+        if (segmentInfo) {
+            segments.push(segmentInfo);
+        }
+        initDefaultMemory(this.module, segments);
     }
 
     WASMGenHelper(scope: Scope) {
@@ -97,37 +251,15 @@ export class WASMGen {
         return this.wasmExprCompiler;
     }
 
-    get curScope(): Scope | null {
-        return this.currentScope;
-    }
-
-    setCurScope(scope: Scope) {
-        this.currentScope = scope;
-    }
-
-    get scopeStateMap() {
-        return this.scopeStatementMap;
-    }
-
-    get curFunctionScope(): FunctionScope | null {
-        return this.currentFuncScope;
-    }
-
-    setCurFunctionScope(scope: FunctionScope) {
-        this.currentFuncScope = scope;
+    get curFunctionCtx(): WASMFunctionContext | null {
+        return this.currentFuncCtx;
     }
 
     /* add global variables, and generate start function */
     WASMStartFunctionGen(globalScope: GlobalScope) {
-        this.currentScope = globalScope;
-        this.currentFuncScope = null;
-        const globalStatementRef = new Array<binaryen.ExpressionRef>();
-        this.scopeStatementMap.set(globalScope, globalStatementRef);
-        initGlobalOffset(this.module);
-        initDefaultMemory(this.module);
-        initDefaultTable(this.module);
-        importLibApi(this.module);
-        initDynContext(<GlobalScope>this.currentScope);
+        initDynContext(globalScope);
+
+        this.currentFuncCtx = new WASMFunctionContext(this, globalScope);
 
         // add global dyn context variable
         const globalVars = globalScope.varArray;
@@ -149,7 +281,8 @@ export class WASMGen {
                 const varInitExprRef = this.wasmExpr.WASMExprGen(
                     globalVar.initExpression,
                 );
-                if (globalVar.varType.kind === TypeKind.DYNCONTEXTTYPE) {
+                if (globalVar.varType.kind === TypeKind.NUMBER
+                    || globalVar.varType.kind === TypeKind.DYNCONTEXTTYPE) {
                     if (
                         globalVar.initExpression.expressionKind ===
                         ts.SyntaxKind.NumericLiteral
@@ -165,9 +298,46 @@ export class WASMGen {
                             globalVar.varName,
                             varTypeRef,
                             true,
-                            this.module.i64.const(0, 0),
+                            globalVar.varType.kind === TypeKind.NUMBER
+                                ? this.module.f64.const(0)
+                                : this.module.i64.const(0, 0),
                         );
-                        globalStatementRef.push(
+                        this.curFunctionCtx?.insert(
+                            this.module.global.set(
+                                globalVar.varName,
+                                varInitExprRef,
+                            ),
+                        );
+                    }
+                } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
+                    this.module.addGlobal(
+                        globalVar.varName,
+                        varTypeRef,
+                        mutable,
+                        varInitExprRef,
+                    );
+                } else {
+                    this.module.addGlobal(
+                        globalVar.varName,
+                        varTypeRef,
+                        true,
+                        binaryenCAPI._BinaryenRefNull(
+                            this.module.ptr,
+                            varTypeRef,
+                        ),
+                    );
+                    if (globalVar.varType.kind === TypeKind.ANY) {
+                        const dynInitExprRef = this.wasmDynExprCompiler.WASMDynExprGen(
+                            globalVar.initExpression,
+                        );
+                        this.curFunctionCtx!.insert(
+                            this.module.global.set(
+                                globalVar.varName,
+                                dynInitExprRef,
+                            ),
+                        );
+                    } else {
+                        this.curFunctionCtx!.insert(
                             this.module.global.set(
                                 globalVar.varName,
                                 varInitExprRef,
@@ -188,9 +358,9 @@ export class WASMGen {
             ) {
                 continue;
             }
-            globalStatementRef.push(stmtRef);
+            this.curFunctionCtx!.insert(stmtRef);
         }
-        const body = this.module.block(null, globalStatementRef);
+        const body = this.module.block(null, this.curFunctionCtx!.getBody());
 
         // generate wasm start function
         const startFunctionRef = this.module.addFunction(
@@ -206,10 +376,7 @@ export class WASMGen {
     }
 
     WASMClassGen(classScope: ClassScope) {
-        this.currentScope = classScope;
-        this.currentFuncScope = null;
         const tsClassType = classScope.classType;
-        this.currentScope = classScope;
         this.wasmTypeCompiler.createWASMType(tsClassType);
         /* iff a class haven't a constructor, create a default on for it */
         if (tsClassType.classConstructorType === null) {
@@ -227,11 +394,7 @@ export class WASMGen {
 
     /* parse function scope */
     WASMFunctionGen(functionScope: FunctionScope) {
-        this.currentScope = functionScope;
-        this.currentFuncScope = functionScope;
-
-        const binaryenExprRefs = new Array<binaryen.ExpressionRef>();
-        this.scopeStatementMap.set(functionScope, binaryenExprRefs);
+        this.currentFuncCtx = new WASMFunctionContext(this, functionScope);
 
         const tsFuncType = functionScope.funcType;
         // 1. generate function wasm type
@@ -249,11 +412,8 @@ export class WASMGen {
 
         /* parent level function's context type */
         let maybeParentFuncCtxType: typeInfo | null = null;
-        if (
-            functionScope.parent !== null &&
-            functionScope.parent.kind === ScopeKind.FunctionScope
-        ) {
-            const parentFuncScope = <FunctionScope>functionScope.parent;
+        let parentFuncScope = functionScope.parent?.getNearestFunctionScope();
+        if (parentFuncScope) {
             maybeParentFuncCtxType = <typeInfo>(
                 WASMGen.contextOfFunc.get(parentFuncScope)
             );
@@ -332,7 +492,7 @@ export class WASMGen {
         if (functionScope.className === '') {
             /* iff the function doesn't have free variables */
             if (closureVarTypes.length === 1) {
-                binaryenExprRefs.push(
+                this.currentFuncCtx!.insert(
                     this.module.local.set(targetVarIndex, closureVarValues[0]),
                 );
             } else {
@@ -345,14 +505,14 @@ export class WASMGen {
                     closureVarValues.length,
                     targetHeapType,
                 );
-                binaryenExprRefs.push(
+                this.currentFuncCtx!.insert(
                     this.module.local.set(targetVarIndex, context),
                 );
             }
         } else {
             const classType = (<ClassScope>functionScope.parent).classType;
             const wasmClassHeapType = this.wasmType.getWASMHeapType(classType);
-            binaryenExprRefs.push(
+            this.currentFuncCtx!.insert(
                 this.module.local.set(
                     targetVarIndex,
                     binaryenCAPI._BinaryenRefCast(
@@ -369,7 +529,7 @@ export class WASMGen {
             if (stmt.statementKind === ts.SyntaxKind.VariableStatement) {
                 continue;
             }
-            binaryenExprRefs.push(stmtRef);
+            this.currentFuncCtx!.insert(stmtRef);
         }
 
         const varWASMTypes = new Array<binaryen.ExpressionRef>();
@@ -394,13 +554,12 @@ export class WASMGen {
         }
 
         // 4: add wrapper function if exported
-        let isExport = false;
-        for (const modifierKind of functionScope.funcModifiers) {
-            if (modifierKind === ts.SyntaxKind.ExportKeyword) {
-                isExport = true;
-                break;
-            }
-        }
+        const isExport =
+            functionScope
+                .funcModifiers
+                .some(
+                    (v) => { return v === ts.SyntaxKind.ExportKeyword }
+                )
         if (isExport) {
             let idx = 0;
             const tempLocGetParams = tsFuncType
@@ -441,7 +600,7 @@ export class WASMGen {
             paramWASMType,
             returnWASMType,
             varWASMTypes,
-            this.module.block(null, binaryenExprRefs),
+            this.module.block('entry', this.currentFuncCtx.getBody(), returnWASMType),
         );
     }
 
@@ -457,5 +616,10 @@ export class WASMGen {
             return module.i64.const(0, 0);
         }
         return binaryenCAPI._BinaryenRefNull(module.ptr, binaryen.anyref);
+    }
+
+    generateRawString(str: string): number {
+        let offset = this.dataSegmentContext!.addString(str);
+        return offset;
     }
 }

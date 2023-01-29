@@ -1,10 +1,16 @@
 import minimist from 'minimist';
 import cp from 'child_process';
-import fs from 'fs';
+import fs, { constants } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Compiler } from '../src/compiler.js';
-import { HelpMessageCategory } from '../src/utils.js';
+
+interface HelpMessageCategory {
+    General: string[];
+    Output: string[];
+    Validation: string[];
+    Other: string[];
+}
 
 function parseOptions(optionPath: string) {
     const helpFile = fs.readFileSync(optionPath, 'utf8');
@@ -160,8 +166,8 @@ function main() {
         let paramString = '';
         for (let i = 0; i < args._.length; i++) {
             const arg = args._[i];
-            if (typeof arg === 'string' && arg.endsWith('.ts')) {
-                fs.accessSync(arg);
+            if (typeof arg === 'string' && fs.statSync(arg).isFile()) {
+                fs.accessSync(arg, constants.R_OK);
                 sourceFileList.push(arg);
             } else {
                 paramString += arg.toString();
@@ -179,9 +185,8 @@ function main() {
 
         const compiler = new Compiler();
         try {
-            compiler.compile(sourceFileList);
+            compiler.compile(sourceFileList, args.opt);
         } catch (e) {
-            console.error(e);
             process.exit(1);
         }
 

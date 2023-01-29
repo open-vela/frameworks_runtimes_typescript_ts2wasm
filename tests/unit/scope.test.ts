@@ -8,7 +8,7 @@ import {
     ScopeKind,
 } from '../../src/scope.js';
 import { Variable, Parameter, ModifierKind } from '../../src/variable.js';
-import { Primitive, Type } from '../../src/type.js';
+import { Primitive, TSFunction, Type } from '../../src/type.js';
 import { Statement } from '../../src/statement.js';
 import { Expression } from '../../src/expression.js';
 
@@ -183,17 +183,13 @@ describe('testScope', function () {
         expect(blockScope2.getRootGloablScope()).eq(globalScope2);
     });
 
-    it('getTypeFromCurrentScope', function () {
+    it('getTSType', function () {
         const globalScope = new GlobalScope();
         const funcScope = new FunctionScope(globalScope);
-        const stringType = new Primitive('string');
-        funcScope.namedTypeMap.set('string', stringType);
-        const blockScope = new BlockScope(funcScope);
-        const numberType = new Primitive('number');
-        blockScope.namedTypeMap.set('number', numberType);
+        const funcType = new TSFunction();
+        funcScope.namedTypeMap.set('test', funcType);
 
-        expect(funcScope.getTypeFromCurrentScope('string')).eq(stringType);
-        expect(blockScope.getTypeFromCurrentScope('number')).eq(numberType);
+        expect(funcScope.getTSType('test')).eq(funcType);
     });
 
     it('InsertVarAtStart', function () {

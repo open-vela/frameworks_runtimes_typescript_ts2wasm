@@ -72,7 +72,7 @@ describe('testType', function () {
         });
 
         expect(objLiteralType.getMemberField('a')).eq(objField);
-        expect(objLiteralType.getMethod('add')).eq(funcType);
+        expect(objLiteralType.getMethod('add')?.type).eq(funcType);
     });
 
     it('judgeClassType', function () {
@@ -121,8 +121,8 @@ describe('testType', function () {
         classType.setBase(baseClassType);
 
         expect(baseClassType.getMemberField('b')).eq(baseClassField);
-        expect(baseClassType.getMethod('add')).eq(baseFuncType);
-        expect(classType.getMethod('add')).eq(funcType);
+        expect(baseClassType.getMethod('add')?.type).eq(baseFuncType);
+        expect(classType.getMethod('add')?.type).eq(funcType);
     });
 
     it('judgeArrayType', function () {
