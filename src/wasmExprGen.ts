@@ -1085,7 +1085,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const operatorKind = expr.operatorKind;
         const leftExprType = leftExpr.exprType;
         const rightExprType = rightExpr.exprType;
-        const rightExprRef = this.WASMExprGen(rightExpr);
+        let rightExprRef = this.WASMExprGen(rightExpr);
         switch (operatorKind) {
             case ts.SyntaxKind.EqualsToken: {
                 /*
@@ -1210,7 +1210,45 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
             }
             default: {
-                const leftExprRef = this.WASMExprGen(leftExpr);
+                let leftExprRef = this.WASMExprGen(leftExpr);
+
+                if (
+                    leftExpr.expressionKind ===
+                        ts.SyntaxKind.PostfixUnaryExpression ||
+                    leftExpr.expressionKind ===
+                        ts.SyntaxKind.PrefixUnaryExpression
+                ) {
+                    const unaryExpr = <UnaryExpression>leftExpr;
+                    if (
+                        unaryExpr.operatorKind ===
+                            ts.SyntaxKind.PlusPlusToken ||
+                        unaryExpr.operatorKind === ts.SyntaxKind.MinusMinusToken
+                    ) {
+                        leftExprRef = <binaryen.ExpressionRef>(
+                            this._generateUnaryExprBlock(unaryExpr, leftExprRef)
+                        );
+                    }
+                }
+                if (
+                    rightExpr.expressionKind ===
+                        ts.SyntaxKind.PostfixUnaryExpression ||
+                    rightExpr.expressionKind ===
+                        ts.SyntaxKind.PrefixUnaryExpression
+                ) {
+                    const unaryExpr = <UnaryExpression>leftExpr;
+                    if (
+                        unaryExpr.operatorKind ===
+                            ts.SyntaxKind.PlusPlusToken ||
+                        unaryExpr.operatorKind === ts.SyntaxKind.MinusMinusToken
+                    ) {
+                        rightExprRef = <binaryen.ExpressionRef>(
+                            this._generateUnaryExprBlock(
+                                unaryExpr,
+                                rightExprRef,
+                            )
+                        );
+                    }
+                }
                 return this.operateBinaryExpr(
                     leftExprRef,
                     rightExprRef,
@@ -1893,10 +1931,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
         for (const arg of expr.callArgs) {
             wasmArgs.push(this.WASMExprGen(arg));
         }
-        return module.call(
-            baseClassType.className + '_constructor',
-            wasmArgs,
-            binaryen.none,
+        return module.drop(
+            module.call(
+                baseClassType.className + '_constructor',
+                wasmArgs,
+                binaryen.none,
+            ),
         );
     }
 
@@ -2060,43 +2100,27 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     )!;
                     const wasmArgs = new Array<binaryen.ExpressionRef>();
                     wasmArgs.push(objExprRef);
-                    // const callExpr = <CallExpression>expr.parentExpr;
                     const callArgs = expr.callArgs;
                     for (const arg of callArgs) {
                         wasmArgs.push(this.WASMExprGen(arg));
                     }
                     const type: TSClass = <TSClass>variable.varType;
-                    const method = type.getMethod(propName);
-                    if (method === null) {
+                    const methodIndex = type.getMethodIndex(propName, false);
+                    if (methodIndex === -1) {
                         throw new Error('method not found, <' + propName + '>');
                     }
+                    const method = type.memberFuncs[methodIndex];
                     const methodType = method.type;
-                    const methodIndex = type.getMethodIndex(propName);
                     const object = this.module.local.get(
                         variable.varIndex,
                         this.wasmType.getWASMType(variable.varType),
                     );
-                    const vtable = binaryenCAPI._BinaryenStructGet(
-                        this.module.ptr,
-                        0,
+                    return this._generateClassMethodCallRef(
                         object,
-                        this.wasmType.getWASMClassVtableType(variable.varType),
-                        false,
-                    );
-                    const targetFunction = binaryenCAPI._BinaryenStructGet(
-                        this.module.ptr,
+                        type,
+                        methodType,
                         methodIndex,
-                        vtable,
-                        this.wasmType.getWASMType(methodType),
-                        false,
-                    );
-                    return binaryenCAPI._BinaryenCallRef(
-                        this.module.ptr,
-                        targetFunction,
-                        arrayToPtr(wasmArgs).ptr,
-                        wasmArgs.length,
-                        this.wasmType.getWASMType(methodType),
-                        false,
+                        wasmArgs,
                     );
                 }
             }
@@ -2217,12 +2241,27 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 }
             } else {
                 const objClassType = <TSClass>objType;
-                const propIndex = objClassType.getMemberFieldIndex(propName);
+                let propIndex = objClassType.getMemberFieldIndex(propName);
+                if (propIndex === -1) {
+                    /* maybe getter method */
+                    propIndex = objClassType.getMethodIndex(propName, true);
+                    if (propIndex == -1) {
+                        throw new Error(propName + ' property does not exist');
+                    }
+
+                    const method = objClassType.memberFuncs[propIndex];
+                    const methodType = method.type;
+                    return this._generateClassMethodCallRef(
+                        objExprRef,
+                        objClassType,
+                        methodType,
+                        propIndex,
+                        [],
+                    );
+                }
+
                 const propType = objClassType.getMemberField(propName)!.type;
                 const propTypeRef = this.wasmType.getWASMType(propType);
-                if (propIndex === -1) {
-                    throw new Error(propName + ' property does not exist');
-                }
 
                 if (expr.isThis) {
                     const scope = <FunctionScope>(
@@ -2353,6 +2392,86 @@ export class WASMExpressionGen extends WASMExpressionBase {
             2,
             funcStructType,
         );
+    }
+
+    /* get callref from class struct vtable index */
+    private _generateClassMethodCallRef(
+        classRef: binaryen.ExpressionRef,
+        classType: TSClass,
+        methodType: TSFunction,
+        index: number,
+        args: Array<binaryen.ExpressionRef>,
+    ) {
+        const wasmMethodType = this.wasmType.getWASMType(methodType);
+        const vtable = binaryenCAPI._BinaryenStructGet(
+            this.module.ptr,
+            0,
+            classRef,
+            this.wasmType.getWASMClassVtableType(classType),
+            false,
+        );
+        const targetFunction = binaryenCAPI._BinaryenStructGet(
+            this.module.ptr,
+            index,
+            vtable,
+            wasmMethodType,
+            false,
+        );
+        return binaryenCAPI._BinaryenCallRef(
+            this.module.ptr,
+            targetFunction,
+            arrayToPtr(args).ptr,
+            args.length,
+            wasmMethodType,
+            false,
+        );
+    }
+
+    private _generateUnaryExprBlock(
+        unaryExpr: UnaryExpression,
+        exprRef: binaryen.ExpressionRef,
+    ) {
+        if (unaryExpr.expressionKind === ts.SyntaxKind.PrefixUnaryExpression) {
+            if (
+                unaryExpr.operatorKind === ts.SyntaxKind.PlusPlusToken ||
+                unaryExpr.operatorKind === ts.SyntaxKind.MinusMinusToken
+            ) {
+                return this.wasmCompiler.module.block(
+                    null,
+                    [exprRef, this.WASMExprGen(unaryExpr.operand)],
+                    binaryen.f64,
+                );
+            }
+        }
+        if (unaryExpr.expressionKind === ts.SyntaxKind.PostfixUnaryExpression) {
+            const wasmUnaryOperandExpr = this.WASMExprGen(unaryExpr.operand);
+            if (unaryExpr.operatorKind === ts.SyntaxKind.PlusPlusToken) {
+                return this.wasmCompiler.module.block(
+                    null,
+                    [
+                        exprRef,
+                        this.module.f64.sub(
+                            wasmUnaryOperandExpr,
+                            this.module.f64.const(1),
+                        ),
+                    ],
+                    binaryen.f64,
+                );
+            }
+            if (unaryExpr.operatorKind === ts.SyntaxKind.MinusMinusToken) {
+                return this.wasmCompiler.module.block(
+                    null,
+                    [
+                        exprRef,
+                        this.module.f64.add(
+                            wasmUnaryOperandExpr,
+                            this.module.f64.const(1),
+                        ),
+                    ],
+                    binaryen.f64,
+                );
+            }
+        }
     }
 }
 
