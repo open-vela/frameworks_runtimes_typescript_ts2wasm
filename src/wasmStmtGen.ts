@@ -351,8 +351,6 @@ export class WASMStatementGen {
         const wasmExpr = this.WASMCompiler.wasmExpr;
         const wasmDynExpr = this.WASMCompiler.wasmDynExprCompiler;
         const currentScope = this.currentFuncCtx.getCurrentScope();
-
-        // const binaryenExprRefs: binaryen.ExpressionRef[] = [];
         if (currentScope.kind !== ScopeKind.GlobalScope) {
             // common variable assignment
             for (const localVar of varArray) {
