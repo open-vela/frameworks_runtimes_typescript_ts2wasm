@@ -179,7 +179,7 @@ export class TSClass extends Type {
     }
 
     /* when calling a getter, it's not a CallExpression */
-    getMethod(name: string, findGetter: boolean): TsClassFunc | null {
+    getMethod(name: string, findGetter: boolean = false): TsClassFunc | null {
         return (
             this.memberFuncs.find((f) => {
                 return name === f.name && findGetter === f.isGetter;
@@ -187,7 +187,7 @@ export class TSClass extends Type {
         );
     }
 
-    getMethodIndex(name: string, findGetter: boolean): number {
+    getMethodIndex(name: string, findGetter: boolean = false): number {
         return this.memberFuncs.findIndex((f) => {
             return name === f.name && findGetter === f.isGetter;
         });
