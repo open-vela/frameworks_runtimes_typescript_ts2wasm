@@ -2514,13 +2514,28 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                 if (identifierExpr.identifierName === 'undefined') {
                     return this.generateDynUndefined();
                 } else {
-                    if (identifierExpr.exprType.kind === TypeKind.ANY) {
-                        return this.staticValueGen.WASMExprGen(identifierExpr);
-                    } else {
-                        // generate dynExtref iff identifier's type is not any
-                        return this.generateDynExtref(
-                            this.staticValueGen.WASMExprGen(identifierExpr),
-                        );
+                    // generate dynExtref iff identifier's type is not any
+                    // judge if identifierExpr's type is primitive
+                    const extrfIdenType = identifierExpr.exprType;
+                    switch (extrfIdenType.kind) {
+                        case TypeKind.NUMBER:
+                            return this.generateDynNumber(
+                                this.staticValueGen.WASMExprGen(expr),
+                            );
+                        case TypeKind.BOOLEAN:
+                            return this.generateDynBoolean(
+                                this.staticValueGen.WASMExprGen(expr),
+                            );
+                        case TypeKind.NULL:
+                            return this.generateDynNull();
+                        case TypeKind.ANY:
+                            return this.staticValueGen.WASMExprGen(
+                                identifierExpr,
+                            );
+                        default:
+                            return this.generateDynExtref(
+                                this.staticValueGen.WASMExprGen(identifierExpr),
+                            );
                     }
                 }
             }
