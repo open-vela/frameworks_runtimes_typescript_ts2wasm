@@ -179,7 +179,7 @@ export class TSClass extends Type {
     }
 
     /* when calling a getter, it's not a CallExpression */
-    getMethod(name: string, findGetter: boolean = false): TsClassFunc | null {
+    getMethod(name: string, findGetter = false): TsClassFunc | null {
         return (
             this.memberFuncs.find((f) => {
                 return name === f.name && findGetter === f.isGetter;
@@ -187,7 +187,7 @@ export class TSClass extends Type {
         );
     }
 
-    getMethodIndex(name: string, findGetter: boolean = false): number {
+    getMethodIndex(name: string, findGetter = false): number {
         return this.memberFuncs.findIndex((f) => {
             return name === f.name && findGetter === f.isGetter;
         });
@@ -401,42 +401,16 @@ export default class TypeCompiler {
             case ts.SyntaxKind.UnionType: {
                 // check if all nodes type is equal
                 const unionTypeNode = <ts.UnionTypeNode>node;
-                const firstTypeNode = unionTypeNode.types[0];
-                const firstTypeKind = firstTypeNode.kind;
-                for (let i = 1; i < unionTypeNode.types.length; i++) {
-                    if (unionTypeNode.types[i].kind !== firstTypeKind) {
-                        // treat union as any
-                        return builtinTypes.get(TypeKind.ANY)!;
-                    }
+                const nodeTypeArray = unionTypeNode.types.map((unionNode) => {
+                    return this.generateNodeType(unionNode);
+                });
+                const isSameType = nodeTypeArray.every(
+                    (type) => type === nodeTypeArray[0],
+                );
+                if (!isSameType) {
+                    return builtinTypes.get(TypeKind.ANY)!;
                 }
-                const nodeType = this.generateNodeType(firstTypeNode);
-                if (
-                    nodeType.kind === TypeKind.CLASS &&
-                    (<TSClass>nodeType).className == ''
-                ) {
-                    // judge if objectLiteral's member type is all same
-                    const objType = <TSClass>nodeType;
-                    if (objType.fields && objType.memberFuncs) {
-                        // object has both field and method, treat as any
-                        return builtinTypes.get(TypeKind.ANY)!;
-                    } else if (objType.fields) {
-                        const isSameType = objType.fields.every(
-                            (field) => field.type === objType.fields[0].type,
-                        );
-                        if (!isSameType) {
-                            return builtinTypes.get(TypeKind.ANY)!;
-                        }
-                    } else {
-                        const isSameType = objType.memberFuncs.every(
-                            (memberFunc) =>
-                                memberFunc.type === objType.memberFuncs[0].type,
-                        );
-                        if (!isSameType) {
-                            return builtinTypes.get(TypeKind.ANY)!;
-                        }
-                    }
-                }
-                return nodeType;
+                return nodeTypeArray[0];
             }
             case ts.SyntaxKind.StringKeyword:
             case ts.SyntaxKind.StringLiteral: {
