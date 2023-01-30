@@ -5,7 +5,7 @@ export namespace BuiltinNames {
     export const heap_base = '~lib/memory/__heap_base';
 
     // wasm table
-    export const obj_table = 'obj_table';
+    export const extref_table = 'extref_table';
 
     // wasm default variable
     export const byteSize = 32;

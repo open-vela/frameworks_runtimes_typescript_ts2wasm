@@ -580,57 +580,12 @@ export default class ExpressionCompiler {
             case ts.SyntaxKind.NewExpression: {
                 const newExprNode = <ts.NewExpression>node;
                 const expr = this.visitNode(newExprNode.expression);
+                const newExpr = new NewExpression(expr);
                 if (
                     expr.expressionKind === ts.SyntaxKind.Identifier &&
                     (<IdentifierExpression>expr).identifierName === 'Array'
                 ) {
-                    const newExpr = new NewExpression(expr);
-                    let arrayType: TSArray | null = null;
                     let isLiteral = false;
-
-                    /* Maybe we are assigning this new array to a variable,
-                        the array should have the same type with the target variable */
-                    let maybeIdentifierNode;
-                    const parentNode = node.parent;
-                    if (parentNode.kind === ts.SyntaxKind.VariableDeclaration) {
-                        /* Assign during variable declaration */
-                        const declNode = <ts.VariableDeclaration>parentNode;
-                        /* TODO: deal with binding pattern */
-                        maybeIdentifierNode = declNode.name;
-                    } else if (
-                        parentNode.kind === ts.SyntaxKind.BinaryExpression
-                    ) {
-                        /* Assign expression */
-                        const exprNode = <ts.BinaryExpression>parentNode;
-                        if (
-                            exprNode.operatorToken.kind ===
-                            ts.SyntaxKind.EqualsToken
-                        ) {
-                            maybeIdentifierNode = exprNode.left;
-                        }
-                    }
-
-                    if (
-                        maybeIdentifierNode?.kind === ts.SyntaxKind.Identifier
-                    ) {
-                        const identifierNode = <ts.Identifier>(
-                            maybeIdentifierNode
-                        );
-                        const currentScope =
-                            this.compilerCtx.getScopeByNode(node);
-                        const variable = currentScope?.findVariable(
-                            identifierNode.text,
-                        );
-                        if (variable) {
-                            if (variable.varType.kind !== TypeKind.ARRAY) {
-                                throw Error(
-                                    'Assign Array to non-array variable',
-                                );
-                            }
-                            arrayType = variable.varType as TSArray;
-                        }
-                    }
-
                     if (newExprNode.arguments) {
                         /* Check if it's created from a literal */
                         const argLen = newExprNode.arguments.length;
@@ -648,19 +603,6 @@ export default class ExpressionCompiler {
                             const elemExprs = newExprNode.arguments.map((a) => {
                                 return this.visitNode(a);
                             });
-                            const elemTypes = elemExprs.map((e) => {
-                                return e.exprType;
-                            });
-
-                            let elemType: Type | null = null;
-                            /* Check types, if elements in different types, then it's any[] */
-                            if (elemTypes.every((v, _, arr) => v === arr[0])) {
-                                elemType = elemTypes[0];
-                            } else {
-                                elemType = builtinTypes.get(TypeKind.ANY)!;
-                            }
-                            arrayType = new TSArray(elemType!);
-
                             newExpr.setArrayLen(argLen);
                             newExpr.setArgs(elemExprs);
                         } else if (argLen === 1) {
@@ -670,25 +612,18 @@ export default class ExpressionCompiler {
                         }
                         /* else no arguments */
                     }
-
-                    if (!arrayType) {
-                        throw Error('Unhandled array creation pattern');
-                    }
-
-                    newExpr.setExprType(arrayType);
-
+                    newExpr.setExprType(
+                        this.typeCompiler.generateNodeType(node),
+                    );
                     return newExpr;
                 }
-                const args = new Array<Expression>();
                 if (newExprNode.arguments !== undefined) {
+                    const args = new Array<Expression>();
                     for (const arg of newExprNode.arguments) {
                         args.push(this.visitNode(arg));
                     }
+                    newExpr.setArgs(args);
                 }
-                const newExpr = new NewExpression(
-                    expr,
-                    newExprNode.arguments === undefined ? undefined : args,
-                );
                 const typeCheckerInfo = getNodeTypeInfo(
                     node,
                     this.typeCompiler.typechecker!,
