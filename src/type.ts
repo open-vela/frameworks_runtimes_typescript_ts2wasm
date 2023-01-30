@@ -148,21 +148,17 @@ export class TSClass extends Type {
     }
 
     getMemberField(name: string): TsClassField | null {
-        for (const memberField of this.memberFields) {
-            if (memberField.name === name) {
-                return memberField;
-            }
-        }
-        return null;
+        return (
+            this.memberFields.find((f) => {
+                return f.name === name;
+            }) || null
+        );
     }
 
     getMemberFieldIndex(name: string): number {
-        for (let i = 0; i < this.memberFields.length; i++) {
-            if (this.memberFields[i].name === name) {
-                return i;
-            }
-        }
-        return -1;
+        return this.memberFields.findIndex((f) => {
+            return f.name === name;
+        });
     }
 
     addStaticMemberField(memberField: TsClassField): void {
@@ -183,25 +179,18 @@ export class TSClass extends Type {
     }
 
     /* when calling a getter, it's not a CallExpression */
-    getMethod(name: string): TsClassFunc | null {
-        for (const method of this.memberFuncs) {
-            if (name === method.name && !method.isGetter) {
-                return method;
-            }
-        }
-        return null;
+    getMethod(name: string, findGetter: boolean): TsClassFunc | null {
+        return (
+            this.memberFuncs.find((f) => {
+                return name === f.name && findGetter === f.isGetter;
+            }) || null
+        );
     }
 
-    getMethodIndex(name: string): number {
-        for (let i = 0; i !== this.memberFuncs.length; ++i) {
-            if (
-                name === this.memberFuncs[i].name &&
-                !this.memberFuncs[i].isGetter
-            ) {
-                return i;
-            }
-        }
-        return -1;
+    getMethodIndex(name: string, findGetter: boolean): number {
+        return this.memberFuncs.findIndex((f) => {
+            return name === f.name && findGetter === f.isGetter;
+        });
     }
 
     addStaticMethod(name: string, methodType: TSFunction): void {
@@ -369,6 +358,7 @@ export default class TypeCompiler {
             case ts.SyntaxKind.Identifier:
             case ts.SyntaxKind.BinaryExpression:
             case ts.SyntaxKind.PostfixUnaryExpression:
+            case ts.SyntaxKind.PrefixUnaryExpression:
             case ts.SyntaxKind.ObjectLiteralExpression:
             case ts.SyntaxKind.PropertyAccessExpression:
             case ts.SyntaxKind.PropertyDeclaration:
@@ -401,10 +391,6 @@ export default class TypeCompiler {
                     const typeNode = typeCheckerInfo.typeNode;
                     return this.generateNodeType(typeNode);
                 }
-            }
-            case ts.SyntaxKind.PrefixUnaryExpression: {
-                const UnaryExprNode = <ts.PrefixUnaryExpression>node;
-                return this.generateNodeType(UnaryExprNode.operand);
             }
             case ts.SyntaxKind.NumberKeyword:
             case ts.SyntaxKind.NumericLiteral: {
