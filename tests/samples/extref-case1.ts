@@ -1,4 +1,4 @@
-export function objTest() {
+export function extrefTest() {
     const obj1 = {
         a: 1,
         b: true,

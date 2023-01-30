@@ -665,14 +665,14 @@ export class WASMExpressionBase {
         );
         const tmpTableIdx = module.i32.load(0, 4, pointer);
         const objOrigValue = module.table.get(
-            BuiltinNames.obj_table,
+            BuiltinNames.extref_table,
             tmpTableIdx,
-            objectStructTypeInfo.typeRef,
+            binaryen.anyref,
         );
 
         const tmpObjVarInfo = this.generateTmpVar('~obj|', '', targetType);
 
-        // cast ref ${} to target type
+        // cast anyref to target type
         const objTargetValue = binaryenCAPI._BinaryenRefCast(
             module.ptr,
             objOrigValue,
@@ -800,17 +800,13 @@ export class WASMExpressionBase {
 
     generateDynExtref(dynValue: binaryen.ExpressionRef) {
         const module = this.module;
-        // cast obj ref type to ref ${}
-        const objTarget = binaryenCAPI._BinaryenRefCast(
-            module.ptr,
-            dynValue,
-            objectStructTypeInfo.heapTypeRef,
-        );
+        // table type is anyref, no need to cast
+        const objTarget = dynValue;
         // put table index into a local
         const tmpTableIndexVar = this.generateTmpVar('~tableIdx|', 'boolean');
         const setTableIdxExpr = this.setVariableToCurrentScope(
             tmpTableIndexVar,
-            module.table.size(BuiltinNames.obj_table),
+            module.table.size(BuiltinNames.extref_table),
         );
         this.currentFuncCtx.insert(setTableIdxExpr);
         const tableCurIndex = this.getVariableValue(
@@ -818,7 +814,7 @@ export class WASMExpressionBase {
             binaryen.i32,
         );
         const tableGrowExpr = module.table.grow(
-            BuiltinNames.obj_table,
+            BuiltinNames.extref_table,
             objTarget,
             module.i32.const(1),
         );
@@ -1089,7 +1085,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const operatorKind = expr.operatorKind;
         const leftExprType = leftExpr.exprType;
         const rightExprType = rightExpr.exprType;
-        const leftExprRef = this.WASMExprGen(leftExpr);
         const rightExprRef = this.WASMExprGen(rightExpr);
         switch (operatorKind) {
             case ts.SyntaxKind.EqualsToken: {
@@ -1215,6 +1210,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
             }
             default: {
+                const leftExprRef = this.WASMExprGen(leftExpr);
                 return this.operateBinaryExpr(
                     leftExprRef,
                     rightExprRef,
@@ -1320,9 +1316,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
                 // sample: const obj: any = {}; obj.a = 2;
                 if (objType.kind === TypeKind.ANY) {
-                    const objExprRef = this.WASMExprGen(leftExpr);
+                    const objExprRef = this.WASMExprGen(
+                        propAccessExpr.propertyAccessExpr,
+                    );
                     const propIdenExpr = <IdentifierExpression>(
-                        (<PropertyAccessExpression>leftExpr).propertyExpr
+                        propAccessExpr.propertyExpr
                     );
                     const propName = propIdenExpr.identifierName;
                     const initDynValue =
@@ -1921,10 +1919,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     /* Note: We should use binaryen.none here, but currently
                         the corresponding opcode is not supported by runtime */
                 );
-            } else if (
-                !expr.NewArgs ||
-                (expr.NewArgs && expr.NewArgs.length === 0)
-            ) {
+            } else if (!expr.NewArgs) {
                 const arraySize = this.convertTypeToI32(
                     module.f64.const(expr.arrayLen),
                     binaryen.f64,

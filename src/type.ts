@@ -384,6 +384,7 @@ export default class TypeCompiler {
                 const typeNode = typeCheckerInfo.typeNode;
                 return this.generateNodeType(typeNode);
             }
+            case ts.SyntaxKind.NewExpression:
             case ts.SyntaxKind.ArrayLiteralExpression: {
                 const parentNode = node.parent;
                 if (parentNode.kind === ts.SyntaxKind.VariableDeclaration) {
