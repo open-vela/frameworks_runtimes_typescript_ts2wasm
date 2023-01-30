@@ -2160,32 +2160,38 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     ],
                     dyntype.bool,
                 );
-                if (propName === '__proto__') {
-                    return module.if(
-                        module.i32.eq(isObj, module.i32.const(1)),
-                        module.call(
-                            dyntype.dyntype_get_prototype,
-                            [
-                                module.global.get(
-                                    dyntype.dyntype_context,
-                                    dyntype.dyn_ctx_t,
-                                ),
-                                objExprRef,
-                            ],
-                            dyntype.dyn_value_t,
-                        ),
-                    );
-                }
 
                 // add objValue to current scope
                 const objLocalVar = this.generateTmpVar('~obj|', 'any');
+                if (propName === '__proto__') {
+                    const protoValue = module.call(
+                        dyntype.dyntype_get_prototype,
+                        [
+                            module.global.get(
+                                dyntype.dyntype_context,
+                                dyntype.dyn_ctx_t,
+                            ),
+                            objExprRef,
+                        ],
+                        dyntype.dyn_value_t,
+                    );
+                    this.currentFuncCtx.insert(
+                        module.if(
+                            module.i32.eq(isObj, module.i32.const(1)),
+                            this.setVariableToCurrentScope(
+                                objLocalVar,
+                                protoValue,
+                            ),
+                        ),
+                    );
+                    return this.getVariableValue(objLocalVar, binaryen.anyref);
+                }
                 // if expression is obj, then get its property.
                 const propNameExprRef = module.i32.const(
                     this.wasmCompiler.generateRawString(
                         propIdenExpr.identifierName,
                     ),
                 );
-
                 // get property value
                 const objHasProp = module.call(
                     dyntype.dyntype_has_property,
@@ -2211,7 +2217,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     ],
                     dyntype.dyn_value_t,
                 );
-
                 this.currentFuncCtx.insert(
                     module.if(
                         module.i32.eq(isObj, module.i32.const(1)),
@@ -2232,10 +2237,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
             } else if (objType.kind === TypeKind.STRING) {
                 switch (propName) {
                     case 'length': {
-                        return module.call(
-                            BuiltinNames.string_length_func,
-                            [objExprRef],
-                            stringTypeInfo.heapTypeRef,
+                        return this.convertTypeToF64(
+                            module.call(
+                                BuiltinNames.string_length_func,
+                                [objExprRef],
+                                stringTypeInfo.heapTypeRef,
+                            ),
+                            binaryen.i32,
                         );
                     }
                 }
