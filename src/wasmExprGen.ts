@@ -1235,7 +1235,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     rightExpr.expressionKind ===
                         ts.SyntaxKind.PrefixUnaryExpression
                 ) {
-                    const unaryExpr = <UnaryExpression>leftExpr;
+                    const unaryExpr = <UnaryExpression>rightExpr;
                     if (
                         unaryExpr.operatorKind ===
                             ts.SyntaxKind.PlusPlusToken ||
