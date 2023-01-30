@@ -2,7 +2,6 @@ import binaryen from 'binaryen';
 import { assert } from 'console';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 import Long from 'long';
-import { objectStructTypeInfo } from './glue/packType.js';
 
 function i64_new(low: number, high: number) {
     return Long.fromBits(low, high);
@@ -72,9 +71,9 @@ export function initDefaultMemory(
 
 export function initDefaultTable(module: binaryen.Module): void {
     module.addTable(
-        BuiltinNames.obj_table,
+        BuiltinNames.extref_table,
         BuiltinNames.table_initialPages,
         BuiltinNames.table_maximumPages,
-        objectStructTypeInfo.typeRef,
+        binaryen.anyref,
     );
 }
