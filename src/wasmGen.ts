@@ -432,9 +432,9 @@ export class WASMGen {
         let closureIndex = 1;
         const closureVarTypes = new Array<binaryenCAPI.TypeRef>();
         const closureVarValues = new Array<binaryen.ExpressionRef>();
-        const muts = new Array<number>();
+        const muts = new Array<boolean>();
         closureVarTypes.push(emptyStructType.typeRef);
-        muts.push(0);
+        muts.push(false);
         closureVarValues.push(
             this.module.local.get(0, emptyStructType.typeRef),
         );
@@ -467,7 +467,9 @@ export class WASMGen {
                     this.module.local.get(param.varIndex, type),
                 );
                 param.setClosureIndex(closureIndex++);
-                muts.push(param.varModifier === ModifierKind.readonly ? 0 : 1);
+                muts.push(
+                    param.varModifier === ModifierKind.readonly ? false : true,
+                );
             }
         }
         for (const variable of functionScope.varArray) {
@@ -480,7 +482,9 @@ export class WASMGen {
                     this.module.local.get(variable.varIndex, type),
                 );
                 variable.setClosureIndex(closureIndex++);
-                muts.push(variable.varModifier === ModifierKind.const ? 0 : 1);
+                muts.push(
+                    variable.varModifier === ModifierKind.const ? false : true,
+                );
             }
         }
 

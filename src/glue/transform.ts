@@ -20,7 +20,7 @@ export function arrayToPtr(array: number[]): ptrInfo {
     return ptrInfo;
 }
 
-function allocU32Array(u32s: number[] | null): binaryenCAPI.usize {
+function allocU32Array(u32s: binaryenCAPI.u32[] | null): binaryenCAPI.usize {
     if (!u32s) return 0;
     const len = u32s.length;
     const ptr = binaryenCAPI._malloc(len << 2);
@@ -28,6 +28,17 @@ function allocU32Array(u32s: number[] | null): binaryenCAPI.usize {
     for (let i = 0; i < len; ++i) {
         binaryenCAPI.__i32_store(idx, u32s[i]);
         idx += 4;
+    }
+    return ptr;
+}
+
+function allocU8Array(u8s: boolean[] | null): binaryenCAPI.usize {
+    if (!u8s) return 0;
+    const len = u8s.length;
+    const ptr = binaryenCAPI._malloc(len);
+    for (let i = 0; i < len; ++i) {
+        const value = u8s[i] ? 1 : 0;
+        binaryenCAPI.__i32_store8(ptr + i, value);
     }
     return ptr;
 }
@@ -88,13 +99,13 @@ export function initArrayType(
 export function initStructType(
     fieldTypesList: Array<binaryenCAPI.TypeRef>,
     fieldPackedTypesList: Array<binaryenCAPI.PackedType>,
-    fieldMutablesList: Array<number>,
+    fieldMutablesList: Array<boolean>,
     numFields: binaryenCAPI.i32,
     nullable: binaryenCAPI.bool,
 ): typeInfo {
     const fieldTypes = arrayToPtr(fieldTypesList).ptr;
     const fieldPackedTypes = allocU32Array(fieldPackedTypesList);
-    const fieldMutables = allocU32Array(fieldMutablesList);
+    const fieldMutables = allocU8Array(fieldMutablesList);
     const tb: binaryenCAPI.TypeBuilderRef = binaryenCAPI._TypeBuilderCreate(1);
     binaryenCAPI._TypeBuilderSetStructType(
         tb,
@@ -141,7 +152,6 @@ function genarateCharArrayTypeInfo(): typeInfo {
 
 // generate struct type to store string information
 function generateStringTypeInfo(): typeInfo {
-    const module = new binaryen.Module();
     const charArrayTypeInfo = charArrayTypeInformation;
     const stringTypeInfo = initStructType(
         [
@@ -155,7 +165,7 @@ function generateStringTypeInfo(): typeInfo {
             binaryenCAPI._BinaryenPackedTypeNotPacked(),
             binaryenCAPI._BinaryenPackedTypeNotPacked(),
         ],
-        [1, 1],
+        [true, true],
         2,
         true,
     );

@@ -5,10 +5,8 @@ import { Stack } from './utils.js';
 import { fileURLToPath } from 'url';
 import {
     BlockScope,
-    funcDefs,
     FunctionScope,
     GlobalScope,
-    ClassScope,
     Scope,
     ScopeKind,
     ScopeScanner,
