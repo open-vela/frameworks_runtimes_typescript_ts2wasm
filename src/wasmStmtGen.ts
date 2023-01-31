@@ -170,8 +170,18 @@ export class WASMStatementGen {
             }
         }
 
-        const WASMReturnExpr: binaryen.ExpressionRef =
+        let WASMReturnExpr: binaryen.ExpressionRef =
             this.WASMCompiler.wasmExpr.WASMExprGen(stmt.returnExpression);
+        if (
+            nearestFuncScope instanceof FunctionScope &&
+            nearestFuncScope.funcType.returnType.kind === TypeKind.ANY &&
+            stmt.returnExpression.exprType.kind !== TypeKind.ANY
+        ) {
+            WASMReturnExpr =
+                this.WASMCompiler.wasmDynExprCompiler.WASMDynExprGen(
+                    stmt.returnExpression,
+                );
+        }
         return this.WASMCompiler.module.return(WASMReturnExpr);
     }
 
@@ -367,6 +377,19 @@ export class WASMStatementGen {
                         varInitExprRef = wasmExpr.WASMExprGen(
                             localVar.initExpression,
                         );
+                        // '||' token
+                        if (
+                            localVar.varType.kind === TypeKind.BOOLEAN &&
+                            binaryen.getExpressionType(varInitExprRef) ===
+                                binaryen.f64
+                        ) {
+                            const module = this.WASMCompiler.module;
+                            varInitExprRef = module.i32.eqz(
+                                module.i32.eqz(
+                                    module.i32.trunc_u_sat.f64(varInitExprRef),
+                                ),
+                            );
+                        }
                         /* In this version, we put free variable to context struct when parsing variable declaration */
                         if (localVar.varIsClosure) {
                             let scope = currentScope;

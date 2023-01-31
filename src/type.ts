@@ -371,7 +371,17 @@ export default class TypeCompiler {
                     node,
                     this.typechecker!,
                 );
-                const typeNode = typeCheckerInfo.typeNode;
+                let typeNode = typeCheckerInfo.typeNode;
+                /* let a = -b, in this case, tsc cant deduce the type of -b correctly, we should use its operand instead */
+                if (ts.isPrefixUnaryExpression(node)) {
+                    const unaryExpr = <ts.PrefixUnaryExpression>node;
+                    if (
+                        unaryExpr.operator === ts.SyntaxKind.PlusToken ||
+                        unaryExpr.operator === ts.SyntaxKind.MinusToken
+                    ) {
+                        typeNode = unaryExpr.operand;
+                    }
+                }
                 return this.generateNodeType(typeNode);
             }
             case ts.SyntaxKind.NewExpression:
@@ -397,6 +407,7 @@ export default class TypeCompiler {
                 return builtinTypes.get(TypeKind.NUMBER)!;
             }
             case ts.SyntaxKind.AnyKeyword:
+            case ts.SyntaxKind.UndefinedKeyword:
                 return builtinTypes.get(TypeKind.ANY)!;
             case ts.SyntaxKind.UnionType: {
                 // check if all nodes type is equal
