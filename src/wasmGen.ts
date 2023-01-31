@@ -40,6 +40,7 @@ export class WASMFunctionContext {
     private funcScope: FunctionScope | GlobalScope;
     private funcOpcodeArray: Array<binaryen.ExpressionRef>;
     private opcodeArrayStack = new Stack<Array<binaryen.ExpressionRef>>();
+    private returnOpcode: binaryen.ExpressionRef;
     private returnIndex = 0;
 
     constructor(binaryenCtx: WASMGen, scope: FunctionScope | GlobalScope) {
@@ -48,10 +49,19 @@ export class WASMFunctionContext {
         this.funcScope = scope;
         this.funcOpcodeArray = new Array<binaryen.ExpressionRef>();
         this.opcodeArrayStack.push(this.funcOpcodeArray);
+        this.returnOpcode = this.binaryenCtx.module.return();
     }
 
     insert(insn: binaryen.ExpressionRef) {
         this.opcodeArrayStack.peek().push(insn);
+    }
+
+    setReturnOpcode(returnOpcode: binaryen.ExpressionRef) {
+        this.returnOpcode = returnOpcode;
+    }
+
+    get returnOp() {
+        return this.returnOpcode;
     }
 
     insertAtFuncEntry(insn: binaryen.ExpressionRef) {
@@ -80,6 +90,14 @@ export class WASMFunctionContext {
 
     getBody() {
         return this.funcOpcodeArray;
+    }
+
+    set returnIdx(idx: number) {
+        this.returnIndex = idx;
+    }
+
+    get returnIdx() {
+        return this.returnIndex;
     }
 }
 
@@ -534,6 +552,22 @@ export class WASMGen {
                 ),
             );
         }
+
+        // add return value iff return type is not void
+        if (functionScope.funcType.returnType.kind !== TypeKind.VOID) {
+            const returnVarIdx =
+                functionScope.paramArray.length + functionScope.varArray.length;
+            const returnVar = new Variable(
+                '~returnVar',
+                functionScope.funcType.returnType,
+                ModifierKind.default,
+                returnVarIdx,
+                true,
+            );
+            this.currentFuncCtx!.returnIdx = returnVarIdx;
+            functionScope.addVariable(returnVar);
+        }
+
         // generate wasm statements
         for (const stmt of functionScope.statements) {
             const stmtRef = this.wasmStmtCompiler.WASMStmtGen(stmt);
@@ -542,12 +576,17 @@ export class WASMGen {
             }
             this.currentFuncCtx!.insert(stmtRef);
         }
-        /* in case return type is xxx | undefined */
-        if (functionScope.funcType.returnType.kind === TypeKind.ANY) {
-            const wasmDynUndefined = this.module.return(
-                this.wasmDynExprCompiler.generateDynUndefined(),
+
+        // add return in last iff return type is not void
+        if (functionScope.funcType.returnType.kind !== TypeKind.VOID) {
+            this.currentFuncCtx!.setReturnOpcode(
+                this.module.return(
+                    this.module.local.get(
+                        this.currentFuncCtx!.returnIdx,
+                        returnWASMType,
+                    ),
+                ),
             );
-            this.curFunctionCtx!.insert(wasmDynUndefined);
         }
         const varWASMTypes = new Array<binaryen.ExpressionRef>();
         // iff not a member function
@@ -672,8 +711,14 @@ export class WASMGen {
             returnWASMType,
             varWASMTypes,
             this.module.block(
-                'entry',
-                this.currentFuncCtx.getBody(),
+                null,
+                [
+                    this.module.block(
+                        'statements',
+                        this.currentFuncCtx.getBody(),
+                    ),
+                    this.currentFuncCtx.returnOp,
+                ],
                 returnWASMType,
             ),
         );

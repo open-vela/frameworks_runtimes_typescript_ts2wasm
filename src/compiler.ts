@@ -38,14 +38,8 @@ export class Compiler {
     typeChecker: ts.TypeChecker | undefined;
     globalScopeStack = new Stack<GlobalScope>();
     nodeScopeMap = new Map<ts.Node, Scope>();
-
-    // Not used currently
     binaryenModule = new binaryen.Module();
-    functionScopeStack = new Stack<FunctionScope>();
-    blockScopeStack = new Stack<BlockScope>();
-    scopesStack = new Stack<Scope>();
     currentScope: Scope | null = null;
-    anonymousFunctionNameStack = new Stack<string>();
 
     constructor() {
         this.scopeScanner = new ScopeScanner(this);
