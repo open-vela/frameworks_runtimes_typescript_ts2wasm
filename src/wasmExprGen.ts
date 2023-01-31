@@ -326,9 +326,9 @@ export class WASMExpressionBase {
             case ts.SyntaxKind.BarBarToken: {
                 return module.select(
                     this.convertTypeToI32(leftExprRef, binaryen.f64),
-                    this.convertTypeToI32(leftExprRef, binaryen.f64),
-                    rightExprRef,
-                    binaryen.i32,
+                    leftExprRef,
+                    this.convertTypeToF64(rightExprRef, binaryen.i32),
+                    binaryen.f64,
                 );
             }
             default:
@@ -364,9 +364,9 @@ export class WASMExpressionBase {
                 } else {
                     return module.select(
                         leftExprRef,
-                        leftExprRef,
-                        this.convertTypeToI32(rightExprRef, binaryen.f64),
-                        binaryen.i32,
+                        this.convertTypeToF64(leftExprRef, binaryen.i32),
+                        rightExprRef,
+                        binaryen.f64,
                     );
                 }
             }
@@ -1654,6 +1654,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     );
                 }
             }
+            case ts.SyntaxKind.PlusToken: {
+                return this.WASMExprGen(operand);
+            }
         }
         return this.module.unreachable();
     }
@@ -1775,6 +1778,19 @@ export class WASMExpressionGen extends WASMExpressionBase {
             if (maybeFuncDef !== undefined) {
                 const type = maybeFuncDef.funcType;
                 maybeFuncName = maybeFuncDef.funcName;
+                if (callWASMArgs.length < maybeFuncDef.paramArray.length) {
+                    for (
+                        let i = callWASMArgs.length;
+                        i < maybeFuncDef.paramArray.length;
+                        ++i
+                    ) {
+                        callWASMArgs.push(
+                            this.WASMExprGen(
+                                maybeFuncDef.paramArray[i].initExpression!,
+                            ),
+                        );
+                    }
+                }
                 return this.module.call(
                     maybeFuncName,
                     callWASMArgs,
