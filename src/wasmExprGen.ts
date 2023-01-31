@@ -1447,7 +1447,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     binaryen.f64,
                 );
                 let assignValue: binaryen.ExpressionRef;
-                if (matchKind === MatchKind.ToArrayAnyMatch) {
+                if (matchKind === MatchKind.ToAnyMatch) {
                     assignValue = this.dynValueGen.WASMDynExprGen(rightExpr);
                 } else {
                     assignValue = this.WASMExprGen(rightExpr);
