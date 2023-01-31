@@ -23,6 +23,7 @@ import { TSClass, TypeKind } from './type.js';
 import { IdentifierExpression } from './expression.js';
 import { arrayToPtr } from './glue/transform.js';
 import { ModifierKind } from './variable.js';
+import { assert } from 'console';
 export class WASMStatementGen {
     private currentFuncCtx;
 
@@ -131,58 +132,59 @@ export class WASMStatementGen {
     }
 
     WASMReturnStmt(stmt: ReturnStatement): binaryen.ExpressionRef {
+        const module = this.WASMCompiler.module;
         if (stmt.returnExpression === null) {
-            return this.WASMCompiler.module.return();
+            return module.return();
         }
-        const nearestFuncScope = this.currentFuncCtx.getFuncScope();
-        if (nearestFuncScope instanceof FunctionScope) {
-            const type = nearestFuncScope.funcType;
-            if (type.returnType.kind === TypeKind.FUNCTION) {
-                const returnedFuncName =
-                    nearestFuncScope.funcName +
-                    '|' +
-                    (<IdentifierExpression>stmt.returnExpression)
-                        .identifierName;
-
-                const module = this.WASMCompiler.module;
-                const array = [
-                    module.local.get(
-                        nearestFuncScope.paramArray.length,
-                        (<typeInfo>WASMGen.contextOfFunc.get(nearestFuncScope))
-                            .typeRef,
-                    ),
-                    module.ref.func(
-                        returnedFuncName,
-                        this.WASMCompiler.wasmType.getWASMType(type.returnType),
-                    ),
-                ];
-
-                return module.return(
-                    binaryenCAPI._BinaryenStructNew(
-                        module.ptr,
-                        arrayToPtr(array).ptr,
-                        2,
-                        this.WASMCompiler.wasmType.getWASMFuncStructHeapType(
-                            type.returnType,
-                        ),
-                    ),
-                );
-            }
-        }
-
-        let WASMReturnExpr: binaryen.ExpressionRef =
-            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.returnExpression);
-        if (
-            nearestFuncScope instanceof FunctionScope &&
-            nearestFuncScope.funcType.returnType.kind === TypeKind.ANY &&
+        const curNearestFuncScope = this.currentFuncCtx.getFuncScope();
+        assert(curNearestFuncScope instanceof FunctionScope);
+        const nearestFuncScope = <FunctionScope>curNearestFuncScope;
+        let returnExprRef: binaryen.ExpressionRef;
+        const type = nearestFuncScope.funcType;
+        if (type.returnType.kind === TypeKind.FUNCTION) {
+            const returnedFuncName =
+                nearestFuncScope.funcName +
+                '|' +
+                (<IdentifierExpression>stmt.returnExpression).identifierName;
+            const array = [
+                module.local.get(
+                    nearestFuncScope.paramArray.length,
+                    (<typeInfo>WASMGen.contextOfFunc.get(nearestFuncScope))
+                        .typeRef,
+                ),
+                module.ref.func(
+                    returnedFuncName,
+                    this.WASMCompiler.wasmType.getWASMType(type.returnType),
+                ),
+            ];
+            returnExprRef = binaryenCAPI._BinaryenStructNew(
+                module.ptr,
+                arrayToPtr(array).ptr,
+                2,
+                this.WASMCompiler.wasmType.getWASMFuncStructHeapType(
+                    type.returnType,
+                ),
+            );
+        } else if (
+            type.returnType.kind === TypeKind.ANY &&
             stmt.returnExpression.exprType.kind !== TypeKind.ANY
         ) {
-            WASMReturnExpr =
+            returnExprRef =
                 this.WASMCompiler.wasmDynExprCompiler.WASMDynExprGen(
                     stmt.returnExpression,
                 );
+        } else {
+            returnExprRef = this.WASMCompiler.wasmExpr.WASMExprGen(
+                stmt.returnExpression,
+            );
         }
-        return this.WASMCompiler.module.return(WASMReturnExpr);
+        const setReturnValue = module.local.set(
+            this.currentFuncCtx.returnIdx,
+            returnExprRef,
+        );
+        this.currentFuncCtx!.insert(setReturnValue);
+        const brReturn = module.br('statements');
+        return brReturn;
     }
 
     WASMEmptyStmt(): binaryen.ExpressionRef {
