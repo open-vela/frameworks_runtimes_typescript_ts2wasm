@@ -22,6 +22,7 @@ import path from 'path';
 export const COMPILER_OPTIONS: ts.CompilerOptions = {
     module: ts.ModuleKind.ESNext,
     target: ts.ScriptTarget.ES2015,
+    strict: true,
 };
 
 export class Compiler {

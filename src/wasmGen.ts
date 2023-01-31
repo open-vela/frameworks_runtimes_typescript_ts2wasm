@@ -542,7 +542,13 @@ export class WASMGen {
             }
             this.currentFuncCtx!.insert(stmtRef);
         }
-
+        /* in case return type is xxx | undefined */
+        if (functionScope.funcType.returnType.kind === TypeKind.ANY) {
+            const wasmDynUndefined = this.module.return(
+                this.wasmDynExprCompiler.generateDynUndefined(),
+            );
+            this.curFunctionCtx!.insert(wasmDynUndefined);
+        }
         const varWASMTypes = new Array<binaryen.ExpressionRef>();
         // iff not a member function
         if (functionScope.className === '') {
