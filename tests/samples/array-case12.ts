@@ -1,4 +1,4 @@
-export function arrayTest() {
+export function arrayTest12() {
     let array1: number[];
     array1 = new Array(2);
     array1[0] = 3;

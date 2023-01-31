@@ -864,7 +864,7 @@ export class WASMExpressionBase {
             default: {
                 return binaryenCAPI._BinaryenRefNull(
                     module.ptr,
-                    binaryen.anyref,
+                    this.wasmType.getWASMType(elemType),
                 );
             }
         }
