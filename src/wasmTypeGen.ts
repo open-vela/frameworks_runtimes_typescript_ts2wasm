@@ -140,7 +140,7 @@ export class WASMTypeGen {
                 const funcStructType = initStructType(
                     [emptyStructType.typeRef, signature.typeRef],
                     [typeNotPacked, typeNotPacked],
-                    [0, 0],
+                    [true, false],
                     2,
                     true,
                 );
@@ -198,7 +198,7 @@ export class WASMTypeGen {
                 let packed = new Array<binaryenCAPI.PackedType>(
                     wasmFuncTypes.length,
                 ).fill(typeNotPacked);
-                let muts = new Array<number>(wasmFuncTypes.length).fill(0);
+                let muts = new Array<boolean>(wasmFuncTypes.length).fill(false);
                 const vtableType = initStructType(
                     wasmFuncTypes,
                     packed,
@@ -222,8 +222,8 @@ export class WASMTypeGen {
                 // 2. add vtable and fields
                 const wasmFieldTypes = new Array<binaryenCAPI.TypeRef>();
                 /* vtable + fields */
-                muts = new Array<number>(tsClassType.fields.length + 1);
-                muts[0] = 0;
+                muts = new Array<boolean>(tsClassType.fields.length + 1);
+                muts[0] = false;
                 packed = new Array<binaryenCAPI.PackedType>(
                     tsClassType.fields.length + 1,
                 ).fill(typeNotPacked);
@@ -232,9 +232,9 @@ export class WASMTypeGen {
                     const field = tsClassType.fields[i];
                     wasmFieldTypes.push(this.getWASMType(field.type));
                     if (field.modifier === 'readonly') {
-                        muts[i + 1] = 0;
+                        muts[i + 1] = false;
                     } else {
-                        muts[i + 1] = 1;
+                        muts[i + 1] = true;
                     }
                 }
 

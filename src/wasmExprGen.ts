@@ -43,11 +43,7 @@ import {
 import { MatchKind, Stack } from './utils.js';
 import { dyntype } from '../lib/dyntype/utils.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
-import {
-    charArrayTypeInfo,
-    stringTypeInfo,
-    objectStructTypeInfo,
-} from './glue/packType.js';
+import { charArrayTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { typeInfo } from './glue/utils.js';
 import { isDynFunc, getReturnTypeRef } from './envInit.js';
 import { WASMGen } from './wasmGen.js';
@@ -2272,7 +2268,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     if (propIndex == -1) {
                         throw new Error(propName + ' property does not exist');
                     }
-
                     const method = objClassType.memberFuncs[propIndex];
                     const methodType = method.type;
                     return this._generateClassMethodCallRef(
@@ -2280,7 +2275,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         objClassType,
                         methodType,
                         propIndex,
-                        [],
+                        [objExprRef],
                     );
                 }
 
