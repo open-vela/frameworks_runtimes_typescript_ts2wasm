@@ -592,6 +592,22 @@ export class WASMGen {
                 ),
             );
         }
+        /* iff constructor, return type is class type  */
+        if (
+            functionScope.funcName ===
+            functionScope.className + '_constructor'
+        ) {
+            const classScope = <ClassScope>functionScope.parent;
+            const wasmClassType = this.wasmType.getWASMType(
+                classScope.classType,
+            );
+            this.currentFuncCtx!.setReturnOpcode(
+                this.module.return(
+                    this.module.local.get(targetVarIndex, returnWASMType),
+                ),
+            );
+            returnWASMType = wasmClassType;
+        }
         const varWASMTypes = new Array<binaryen.ExpressionRef>();
         // iff not a member function
         if (functionScope.className === '') {
@@ -600,22 +616,7 @@ export class WASMGen {
             );
         } else {
             const classScope = <ClassScope>functionScope.parent;
-            const wasmClassType = this.wasmType.getWASMType(
-                classScope.classType,
-            );
             varWASMTypes.push(this.wasmType.getWASMType(classScope.classType));
-            /* iff constructor, return type is class type  */
-            if (
-                functionScope.funcName ===
-                functionScope.className + '_constructor'
-            ) {
-                this.currentFuncCtx!.insert(
-                    this.module.return(
-                        this.module.local.get(targetVarIndex, wasmClassType),
-                    ),
-                );
-                returnWASMType = wasmClassType;
-            }
         }
         /* the first one is context struct, no need to parse */
         for (const variable of functionScope.varArray.slice(1)) {
