@@ -133,8 +133,9 @@ export class WASMStatementGen {
 
     WASMReturnStmt(stmt: ReturnStatement): binaryen.ExpressionRef {
         const module = this.WASMCompiler.module;
+        const brReturn = module.br('statements');
         if (stmt.returnExpression === null) {
-            return module.return();
+            return brReturn;
         }
         const curNearestFuncScope = this.currentFuncCtx.getFuncScope();
         assert(curNearestFuncScope instanceof FunctionScope);
@@ -183,7 +184,6 @@ export class WASMStatementGen {
             returnExprRef,
         );
         this.currentFuncCtx!.insert(setReturnValue);
-        const brReturn = module.br('statements');
         return brReturn;
     }
 
