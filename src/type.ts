@@ -691,26 +691,32 @@ export default class TypeCompiler {
                         }
                     }
                 }
+                const tsFuncType = this.generateFunctionType(func);
+                const returnType = this.generateNodeType(
+                    getNodeTypeInfo(func, this.typechecker!).typeNode,
+                );
+                tsFuncType.returnType = returnType;
                 if (!isOverride) {
-                    const tsFuncType = this.generateFunctionType(func);
-                    const returnType = this.generateNodeType(
-                        getNodeTypeInfo(func, this.typechecker!).typeNode,
-                    );
-                    tsFuncType.returnType = returnType;
-                    if (!isOverride) {
-                        classType.addMethod({
-                            name: methodName,
-                            type: tsFuncType,
-                            isSetter: false,
-                            isGetter: true,
-                        });
-                    }
-                    const targetFuncDef = funcDefs.get(
-                        classType.className + '_get_' + methodName,
-                    );
-                    if (targetFuncDef !== undefined) {
-                        targetFuncDef.setFuncType(tsFuncType);
-                    }
+                    classType.addMethod({
+                        name: methodName,
+                        type: tsFuncType,
+                        isSetter: false,
+                        isGetter: true,
+                    });
+                }
+                if (!isOverride) {
+                    classType.addMethod({
+                        name: methodName,
+                        type: tsFuncType,
+                        isSetter: false,
+                        isGetter: true,
+                    });
+                }
+                const targetFuncDef = funcDefs.get(
+                    classType.className + '_get_' + methodName,
+                );
+                if (targetFuncDef !== undefined) {
+                    targetFuncDef.setFuncType(tsFuncType);
                 }
                 classType.overrideOrOwnMethods.add('_get_' + methodName);
             }

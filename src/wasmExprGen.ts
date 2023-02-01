@@ -1488,7 +1488,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         localGetType,
                     );
                     /* iff found in current function scope */
-                    if (currentScope.findFunctionScope(identifierName)) {
+                    if (nearestFuncScope.findVariable(identifierName, false)) {
                         return binaryenCAPI._BinaryenStructSet(
                             this.module.ptr,
                             variable.getClosureIndex(),
@@ -1517,9 +1517,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
                                         targetCtxTypeRef,
                                         false,
                                     );
-                                    if (target !== undefined) {
-                                        break;
-                                    }
+                                }
+                                if (target !== undefined) {
+                                    break;
                                 }
                                 prevFuncScope = funcScope;
                             }

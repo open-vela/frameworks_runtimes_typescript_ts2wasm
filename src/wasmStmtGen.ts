@@ -372,6 +372,25 @@ export class WASMStatementGen {
                         varInitExprRef = wasmDynExpr.WASMDynExprGen(
                             localVar.initExpression,
                         );
+                        /* let xxx = zzz && yyy, in this case xxx maybe union(any) type*/
+                        if (
+                            binaryen.getExpressionType(varInitExprRef) ===
+                            binaryen.f64
+                        ) {
+                            varInitExprRef =
+                                this.WASMCompiler.wasmDynExprCompiler.generateDynNumber(
+                                    varInitExprRef,
+                                );
+                        }
+                        if (
+                            binaryen.getExpressionType(varInitExprRef) ===
+                            binaryen.i32
+                        ) {
+                            varInitExprRef =
+                                this.WASMCompiler.wasmDynExprCompiler.generateDynBoolean(
+                                    varInitExprRef,
+                                );
+                        }
                         this.currentFuncCtx.insert(
                             module.local.set(localVar.varIndex, varInitExprRef),
                         );
