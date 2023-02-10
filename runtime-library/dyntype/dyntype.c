@@ -52,6 +52,7 @@ dyn_ctx_t dyntype_context_init() {
     return ctx;
 fail:
     dyntype_context_destroy(ctx);
+    return NULL;
 }
 
 dyn_ctx_t dyntype_context_init_with_opt(dyn_options_t *options) {
