@@ -1,6 +1,6 @@
-[submodule "lib/dyntype/quickjs"]
-	path = lib/dyntype/quickjs
+[submodule "runtime-library/dyntype/quickjs"]
+	path = runtime-library/dyntype/quickjs
 	url = https://github.com/wasm-micro-runtime/quickjs.git
-[submodule "lib/dyntype/wamr"]
-	path = lib/dyntype/wamr
+[submodule "runtime-library/dyntype/wamr"]
+	path = runtime-library/dyntype/wamr
 	url = https://github.com/bytecodealliance/wasm-micro-runtime.git

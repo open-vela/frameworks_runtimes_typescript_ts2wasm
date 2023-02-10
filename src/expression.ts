@@ -1,884 +1,706 @@
 import ts from 'typescript';
-import binaryen from 'binaryen';
 import { Compiler } from './compiler.js';
-import BaseCompiler from './base.js';
+import { Scope, FunctionScope, GlobalScope, ScopeKind } from './scope.js';
+import { Variable } from './variable.js';
 import {
-    AssignKind,
-    BinaryExpressionInfo,
-    VariableInfo,
-    ExpressionKind,
+    getCurScope,
+    getNearestFunctionScopeFromCurrent,
+    getNodeTypeInfo,
 } from './utils.js';
-import {
-    STRING_LENGTH_FUNC,
-    STRING_CONCAT_FUNC,
-    STRING_SLICE_FUNC,
-} from './glue/utils.js';
-import { strArrayTypeInfo, strStructTypeInfo } from './glue/packType.js';
+import { builtinTypes, Primitive, TSArray, Type, TypeKind } from './type.js';
+import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
-export default class ExpressionCompiler extends BaseCompiler {
-    constructor(compiler: Compiler) {
-        super(compiler);
+type OperatorKind = ts.SyntaxKind;
+type ExpressionKind = ts.SyntaxKind;
+
+export class Expression {
+    private kind: ExpressionKind;
+    private type: Type = new Type();
+
+    constructor(kind: ExpressionKind) {
+        this.kind = kind;
     }
-    visitNode(node: ts.Node, fillScope: boolean): binaryen.ExpressionRef {
+
+    get expressionKind() {
+        return this.kind;
+    }
+
+    setExprType(type: Type) {
+        this.type = type;
+    }
+
+    get exprType(): Type {
+        return this.type;
+    }
+}
+
+export class NullKeywordExpression extends Expression {
+    constructor() {
+        super(ts.SyntaxKind.NullKeyword);
+    }
+}
+
+export class NumberLiteralExpression extends Expression {
+    private value: number;
+
+    constructor(value: number) {
+        super(ts.SyntaxKind.NumericLiteral);
+        this.value = value;
+    }
+
+    get expressionValue(): number {
+        return this.value;
+    }
+}
+
+export class StringLiteralExpression extends Expression {
+    private value: string;
+
+    constructor(value: string) {
+        super(ts.SyntaxKind.StringLiteral);
+        this.value = value;
+    }
+
+    get expressionValue(): string {
+        return this.value;
+    }
+}
+
+export class ObjectLiteralExpression extends Expression {
+    constructor(
+        private fields: IdentifierExpression[],
+        private values: Expression[],
+    ) {
+        super(ts.SyntaxKind.ObjectLiteralExpression);
+    }
+
+    get objectFields(): IdentifierExpression[] {
+        return this.fields;
+    }
+
+    get objectValues(): Expression[] {
+        return this.values;
+    }
+}
+
+export class ArrayLiteralExpression extends Expression {
+    constructor(private elements: Expression[]) {
+        super(ts.SyntaxKind.ArrayLiteralExpression);
+    }
+
+    get arrayValues(): Expression[] {
+        return this.elements;
+    }
+}
+
+export class FalseLiteralExpression extends Expression {
+    constructor() {
+        super(ts.SyntaxKind.FalseKeyword);
+    }
+}
+
+export class TrueLiteralExpression extends Expression {
+    constructor() {
+        super(ts.SyntaxKind.TrueKeyword);
+    }
+}
+
+export class IdentifierExpression extends Expression {
+    private identifier: string;
+
+    constructor(identifier: string) {
+        super(ts.SyntaxKind.Identifier);
+        this.identifier = identifier;
+    }
+
+    get identifierName(): string {
+        return this.identifier;
+    }
+}
+
+export class BinaryExpression extends Expression {
+    private operator: OperatorKind;
+    private left: Expression;
+    private right: Expression;
+
+    constructor(operator: OperatorKind, left: Expression, right: Expression) {
+        super(ts.SyntaxKind.BinaryExpression);
+        this.operator = operator;
+        this.left = left;
+        this.right = right;
+    }
+
+    get operatorKind(): OperatorKind {
+        return this.operator;
+    }
+
+    get leftOperand(): Expression {
+        return this.left;
+    }
+
+    get rightOperand(): Expression {
+        return this.right;
+    }
+}
+
+export class UnaryExpression extends Expression {
+    private operator: OperatorKind;
+    private _operand: Expression;
+
+    constructor(
+        kind: ExpressionKind,
+        operator: OperatorKind,
+        operand: Expression,
+    ) {
+        super(kind);
+        this.operator = operator;
+        this._operand = operand;
+    }
+
+    get operatorKind(): OperatorKind {
+        return this.operator;
+    }
+
+    get operand(): Expression {
+        return this._operand;
+    }
+}
+
+export class ConditionalExpression extends Expression {
+    constructor(
+        private cond: Expression,
+        private trueExpr: Expression,
+        private falseExpr: Expression,
+    ) {
+        super(ts.SyntaxKind.ConditionalExpression);
+    }
+
+    get condtion(): Expression {
+        return this.cond;
+    }
+
+    get whenTrue(): Expression {
+        return this.trueExpr;
+    }
+
+    get whenFalse(): Expression {
+        return this.falseExpr;
+    }
+}
+
+export class CallExpression extends Expression {
+    private expr: Expression;
+    private args: Expression[];
+
+    constructor(
+        expr: Expression,
+        args: Expression[] = new Array<Expression>(0),
+    ) {
+        super(ts.SyntaxKind.CallExpression);
+        this.expr = expr;
+        this.args = args;
+    }
+
+    get callExpr(): Expression {
+        return this.expr;
+    }
+
+    get callArgs(): Expression[] {
+        return this.args;
+    }
+}
+
+export class SuperCallExpression extends Expression {
+    private args: Expression[];
+
+    constructor(args: Expression[] = new Array<Expression>(0)) {
+        super(ts.SyntaxKind.SuperKeyword);
+        this.args = args;
+    }
+
+    get callArgs(): Expression[] {
+        return this.args;
+    }
+}
+
+export class PropertyAccessExpression extends Expression {
+    private expr: Expression;
+    private property: Expression;
+    private parent: Expression;
+    private _isThis: boolean;
+    private callArguments: Expression[] = [];
+
+    constructor(
+        expr: Expression,
+        property: Expression,
+        parent: Expression,
+        isThis: boolean,
+    ) {
+        super(ts.SyntaxKind.PropertyAccessExpression);
+        this.expr = expr;
+        this.property = property;
+        this.parent = parent;
+        this._isThis = isThis;
+    }
+
+    get propertyAccessExpr(): Expression {
+        return this.expr;
+    }
+
+    get propertyExpr(): Expression {
+        return this.property;
+    }
+
+    get parentExpr(): Expression {
+        return this.parent;
+    }
+
+    get isThis(): boolean {
+        return this._isThis;
+    }
+
+    addCallArg(callArg: Expression) {
+        this.callArguments.push(callArg);
+    }
+
+    get callArgs(): Expression[] {
+        return this.callArguments;
+    }
+}
+
+export class NewExpression extends Expression {
+    private expr: Expression;
+    private arguments: Array<Expression> | undefined;
+    private newArrayLen = 0;
+    private lenExpression: Expression | null = null;
+
+    constructor(expr: Expression, args?: Array<Expression>) {
+        super(ts.SyntaxKind.NewExpression);
+        this.expr = expr;
+        this.arguments = args;
+    }
+
+    get NewExpr(): Expression {
+        return this.expr;
+    }
+
+    setArgs(args: Array<Expression>) {
+        this.arguments = args;
+    }
+
+    get NewArgs(): Array<Expression> | undefined {
+        return this.arguments;
+    }
+
+    setArrayLen(arrayLen: number) {
+        this.newArrayLen = arrayLen;
+    }
+
+    get arrayLen(): number {
+        return this.newArrayLen;
+    }
+
+    setLenExpr(len: Expression) {
+        this.lenExpression = len;
+    }
+
+    get lenExpr(): Expression | null {
+        return this.lenExpression;
+    }
+}
+
+export class ParenthesizedExpression extends Expression {
+    private expr: Expression;
+
+    constructor(expr: Expression) {
+        super(ts.SyntaxKind.ParenthesizedExpression);
+        this.expr = expr;
+    }
+
+    get parentesizedExpr(): Expression {
+        return this.expr;
+    }
+}
+
+export class ElementAccessExpression extends Expression {
+    private expr: Expression;
+    private argumentExpr: Expression;
+
+    constructor(expr: Expression, argExpr: Expression) {
+        super(ts.SyntaxKind.ElementAccessExpression);
+        this.expr = expr;
+        this.argumentExpr = argExpr;
+    }
+
+    get accessExpr(): Expression {
+        return this.expr;
+    }
+
+    get argExpr(): Expression {
+        return this.argumentExpr;
+    }
+}
+
+export class AsExpression extends Expression {
+    private expr: Expression;
+
+    constructor(expr: Expression) {
+        super(ts.SyntaxKind.AsExpression);
+        this.expr = expr;
+    }
+
+    get expression(): Expression {
+        return this.expr;
+    }
+}
+
+export class FunctionExpression extends Expression {
+    private _funcScope: FunctionScope;
+
+    constructor(func: FunctionScope) {
+        super(ts.SyntaxKind.FunctionExpression);
+        this._funcScope = func;
+    }
+
+    get funcScope(): FunctionScope {
+        return this._funcScope;
+    }
+}
+
+export default class ExpressionCompiler {
+    // private currentScope: Scope | null = null;
+
+    private typeCompiler;
+    private nodeScopeMap;
+
+    constructor(private compilerCtx: Compiler) {
+        this.typeCompiler = this.compilerCtx.typeComp;
+        this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
+    }
+
+    visitNode(node: ts.Node): Expression {
         switch (node.kind) {
+            case ts.SyntaxKind.NullKeyword: {
+                const nullExpr = new NullKeywordExpression();
+                nullExpr.setExprType(this.typeCompiler.generateNodeType(node));
+                return nullExpr;
+            }
+            case ts.SyntaxKind.NumericLiteral: {
+                const numberLiteralExpr = new NumberLiteralExpression(
+                    parseFloat((<ts.NumericLiteral>node).getText()),
+                );
+                numberLiteralExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return numberLiteralExpr;
+            }
+            case ts.SyntaxKind.StringLiteral: {
+                const stringLiteralExpr = new StringLiteralExpression(
+                    (<ts.StringLiteral>node).getText(),
+                );
+                stringLiteralExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return stringLiteralExpr;
+            }
+            case ts.SyntaxKind.FalseKeyword: {
+                const falseLiteralExpr = new FalseLiteralExpression();
+                falseLiteralExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return falseLiteralExpr;
+            }
+            case ts.SyntaxKind.TrueKeyword: {
+                const trueLiteralExpr = new TrueLiteralExpression();
+                trueLiteralExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return trueLiteralExpr;
+            }
             case ts.SyntaxKind.Identifier: {
-                const identifierNode = <ts.Identifier>node;
-                const identifierName = identifierNode.getText();
-                const currentScope = this.getCurrentScope();
-                let valueInfo = currentScope.findVariable(identifierName);
-                if (!valueInfo) {
-                    this.reportError(identifierNode, 'error TS2304');
+                const targetIdentifier = (<ts.Identifier>node).getText();
+                if (
+                    BuiltinNames.builtinIdentifiers.includes(targetIdentifier)
+                ) {
+                    return new IdentifierExpression(targetIdentifier);
                 }
-                valueInfo = <VariableInfo>valueInfo;
-                if (currentScope.isGlobalVariable(identifierName)) {
-                    return this.getGlobalValue(
-                        valueInfo.variableName,
-                        valueInfo.variableType,
-                    );
-                } else {
-                    return this.getLocalValue(
-                        valueInfo.variableIndex,
-                        valueInfo.variableType,
-                    );
-                }
-            }
+                let scope = this.compilerCtx.getScopeByNode(node) || null;
+                const currentFuncScope = scope!.getNearestFunctionScope();
+                let variable: Variable | undefined = undefined;
+                if (currentFuncScope) {
+                    while (scope !== null) {
+                        variable = scope.findVariable(targetIdentifier, false);
+                        if (variable) {
+                            break;
+                        }
+                        scope = scope.parent;
+                    }
 
+                    if (scope) {
+                        const varDefinedFuncScope =
+                            scope.getNearestFunctionScope();
+                        if (
+                            varDefinedFuncScope &&
+                            currentFuncScope !== varDefinedFuncScope
+                        ) {
+                            variable!.setVarIsClosure();
+                            varDefinedFuncScope.setIsClosure();
+                        }
+                        /* otherwise it's a global var */
+                    }
+                }
+
+                const identifierExpr = new IdentifierExpression(
+                    (<ts.Identifier>node).getText(),
+                );
+                identifierExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return identifierExpr;
+            }
             case ts.SyntaxKind.BinaryExpression: {
-                const binaryExpressionNode = <ts.BinaryExpression>node;
-                const binaryExpressionInfo: BinaryExpressionInfo = {
-                    leftExpression: binaryen.none,
-                    leftType: binaryen.none,
-                    operator: binaryen.none,
-                    rightExpression: binaryen.none,
-                    rightType: binaryen.none,
-                };
-                binaryExpressionInfo.leftExpression = this.visit(
-                    binaryExpressionNode.left,
+                const binaryExprNode = <ts.BinaryExpression>node;
+                const leftExpr = this.visitNode(binaryExprNode.left);
+                const rightExpr = this.visitNode(binaryExprNode.right);
+                const binaryExpr = new BinaryExpression(
+                    binaryExprNode.operatorToken.kind,
+                    leftExpr,
+                    rightExpr,
                 );
-                binaryExpressionInfo.leftType = this.visit(
-                    this.getVariableType(
-                        binaryExpressionNode.left,
-                        this.getTypeChecker(),
-                    ),
+                binaryExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
                 );
-                binaryExpressionInfo.rightExpression = this.visit(
-                    binaryExpressionNode.right,
-                );
-                binaryExpressionInfo.rightType = this.visit(
-                    this.getVariableType(
-                        binaryExpressionNode.right,
-                        this.getTypeChecker(),
-                    ),
-                );
-                const operatorKind = binaryExpressionNode.operatorToken.kind;
-                switch (operatorKind) {
-                    case ts.SyntaxKind.PlusToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.PlusToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.MinusToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.MinusToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.AsteriskToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.AsteriskToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.SlashToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.SlashToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.GreaterThanToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.GreaterThanToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.GreaterThanEqualsToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.GreaterThanEqualsToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.EqualsToken: {
-                        return this.handleExpressionStatement(
-                            binaryExpressionNode.left as ts.Identifier,
-                            binaryExpressionInfo,
-                            ExpressionKind.equalsExpression,
-                        );
-                    }
-                    case ts.SyntaxKind.LessThanToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.LessThanToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.LessThanEqualsToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.LessThanEqualsToken,
-                            );
-                        break;
-                    }
-                    // "xx && xx expression"
-                    case ts.SyntaxKind.AmpersandAmpersandToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.AmpersandAmpersandToken,
-                            );
-                        break;
-                    }
-                    // // "xx || xx expression"
-                    case ts.SyntaxKind.BarBarToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.BarBarToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.EqualsEqualsToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.EqualsEqualsToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.EqualsEqualsEqualsToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.EqualsEqualsEqualsToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.ExclamationEqualsToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.ExclamationEqualsToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
-                        binaryExpressionInfo.operator =
-                            this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.ExclamationEqualsEqualsToken,
-                            );
-                        break;
-                    }
-                    case ts.SyntaxKind.PlusEqualsToken: {
-                        const plusEqualsExpressionInfo: BinaryExpressionInfo = {
-                            leftExpression: binaryExpressionInfo.leftExpression,
-                            leftType: binaryExpressionInfo.leftType,
-                            operator: binaryen.none,
-                            rightExpression: this.handleBinaryExpression(
-                                binaryExpressionInfo,
-                                ts.SyntaxKind.PlusToken,
-                            ),
-                            rightType: binaryExpressionInfo.rightType,
-                        };
-                        // TODO: if leftType does not equals rightType, rightType should be fixed.
-                        return this.handleExpressionStatement(
-                            binaryExpressionNode.left as ts.Identifier,
-                            plusEqualsExpressionInfo,
-                            ExpressionKind.equalsExpression,
-                        );
-                    }
-                    case ts.SyntaxKind.MinusEqualsToken: {
-                        const minusEqualsExpressionInfo: BinaryExpressionInfo =
-                            {
-                                leftExpression:
-                                    binaryExpressionInfo.leftExpression,
-                                leftType: binaryExpressionInfo.leftType,
-                                operator: binaryen.none,
-                                rightExpression: this.handleBinaryExpression(
-                                    binaryExpressionInfo,
-                                    ts.SyntaxKind.MinusToken,
-                                ),
-                                rightType: binaryExpressionInfo.rightType,
-                            };
-                        // TODO: if leftType does not equals rightType, rightType should be fixed.
-                        return this.handleExpressionStatement(
-                            binaryExpressionNode.left as ts.Identifier,
-                            minusEqualsExpressionInfo,
-                            ExpressionKind.equalsExpression,
-                        );
-                    }
-                    case ts.SyntaxKind.AsteriskEqualsToken: {
-                        const asteriskEqualsExpressionInfo: BinaryExpressionInfo =
-                            {
-                                leftExpression:
-                                    binaryExpressionInfo.leftExpression,
-                                leftType: binaryExpressionInfo.leftType,
-                                operator: binaryen.none,
-                                rightExpression: this.handleBinaryExpression(
-                                    binaryExpressionInfo,
-                                    ts.SyntaxKind.AsteriskToken,
-                                ),
-                                rightType: binaryExpressionInfo.rightType,
-                            };
-                        // TODO: if leftType does not equals rightType, rightType should be fixed.
-                        return this.handleExpressionStatement(
-                            binaryExpressionNode.left as ts.Identifier,
-                            asteriskEqualsExpressionInfo,
-                            ExpressionKind.equalsExpression,
-                        );
-                    }
-                    case ts.SyntaxKind.SlashEqualsToken: {
-                        const slashEqualsExpressionInfo: BinaryExpressionInfo =
-                            {
-                                leftExpression:
-                                    binaryExpressionInfo.leftExpression,
-                                leftType: binaryExpressionInfo.leftType,
-                                operator: binaryen.none,
-                                rightExpression: this.handleBinaryExpression(
-                                    binaryExpressionInfo,
-                                    ts.SyntaxKind.SlashToken,
-                                ),
-                                rightType: binaryExpressionInfo.rightType,
-                            };
-                        // TODO: if leftType does not equals rightType, rightType should be fixed.
-                        return this.handleExpressionStatement(
-                            binaryExpressionNode.left as ts.Identifier,
-                            slashEqualsExpressionInfo,
-                            ExpressionKind.equalsExpression,
-                        );
-                    }
-                }
-                return binaryExpressionInfo.operator;
+                return binaryExpr;
             }
-
             case ts.SyntaxKind.PrefixUnaryExpression: {
-                const prefixUnaryExpressionNode = <ts.PrefixUnaryExpression>(
-                    node
+                const prefixExprNode = <ts.PrefixUnaryExpression>node;
+                const operand = this.visitNode(prefixExprNode.operand);
+                const unaryExpr = new UnaryExpression(
+                    ts.SyntaxKind.PrefixUnaryExpression,
+                    prefixExprNode.operator,
+                    operand,
                 );
-                return this.handleUnaryExpression(
-                    prefixUnaryExpressionNode,
-                    ExpressionKind.prefixUnaryExpression,
-                );
+                unaryExpr.setExprType(this.typeCompiler.generateNodeType(node));
+                return unaryExpr;
             }
-
             case ts.SyntaxKind.PostfixUnaryExpression: {
-                const postfixUnaryExpressionNode = <ts.PostfixUnaryExpression>(
-                    node
+                const postExprNode = <ts.PostfixUnaryExpression>node;
+                const operand = this.visitNode(postExprNode.operand);
+                const unaryExpr = new UnaryExpression(
+                    ts.SyntaxKind.PostfixUnaryExpression,
+                    postExprNode.operator,
+                    operand,
                 );
-                return this.handleUnaryExpression(
-                    postfixUnaryExpressionNode,
-                    ExpressionKind.postfixUnaryExpression,
-                );
+                unaryExpr.setExprType(this.typeCompiler.generateNodeType(node));
+                return unaryExpr;
             }
-
-            // "xx ? xx : xx" expression
             case ts.SyntaxKind.ConditionalExpression: {
-                const conditionNode = <ts.ConditionalExpression>node;
-                return this.handleConditionalExpression(conditionNode);
+                const condExprNode = <ts.ConditionalExpression>node;
+                const cond = this.visitNode(condExprNode.condition);
+                const whenTrue = this.visitNode(condExprNode.whenTrue);
+                const whenFalse = this.visitNode(condExprNode.whenFalse);
+                const conditionalExpr = new ConditionalExpression(
+                    cond,
+                    whenTrue,
+                    whenFalse,
+                );
+                conditionalExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return conditionalExpr;
             }
-
-            case ts.SyntaxKind.ParenthesizedExpression: {
-                const parenthesizedNode = <ts.ParenthesizedExpression>node;
-                return this.visit(parenthesizedNode.expression);
-            }
-
             case ts.SyntaxKind.CallExpression: {
-                // TODO: add closure
-                const callExpressionNode = <ts.CallExpression>node;
-                if (
-                    callExpressionNode.expression.kind ===
-                    ts.SyntaxKind.PropertyAccessExpression
-                ) {
-                    return this.visit(callExpressionNode.expression);
-                }
-                const funcName = callExpressionNode.expression.getText();
-                const parameters = callExpressionNode.arguments;
-                const paramExpressionRefList: binaryen.ExpressionRef[] = [];
-                for (let i = 0; i < parameters.length; i++) {
-                    paramExpressionRefList.push(this.visit(parameters[i]));
-                }
-                let paramArray: VariableInfo[] = [];
-                let returnType = binaryen.none;
-                const currentScope = this.getCurrentScope();
-                const childFunctionScope =
-                    currentScope.findFunctionScope(funcName);
-                if (childFunctionScope) {
-                    paramArray = childFunctionScope.getParamArray();
-                    returnType = childFunctionScope.getReturnType();
-                }
-                if (paramArray.length !== paramExpressionRefList.length) {
-                    for (
-                        let i = paramExpressionRefList.length;
-                        i < paramArray.length;
-                        i++
-                    ) {
-                        paramExpressionRefList.push(
-                            paramArray[i].variableInitial!,
-                        );
-                    }
-                }
-                // Judge if the return value need to drop
-                if (returnType !== binaryen.none) {
-                    if (
-                        callExpressionNode.parent.kind ===
-                        ts.SyntaxKind.ExpressionStatement
-                    ) {
-                        return this.getBinaryenModule().drop(
-                            this.getBinaryenModule().call(
-                                funcName,
-                                paramExpressionRefList,
-                                returnType,
-                            ),
-                        );
-                    }
-                }
-                return this.getBinaryenModule().call(
-                    funcName,
-                    paramExpressionRefList,
-                    returnType,
+                const callExprNode = <ts.CallExpression>node;
+                const expr = this.visitNode(callExprNode.expression);
+                const args = new Array<Expression>(
+                    callExprNode.arguments.length,
                 );
+                for (let i = 0; i != args.length; ++i) {
+                    args[i] = this.visitNode(callExprNode.arguments[i]);
+                }
+                if (
+                    callExprNode.expression.kind === ts.SyntaxKind.SuperKeyword
+                ) {
+                    const callExpr = new SuperCallExpression(args);
+                    callExpr.setExprType(
+                        this.typeCompiler.generateNodeType(node),
+                    );
+                    return callExpr;
+                }
+                const callExpr = new CallExpression(expr, args);
+                callExpr.setExprType(this.typeCompiler.generateNodeType(node));
+                return callExpr;
             }
-
             case ts.SyntaxKind.PropertyAccessExpression: {
-                const propertyAccessNode = <ts.PropertyAccessExpression>node;
-                const module = this.getBinaryenModule();
-                const strStruct1 = this.visit(propertyAccessNode.expression);
-                const builtInFunc = propertyAccessNode.name.getText();
+                const propAccessExprNode = <ts.PropertyAccessExpression>node;
+                const parent = new Expression(propAccessExprNode.parent.kind);
+                const property = this.visitNode(propAccessExprNode.name);
+                let isThis = false;
+                let expr: Expression;
                 if (
-                    propertyAccessNode.parent.kind ===
-                    ts.SyntaxKind.CallExpression
+                    propAccessExprNode.expression.kind ===
+                    ts.SyntaxKind.ThisKeyword
                 ) {
+                    isThis = true;
+                    expr = new Expression(ts.SyntaxKind.ThisKeyword);
+                } else {
+                    expr = this.visitNode(propAccessExprNode.expression);
+                }
+                const propAccessExpr = new PropertyAccessExpression(
+                    expr,
+                    property,
+                    parent,
+                    isThis,
+                );
+                if (parent.expressionKind === ts.SyntaxKind.CallExpression) {
                     const callNode = <ts.CallExpression>(
-                        propertyAccessNode.parent
+                        propAccessExprNode.parent
                     );
-                    const params = callNode.arguments;
-                    switch (builtInFunc) {
-                        case 'concat': {
-                            const strStruct2 = this.visit(params[0]);
-                            return module.call(
-                                STRING_CONCAT_FUNC,
-                                [strStruct1, strStruct2],
-                                strStructTypeInfo.heapTypeRef,
-                            );
-                        }
-                        case 'slice': {
-                            const start = this.visit(params[0]);
-                            const end = this.visit(params[1]);
-                            return module.call(
-                                STRING_SLICE_FUNC,
-                                [strStruct1, start, end],
-                                strStructTypeInfo.heapTypeRef,
-                            );
-                        }
-                    }
-                } else {
-                    switch (builtInFunc) {
-                        case 'length': {
-                            return module.call(
-                                STRING_LENGTH_FUNC,
-                                [strStruct1],
-                                strStructTypeInfo.heapTypeRef,
-                            );
-                        }
-                    }
-                }
-                break;
-            }
-        }
-        return binaryen.none;
-    }
-
-    handleBinaryExpression(
-        binaryExpressionInfo: BinaryExpressionInfo,
-        operatorKind: ts.SyntaxKind,
-    ): binaryen.ExpressionRef {
-        if (
-            binaryExpressionInfo.leftType === binaryen.f64 &&
-            binaryExpressionInfo.rightType === binaryen.f64
-        ) {
-            switch (operatorKind) {
-                case ts.SyntaxKind.PlusToken: {
-                    return this.getBinaryenModule().f64.add(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.MinusToken: {
-                    return this.getBinaryenModule().f64.sub(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.AsteriskToken: {
-                    return this.getBinaryenModule().f64.mul(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.SlashToken: {
-                    return this.getBinaryenModule().f64.div(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.GreaterThanToken: {
-                    return this.getBinaryenModule().f64.gt(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.GreaterThanEqualsToken: {
-                    return this.getBinaryenModule().f64.ge(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.LessThanToken: {
-                    return this.getBinaryenModule().f64.lt(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.LessThanEqualsToken: {
-                    return this.getBinaryenModule().f64.le(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.EqualsEqualsToken: {
-                    return this.getBinaryenModule().f64.eq(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.EqualsEqualsEqualsToken: {
-                    return this.getBinaryenModule().f64.eq(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.ExclamationEqualsToken: {
-                    return this.getBinaryenModule().f64.ne(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
-                    return this.getBinaryenModule().f64.ne(
-                        binaryExpressionInfo.leftExpression,
-                        binaryExpressionInfo.rightExpression,
-                    );
-                }
-                case ts.SyntaxKind.AmpersandAmpersandToken: {
-                    const left = binaryExpressionInfo.leftExpression;
-                    const right = binaryExpressionInfo.rightExpression;
-                    const leftType = binaryExpressionInfo.leftType;
-                    return this.getBinaryenModule().select(
-                        this.convertTypeToI32(left, leftType),
-                        right,
-                        left,
-                        binaryen.f64,
-                    );
-                }
-                case ts.SyntaxKind.BarBarToken: {
-                    const left = binaryExpressionInfo.leftExpression;
-                    const right = binaryExpressionInfo.rightExpression;
-                    const leftType = binaryExpressionInfo.leftType;
-                    return this.getBinaryenModule().select(
-                        this.convertTypeToI32(left, leftType),
-                        left,
-                        right,
-                        binaryen.f64,
-                    );
-                }
-            }
-        }
-        if (
-            binaryExpressionInfo.leftType === binaryen.f64 &&
-            binaryExpressionInfo.rightType === binaryen.i32
-        ) {
-            switch (operatorKind) {
-                case ts.SyntaxKind.AmpersandAmpersandToken: {
-                    const left = binaryExpressionInfo.leftExpression;
-                    const right = binaryExpressionInfo.rightExpression;
-                    const leftType = binaryExpressionInfo.leftType;
-                    return this.getBinaryenModule().select(
-                        this.convertTypeToI32(left, leftType),
-                        right,
-                        this.convertTypeToI32(left, leftType),
-                        binaryen.i32,
-                    );
-                }
-                case ts.SyntaxKind.BarBarToken: {
-                    const left = binaryExpressionInfo.leftExpression;
-                    const right = binaryExpressionInfo.rightExpression;
-                    const leftType = binaryExpressionInfo.leftType;
-                    return this.getBinaryenModule().select(
-                        this.convertTypeToI32(left, leftType),
-                        this.convertTypeToI32(left, leftType),
-                        right,
-                        binaryen.i32,
-                    );
-                }
-            }
-        }
-        if (
-            binaryExpressionInfo.leftType === binaryen.i32 &&
-            binaryExpressionInfo.rightType === binaryen.f64
-        ) {
-            switch (operatorKind) {
-                case ts.SyntaxKind.AmpersandAmpersandToken: {
-                    const left = binaryExpressionInfo.leftExpression;
-                    const right = binaryExpressionInfo.rightExpression;
-                    const rightType = binaryExpressionInfo.rightType;
-                    // if left is false, then condition is true
-                    const condition = Boolean(
-                        this.getBinaryenModule().i32.eqz(left),
-                    );
-                    if (condition) {
-                        return this.getBinaryenModule().select(
-                            left,
-                            this.convertTypeToI32(right, rightType),
-                            left,
-                            binaryen.i32,
-                        );
-                    } else {
-                        return right;
-                    }
-                }
-                case ts.SyntaxKind.BarBarToken: {
-                    const left = binaryExpressionInfo.leftExpression;
-                    const right = binaryExpressionInfo.rightExpression;
-                    const rightType = binaryExpressionInfo.rightType;
-                    // if left is false, then condition is true
-                    const condition = Boolean(
-                        this.getBinaryenModule().i32.eqz(left),
-                    );
-                    if (condition) {
-                        return right;
-                    } else {
-                        return this.getBinaryenModule().select(
-                            left,
-                            left,
-                            this.convertTypeToI32(right, rightType),
-                            binaryen.i32,
+                    for (let i = 0; i < callNode.arguments.length; ++i) {
+                        propAccessExpr.addCallArg(
+                            this.visitNode(callNode.arguments[i]),
                         );
                     }
                 }
-            }
-        }
-        if (
-            binaryExpressionInfo.leftType === binaryen.i32 &&
-            binaryExpressionInfo.rightType === binaryen.i32
-        ) {
-            switch (operatorKind) {
-                case ts.SyntaxKind.AmpersandAmpersandToken: {
-                    const left = binaryExpressionInfo.leftExpression;
-                    const right = binaryExpressionInfo.rightExpression;
-                    return this.getBinaryenModule().select(
-                        left,
-                        right,
-                        left,
-                        binaryen.i32,
-                    );
-                }
-                case ts.SyntaxKind.BarBarToken: {
-                    const left = binaryExpressionInfo.leftExpression;
-                    const right = binaryExpressionInfo.rightExpression;
-                    return this.getBinaryenModule().select(
-                        left,
-                        left,
-                        right,
-                        binaryen.i32,
-                    );
-                }
-            }
-        }
-        // TODO: dyntype API should be invoked here to get actual type.
-        return binaryen.none;
-    }
-
-    handleUnaryExpression(
-        unaryExpressionNode:
-            | ts.PostfixUnaryExpression
-            | ts.PrefixUnaryExpression,
-        expressionKind: ExpressionKind,
-    ): binaryen.ExpressionRef {
-        const operatorKind = unaryExpressionNode.operator;
-        const unaryExpressionInfo: BinaryExpressionInfo = {
-            leftExpression: binaryen.none,
-            leftType: binaryen.none,
-            operator: binaryen.none,
-            rightExpression: binaryen.none,
-            rightType: binaryen.none,
-        };
-        const operand = <ts.Identifier>unaryExpressionNode.operand;
-        const operandExpression = this.visit(operand);
-        unaryExpressionInfo.leftExpression = operandExpression;
-        const operandExpressionType = this.visit(
-            this.getVariableType(operand, this.getTypeChecker()),
-        );
-        unaryExpressionInfo.leftType = operandExpressionType;
-        const rightExpressionInfo: BinaryExpressionInfo = {
-            leftExpression: operandExpression,
-            leftType: operandExpressionType,
-            operator: binaryen.none,
-            rightExpression: this.getBinaryenModule().f64.const(1),
-            rightType: binaryen.f64,
-        };
-        switch (operatorKind) {
-            case ts.SyntaxKind.PlusPlusToken: {
-                unaryExpressionInfo.rightExpression =
-                    this.handleBinaryExpression(
-                        rightExpressionInfo,
-                        ts.SyntaxKind.PlusToken,
-                    );
-                break;
-            }
-            case ts.SyntaxKind.MinusMinusToken: {
-                unaryExpressionInfo.rightExpression =
-                    this.handleBinaryExpression(
-                        rightExpressionInfo,
-                        ts.SyntaxKind.MinusToken,
-                    );
-                break;
-            }
-            // "!xx" expression
-            case ts.SyntaxKind.ExclamationToken: {
-                return this.handleExclamationToken(
-                    operandExpression,
-                    operandExpressionType,
+                propAccessExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
                 );
+                return propAccessExpr;
             }
-            // "-1" or "-a"
-            case ts.SyntaxKind.MinusToken: {
-                const operand = unaryExpressionNode.operand;
-                const operandType = this.visit(
-                    this.getVariableType(operand, this.getTypeChecker()),
+            case ts.SyntaxKind.ParenthesizedExpression: {
+                const expr = this.visitNode(
+                    (<ts.ParenthesizedExpression>node).expression,
                 );
-                switch (operand.kind) {
-                    case ts.SyntaxKind.NumericLiteral: {
-                        switch (operandType) {
-                            case binaryen.f64: {
-                                const numberValue = parseFloat(
-                                    unaryExpressionNode.getText(),
-                                );
-                                return this.getBinaryenModule().f64.const(
-                                    numberValue,
-                                );
+                const parentesizedExpr = new ParenthesizedExpression(expr);
+                parentesizedExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return parentesizedExpr;
+            }
+            case ts.SyntaxKind.NewExpression: {
+                const newExprNode = <ts.NewExpression>node;
+                const expr = this.visitNode(newExprNode.expression);
+                const newExpr = new NewExpression(expr);
+                if (
+                    expr.expressionKind === ts.SyntaxKind.Identifier &&
+                    (<IdentifierExpression>expr).identifierName === 'Array'
+                ) {
+                    let isLiteral = false;
+                    if (newExprNode.arguments) {
+                        /* Check if it's created from a literal */
+                        const argLen = newExprNode.arguments.length;
+                        if (argLen > 1) {
+                            isLiteral = true;
+                        } else if (argLen === 1) {
+                            const elem = newExprNode.arguments[0];
+                            const elemExpr = this.visitNode(elem);
+                            if (elemExpr.exprType.kind !== TypeKind.NUMBER) {
+                                isLiteral = true;
                             }
                         }
-                        break;
-                    }
-                    case ts.SyntaxKind.Identifier: {
-                        switch (operandType) {
-                            case binaryen.f64: {
-                                return this.getBinaryenModule().f64.sub(
-                                    this.getBinaryenModule().f64.const(0),
-                                    this.visit(operand),
-                                );
-                            }
+
+                        if (isLiteral) {
+                            const elemExprs = newExprNode.arguments.map((a) => {
+                                return this.visitNode(a);
+                            });
+                            newExpr.setArrayLen(argLen);
+                            newExpr.setArgs(elemExprs);
+                        } else if (argLen === 1) {
+                            newExpr.setLenExpr(
+                                this.visitNode(newExprNode.arguments[0]),
+                            );
                         }
-                        break;
+                        /* else no arguments */
                     }
+                    newExpr.setExprType(
+                        this.typeCompiler.generateNodeType(node),
+                    );
+                    return newExpr;
                 }
-            }
-        }
-
-        unaryExpressionInfo.rightType = binaryen.f64;
-        return this.handleExpressionStatement(
-            operand,
-            unaryExpressionInfo,
-            expressionKind,
-        );
-    }
-
-    handleConditionalExpression(
-        node: ts.ConditionalExpression,
-    ): binaryen.ExpressionRef {
-        const module = this.getBinaryenModule();
-        let condExpression = this.visit(node.condition);
-        const trueExpression = this.visit(node.whenTrue);
-        const falseExpression = this.visit(node.whenFalse);
-        const condExpressionType = this.visit(
-            this.getVariableType(node.condition, this.getTypeChecker()),
-        );
-        if (condExpressionType != binaryen.i32) {
-            condExpression = this.convertTypeToI32(
-                condExpression,
-                condExpressionType,
-            );
-        }
-        return module.select(condExpression, trueExpression, falseExpression);
-    }
-
-    handleExpressionStatement(
-        identifierNode: ts.Identifier,
-        binaryExpressionInfo: BinaryExpressionInfo,
-        expressionKind: ExpressionKind,
-    ): binaryen.ExpressionRef {
-        const assignedIdentifierName = identifierNode.getText();
-        const currentScope = this.getCurrentScope();
-        let valueInfo = currentScope.findVariable(assignedIdentifierName);
-        if (!valueInfo) {
-            this.reportError(identifierNode, 'error TS2304');
-        }
-        valueInfo = <VariableInfo>valueInfo;
-        if (valueInfo.variableAssign === AssignKind.const) {
-            this.reportError(identifierNode, 'error TS2588');
-        }
-        // Only left value can be assigned to right value, expression statement can run.
-        if (
-            !this.matchType(
-                binaryExpressionInfo.leftType,
-                binaryExpressionInfo.rightType,
-            )
-        ) {
-            this.reportError(
-                identifierNode,
-                'Type mismatch in ExpressionStatement',
-            );
-        }
-        if (expressionKind === ExpressionKind.equalsExpression) {
-            if (currentScope.isGlobalVariable(assignedIdentifierName)) {
-                return this.setGlobalValue(
-                    valueInfo.variableName,
-                    binaryExpressionInfo.rightExpression,
-                );
-            } else {
-                return this.setLocalValue(
-                    valueInfo.variableIndex,
-                    binaryExpressionInfo.rightExpression,
-                );
-            }
-        } else if (expressionKind === ExpressionKind.postfixUnaryExpression) {
-            const blockArray: binaryen.ExpressionRef[] = [];
-            // get value if postfixUnaryExpression's parent is not ExpressionStatement or ForStatement
-            if (
-                identifierNode.parent.parent.kind !==
-                    ts.SyntaxKind.ExpressionStatement &&
-                identifierNode.parent.parent.kind !== ts.SyntaxKind.ForStatement
-            ) {
-                if (currentScope.isGlobalVariable(assignedIdentifierName)) {
-                    blockArray.push(
-                        this.getGlobalValue(
-                            valueInfo.variableName,
-                            binaryExpressionInfo.leftType,
-                        ),
-                    );
-                } else {
-                    blockArray.push(
-                        this.getLocalValue(
-                            valueInfo.variableIndex,
-                            binaryExpressionInfo.leftType,
-                        ),
-                    );
+                if (newExprNode.arguments !== undefined) {
+                    const args = new Array<Expression>();
+                    for (const arg of newExprNode.arguments) {
+                        args.push(this.visitNode(arg));
+                    }
+                    newExpr.setArgs(args);
                 }
+                const typeCheckerInfo = getNodeTypeInfo(
+                    node,
+                    this.typeCompiler.typechecker!,
+                );
+                newExpr.setExprType(
+                    this.typeCompiler.generateNodeType(
+                        typeCheckerInfo.typeNode,
+                    ),
+                );
+                return newExpr;
             }
-            if (currentScope.isGlobalVariable(assignedIdentifierName)) {
-                blockArray.push(
-                    this.setGlobalValue(
-                        valueInfo.variableName,
-                        binaryExpressionInfo.rightExpression,
-                    ),
-                );
-            } else {
-                blockArray.push(
-                    this.setLocalValue(
-                        valueInfo.variableIndex,
-                        binaryExpressionInfo.rightExpression,
-                    ),
-                );
-            }
-            return this.getBinaryenModule().block(null, blockArray);
-        } else if (expressionKind === ExpressionKind.prefixUnaryExpression) {
-            const blockArray: binaryen.ExpressionRef[] = [];
-            if (currentScope.isGlobalVariable(assignedIdentifierName)) {
-                blockArray.push(
-                    this.setGlobalValue(
-                        valueInfo.variableName,
-                        binaryExpressionInfo.rightExpression,
-                    ),
-                );
-            } else {
-                blockArray.push(
-                    this.setLocalValue(
-                        valueInfo.variableIndex,
-                        binaryExpressionInfo.rightExpression,
-                    ),
-                );
-            }
-            // get value if postfixUnaryExpression's parent is not ExpressionStatement or ForStatement
-            if (
-                identifierNode.parent.parent.kind !==
-                    ts.SyntaxKind.ExpressionStatement &&
-                identifierNode.parent.parent.kind !== ts.SyntaxKind.ForStatement
-            ) {
-                if (currentScope.isGlobalVariable(assignedIdentifierName)) {
-                    blockArray.push(
-                        this.getGlobalValue(
-                            valueInfo.variableName,
-                            binaryExpressionInfo.leftType,
-                        ),
+            case ts.SyntaxKind.ObjectLiteralExpression: {
+                const objLiteralNode = <ts.ObjectLiteralExpression>node;
+                const fields = new Array<IdentifierExpression>();
+                const values = new Array<Expression>();
+                for (const property of objLiteralNode.properties) {
+                    const propertyAssign = <ts.PropertyAssignment>property;
+                    fields.push(
+                        new IdentifierExpression(propertyAssign.name.getText()),
                     );
-                } else {
-                    blockArray.push(
-                        this.getLocalValue(
-                            valueInfo.variableIndex,
-                            binaryExpressionInfo.leftType,
-                        ),
-                    );
+                    values.push(this.visitNode(propertyAssign.initializer));
                 }
+                const objLiteralExpr = new ObjectLiteralExpression(
+                    fields,
+                    values,
+                );
+                objLiteralExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return objLiteralExpr;
             }
-            return this.getBinaryenModule().block(null, blockArray);
+            case ts.SyntaxKind.ArrayLiteralExpression: {
+                const arrLiteralNode = <ts.ArrayLiteralExpression>node;
+                const elements = new Array<Expression>();
+                for (const elem of arrLiteralNode.elements) {
+                    elements.push(this.visitNode(elem));
+                }
+                const arrLiteralExpr = new ArrayLiteralExpression(elements);
+                arrLiteralExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return arrLiteralExpr;
+            }
+            case ts.SyntaxKind.AsExpression: {
+                const asExprNode = <ts.AsExpression>node;
+                const expr = this.visitNode(asExprNode.expression);
+                const typeNode = asExprNode.type;
+                const asExpr = new AsExpression(expr);
+                asExpr.setExprType(
+                    this.typeCompiler.generateNodeType(typeNode),
+                );
+                return asExpr;
+            }
+            case ts.SyntaxKind.ElementAccessExpression: {
+                const elementAccessExprNode = <ts.ElementAccessExpression>node;
+                const expr = this.visitNode(elementAccessExprNode.expression);
+                const argExpr = this.visitNode(
+                    elementAccessExprNode.argumentExpression,
+                );
+                const elementAccessExpr = new ElementAccessExpression(
+                    expr,
+                    argExpr,
+                );
+                elementAccessExpr.setExprType(
+                    this.typeCompiler.generateNodeType(node),
+                );
+                return elementAccessExpr;
+            }
+            case ts.SyntaxKind.FunctionExpression:
+            case ts.SyntaxKind.ArrowFunction: {
+                const funcScope = getCurScope(node, this.nodeScopeMap);
+                return new FunctionExpression(
+                    getNearestFunctionScopeFromCurrent(funcScope)!,
+                );
+            }
+            default:
+                return new Expression(ts.SyntaxKind.Unknown);
         }
-
-        return binaryen.none;
-    }
-
-    matchType(leftType: binaryen.Type, rightType: binaryen.Type): boolean {
-        if (leftType === rightType) {
-            return true;
-        }
-        // TODO: if leftType is any, then return true
-        if (leftType === binaryen.anyref) {
-            return true;
-        }
-        return false;
-    }
-
-    handleExclamationToken(
-        operandExpression: binaryen.ExpressionRef,
-        operandType: binaryen.Type,
-    ): binaryen.ExpressionRef {
-        let flag = operandExpression;
-        if (operandType !== binaryen.i32) {
-            flag = this.convertTypeToI32(operandExpression, operandType);
-        }
-        return this.getBinaryenModule().i32.eqz(flag);
     }
 }

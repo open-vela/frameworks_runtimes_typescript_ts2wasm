@@ -1,76 +1,65 @@
 import binaryen from 'binaryen';
-import { VariableInfo, AssignKind } from '../../src/utils.js';
-import { GlobalScope, FunctionScope, BlockScope } from '../../src/scope.js';
 import * as binaryenCAPI from '../../src/glue/binaryen.js';
 import { arrayToPtr } from '../../src/glue/transform.js';
-import {
-    STRING_LENGTH_FUNC,
-    STRING_CONCAT_FUNC,
-    STRING_SLICE_FUNC,
-} from '../../src/glue/utils.js';
-import {
-    strArrayTypeInfo,
-    strStructTypeInfo,
-} from '../../src/glue/packType.js';
+import { BuiltinNames } from './builtinUtil.js';
+import { charArrayTypeInfo, stringTypeInfo } from '../../src/glue/packType.js';
 
-function length(module: binaryen.Module, lengthFunctionScope: FunctionScope) {
-    const strStructValueInfo = lengthFunctionScope.findVariable('strStruct')!;
-    const strStruct = module.local.get(
-        strStructValueInfo.variableIndex,
-        strStructValueInfo.variableType,
-    );
+function length(module: binaryen.Module) {
+    const strStruct = module.local.get(0, stringTypeInfo.typeRef);
     const strArray = binaryenCAPI._BinaryenStructGet(
         module.ptr,
         1,
         strStruct,
-        strArrayTypeInfo.typeRef,
+        charArrayTypeInfo.typeRef,
         false,
     );
     const strArrayLen = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray);
     return strArrayLen;
 }
 
-function concat(module: binaryen.Module, concatBlockScope: BlockScope) {
-    const strStructValueInfo1 = concatBlockScope.findVariable('strStruct1')!;
-    const strStruct1 = module.local.get(
-        strStructValueInfo1.variableIndex,
-        strStructValueInfo1.variableType,
-    );
-    const strStructValueInfo2 = concatBlockScope.findVariable('strStruct2')!;
-    const strStruct2 = module.local.get(
-        strStructValueInfo2.variableIndex,
-        strStructValueInfo2.variableType,
-    );
+function concat(module: binaryen.Module) {
+    const strStruct1 = module.local.get(0, stringTypeInfo.typeRef);
+    const strStruct2 = module.local.get(1, stringTypeInfo.typeRef);
     const strArray1 = binaryenCAPI._BinaryenStructGet(
         module.ptr,
         1,
         strStruct1,
-        strArrayTypeInfo.typeRef,
+        charArrayTypeInfo.typeRef,
         false,
     );
     const strArray2 = binaryenCAPI._BinaryenStructGet(
         module.ptr,
         1,
         strStruct2,
-        strArrayTypeInfo.typeRef,
+        charArrayTypeInfo.typeRef,
         false,
     );
-    const str1Len = module.call(STRING_LENGTH_FUNC, [strStruct1], binaryen.i32);
-    const str2Len = module.call(STRING_LENGTH_FUNC, [strStruct2], binaryen.i32);
+    const str1Len = module.call(
+        BuiltinNames.string_length_func,
+        [strStruct1],
+        binaryen.i32,
+    );
+    const str2Len = module.call(
+        BuiltinNames.string_length_func,
+        [strStruct2],
+        binaryen.i32,
+    );
+    const statementArray: binaryen.ExpressionRef[] = [];
     const newStrLen = module.i32.add(str1Len, str2Len);
-    const newStrArray = concatBlockScope.findVariable('newStrArray')!;
+    const newStrArrayIndex = 2;
+    const newStrArrayType = charArrayTypeInfo.typeRef;
     const newStrArrayStatement = module.local.set(
-        newStrArray.variableIndex,
+        newStrArrayIndex,
         binaryenCAPI._BinaryenArrayNew(
             module.ptr,
-            strArrayTypeInfo.heapTypeRef,
+            charArrayTypeInfo.heapTypeRef,
             newStrLen,
             module.i32.const(0),
         ),
     );
     const arrayCopyStatement1 = binaryenCAPI._BinaryenArrayCopy(
         module.ptr,
-        module.local.get(newStrArray.variableIndex, newStrArray.variableType),
+        module.local.get(newStrArrayIndex, newStrArrayType),
         module.i32.const(0),
         strArray1,
         module.i32.const(0),
@@ -78,7 +67,7 @@ function concat(module: binaryen.Module, concatBlockScope: BlockScope) {
     );
     const arrayCopyStatement2 = binaryenCAPI._BinaryenArrayCopy(
         module.ptr,
-        module.local.get(newStrArray.variableIndex, newStrArray.variableType),
+        module.local.get(newStrArrayIndex, newStrArrayType),
         str1Len,
         strArray2,
         module.i32.const(0),
@@ -88,62 +77,46 @@ function concat(module: binaryen.Module, concatBlockScope: BlockScope) {
         module.ptr,
         arrayToPtr([
             module.i32.const(0),
-            module.local.get(
-                newStrArray.variableIndex,
-                newStrArray.variableType,
-            ),
+            module.local.get(newStrArrayIndex, newStrArrayType),
         ]).ptr,
         2,
-        strStructTypeInfo.heapTypeRef,
+        stringTypeInfo.heapTypeRef,
     );
-    concatBlockScope.addStatement(newStrArrayStatement);
-    concatBlockScope.addStatement(arrayCopyStatement1);
-    concatBlockScope.addStatement(arrayCopyStatement2);
-    concatBlockScope.addStatement(module.return(newStrStruct));
-    const concatBlock = module.block(
-        'concat',
-        concatBlockScope.getStatementArray(),
-    );
+    statementArray.push(newStrArrayStatement);
+    statementArray.push(arrayCopyStatement1);
+    statementArray.push(arrayCopyStatement2);
+    statementArray.push(module.return(newStrStruct));
+    const concatBlock = module.block('concat', statementArray);
     return concatBlock;
 }
 
-function slice(module: binaryen.Module, sliceBlockScope: BlockScope) {
-    const strStructValueInfo = sliceBlockScope.findVariable('strStruct')!;
-    const strStruct = module.local.get(
-        strStructValueInfo.variableIndex,
-        strStructValueInfo.variableType,
-    );
-    const startValueInfo = sliceBlockScope.findVariable('start')!;
-    const start = module.local.get(
-        startValueInfo.variableIndex,
-        startValueInfo.variableType,
-    );
-    const endValueInfo = sliceBlockScope.findVariable('end')!;
-    const end = module.local.get(
-        endValueInfo.variableIndex,
-        endValueInfo.variableType,
-    );
+function slice(module: binaryen.Module) {
+    const strStruct = module.local.get(0, stringTypeInfo.typeRef);
+    const start = module.local.get(1, binaryen.i32);
+    const end = module.local.get(2, binaryen.i32);
     const strArray = binaryenCAPI._BinaryenStructGet(
         module.ptr,
         1,
         strStruct,
-        strArrayTypeInfo.typeRef,
+        charArrayTypeInfo.typeRef,
         false,
     );
     const newStrLen = module.i32.sub(end, start);
-    const newStrArray = sliceBlockScope.findVariable('newStrArray')!;
+    const statementArray: binaryen.ExpressionRef[] = [];
+    const newStrArrayIndex = 3;
+    const newStrArrayType = charArrayTypeInfo.typeRef;
     const newStrArrayStatement = module.local.set(
-        newStrArray.variableIndex,
+        newStrArrayIndex,
         binaryenCAPI._BinaryenArrayNew(
             module.ptr,
-            strArrayTypeInfo.heapTypeRef,
+            charArrayTypeInfo.heapTypeRef,
             newStrLen,
             module.i32.const(0),
         ),
     );
     const arrayCopyStatement = binaryenCAPI._BinaryenArrayCopy(
         module.ptr,
-        module.local.get(newStrArray.variableIndex, newStrArray.variableType),
+        module.local.get(newStrArrayIndex, newStrArrayType),
         module.i32.const(0),
         strArray,
         start,
@@ -153,163 +126,47 @@ function slice(module: binaryen.Module, sliceBlockScope: BlockScope) {
         module.ptr,
         arrayToPtr([
             module.i32.const(0),
-            module.local.get(
-                newStrArray.variableIndex,
-                newStrArray.variableType,
-            ),
+            module.local.get(newStrArrayIndex, newStrArrayType),
         ]).ptr,
         2,
-        strStructTypeInfo.heapTypeRef,
+        stringTypeInfo.heapTypeRef,
     );
-    sliceBlockScope.addStatement(newStrArrayStatement);
-    sliceBlockScope.addStatement(arrayCopyStatement);
-    sliceBlockScope.addStatement(module.return(newStrStruct));
-    const sliceBlock = module.block(
-        'slice',
-        sliceBlockScope.getStatementArray(),
-    );
+    statementArray.push(newStrArrayStatement);
+    statementArray.push(arrayCopyStatement);
+    statementArray.push(module.return(newStrStruct));
+    const sliceBlock = module.block('slice', statementArray);
     return sliceBlock;
 }
 
-export function initStringBuiltin(
-    module: binaryen.Module,
-    gloalScope: GlobalScope,
-) {
+export function initStringBuiltin(module: binaryen.Module) {
     // init length function
-    const lengthFunctionScope = new FunctionScope(gloalScope);
-    lengthFunctionScope.setFuncName(STRING_LENGTH_FUNC);
-    lengthFunctionScope.setReturnType(binaryen.i32);
-    const lengthParam: VariableInfo = {
-        variableName: 'strStruct',
-        variableType: strStructTypeInfo.typeRef,
-        variableIndex: 0,
-        variableInitial: undefined,
-        variableAssign: AssignKind.default,
-    };
-    lengthFunctionScope.addParameter(lengthParam);
     module.addFunction(
-        lengthFunctionScope.getFuncName(),
-        binaryen.createType(
-            lengthFunctionScope
-                .getParamArray()
-                .map(
-                    (param: { variableType: binaryen.Type }) =>
-                        param.variableType,
-                ),
-        ),
-        lengthFunctionScope.getReturnType(),
-        lengthFunctionScope
-            .getVariableArray()
-            .map(
-                (variable: { variableType: binaryen.Type }) =>
-                    variable.variableType,
-            ),
-        length(module, lengthFunctionScope),
+        BuiltinNames.string_length_func,
+        binaryen.createType([stringTypeInfo.typeRef]),
+        binaryen.i32,
+        [],
+        length(module),
     );
+
     // init concat function
-    const concatFunctionScope = new FunctionScope(gloalScope);
-    concatFunctionScope.setFuncName(STRING_CONCAT_FUNC);
-    concatFunctionScope.setReturnType(strStructTypeInfo.typeRef);
-    const concatParam1: VariableInfo = {
-        variableName: 'strStruct1',
-        variableType: strStructTypeInfo.typeRef,
-        variableIndex: 0,
-        variableInitial: undefined,
-        variableAssign: AssignKind.default,
-    };
-    const concatParam2: VariableInfo = {
-        variableName: 'strStruct2',
-        variableType: strStructTypeInfo.typeRef,
-        variableIndex: 1,
-        variableInitial: undefined,
-        variableAssign: AssignKind.default,
-    };
-    concatFunctionScope.addParameter(concatParam1);
-    concatFunctionScope.addParameter(concatParam2);
-    const concatVar: VariableInfo = {
-        variableName: 'newStrArray',
-        variableType: strArrayTypeInfo.typeRef,
-        variableIndex: 2,
-        variableInitial: undefined,
-        variableAssign: AssignKind.default,
-    };
-    concatFunctionScope.addVariable(concatVar);
-    const concatBlockScope = new BlockScope(concatFunctionScope);
-    concatBlockScope.addVariable(concatVar);
     module.addFunction(
-        concatFunctionScope.getFuncName(),
-        binaryen.createType(
-            concatFunctionScope
-                .getParamArray()
-                .map(
-                    (param: { variableType: binaryen.Type }) =>
-                        param.variableType,
-                ),
-        ),
-        concatFunctionScope.getReturnType(),
-        concatFunctionScope
-            .getVariableArray()
-            .map(
-                (variable: { variableType: binaryen.Type }) =>
-                    variable.variableType,
-            ),
-        concat(module, concatBlockScope),
+        BuiltinNames.string_concat_func,
+        binaryen.createType([stringTypeInfo.typeRef, stringTypeInfo.typeRef]),
+        stringTypeInfo.typeRef,
+        [charArrayTypeInfo.typeRef],
+        concat(module),
     );
+
     // init slice function
-    const sliceFunctionScope = new FunctionScope(gloalScope);
-    sliceFunctionScope.setFuncName(STRING_SLICE_FUNC);
-    sliceFunctionScope.setReturnType(strStructTypeInfo.typeRef);
-    const sliceParam1: VariableInfo = {
-        variableName: 'strStruct',
-        variableType: strStructTypeInfo.typeRef,
-        variableIndex: 0,
-        variableInitial: undefined,
-        variableAssign: AssignKind.default,
-    };
-    const sliceParam2: VariableInfo = {
-        variableName: 'start',
-        variableType: binaryen.i32,
-        variableIndex: 1,
-        variableInitial: undefined,
-        variableAssign: AssignKind.default,
-    };
-    const sliceParam3: VariableInfo = {
-        variableName: 'end',
-        variableType: binaryen.i32,
-        variableIndex: 2,
-        variableInitial: undefined,
-        variableAssign: AssignKind.default,
-    };
-    sliceFunctionScope.addParameter(sliceParam1);
-    sliceFunctionScope.addParameter(sliceParam2);
-    sliceFunctionScope.addParameter(sliceParam3);
-    const sliceVar: VariableInfo = {
-        variableName: 'newStrArray',
-        variableType: strArrayTypeInfo.typeRef,
-        variableIndex: 3,
-        variableInitial: undefined,
-        variableAssign: AssignKind.default,
-    };
-    sliceFunctionScope.addVariable(sliceVar);
-    const sliceBlockScope = new BlockScope(sliceFunctionScope);
-    sliceBlockScope.addVariable(sliceVar);
     module.addFunction(
-        sliceFunctionScope.getFuncName(),
-        binaryen.createType(
-            sliceFunctionScope
-                .getParamArray()
-                .map(
-                    (param: { variableType: binaryen.Type }) =>
-                        param.variableType,
-                ),
-        ),
-        sliceFunctionScope.getReturnType(),
-        sliceFunctionScope
-            .getVariableArray()
-            .map(
-                (variable: { variableType: binaryen.Type }) =>
-                    variable.variableType,
-            ),
-        slice(module, sliceBlockScope),
+        BuiltinNames.string_slice_func,
+        binaryen.createType([
+            stringTypeInfo.typeRef,
+            binaryen.i32,
+            binaryen.i32,
+        ]),
+        stringTypeInfo.typeRef,
+        [charArrayTypeInfo.typeRef],
+        slice(module),
     );
 }

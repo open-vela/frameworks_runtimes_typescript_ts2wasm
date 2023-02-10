@@ -1,21 +1,38 @@
 import ts from 'typescript';
-import binaryen from 'binaryen';
-import { VariableInfo } from './utils.js';
+import { Type, TSFunction, TSClass, builtinTypes } from './type.js';
+import { Compiler } from './compiler.js';
+import { parentIsFunctionLike, Stack } from './utils.js';
+import { ModifierKind, Parameter, Variable } from './variable.js';
+import { Statement } from './statement.js';
 
 export enum ScopeKind {
     Scope,
-    GlobalScope,
-    FunctionScope,
-    BlockScope,
+    GlobalScope = 'Global',
+    FunctionScope = 'Function',
+    BlockScope = 'Block',
+    ClassScope = 'Class',
 }
+
+export const funcDefs: Map<string, FunctionScope> = new Map<
+    string,
+    FunctionScope
+>();
 
 export class Scope {
     kind = ScopeKind.Scope;
-    variableArray: VariableInfo[] = [];
     children: Scope[] = [];
     parent: Scope | null;
-    judgedGlobalVariable = '';
-    corNode: ts.Node | null = null;
+    namedTypeMap: Map<string, Type> = new Map();
+    private variableArray: Variable[] = [];
+    private statementArray: Statement[] = [];
+
+    addStatement(statement: Statement) {
+        this.statementArray.push(statement);
+    }
+
+    get statements(): Statement[] {
+        return this.statementArray;
+    }
 
     constructor(parent: Scope | null) {
         this.parent = parent;
@@ -24,11 +41,18 @@ export class Scope {
         }
     }
 
-    addVariable(variableInfo: VariableInfo) {
-        this.variableArray.push(variableInfo);
+    addVariable(variableObj: Variable) {
+        this.variableArray.push(variableObj);
     }
 
-    getVariableArray() {
+    addVariableAtStart(variableObj: Variable) {
+        this.variableArray.unshift(variableObj);
+        this.variableArray.forEach((item, index) => {
+            item.setVarIndex(index);
+        });
+    }
+
+    get varArray(): Variable[] {
         return this.variableArray;
     }
 
@@ -36,261 +60,525 @@ export class Scope {
         this.children.push(child);
     }
 
-    getChildren() {
-        return this.children;
-    }
-
-    getParent() {
-        return this.parent;
-    }
-
-    setCorNode(corNode: ts.Node) {
-        this.corNode = corNode;
-    }
-
-    getCorNode() {
-        return this.corNode;
-    }
-
-    findVariable(
-        variableName: string,
+    protected _nestFindScopeItem<T>(
+        name: string,
+        searchFunc: (scope: Scope) => T | undefined,
         nested = true,
-    ): VariableInfo | undefined {
+    ): T | undefined {
+        let result = searchFunc(this);
+        if (result) {
+            return result;
+        }
+
         if (nested) {
-            let currentScope: Scope | null = this;
-            while (currentScope != null) {
-                if (currentScope.findVariable(variableName, false)) {
-                    if (currentScope.kind === ScopeKind.GlobalScope) {
-                        this.setJudgedGlobalVariable(variableName);
-                    }
-                    return currentScope.findVariable(variableName, false);
-                }
-                currentScope = currentScope.getParent();
-            }
-        } else {
-            for (let i = 0; i < this.variableArray.length; i++) {
-                if (this.variableArray[i].variableName === variableName) {
-                    return this.variableArray[i];
-                }
-            }
+            result = this.parent?._nestFindScopeItem(name, searchFunc, nested);
         }
+
+        return result;
     }
 
-    setJudgedGlobalVariable(variableName: string) {
-        this.judgedGlobalVariable = variableName;
-    }
+    findVariable(variableName: string, nested = true): Variable | undefined {
+        return this._nestFindScopeItem(
+            variableName,
+            (scope) => {
+                let res = scope.variableArray.find((v) => {
+                    return v.varName === variableName;
+                });
 
-    isGlobalVariable(variableName: string) {
-        if (this.judgedGlobalVariable === variableName) {
-            return true;
-        }
-        return false;
+                if (!res && scope instanceof FunctionScope) {
+                    res = scope.paramArray.find((v) => {
+                        return v.varName === variableName;
+                    });
+                }
+
+                return res;
+            },
+            nested,
+        );
     }
 
     findFunctionScope(
         functionName: string,
         nested = true,
     ): FunctionScope | undefined {
-        if (nested) {
-            let currentScope: Scope | null = this;
-            while (currentScope != null) {
-                if (currentScope.findFunctionScope(functionName, false)) {
-                    return currentScope.findFunctionScope(functionName, false);
-                }
-                currentScope = currentScope.getParent();
-            }
-        } else {
-            for (let i = 0; i < this.children.length; i++) {
-                if (this.children[i].kind === ScopeKind.FunctionScope) {
-                    const functionScope = <FunctionScope>this.children[i];
-                    if (functionScope.getFuncName() === functionName) {
-                        return functionScope;
-                    }
-                }
-            }
+        return this._nestFindScopeItem(
+            functionName,
+            (scope) => {
+                return scope.children.find((c) => {
+                    return (
+                        c.kind === ScopeKind.FunctionScope &&
+                        (c as FunctionScope).funcName === functionName
+                    );
+                }) as FunctionScope;
+            },
+            nested,
+        );
+    }
+
+    getTSType(typeName: string, nested = true): Type | undefined {
+        const res = builtinTypes.get(typeName);
+        if (res) {
+            return res;
         }
+
+        return this._nestFindScopeItem(
+            typeName,
+            (scope) => {
+                return scope.namedTypeMap.get(typeName);
+            },
+            nested,
+        );
+    }
+
+    _getScopeByType<T>(type: ScopeKind): T | null {
+        let currentScope: Scope | null = this;
+        while (currentScope !== null) {
+            if (currentScope.kind === type) {
+                return <T>currentScope;
+            }
+            currentScope = currentScope.parent;
+        }
+        return null;
+    }
+
+    getNearestFunctionScope() {
+        return this._getScopeByType<FunctionScope>(ScopeKind.FunctionScope);
+    }
+
+    getRootGloablScope() {
+        return this._getScopeByType<GlobalScope>(ScopeKind.GlobalScope);
     }
 }
 
 export class GlobalScope extends Scope {
     kind = ScopeKind.GlobalScope;
-    funcName = '';
-    paramArray: VariableInfo[] = [];
-    returnType: binaryen.Type = binaryen.none;
-    returnTypeUndefined = false;
-    body: binaryen.ExpressionRef = binaryen.none;
-    modifiers: ts.SyntaxKind[] = [];
-    statementArray: binaryen.ExpressionRef[] = [];
-    startFunctionVariableArray: VariableInfo[] = [];
+    private functionName = '~start';
+    private startFunctionVariableArray: Variable[] = [];
+    private functionType = new TSFunction();
 
     constructor(parent: Scope | null = null) {
         super(parent);
     }
 
-    addParameter(parameter: VariableInfo) {
-        this.paramArray.push(parameter);
+    addStartFuncVar(variableObj: Variable) {
+        this.startFunctionVariableArray.push(variableObj);
     }
 
-    getParamArray() {
-        return this.paramArray;
-    }
-
-    addStartFunctionVariable(variableInfo: VariableInfo) {
-        this.startFunctionVariableArray.push(variableInfo);
-    }
-
-    getStartFunctionVariableArray() {
+    get startFuncVarArray(): Variable[] {
         return this.startFunctionVariableArray;
     }
 
-    setFuncName(name: string) {
-        this.funcName = name;
+    get startFuncName(): string {
+        return this.functionName;
     }
 
-    getFuncName() {
-        return this.funcName;
-    }
-
-    setReturnType(returnType: binaryen.Type) {
-        this.returnType = returnType;
-    }
-
-    getReturnType() {
-        return this.returnType;
-    }
-
-    setReturnTypeUndefined(returnTypeUndefined: boolean) {
-        this.returnTypeUndefined = returnTypeUndefined;
-    }
-
-    getReturnTypeUndefined() {
-        return this.returnTypeUndefined;
-    }
-
-    setBody(body: binaryen.ExpressionRef) {
-        this.body = body;
-    }
-
-    getBody() {
-        return this.body;
-    }
-
-    addModifier(modifier: ts.SyntaxKind) {
-        this.modifiers.push(modifier);
-    }
-
-    getModifiers() {
-        return this.modifiers;
-    }
-
-    addStatement(statement: binaryen.ExpressionRef) {
-        this.statementArray.push(statement);
-    }
-
-    getStatementArray() {
-        return this.statementArray;
+    get startFuncType(): TSFunction {
+        return this.functionType;
     }
 }
 
 export class FunctionScope extends Scope {
     kind = ScopeKind.FunctionScope;
-    funcName = '';
-    paramArray: VariableInfo[] = [];
-    returnType: binaryen.Type = binaryen.none;
-    returnTypeUndefined = false;
-    body: binaryen.ExpressionRef = binaryen.none;
-    modifiers: ts.SyntaxKind[] = [];
+    private functionName = '';
+    private parameterArray: Parameter[] = [];
+    private modifiers: ts.SyntaxKind[] = [];
+    private functionType = new TSFunction();
+    private isClosure = false;
+    /* iff the function is a member function, which class it belong to */
+    private _classNmae = '';
 
     constructor(parent: Scope) {
         super(parent);
     }
 
-    addParameter(parameter: VariableInfo) {
-        this.paramArray.push(parameter);
+    addParameter(parameter: Parameter) {
+        this.parameterArray.push(parameter);
     }
 
-    getParamArray() {
-        return this.paramArray;
+    get paramArray(): Parameter[] {
+        return this.parameterArray;
     }
 
     setFuncName(name: string) {
-        this.funcName = name;
+        this.functionName = name;
     }
 
-    getFuncName() {
-        return this.funcName;
-    }
-
-    setReturnType(returnType: binaryen.Type) {
-        this.returnType = returnType;
-    }
-
-    getReturnType() {
-        return this.returnType;
-    }
-
-    setReturnTypeUndefined(returnTypeUndefined: boolean) {
-        this.returnTypeUndefined = returnTypeUndefined;
-    }
-
-    getReturnTypeUndefined() {
-        return this.returnTypeUndefined;
-    }
-
-    setBody(body: binaryen.ExpressionRef) {
-        this.body = body;
-    }
-
-    getBody() {
-        return this.body;
+    get funcName(): string {
+        return this.functionName;
     }
 
     addModifier(modifier: ts.SyntaxKind) {
         this.modifiers.push(modifier);
     }
 
-    getModifiers() {
+    get funcModifiers(): ts.SyntaxKind[] {
         return this.modifiers;
     }
 
-    findVariable(
-        variableName: string,
-        nested = true,
-    ): VariableInfo | undefined {
-        if (nested) {
-            let currentScope: Scope | null = this;
-            while (currentScope != null) {
-                if (currentScope.findVariable(variableName, false)) {
-                    if (currentScope.kind === ScopeKind.GlobalScope) {
-                        this.setJudgedGlobalVariable(variableName);
-                    }
-                    return currentScope.findVariable(variableName, false);
-                }
-                currentScope = currentScope.getParent();
-            }
-        } else {
-            for (let i = 0; i < this.paramArray.length; i++) {
-                if (this.paramArray[i].variableName === variableName) {
-                    return this.paramArray[i];
-                }
-            }
-        }
+    setFuncType(type: TSFunction) {
+        this.functionType = type;
+    }
+
+    get funcType(): TSFunction {
+        return this.functionType;
+    }
+
+    setClassName(name: string) {
+        this._classNmae = name;
+    }
+
+    get className(): string {
+        return this._classNmae;
+    }
+
+    setIsClosure(): void {
+        this.isClosure = true;
+    }
+
+    getIsClosure(): boolean {
+        return this.isClosure;
     }
 }
 
 export class BlockScope extends Scope {
     kind = ScopeKind.BlockScope;
-    statementArray: binaryen.ExpressionRef[] = [];
+    name = '';
 
-    constructor(parent: Scope) {
+    constructor(parent: Scope, name = '') {
         super(parent);
+        this.name = name;
+    }
+}
+
+export class ClassScope extends Scope {
+    kind = ScopeKind.ClassScope;
+    private _classType: TSClass = new TSClass();
+    private _className = '';
+
+    constructor(parent: Scope, name = '') {
+        super(parent);
+        this._className = name;
     }
 
-    addStatement(statement: binaryen.ExpressionRef) {
-        this.statementArray.push(statement);
+    get className(): string {
+        return this._className;
     }
 
-    getStatementArray() {
-        return this.statementArray;
+    setClassType(type: TSClass) {
+        this._classType = type;
     }
+
+    get classType(): TSClass {
+        return this._classType;
+    }
+}
+
+enum classFuncType {
+    Constructor,
+    Getter,
+    Setter,
+    Method,
+    StaticMethod,
+}
+
+export class ScopeScanner {
+    globalScopeStack: Stack<GlobalScope>;
+    currentScope: Scope | null = null;
+    nodeScopeMap: Map<ts.Node, Scope>;
+    /* anonymous function index */
+    static anonymousIndex = 0;
+
+    constructor(private compilerCtx: Compiler) {
+        this.globalScopeStack = this.compilerCtx.globalScopeStack;
+        this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
+    }
+
+    _generateClassFuncScope(
+        node: ts.AccessorDeclaration | ts.MethodDeclaration,
+        methodType: classFuncType,
+    ) {
+        const parentScope = this.currentScope!;
+        const functionScope = new FunctionScope(parentScope);
+        functionScope.addParameter(
+            new Parameter(
+                '',
+                new Type(),
+                ModifierKind.default,
+                -1,
+                false,
+                false,
+            ),
+        );
+        functionScope.addVariable(
+            new Variable('', new Type(), ModifierKind.default, -1),
+        );
+        functionScope.setClassName((<ClassScope>parentScope).className);
+        let methodName = '';
+        switch (methodType) {
+            case classFuncType.Constructor:
+                methodName = functionScope.className + '_constructor';
+                break;
+            case classFuncType.Getter:
+                methodName =
+                    functionScope.className + '_get_' + node.name.getText();
+                break;
+            case classFuncType.Setter:
+                methodName =
+                    functionScope.className + '_set_' + node.name.getText();
+                break;
+            case classFuncType.Method:
+                methodName =
+                    functionScope.className + '_' + node.name.getText();
+                break;
+        }
+        funcDefs.set(methodName, functionScope);
+        functionScope.setFuncName(methodName);
+        this.setCurrentScope(functionScope);
+        this.nodeScopeMap.set(node, functionScope);
+        this.visitNode(node.body!);
+        this.setCurrentScope(parentScope);
+    }
+
+    visit(nodes: Array<ts.SourceFile>) {
+        for (const sourceFile of nodes) {
+            this.visitNode(sourceFile);
+        }
+    }
+
+    visitNode(node: ts.Node): void {
+        switch (node.kind) {
+            case ts.SyntaxKind.SourceFile: {
+                const sourceFileNode = <ts.SourceFile>node;
+                const globalScope = new GlobalScope();
+                this.setCurrentScope(globalScope);
+                this.globalScopeStack.push(globalScope);
+                this.nodeScopeMap.set(sourceFileNode, globalScope);
+                for (let i = 0; i < sourceFileNode.statements.length; i++) {
+                    this.visitNode(sourceFileNode.statements[i]);
+                }
+                this.visitNode(sourceFileNode.endOfFileToken);
+                break;
+            }
+            case ts.SyntaxKind.FunctionDeclaration:
+            case ts.SyntaxKind.FunctionExpression:
+            case ts.SyntaxKind.ArrowFunction: {
+                const functionDeclarationNode = <ts.FunctionDeclaration>node;
+                const parentScope = this.currentScope!;
+                const functionScope = new FunctionScope(parentScope);
+                /* function context struct placeholder */
+                functionScope.addParameter(
+                    new Parameter(
+                        '',
+                        new Type(),
+                        ModifierKind.default,
+                        -1,
+                        false,
+                        false,
+                    ),
+                );
+                functionScope.addVariable(
+                    new Variable('', new Type(), ModifierKind.default, -1),
+                );
+                if (functionDeclarationNode.modifiers !== undefined) {
+                    for (const modifier of functionDeclarationNode.modifiers) {
+                        functionScope.addModifier(modifier.kind);
+                    }
+                }
+                let functionName: string;
+                if (functionDeclarationNode.name !== undefined) {
+                    functionName = functionDeclarationNode.name.getText();
+                } else {
+                    functionName = 'anonymous' + ScopeScanner.anonymousIndex++;
+                }
+
+                const outerFuncScope =
+                    functionScope.parent?.getNearestFunctionScope();
+                if (outerFuncScope) {
+                    functionName = `${outerFuncScope.funcName}|${functionName}`;
+                }
+                functionScope.setFuncName(functionName);
+                funcDefs.set(functionName, functionScope);
+                this.setCurrentScope(functionScope);
+                this.nodeScopeMap.set(functionDeclarationNode, functionScope);
+                this.visitNode(functionDeclarationNode.body!);
+                this.setCurrentScope(parentScope);
+                break;
+            }
+            case ts.SyntaxKind.ClassDeclaration: {
+                const classDeclarationNode = <ts.ClassDeclaration>node;
+                const parentScope = this.currentScope!;
+                const classScope = new ClassScope(
+                    parentScope,
+                    (<ts.Identifier>classDeclarationNode.name).getText(),
+                );
+                this.setCurrentScope(classScope);
+                this.nodeScopeMap.set(classDeclarationNode, classScope);
+                for (const member of classDeclarationNode.members) {
+                    if (
+                        member.kind === ts.SyntaxKind.SetAccessor ||
+                        member.kind === ts.SyntaxKind.GetAccessor ||
+                        member.kind === ts.SyntaxKind.Constructor ||
+                        member.kind === ts.SyntaxKind.MethodDeclaration
+                    ) {
+                        this.visitNode(member);
+                    }
+                }
+                this.setCurrentScope(parentScope);
+                break;
+            }
+            case ts.SyntaxKind.SetAccessor: {
+                this._generateClassFuncScope(
+                    <ts.MethodDeclaration>node,
+                    classFuncType.Setter,
+                );
+                break;
+            }
+            case ts.SyntaxKind.GetAccessor: {
+                this._generateClassFuncScope(
+                    <ts.MethodDeclaration>node,
+                    classFuncType.Getter,
+                );
+                break;
+            }
+            case ts.SyntaxKind.Constructor: {
+                this._generateClassFuncScope(
+                    <ts.MethodDeclaration>node,
+                    classFuncType.Constructor,
+                );
+                break;
+            }
+            case ts.SyntaxKind.MethodDeclaration: {
+                this._generateClassFuncScope(
+                    <ts.MethodDeclaration>node,
+                    classFuncType.Method,
+                );
+                break;
+            }
+            case ts.SyntaxKind.Block: {
+                const blockNode = <ts.Block>node;
+                this.createBlockScope(blockNode);
+                break;
+            }
+            case ts.SyntaxKind.ForStatement: {
+                const forStatementNode = <ts.ForStatement>node;
+                this.createLoopBlockScope(forStatementNode);
+                break;
+            }
+            case ts.SyntaxKind.WhileStatement: {
+                const whileStatementNode = <ts.WhileStatement>node;
+                this.createLoopBlockScope(whileStatementNode);
+                break;
+            }
+            case ts.SyntaxKind.DoStatement: {
+                const doStatementNode = <ts.DoStatement>node;
+                this.createLoopBlockScope(doStatementNode);
+                break;
+            }
+            case ts.SyntaxKind.CaseClause: {
+                const caseClauseNode = <ts.CaseClause>node;
+                this.createBlockScope(caseClauseNode);
+                break;
+            }
+            case ts.SyntaxKind.DefaultClause: {
+                const defaultClauseNode = <ts.DefaultClause>node;
+                this.createBlockScope(defaultClauseNode);
+                break;
+            }
+            default: {
+                ts.forEachChild(node, this.visitNode.bind(this));
+            }
+        }
+    }
+
+    setCurrentScope(currentScope: Scope | null) {
+        this.currentScope = currentScope;
+    }
+
+    createBlockScope(node: ts.BlockLike) {
+        const parentScope = this.currentScope!;
+
+        if (!parentIsFunctionLike(node)) {
+            const parentScope = this.currentScope!;
+            const parentName = ScopeScanner.getPossibleScopeName(parentScope);
+            const blockName = ts.isCaseOrDefaultClause(node) ? 'case' : 'block';
+            const blockScope = new BlockScope(
+                parentScope,
+                `${parentName}.${blockName}`,
+            );
+            this.setCurrentScope(blockScope);
+            this.nodeScopeMap.set(node, blockScope);
+        }
+
+        const statements = node.statements;
+        if (statements.length !== 0) {
+            for (let i = 0; i < statements.length; i++) {
+                this.visitNode(statements[i]);
+            }
+        }
+
+        if (!parentIsFunctionLike(node)) {
+            this.setCurrentScope(parentScope);
+        }
+    }
+
+    createLoopBlockScope(
+        node: ts.ForStatement | ts.WhileStatement | ts.DoStatement,
+    ) {
+        const parentScope = this.currentScope!;
+        const parentName = ScopeScanner.getPossibleScopeName(parentScope);
+        const outOfLoopBlock = new BlockScope(
+            parentScope,
+            `${parentName}.loop`,
+        );
+        this.setCurrentScope(outOfLoopBlock);
+        this.nodeScopeMap.set(node, outOfLoopBlock);
+
+        this.visitNode(node.statement);
+
+        this.setCurrentScope(parentScope);
+    }
+
+    static getPossibleScopeName(scope: Scope) {
+        let possibleName = '';
+        if (scope.kind === ScopeKind.FunctionScope) {
+            possibleName = (scope as FunctionScope).funcName;
+        } else if (scope.kind === ScopeKind.GlobalScope) {
+            possibleName = 'global';
+        } else if (scope.kind === ScopeKind.ClassScope) {
+            possibleName = (scope as ClassScope).className;
+        } else {
+            possibleName = (scope as BlockScope).name;
+        }
+
+        return possibleName;
+    }
+}
+
+/* try to find function scope base on unique function name */
+export function findTargetFunction(
+    scope: Scope | null,
+    name: string,
+): FunctionScope | undefined {
+    /* iff in global scope */
+    if (scope === null) {
+        return funcDefs.get(name);
+    }
+    let nearestFuncscope = scope.getNearestFunctionScope();
+    let targetFuncDef = undefined;
+    while (nearestFuncscope) {
+        const maybeFuncName = `${nearestFuncscope.funcName}|${name}`;
+        targetFuncDef = funcDefs.get(maybeFuncName);
+        if (targetFuncDef) {
+            break;
+        }
+
+        nearestFuncscope =
+            nearestFuncscope.parent?.getNearestFunctionScope() || null;
+    }
+
+    if (!targetFuncDef) {
+        targetFuncDef = funcDefs.get(name);
+    }
+
+    return targetFuncDef;
 }

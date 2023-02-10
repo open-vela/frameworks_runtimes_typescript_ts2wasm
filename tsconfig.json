@@ -11,5 +11,5 @@
     "sourceMap": true,
     "allowJs": true
   },
-  "exclude": ["lib/dyntype/quickjs/*", "build/*"]
+  "exclude": ["runtime-library/dyntype/*", "**/build/*", "tools/*", "tests/*"]
 }

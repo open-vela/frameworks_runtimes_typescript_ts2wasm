@@ -1,94 +1,239 @@
-import fs from 'fs';
-import BaseCompiler from './base.js';
-import ExpressionCompiler from './expression.js';
-import ModuleCompiler from './module.js';
 import ts from 'typescript';
 import binaryen from 'binaryen';
-import StatementCompiler from './statement.js';
-import DeclarationCompiler from './declaration.js';
-import LiteralCompiler from './literal.js';
 import TypeCompiler from './type.js';
 import { Stack } from './utils.js';
-import { BlockScope, FunctionScope, GlobalScope, Scope } from './scope.js';
+import { fileURLToPath } from 'url';
+import {
+    BlockScope,
+    FunctionScope,
+    GlobalScope,
+    Scope,
+    ScopeKind,
+    ScopeScanner,
+} from './scope.js';
+import { VariableScanner, VariableInit } from './variable.js';
+import ExpressionCompiler from './expression.js';
+import StatementCompiler from './statement.js';
+import { WASMGen } from './wasmGen.js';
+import path from 'path';
 
 export const COMPILER_OPTIONS: ts.CompilerOptions = {
     module: ts.ModuleKind.ESNext,
     target: ts.ScriptTarget.ES2015,
+    strict: true,
+    /* disable some features to speedup tsc */
+    noResolve: true,
+    skipLibCheck: true,
+    skipDefaultLibCheck: true,
 };
+
 export class Compiler {
-    private compilers: BaseCompiler[];
+    private scopeScanner;
+    private typeCompiler;
+    private variableScanner;
+    private variableInit;
+    private exprCompiler;
+    private stmtCompiler;
+    private wasmGen;
+    private _errorMessage: ts.Diagnostic[] | null = null;
+
     typeChecker: ts.TypeChecker | undefined;
-    binaryenModule = new binaryen.Module();
     globalScopeStack = new Stack<GlobalScope>();
-    functionScopeStack = new Stack<FunctionScope>();
-    blockScopeStack = new Stack<BlockScope>();
+    nodeScopeMap = new Map<ts.Node, Scope>();
+    binaryenModule = new binaryen.Module();
     currentScope: Scope | null = null;
-    loopLabelStack = new Stack<string>();
-    breakLabelsStack = new Stack<string>();
-    switchLabelStack = new Stack<number>();
-    anonymousFunctionNameStack = new Stack<string>();
 
     constructor() {
-        this.compilers = [
-            new ExpressionCompiler(this),
-            new StatementCompiler(this),
-            new DeclarationCompiler(this),
-            new LiteralCompiler(this),
-            new ModuleCompiler(this),
-            new TypeCompiler(this),
-        ];
+        this.scopeScanner = new ScopeScanner(this);
+        this.typeCompiler = new TypeCompiler(this);
+        this.variableScanner = new VariableScanner(this);
+        this.variableInit = new VariableInit(this);
+        this.exprCompiler = new ExpressionCompiler(this);
+        this.stmtCompiler = new StatementCompiler(this);
+        this.wasmGen = new WASMGen(this);
     }
 
-    compile(fileNames: string[]): void {
-        const compilerHost: ts.CompilerHost = this.createCompilerHost();
+    compile(fileNames: string[], optlevel = 0): void {
         const compilerOptions: ts.CompilerOptions = this.getCompilerOptions();
         const program: ts.Program = ts.createProgram(
             fileNames,
             compilerOptions,
-            compilerHost,
         );
         this.typeChecker = program.getTypeChecker();
-        // fill scopes
-        program
-            .getSourceFiles()
-            .filter(
-                (sourceFile: ts.SourceFile) =>
-                    !sourceFile.fileName.match(/\.d\.ts$/),
-            )
-            .forEach((sourceFile: ts.SourceFile) => {
-                this.visit(sourceFile, true);
-            });
-        // invoke binaryen
-        program
-            .getSourceFiles()
-            .filter(
-                (sourceFile: ts.SourceFile) =>
-                    !sourceFile.fileName.match(/\.d\.ts$/),
-            )
-            .forEach((sourceFile: ts.SourceFile) => {
-                this.visit(sourceFile);
-            });
-    }
 
-    visit(node: ts.Node, fillScope = false): binaryen.ExpressionRef {
-        for (let i = 0; i < this.compilers.length; i++) {
-            const visitValue = this.compilers[i].visitNode(node, fillScope);
-            if (visitValue != binaryen.none) {
-                return visitValue;
-            }
+        const allDiagnostics = ts.getPreEmitDiagnostics(program);
+        if (allDiagnostics.length > 0) {
+            const formattedError = ts.formatDiagnosticsWithColorAndContext(
+                allDiagnostics,
+                {
+                    getCurrentDirectory: () => {
+                        return path.dirname(fileURLToPath(import.meta.url));
+                    },
+                    getCanonicalFileName: (fileNames) => {
+                        return fileNames;
+                    },
+                    getNewLine: () => {
+                        return '\n';
+                    },
+                },
+            );
+            console.log(formattedError);
+            this._errorMessage = allDiagnostics as ts.Diagnostic[];
+            throw Error('\nSyntax error in source file.');
         }
-        return binaryen.none;
+
+        const sourceFileList = program
+            .getSourceFiles()
+            .filter(
+                (sourceFile: ts.SourceFile) =>
+                    !sourceFile.fileName.match(/\.d\.ts$/),
+            );
+
+        /* Step1: Resolve all scopes */
+        this.scopeScanner.visit(sourceFileList);
+        /* Step2: Resolve all type declarations */
+        this.typeCompiler.visit(sourceFileList);
+        this.variableScanner.visit(sourceFileList);
+        this.variableInit.visit(sourceFileList);
+        /* Step3: Add statements to scopes */
+        this.stmtCompiler.visit(sourceFileList);
+
+        if (process.env['TS2WASM_DUMP_SCOPE']) {
+            this.dumpScopes();
+        }
+
+        /* Step4: code generation */
+        this.binaryenModule.setFeatures(binaryen.Features.All);
+        this.binaryenModule.autoDrop();
+
+        this.wasmGen.WASMGenerate();
+
+        /* Sometimes binaryen can't generate binary module,
+            we dump the module to text and load it back.
+           This is just a simple workaround, we need to find out the root cause
+        */
+        const textModule = this.binaryenModule.emitText();
+        this.binaryenModule.dispose();
+
+        try {
+            this.binaryenModule = binaryen.parseText(textModule);
+        } catch (e) {
+            console.log(textModule);
+            console.log(`Generated module is invalid`);
+            throw e;
+        }
+        this.binaryenModule.setFeatures(binaryen.Features.All);
+        this.binaryenModule.autoDrop();
+
+        if (optlevel) {
+            binaryen.setOptimizeLevel(optlevel);
+            this.binaryenModule.optimize();
+        }
+
+        if (process.env['TS2WASM_VALIDATE']) {
+            this.binaryenModule.validate();
+        }
     }
 
-    reportError(node: ts.Node, message: string) {
-        const file = node.getSourceFile();
-        const fileName = file.fileName;
-        const start = node.getStart(file);
-        const pos = file.getLineAndCharacterOfPosition(start);
-        const fullMessage = `${fileName}:${pos.line + 1}:${
-            pos.character + 1
-        }: ${message}`;
-        throw new Error(fullMessage);
+    getScopeByNode(node: ts.Node): Scope | undefined {
+        let res: Scope | undefined;
+
+        while (node) {
+            res = this.nodeScopeMap.get(node);
+            if (res) {
+                break;
+            }
+            node = node.parent;
+        }
+
+        return res;
+    }
+
+    get typeComp() {
+        return this.typeCompiler;
+    }
+
+    get expressionCompiler(): ExpressionCompiler {
+        return this.exprCompiler;
+    }
+
+    get errorMessage() {
+        return this._errorMessage;
+    }
+
+    dumpScopes() {
+        const scopeInfos: Array<any> = [];
+        this.nodeScopeMap.forEach((scope) => {
+            const scopeName = ScopeScanner.getPossibleScopeName(scope);
+            let paramCount = 0;
+
+            if (scope.kind === ScopeKind.FunctionScope) {
+                const funcScope = <FunctionScope>scope;
+                paramCount = funcScope.paramArray.length;
+            }
+
+            scopeInfos.push({
+                kind: `${scope.kind}`,
+                name: scopeName,
+                param_cnt: paramCount,
+                var_cnt: scope.varArray.length,
+                stmt_cnt: scope.statements.length,
+                child_cnt: scope.children.length,
+            });
+
+            const varInfos: Array<any> = [];
+            if (scope.kind === ScopeKind.FunctionScope) {
+                (<FunctionScope>scope).paramArray.forEach((v) => {
+                    if (v.varName === '') {
+                        /* Skip implicit variable */
+                        return;
+                    }
+                    varInfos.push({
+                        kind: 'param',
+                        name: v.varName,
+                        type: v.varType,
+                        isClosure: v.varIsClosure,
+                        modifier: v.varModifier,
+                        index: v.varIndex,
+                    });
+                });
+            }
+            scope.varArray.forEach((v) => {
+                if (v.varName === '') {
+                    /* Skip implicit variable */
+                    return;
+                }
+                varInfos.push({
+                    kind: 'var',
+                    name: v.varName,
+                    type: v.varType,
+                    isClosure: v.varIsClosure,
+                    modifier: v.varModifier,
+                    index: v.varIndex,
+                });
+            });
+
+            console.log(
+                `============= Variables in scope '${scopeName}' (${scope.kind}) =============`,
+            );
+            console.table(varInfos);
+
+            const typeInfos: Array<any> = [];
+            scope.namedTypeMap.forEach((t, name) => {
+                typeInfos.push({
+                    name: name,
+                    type: t,
+                });
+            });
+
+            console.log(
+                `============= Types in scope '${scopeName}' (${scope.kind}) =============`,
+            );
+            console.table(typeInfos);
+        });
+
+        console.log(`============= Scope Summary =============`);
+        console.table(scopeInfos);
     }
 
     private getCompilerOptions() {
@@ -97,38 +242,5 @@ export class Compiler {
             opts[i] = COMPILER_OPTIONS[i];
         }
         return opts;
-    }
-
-    private createCompilerHost(): ts.CompilerHost {
-        const defaultLibFileName = ts.getDefaultLibFileName(COMPILER_OPTIONS);
-        const compilerHost: ts.CompilerHost = {
-            getSourceFile: (sourceName) => {
-                let sourcePath = sourceName;
-                if (sourceName === defaultLibFileName) {
-                    sourcePath = ts.getDefaultLibFilePath(COMPILER_OPTIONS);
-                }
-                if (!fs.existsSync(sourcePath)) return undefined;
-                const contents = fs.readFileSync(sourcePath).toString();
-                return ts.createSourceFile(
-                    sourceName,
-                    contents,
-                    COMPILER_OPTIONS.target!, // TODO: check why COMPILER_OPTIONS.target still has undefined type.
-                    true,
-                );
-            },
-            writeFile(fileName, data, writeByteOrderMark) {
-                fs.writeFile(fileName, data, (err) => {
-                    if (err) console.log(err);
-                });
-            },
-            fileExists: (fileName) => fs.existsSync(fileName),
-            readFile: (fileName) => fs.readFileSync(fileName, 'utf-8'),
-            getDefaultLibFileName: () => defaultLibFileName,
-            useCaseSensitiveFileNames: () => true,
-            getCanonicalFileName: (fileName) => fileName,
-            getCurrentDirectory: () => '',
-            getNewLine: () => '\n',
-        };
-        return compilerHost;
     }
 }
