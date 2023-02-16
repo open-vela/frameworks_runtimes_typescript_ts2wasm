@@ -16,6 +16,12 @@ RUN apt install -y \
     curl
 RUN apt install -y \
     build-essential cmake g++-multilib libgcc-8-dev lib32gcc-8-dev
+# Install opam
+RUN apt update \
+    apt install opam -y \
+    echo -e "n\ny" | opam init --auto-setup \
+    eval $(opam env) \
+    opam install ocamlbuild -y
 
 ## lsb-release  allows us to find out which distro we run inside the dev container
 
@@ -38,6 +44,12 @@ RUN cd binaryen/ \
     && make
 RUN ln -s /binaryen/build/bin/wasm-as /usr/local/bin/wasm-as
 RUN ln -s /binaryen/build/bin/wasm-opt /usr/local/bin/wasm-opt
+
+# Add gc interpreter to validate
+RUN git clone https://github.com/WebAssembly/gc.git
+RUN cd gc/interpreter/ \
+    && make
+RUN ln -s /gc/interpreter/wasm /usr/local/bin/wasm
 
 # Create the non-root user
 RUN userdel -r -f node  \
