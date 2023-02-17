@@ -39,6 +39,7 @@ import {
     ScopeKind,
     funcDefs,
     findTargetFunction,
+    Scope,
 } from './scope.js';
 import { MatchKind, Stack } from './utils.js';
 import { dyntype } from '../lib/dyntype/utils.js';
@@ -57,6 +58,7 @@ export class WASMExpressionBase {
     localTmpVarStack;
     staticValueGen;
     dynValueGen;
+    enterModuleScope;
 
     constructor(WASMCompiler: WASMGen) {
         this.wasmCompiler = WASMCompiler;
@@ -67,6 +69,7 @@ export class WASMExpressionBase {
         this.localTmpVarStack = new Stack<string>();
         this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
         this.dynValueGen = this.wasmCompiler.wasmDynExprCompiler;
+        this.enterModuleScope = this.wasmCompiler.enterModuleScope;
     }
 
     setLocalValue(
@@ -878,6 +881,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
         this.dynValueGen = this.wasmCompiler.wasmDynExprCompiler;
         this.currentFuncCtx = this.wasmCompiler.curFunctionCtx!;
+        this.enterModuleScope = this.wasmCompiler.enterModuleScope!;
 
         switch (expr.expressionKind) {
             case ts.SyntaxKind.NumericLiteral:
@@ -955,16 +959,20 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private WASMIdenfierExpr(
         expr: IdentifierExpression,
     ): binaryen.ExpressionRef {
-        const currentScope = this.currentFuncCtx.getCurrentScope();
-        const variable = currentScope.findVariable(expr.identifierName, true);
-        if (variable === undefined) {
+        // find the target scope
+        let currentScope = this.currentFuncCtx.getCurrentScope();
+        if (expr.identifierName === dyntype.dyntype_context) {
+            currentScope = this.enterModuleScope!;
+        }
+        const variable = currentScope.findVariable(expr.identifierName);
+        if (!variable) {
             /* maybe it's a function */
             // const maybeFuncScope = this.currentScope.getNearestFunctionScope();
             const maybeFuncDef = findTargetFunction(
                 currentScope,
                 expr.identifierName,
             );
-            if (maybeFuncDef === undefined) {
+            if (!maybeFuncDef) {
                 throw new Error(
                     'variable not find, name is <' + expr.identifierName + '>',
                 );
@@ -1765,11 +1773,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
         }
         if (callExpr.expressionKind === ts.SyntaxKind.Identifier) {
             let maybeFuncName = (<IdentifierExpression>callExpr).identifierName;
-            // const maybeFuncScope = this.currentScope.getNearestFunctionScope();
-            const maybeFuncDef = findTargetFunction(
-                maybeFuncScope,
-                maybeFuncName,
-            );
+            let maybeFuncDef = currentScope.findFunctionScope(maybeFuncName);
+            if (!maybeFuncDef) {
+                maybeFuncDef = findTargetFunction(
+                    maybeFuncScope,
+                    maybeFuncName,
+                );
+            }
             // iff identifierName is a function name, call it directly
             if (maybeFuncDef !== undefined) {
                 const type = maybeFuncDef.funcType;

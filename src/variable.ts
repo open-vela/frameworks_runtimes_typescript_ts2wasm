@@ -1,4 +1,5 @@
 import ts from 'typescript';
+import path from 'path';
 import { Expression } from './expression.js';
 import { Type } from './type.js';
 import { Compiler } from './compiler.js';
@@ -8,10 +9,10 @@ import {
     CONST_KEYWORD,
     LET_KEYWORD,
     VAR_KEYWORD,
-    getCurScope,
-    getNearestFunctionScopeFromCurrent,
     generateNodeExpression,
-    parentIsFunctionLike,
+    isScopeNode,
+    getGlobalScopeByModuleName,
+    getImportModulePath,
 } from './utils.js';
 import { FunctionScope, GlobalScope, Scope, ScopeKind } from './scope.js';
 
@@ -126,9 +127,8 @@ export class VariableScanner {
         this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
     }
 
-    visit(nodes: Array<ts.SourceFile>) {
+    visit() {
         this.typechecker = this.compilerCtx.typeChecker;
-
         this.nodeScopeMap.forEach((scope, node) => {
             this.currentScope = scope;
             ts.forEachChild(node, this.visitNode.bind(this));
@@ -137,13 +137,73 @@ export class VariableScanner {
 
     visitNode(node: ts.Node): void {
         switch (node.kind) {
+            case ts.SyntaxKind.ImportDeclaration: {
+                const importDeclaration = <ts.ImportDeclaration>node;
+                const globalScope = this.currentScope!.getRootGloablScope()!;
+                // Get the import module name according to the relative position of enter scope
+                const enterScope = this.globalScopeStack.peek();
+                const importModuleName = getImportModulePath(
+                    importDeclaration,
+                    enterScope,
+                );
+                const importModuleScope = getGlobalScopeByModuleName(
+                    importModuleName,
+                    this.globalScopeStack,
+                );
+                // get import identifier
+                const importClause = importDeclaration.importClause;
+                if (!importClause) {
+                    // importing modules with side effects
+                    // import "otherModule"
+                    // TODO
+                    break;
+                }
+                const namedImports = <ts.NamedImports>(
+                    importClause.namedBindings
+                );
+                if (namedImports) {
+                    // import regular exports from other module
+                    // import {module_case2_var1, module_case2_func1} from './module-case2';
+                    for (const importSpecifier of namedImports.elements) {
+                        const specificIdentifier = <ts.Identifier>(
+                            importSpecifier.name
+                        );
+                        const specificName = specificIdentifier.getText()!;
+                        globalScope.addImportIdentifier(
+                            specificName,
+                            importModuleScope,
+                        );
+                        // globalScope.addImportIdentifier(
+                        //     this.compilerCtx.moduleScopeMap.get(
+                        //         importModuleName,
+                        //     )!.startFuncName,
+                        //     importModuleScope,
+                        // );
+                    }
+                } else {
+                    const importElement = <ts.Identifier>importClause.name;
+                    if (importElement) {
+                        // import default export from other module
+                        // import module_case4_var1 from './module-case4';
+                        const importElementName = importElement.getText();
+                        globalScope.addImportIdentifier(
+                            importElementName,
+                            importModuleScope,
+                        );
+                    } else {
+                        // import entire module into a variable
+                        // import * as xx from './yy'
+                    }
+                }
+                break;
+            }
             case ts.SyntaxKind.Parameter: {
                 if (node.parent.kind === ts.SyntaxKind.FunctionType) {
                     break;
                 }
                 const parameterNode = <ts.ParameterDeclaration>node;
                 const functionScope = <FunctionScope>(
-                    getNearestFunctionScopeFromCurrent(this.currentScope)
+                    this.currentScope!.getNearestFunctionScope()
                 );
                 // TODO: have not record DotDotDotToken
                 const paramName = parameterNode.name.getText();
@@ -194,7 +254,7 @@ export class VariableScanner {
             }
             case ts.SyntaxKind.VariableDeclaration: {
                 const variableDeclarationNode = <ts.VariableDeclaration>node;
-                const currentScope = this.compilerCtx.getScopeByNode(node)!;
+                const currentScope = this.currentScope!;
 
                 let variableModifier = ModifierKind.default;
                 const variableAssignText =
@@ -234,9 +294,14 @@ export class VariableScanner {
                 if (currentScope.kind === ScopeKind.GlobalScope) {
                     variable.setIsLocalVar(false);
                     variable.setVarIndex(currentScope.varArray.length);
+                } else if (currentScope.kind === ScopeKind.NamespaceScope) {
+                    variable.setIsLocalVar(false);
+                    const globalScope = currentScope.getRootGloablScope()!;
+                    variable.setVarIndex(globalScope.varArray.length);
+                    globalScope.addVariable(variable);
                 } else {
                     const functionScope =
-                        getNearestFunctionScopeFromCurrent(currentScope);
+                        currentScope.getNearestFunctionScope()!;
                     /* under global scope, set index based on start function variable array */
                     if (!functionScope) {
                         if (currentScope.getRootGloablScope() === null) {
@@ -271,26 +336,10 @@ export class VariableScanner {
                 currentScope.addVariable(variable);
                 break;
             }
-            case ts.SyntaxKind.SourceFile:
-            case ts.SyntaxKind.FunctionDeclaration:
-            case ts.SyntaxKind.FunctionExpression:
-            case ts.SyntaxKind.ArrowFunction:
-            case ts.SyntaxKind.ClassDeclaration:
-            case ts.SyntaxKind.SetAccessor:
-            case ts.SyntaxKind.GetAccessor:
-            case ts.SyntaxKind.Constructor:
-            case ts.SyntaxKind.MethodDeclaration:
-            case ts.SyntaxKind.ForStatement:
-            case ts.SyntaxKind.WhileStatement:
-            case ts.SyntaxKind.DoStatement:
-                /* Don't enter other scopes */
-                break;
-            case ts.SyntaxKind.Block:
-                if (!parentIsFunctionLike(node)) {
+            default: {
+                if (isScopeNode(node)) {
                     break;
                 }
-            /* Fall through */
-            default: {
                 ts.forEachChild(node, this.visitNode.bind(this));
             }
         }
@@ -303,21 +352,20 @@ export class VariableInit {
     currentScope: Scope | null = null;
     nodeScopeMap = new Map<ts.Node, Scope>();
 
-    constructor(private compilerCtx: Compiler) {}
-
-    visit(nodes: Array<ts.SourceFile>) {
-        this.typechecker = this.compilerCtx.typeChecker;
+    constructor(private compilerCtx: Compiler) {
         this.globalScopeStack = this.compilerCtx.globalScopeStack;
         this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
-        for (let i = 0; i < nodes.length; i++) {
-            const sourceFile = nodes[i];
-            this.currentScope = this.globalScopeStack.getItemAtIdx(i);
-            this.visitNode(sourceFile);
-        }
+    }
+
+    visit() {
+        this.typechecker = this.compilerCtx.typeChecker;
+        this.nodeScopeMap.forEach((scope, node) => {
+            this.currentScope = scope;
+            ts.forEachChild(node, this.visitNode.bind(this));
+        });
     }
 
     visitNode(node: ts.Node): void {
-        this.currentScope = this.compilerCtx.getScopeByNode(node)!;
         switch (node.kind) {
             case ts.SyntaxKind.Parameter: {
                 if (node.parent.kind === ts.SyntaxKind.FunctionType) {
@@ -325,7 +373,7 @@ export class VariableInit {
                 }
                 const parameterNode = <ts.ParameterDeclaration>node;
                 const functionScope = <FunctionScope>(
-                    getNearestFunctionScopeFromCurrent(this.currentScope)
+                    this.currentScope!.getNearestFunctionScope()
                 );
                 const paramName = parameterNode.name.getText();
                 const paramObj = functionScope.findVariable(paramName);
@@ -363,7 +411,12 @@ export class VariableInit {
                 }
                 break;
             }
+            default: {
+                if (isScopeNode(node)) {
+                    break;
+                }
+                ts.forEachChild(node, this.visitNode.bind(this));
+            }
         }
-        ts.forEachChild(node, this.visitNode.bind(this));
     }
 }

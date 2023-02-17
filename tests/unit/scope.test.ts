@@ -59,6 +59,51 @@ describe('testScope', function () {
         expect(blockScope.findVariable('var3')).eq(var3);
     });
 
+    it('findVariableAcrossModule', function () {
+        const globalScope2 = new GlobalScope();
+        globalScope2.moduleName = 'module2';
+        const global2var1 = new Variable(
+            'global2var1',
+            new Type(),
+            ModifierKind.default,
+            0,
+        );
+        globalScope2.addVariable(global2var1);
+
+        const globalScope = new GlobalScope();
+        globalScope.moduleName = 'module1';
+        globalScope.addImportIdentifier('global2var1', globalScope2);
+        const var1 = new Variable('var1', new Type(), ModifierKind.default, 0);
+        globalScope.addVariable(var1);
+
+        const funcScope = new FunctionScope(globalScope);
+        const var2 = new Variable(
+            'global2var1',
+            new Type(),
+            ModifierKind.default,
+            0,
+        );
+        const param1 = new Parameter(
+            'parma1',
+            new Type(),
+            ModifierKind.default,
+            0,
+            true,
+            false,
+        );
+        funcScope.addVariable(var1);
+        funcScope.addVariable(var2);
+        funcScope.addParameter(param1);
+
+        expect(globalScope.findVariable('var1')).eq(var1);
+        expect(globalScope.findVariable('var2')).eq(undefined);
+        expect(globalScope.findVariable('global2var1')).eq(global2var1);
+
+        expect(funcScope.findVariable('var1')).eq(var1);
+        expect(funcScope.findVariable('global2var1')).eq(var2);
+        expect(funcScope.findVariable('parma1')).eq(param1);
+    });
+
     it('findParameterInScope', function () {
         const globalScope = new GlobalScope();
         const funcScope = new FunctionScope(globalScope);
@@ -130,8 +175,8 @@ describe('testScope', function () {
 
     it('getFunctionFromGlobalScope', function () {
         const globalScope = new GlobalScope();
-
-        expect(globalScope.startFuncName).eq('~start');
+        globalScope.moduleName = 'moduleA';
+        expect(globalScope.startFuncName).eq('moduleA|start');
     });
 
     it('getStartFunctionVariableArray', function () {

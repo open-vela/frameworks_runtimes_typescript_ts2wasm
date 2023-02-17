@@ -1,7 +1,8 @@
 import ts from 'typescript';
+import path from 'path';
 import { Type, TSFunction, TSClass, builtinTypes } from './type.js';
 import { Compiler } from './compiler.js';
-import { parentIsFunctionLike, Stack } from './utils.js';
+import { mangling, parentIsFunctionLike, Stack } from './utils.js';
 import { ModifierKind, Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
 
@@ -11,6 +12,7 @@ export enum ScopeKind {
     FunctionScope = 'Function',
     BlockScope = 'Block',
     ClassScope = 'Class',
+    NamespaceScope = 'Namespace',
 }
 
 export const funcDefs: Map<string, FunctionScope> = new Map<
@@ -28,6 +30,10 @@ export class Scope {
 
     addStatement(statement: Statement) {
         this.statementArray.push(statement);
+    }
+
+    addStatementAtStart(statement: Statement) {
+        this.statementArray.unshift(statement);
     }
 
     get statements(): Statement[] {
@@ -91,6 +97,14 @@ export class Scope {
                     });
                 }
 
+                if (!res && scope instanceof GlobalScope) {
+                    const targetModuleScope =
+                        scope.identifierModuleImportMap.get(variableName);
+                    if (targetModuleScope) {
+                        res = targetModuleScope.findVariable(variableName);
+                    }
+                }
+
                 return res;
             },
             nested,
@@ -104,12 +118,22 @@ export class Scope {
         return this._nestFindScopeItem(
             functionName,
             (scope) => {
-                return scope.children.find((c) => {
+                let res = scope.children.find((c) => {
                     return (
                         c.kind === ScopeKind.FunctionScope &&
                         (c as FunctionScope).funcName === functionName
                     );
-                }) as FunctionScope;
+                });
+
+                if (!res && scope instanceof GlobalScope) {
+                    const targetModuleScope =
+                        scope.identifierModuleImportMap.get(functionName);
+                    if (targetModuleScope) {
+                        res = targetModuleScope.findFunctionScope(functionName);
+                    }
+                }
+
+                return res ? (res as FunctionScope) : res;
             },
             nested,
         );
@@ -152,9 +176,12 @@ export class Scope {
 
 export class GlobalScope extends Scope {
     kind = ScopeKind.GlobalScope;
-    private functionName = '~start';
+    private _moduleName = '';
+    private functionName = '';
     private startFunctionVariableArray: Variable[] = [];
     private functionType = new TSFunction();
+    identifierModuleImportMap = new Map<string, GlobalScope>();
+    isMarkStart = false;
 
     constructor(parent: Scope | null = null) {
         super(parent);
@@ -168,12 +195,25 @@ export class GlobalScope extends Scope {
         return this.startFunctionVariableArray;
     }
 
+    set moduleName(moduleName: string) {
+        this._moduleName = moduleName;
+        this.functionName = mangling(moduleName, 'start');
+    }
+
+    get moduleName(): string {
+        return this._moduleName;
+    }
+
     get startFuncName(): string {
         return this.functionName;
     }
 
     get startFuncType(): TSFunction {
         return this.functionType;
+    }
+
+    addImportIdentifier(identifier: string, moduleScope: GlobalScope) {
+        this.identifierModuleImportMap.set(identifier, moduleScope);
     }
 }
 
@@ -281,6 +321,20 @@ enum classFuncType {
     StaticMethod,
 }
 
+export class NamespaceScope extends Scope {
+    kind = ScopeKind.NamespaceScope;
+    private _namespaceName;
+
+    constructor(parent: Scope, name = '') {
+        super(parent);
+        this._namespaceName = name;
+    }
+
+    get namespaceName(): string {
+        return this._namespaceName;
+    }
+}
+
 export class ScopeScanner {
     globalScopeStack: Stack<GlobalScope>;
     currentScope: Scope | null = null;
@@ -351,12 +405,40 @@ export class ScopeScanner {
                 const sourceFileNode = <ts.SourceFile>node;
                 const globalScope = new GlobalScope();
                 this.setCurrentScope(globalScope);
+                const filePath = sourceFileNode.fileName.slice(
+                    undefined,
+                    -'.ts'.length,
+                );
+                const moduleName = path.relative(process.cwd(), filePath);
+                globalScope.moduleName = moduleName;
                 this.globalScopeStack.push(globalScope);
                 this.nodeScopeMap.set(sourceFileNode, globalScope);
                 for (let i = 0; i < sourceFileNode.statements.length; i++) {
                     this.visitNode(sourceFileNode.statements[i]);
                 }
                 this.visitNode(sourceFileNode.endOfFileToken);
+                break;
+            }
+            case ts.SyntaxKind.ModuleDeclaration: {
+                const moduleDeclaration = <ts.ModuleDeclaration>node;
+                const namespaceName = moduleDeclaration.name.text;
+                const parentScope = this.currentScope!;
+                if (
+                    parentScope.kind !== ScopeKind.GlobalScope &&
+                    parentScope.kind !== ScopeKind.NamespaceScope
+                ) {
+                    throw Error(
+                        'A namespace declaration is only allowed at the top level of a namespace or module',
+                    );
+                }
+                const namespaceScope = new NamespaceScope(
+                    parentScope,
+                    namespaceName,
+                );
+                this.setCurrentScope(namespaceScope);
+                this.nodeScopeMap.set(node, namespaceScope);
+                this.visitNode(moduleDeclaration.body!);
+                this.setCurrentScope(parentScope);
                 break;
             }
             case ts.SyntaxKind.FunctionDeclaration:
@@ -407,10 +489,10 @@ export class ScopeScanner {
             case ts.SyntaxKind.ClassDeclaration: {
                 const classDeclarationNode = <ts.ClassDeclaration>node;
                 const parentScope = this.currentScope!;
-                const classScope = new ClassScope(
-                    parentScope,
-                    (<ts.Identifier>classDeclarationNode.name).getText(),
-                );
+                const className = (<ts.Identifier>(
+                    classDeclarationNode.name
+                )).getText();
+                const classScope = new ClassScope(parentScope, className);
                 this.setCurrentScope(classScope);
                 this.nodeScopeMap.set(classDeclarationNode, classScope);
                 for (const member of classDeclarationNode.members) {

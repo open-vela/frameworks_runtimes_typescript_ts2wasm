@@ -15,6 +15,7 @@ import {
     BlockStatement,
     ExpressionStatement,
     VariableStatement,
+    ImportDeclaration,
 } from './statement.js';
 import { FunctionScope, Scope, ScopeKind } from './scope.js';
 import { FlattenLoop, IfStatementInfo, typeInfo } from './glue/utils.js';
@@ -77,6 +78,12 @@ export class WASMStatementGen {
             case ts.SyntaxKind.VariableStatement: {
                 const varStatement = this.WASMVarStmt(<VariableStatement>stmt);
                 return varStatement;
+            }
+            case ts.SyntaxKind.ImportDeclaration: {
+                const callStartStmt = this.WASMImportStmt(
+                    <ImportDeclaration>stmt,
+                );
+                return callStartStmt;
             }
             default:
                 throw new Error('unexpected expr kind ' + stmt.statementKind);
@@ -446,8 +453,107 @@ export class WASMStatementGen {
                     }
                 }
             }
+        } else {
+            // add global variables
+            for (const globalVar of varArray) {
+                const varTypeRef =
+                    globalVar.varType.kind === TypeKind.FUNCTION
+                        ? wasmType.getWASMFuncStructType(globalVar.varType)
+                        : wasmType.getWASMType(globalVar.varType);
+                const mutable =
+                    globalVar.varModifier === ModifierKind.const ? false : true;
+                if (globalVar.initExpression === null) {
+                    module.addGlobal(
+                        globalVar.varName,
+                        varTypeRef,
+                        mutable,
+                        this.WASMCompiler.getVariableInitValue(
+                            globalVar.varType,
+                        ),
+                    );
+                } else {
+                    const varInitExprRef = wasmExpr.WASMExprGen(
+                        globalVar.initExpression,
+                    );
+                    if (
+                        globalVar.varType.kind === TypeKind.NUMBER ||
+                        globalVar.varType.kind === TypeKind.DYNCONTEXTTYPE
+                    ) {
+                        if (
+                            globalVar.initExpression.expressionKind ===
+                            ts.SyntaxKind.NumericLiteral
+                        ) {
+                            module.addGlobal(
+                                globalVar.varName,
+                                varTypeRef,
+                                mutable,
+                                varInitExprRef,
+                            );
+                        } else {
+                            module.addGlobal(
+                                globalVar.varName,
+                                varTypeRef,
+                                true,
+                                globalVar.varType.kind === TypeKind.NUMBER
+                                    ? module.f64.const(0)
+                                    : module.i64.const(0, 0),
+                            );
+                            this.currentFuncCtx!.insert(
+                                module.global.set(
+                                    globalVar.varName,
+                                    varInitExprRef,
+                                ),
+                            );
+                        }
+                    } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
+                        module.addGlobal(
+                            globalVar.varName,
+                            varTypeRef,
+                            mutable,
+                            varInitExprRef,
+                        );
+                    } else {
+                        module.addGlobal(
+                            globalVar.varName,
+                            varTypeRef,
+                            true,
+                            binaryenCAPI._BinaryenRefNull(
+                                module.ptr,
+                                varTypeRef,
+                            ),
+                        );
+                        if (globalVar.varType.kind === TypeKind.ANY) {
+                            const dynInitExprRef =
+                                this.WASMCompiler.wasmDynExprCompiler.WASMDynExprGen(
+                                    globalVar.initExpression,
+                                );
+                            this.currentFuncCtx!.insert(
+                                module.global.set(
+                                    globalVar.varName,
+                                    dynInitExprRef,
+                                ),
+                            );
+                        } else {
+                            this.currentFuncCtx!.insert(
+                                module.global.set(
+                                    globalVar.varName,
+                                    varInitExprRef,
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
         }
         return module.unreachable();
+    }
+
+    WASMImportStmt(stmt: ImportDeclaration): binaryen.ExpressionRef {
+        return this.WASMCompiler.module.call(
+            stmt.importModuleStartFuncName,
+            [],
+            binaryen.none,
+        );
     }
 
     flattenLoopStatement(

@@ -2,11 +2,7 @@ import ts from 'typescript';
 import { Compiler } from './compiler.js';
 import { Scope, FunctionScope, GlobalScope, ScopeKind } from './scope.js';
 import { Variable } from './variable.js';
-import {
-    getCurScope,
-    getNearestFunctionScopeFromCurrent,
-    getNodeTypeInfo,
-} from './utils.js';
+import { getCurScope, getNodeTypeInfo } from './utils.js';
 import { builtinTypes, Primitive, TSArray, Type, TypeKind } from './type.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
@@ -419,10 +415,13 @@ export default class ExpressionCompiler {
             }
             case ts.SyntaxKind.Identifier: {
                 const targetIdentifier = (<ts.Identifier>node).getText();
+                const identifierExpr = new IdentifierExpression(
+                    targetIdentifier,
+                );
                 if (
                     BuiltinNames.builtinIdentifiers.includes(targetIdentifier)
                 ) {
-                    return new IdentifierExpression(targetIdentifier);
+                    return identifierExpr;
                 }
                 let scope = this.compilerCtx.getScopeByNode(node) || null;
                 const currentFuncScope = scope!.getNearestFunctionScope();
@@ -449,10 +448,6 @@ export default class ExpressionCompiler {
                         /* otherwise it's a global var */
                     }
                 }
-
-                const identifierExpr = new IdentifierExpression(
-                    (<ts.Identifier>node).getText(),
-                );
                 identifierExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),
                 );
@@ -696,7 +691,7 @@ export default class ExpressionCompiler {
             case ts.SyntaxKind.ArrowFunction: {
                 const funcScope = getCurScope(node, this.nodeScopeMap);
                 return new FunctionExpression(
-                    getNearestFunctionScopeFromCurrent(funcScope)!,
+                    funcScope!.getNearestFunctionScope()!,
                 );
             }
             default:

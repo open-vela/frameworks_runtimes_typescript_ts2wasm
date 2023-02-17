@@ -4,7 +4,7 @@ import { dyntype } from '../lib/dyntype/utils.js';
 import { ModifierKind, Variable } from './variable.js';
 import { builtinTypes, Type, TypeKind } from './type.js';
 import { CallExpression, IdentifierExpression } from './expression.js';
-import { ExpressionStatement } from './statement.js';
+import { ExpressionStatement, VariableStatement } from './statement.js';
 
 export function importLibApi(module: binaryen.Module) {
     module.addFunctionImport(
@@ -275,6 +275,9 @@ export function initDynContext(gloalScope: GlobalScope) {
         ctxInitExpr,
     );
     gloalScope.addVariableAtStart(context);
+    const varStatement = new VariableStatement();
+    varStatement.addVariable(context);
+    gloalScope.addStatementAtStart(varStatement);
 }
 
 export function freeDynContext(gloalScope: GlobalScope) {
