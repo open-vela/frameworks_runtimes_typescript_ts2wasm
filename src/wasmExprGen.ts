@@ -1559,7 +1559,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             ) {
                 return MatchKind.ExactMatch;
             }
-            if (leftExprType.kind === TypeKind.ARRAY) {
+            else if (leftExprType.kind === TypeKind.ARRAY) {
                 const leftArrayType = <TSArray>leftExprType;
                 const rightArrayType = <TSArray>rightExprType;
                 if (leftArrayType.elementType === rightArrayType.elementType) {
@@ -1577,7 +1577,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     rightArrayType.elementType,
                 );
             }
-            if (leftExprType.kind === TypeKind.CLASS) {
+            else if (leftExprType.kind === TypeKind.CLASS) {
                 const leftClassType = <TSClass>leftExprType;
                 const rightClassType = <TSClass>rightExprType;
                 const leftClassName = leftClassType.className;
@@ -1594,6 +1594,34 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     rightClassBaseType = rightClassBaseType.getBase();
                 }
                 return MatchKind.MisMatch;
+            }
+            else if (leftExprType.kind === TypeKind.FUNCTION) {
+                const leftFuncType = <TSFunction>leftExprType;
+                const rightFuncType = <TSFunction>rightExprType;
+                if (this.matchType(
+                    leftFuncType.returnType,
+                    rightFuncType.returnType,
+                ) == MatchKind.MisMatch) {
+                    return MatchKind.MisMatch;
+                }
+
+                const leftParams = leftFuncType.getParamTypes();
+                const rightParams = rightFuncType.getParamTypes();
+                if (leftParams.length !== rightParams.length) {
+                    return MatchKind.MisMatch;
+                }
+
+                for (let i = 0; i < leftParams.length; i++) {
+                    if (this.matchType(
+                        leftParams[i],
+                        rightParams[i],
+                    ) == MatchKind.MisMatch) {
+                        return MatchKind.MisMatch;
+                    }
+                }
+
+                // TODO: check rest parameters
+                return MatchKind.ExactMatch;
             }
         }
         if (leftExprType.kind === TypeKind.ANY) {
