@@ -24,6 +24,9 @@ export namespace BuiltinNames {
     export const string_concat_func = '~lib/string-concat';
     export const string_slice_func = '~lib/string-slice';
 
+    // delimiters
+    export const module_delimiter = '|';
+
     // other builtin Identifiers
     export const builtinIdentifiers = ['Array', 'Math'];
 }

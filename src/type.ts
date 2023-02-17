@@ -276,7 +276,7 @@ export default class TypeCompiler {
         this.globalScopeStack = this.compilerCtx.globalScopeStack;
     }
 
-    visit(nodes: Array<ts.SourceFile>) {
+    visit() {
         this.typechecker = this.compilerCtx.typeChecker;
         this.nodeScopeMap.forEach((scope, node) => {
             ts.forEachChild(node, this.visitNode.bind(this));

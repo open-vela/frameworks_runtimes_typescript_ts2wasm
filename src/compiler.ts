@@ -22,9 +22,9 @@ export const COMPILER_OPTIONS: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2015,
     strict: true,
     /* disable some features to speedup tsc */
-    noResolve: true,
     skipLibCheck: true,
     skipDefaultLibCheck: true,
+    types: [],
 };
 
 export class Compiler {
@@ -43,6 +43,9 @@ export class Compiler {
     binaryenModule = new binaryen.Module();
     currentScope: Scope | null = null;
 
+    // configurations
+    disableAny = false;
+
     constructor() {
         this.scopeScanner = new ScopeScanner(this);
         this.typeCompiler = new TypeCompiler(this);
@@ -53,13 +56,14 @@ export class Compiler {
         this.wasmGen = new WASMGen(this);
     }
 
-    compile(fileNames: string[], optlevel = 0): void {
+    compile(fileNames: string[], optlevel = 0, disableAny = false): void {
         const compilerOptions: ts.CompilerOptions = this.getCompilerOptions();
         const program: ts.Program = ts.createProgram(
             fileNames,
             compilerOptions,
         );
         this.typeChecker = program.getTypeChecker();
+        this.disableAny = disableAny;
 
         const allDiagnostics = ts.getPreEmitDiagnostics(program);
         if (allDiagnostics.length > 0) {
@@ -92,17 +96,18 @@ export class Compiler {
         /* Step1: Resolve all scopes */
         this.scopeScanner.visit(sourceFileList);
         /* Step2: Resolve all type declarations */
-        this.typeCompiler.visit(sourceFileList);
-        this.variableScanner.visit(sourceFileList);
-        this.variableInit.visit(sourceFileList);
-        /* Step3: Add statements to scopes */
-        this.stmtCompiler.visit(sourceFileList);
+        this.typeCompiler.visit();
+        /* Step3: Add variables to scopes */
+        this.variableScanner.visit();
+        this.variableInit.visit();
+        /* Step4: Add statements to scopes */
+        this.stmtCompiler.visit();
 
         if (process.env['TS2WASM_DUMP_SCOPE']) {
             this.dumpScopes();
         }
 
-        /* Step4: code generation */
+        /* Step5: wasm code generation */
         this.binaryenModule.setFeatures(binaryen.Features.All);
         this.binaryenModule.autoDrop();
 

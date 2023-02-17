@@ -1,7 +1,8 @@
-import binaryen from 'binaryen';
 import ts from 'typescript';
-import { Scope } from './scope.js';
+import path from 'path';
+import { GlobalScope, Scope } from './scope.js';
 import ExpressionCompiler, { Expression } from './expression.js';
+import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
 export interface TypeCheckerInfo {
     typeName: string;
@@ -102,17 +103,6 @@ export function getCurScope(
     return getCurScope(node.parent, nodeScopeMap);
 }
 
-export function getNearestFunctionScopeFromCurrent(currentScope: Scope | null) {
-    if (!currentScope) {
-        throw new Error('current scope is null');
-    }
-    const functionScope = currentScope.getNearestFunctionScope();
-    if (!functionScope) {
-        return null;
-    }
-    return functionScope;
-}
-
 export function generateNodeExpression(
     exprCompiler: ExpressionCompiler,
     node: ts.Node,
@@ -156,4 +146,67 @@ export function parentIsCaseClause(node: ts.Node) {
     }
 
     return false;
+}
+
+export function isScopeNode(node: ts.Node) {
+    if (
+        node.kind === ts.SyntaxKind.SourceFile ||
+        node.kind === ts.SyntaxKind.ModuleDeclaration ||
+        node.kind === ts.SyntaxKind.FunctionDeclaration ||
+        node.kind === ts.SyntaxKind.FunctionExpression ||
+        node.kind === ts.SyntaxKind.ArrowFunction ||
+        node.kind === ts.SyntaxKind.ClassDeclaration ||
+        node.kind === ts.SyntaxKind.SetAccessor ||
+        node.kind === ts.SyntaxKind.GetAccessor ||
+        node.kind === ts.SyntaxKind.Constructor ||
+        node.kind === ts.SyntaxKind.MethodDeclaration ||
+        node.kind === ts.SyntaxKind.ForStatement ||
+        node.kind === ts.SyntaxKind.WhileStatement ||
+        node.kind === ts.SyntaxKind.DoStatement ||
+        node.kind === ts.SyntaxKind.CaseClause ||
+        node.kind === ts.SyntaxKind.DefaultClause
+    ) {
+        return true;
+    }
+    if (node.kind === ts.SyntaxKind.Block && !parentIsFunctionLike(node)) {
+        return true;
+    }
+    return false;
+}
+
+export function mangling(
+    leftName: string,
+    rightName: string,
+    delimiter = BuiltinNames.module_delimiter,
+) {
+    return leftName.concat(delimiter).concat(rightName);
+}
+
+export function getImportModulePath(
+    importDeclaration: ts.ImportDeclaration,
+    currentGlobalScope: GlobalScope,
+) {
+    // get import module name
+    const moduleSpecifier = importDeclaration.moduleSpecifier
+        .getText()
+        .slice(1, -1);
+    const currentModuleName = currentGlobalScope.moduleName;
+    const importModuleName = path.relative(
+        process.cwd(),
+        path.resolve(path.dirname(currentModuleName), moduleSpecifier),
+    );
+    return importModuleName;
+}
+
+export function getGlobalScopeByModuleName(
+    moduleName: string,
+    globalScopeStack: Stack<GlobalScope>,
+) {
+    for (let i = 0; i < globalScopeStack.size(); i++) {
+        const globalScope = globalScopeStack.getItemAtIdx(i);
+        if (globalScope.moduleName === moduleName) {
+            return globalScope;
+        }
+    }
+    throw Error('no such moduleName: ' + moduleName);
 }

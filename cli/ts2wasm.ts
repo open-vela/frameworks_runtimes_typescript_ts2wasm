@@ -7,6 +7,7 @@ import { Compiler } from '../src/compiler.js';
 
 interface HelpMessageCategory {
     General: string[];
+    Compile: string[];
     Output: string[];
     Validation: string[];
     Other: string[];
@@ -36,6 +37,7 @@ function showHelp(optionPath: string) {
     };
     const categories: HelpMessageCategory = {
         General: [],
+        Compile: [],
         Output: [],
         Validation: [],
         Other: [],
@@ -185,7 +187,7 @@ function main() {
 
         const compiler = new Compiler();
         try {
-            compiler.compile(sourceFileList, args.opt);
+            compiler.compile(sourceFileList, args.opt, args.disableAny);
         } catch (e) {
             process.exit(1);
         }
