@@ -19,7 +19,7 @@ RUN apt install -y \
 # Install opam
 RUN apt update \
     apt install opam -y \
-    echo -e "n\ny" | opam init --auto-setup \
+    echo -e "n\ny" | opam init --disable-sandboxing --auto-setup \
     eval $(opam env) \
     opam install ocamlbuild -y
 
