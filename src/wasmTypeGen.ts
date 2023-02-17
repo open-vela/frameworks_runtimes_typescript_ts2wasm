@@ -15,66 +15,56 @@ import { dyntype } from '../lib/dyntype/utils.js';
 
 const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
 export class WASMTypeGen {
-    private static tsType2WASMTypeMap: Map<Type, binaryenCAPI.TypeRef> =
-        new Map();
-    private static tsType2WASMHeapTypeMap: Map<Type, binaryenCAPI.HeapTypeRef> =
+    tsType2WASMTypeMap: Map<Type, binaryenCAPI.TypeRef> = new Map();
+    private tsType2WASMHeapTypeMap: Map<Type, binaryenCAPI.HeapTypeRef> =
         new Map();
     // the format is : {context: struct{}, funcref: ref $func}
-    private static tsFuncType2WASMStructType: Map<Type, binaryenCAPI.TypeRef> =
+    private tsFuncType2WASMStructType: Map<Type, binaryenCAPI.TypeRef> =
         new Map();
-    private static tsFuncType2WASMStructHeapType: Map<
-        Type,
-        binaryenCAPI.HeapTypeRef
-    > = new Map();
-    private static tsFuncParamType: Map<Type, binaryenCAPI.TypeRef> = new Map();
-    private static tsFuncReturnType: Map<Type, binaryenCAPI.TypeRef> =
+    private tsFuncType2WASMStructHeapType: Map<Type, binaryenCAPI.HeapTypeRef> =
         new Map();
-    private static tsClassVtableType: Map<Type, binaryenCAPI.TypeRef> =
-        new Map();
-    private static tsClassVtableHeapType: Map<Type, binaryenCAPI.TypeRef> =
-        new Map();
+    private tsFuncParamType: Map<Type, binaryenCAPI.TypeRef> = new Map();
+    private tsFuncReturnType: Map<Type, binaryenCAPI.TypeRef> = new Map();
+    private tsClassVtableType: Map<Type, binaryenCAPI.TypeRef> = new Map();
+    private tsClassVtableHeapType: Map<Type, binaryenCAPI.TypeRef> = new Map();
 
     /* not contain context struct:
       (i: number) ==> (f64) (result none) rather than (ref{}, f64)(result none)
     */
-    private static tsFuncOriginalParamType: Map<Type, binaryenCAPI.TypeRef> =
+    private tsFuncOriginalParamType: Map<Type, binaryenCAPI.TypeRef> =
         new Map();
 
-    private static classVtables: Map<Type, binaryenCAPI.ExpressionRef> =
-        new Map();
+    private classVtables: Map<Type, binaryenCAPI.ExpressionRef> = new Map();
 
     constructor(private WASMCompiler: WASMGen) {}
 
     createWASMType(type: Type): void {
-        if (WASMTypeGen.tsType2WASMTypeMap.has(type)) {
+        if (this.tsType2WASMTypeMap.has(type)) {
             return;
         }
         switch (type.typeKind) {
             case TypeKind.DYNCONTEXTTYPE:
-                WASMTypeGen.tsType2WASMTypeMap.set(type, dyntype.dyn_ctx_t);
+                this.tsType2WASMTypeMap.set(type, dyntype.dyn_ctx_t);
                 break;
             case TypeKind.VOID:
-                WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.none);
+                this.tsType2WASMTypeMap.set(type, binaryen.none);
                 break;
             case TypeKind.BOOLEAN:
-                WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.i32);
+                this.tsType2WASMTypeMap.set(type, binaryen.i32);
                 break;
             case TypeKind.NUMBER:
-                WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.f64);
+                this.tsType2WASMTypeMap.set(type, binaryen.f64);
                 break;
             case TypeKind.STRING: {
-                WASMTypeGen.tsType2WASMTypeMap.set(
-                    type,
-                    stringTypeInfo.typeRef,
-                );
-                WASMTypeGen.tsType2WASMHeapTypeMap.set(
+                this.tsType2WASMTypeMap.set(type, stringTypeInfo.typeRef);
+                this.tsType2WASMHeapTypeMap.set(
                     type,
                     stringTypeInfo.heapTypeRef,
                 );
                 break;
             }
             case TypeKind.ANY: {
-                WASMTypeGen.tsType2WASMTypeMap.set(type, binaryen.anyref);
+                this.tsType2WASMTypeMap.set(type, binaryen.anyref);
                 break;
             }
             case TypeKind.ARRAY: {
@@ -90,8 +80,8 @@ export class WASMTypeGen {
                     true,
                     true,
                 );
-                WASMTypeGen.tsType2WASMTypeMap.set(type, arrayTypeInfo.typeRef);
-                WASMTypeGen.tsType2WASMHeapTypeMap.set(
+                this.tsType2WASMTypeMap.set(type, arrayTypeInfo.typeRef);
+                this.tsType2WASMHeapTypeMap.set(
                     type,
                     arrayTypeInfo.heapTypeRef,
                 );
@@ -113,11 +103,11 @@ export class WASMTypeGen {
                         paramWASMTypes[i + 1] = this.getWASMType(paramTypes[i]);
                     }
                 }
-                WASMTypeGen.tsFuncParamType.set(
+                this.tsFuncParamType.set(
                     type,
                     binaryen.createType(paramWASMTypes),
                 );
-                WASMTypeGen.tsFuncOriginalParamType.set(
+                this.tsFuncOriginalParamType.set(
                     type,
                     binaryen.createType(paramWASMTypes.slice(1)),
                 );
@@ -127,16 +117,13 @@ export class WASMTypeGen {
                         funcType.returnType,
                     );
                 }
-                WASMTypeGen.tsFuncReturnType.set(type, resultWASMType);
+                this.tsFuncReturnType.set(type, resultWASMType);
                 const signature = createSignatureTypeRefAndHeapTypeRef(
                     paramWASMTypes,
                     resultWASMType,
                 );
-                WASMTypeGen.tsType2WASMTypeMap.set(type, signature.typeRef);
-                WASMTypeGen.tsType2WASMHeapTypeMap.set(
-                    type,
-                    signature.heapTypeRef,
-                );
+                this.tsType2WASMTypeMap.set(type, signature.typeRef);
+                this.tsType2WASMHeapTypeMap.set(type, signature.heapTypeRef);
                 const funcStructType = initStructType(
                     [emptyStructType.typeRef, signature.typeRef],
                     [typeNotPacked, typeNotPacked],
@@ -144,11 +131,11 @@ export class WASMTypeGen {
                     2,
                     true,
                 );
-                WASMTypeGen.tsFuncType2WASMStructType.set(
+                this.tsFuncType2WASMStructType.set(
                     type,
                     funcStructType.typeRef,
                 );
-                WASMTypeGen.tsFuncType2WASMStructHeapType.set(
+                this.tsFuncType2WASMStructHeapType.set(
                     type,
                     funcStructType.heapTypeRef,
                 );
@@ -212,12 +199,9 @@ export class WASMTypeGen {
                     vtableFuncs.length,
                     vtableType.heapTypeRef,
                 );
-                WASMTypeGen.tsClassVtableType.set(type, vtableType.typeRef);
-                WASMTypeGen.tsClassVtableHeapType.set(
-                    type,
-                    vtableType.heapTypeRef,
-                );
-                WASMTypeGen.classVtables.set(type, vtableInstance);
+                this.tsClassVtableType.set(type, vtableType.typeRef);
+                this.tsClassVtableHeapType.set(type, vtableType.heapTypeRef);
+                this.classVtables.set(type, vtableInstance);
 
                 // 2. add vtable and fields
                 const wasmFieldTypes = new Array<binaryenCAPI.TypeRef>();
@@ -246,8 +230,8 @@ export class WASMTypeGen {
                     wasmFieldTypes.length,
                     true,
                 );
-                WASMTypeGen.tsType2WASMTypeMap.set(type, wasmClassType.typeRef);
-                WASMTypeGen.tsType2WASMHeapTypeMap.set(
+                this.tsType2WASMTypeMap.set(type, wasmClassType.typeRef);
+                this.tsType2WASMHeapTypeMap.set(
                     type,
                     wasmClassType.heapTypeRef,
                 );
@@ -270,88 +254,82 @@ export class WASMTypeGen {
     }
 
     getWASMType(type: Type): binaryenCAPI.TypeRef {
-        if (!WASMTypeGen.tsType2WASMTypeMap.has(type)) {
+        if (!this.tsType2WASMTypeMap.has(type)) {
             this.createWASMType(type);
         }
-        return WASMTypeGen.tsType2WASMTypeMap.get(type) as binaryenCAPI.TypeRef;
+        return this.tsType2WASMTypeMap.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMHeapType(type: Type): binaryenCAPI.HeapTypeRef {
         assert(this.hasHeapType(type));
-        if (!WASMTypeGen.tsType2WASMHeapTypeMap.has(type)) {
+        if (!this.tsType2WASMHeapTypeMap.has(type)) {
             this.createWASMType(type);
         }
-        return WASMTypeGen.tsType2WASMHeapTypeMap.get(
+        return this.tsType2WASMHeapTypeMap.get(
             type,
         ) as binaryenCAPI.HeapTypeRef;
     }
 
     getWASMFuncStructType(type: Type): binaryenCAPI.TypeRef {
         assert(type.typeKind === TypeKind.FUNCTION);
-        if (!WASMTypeGen.tsFuncType2WASMStructType.has(type)) {
+        if (!this.tsFuncType2WASMStructType.has(type)) {
             this.createWASMType(type);
         }
-        return WASMTypeGen.tsFuncType2WASMStructType.get(
-            type,
-        ) as binaryenCAPI.TypeRef;
+        return this.tsFuncType2WASMStructType.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMFuncStructHeapType(type: Type): binaryenCAPI.TypeRef {
         assert(type.typeKind === TypeKind.FUNCTION);
-        if (!WASMTypeGen.tsFuncType2WASMStructType.has(type)) {
+        if (!this.tsFuncType2WASMStructType.has(type)) {
             this.createWASMType(type);
         }
-        return WASMTypeGen.tsFuncType2WASMStructHeapType.get(
+        return this.tsFuncType2WASMStructHeapType.get(
             type,
         ) as binaryenCAPI.HeapTypeRef;
     }
 
     getWASMFuncParamType(type: Type): binaryenCAPI.TypeRef {
         assert(type.typeKind === TypeKind.FUNCTION);
-        if (!WASMTypeGen.tsType2WASMTypeMap.has(type)) {
+        if (!this.tsType2WASMTypeMap.has(type)) {
             this.createWASMType(type);
         }
-        return WASMTypeGen.tsFuncParamType.get(type) as binaryenCAPI.TypeRef;
+        return this.tsFuncParamType.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMFuncOrignalParamType(type: Type): binaryenCAPI.TypeRef {
         assert(type.typeKind === TypeKind.FUNCTION);
-        if (!WASMTypeGen.tsType2WASMTypeMap.has(type)) {
+        if (!this.tsType2WASMTypeMap.has(type)) {
             this.createWASMType(type);
         }
-        return WASMTypeGen.tsFuncOriginalParamType.get(
-            type,
-        ) as binaryenCAPI.TypeRef;
+        return this.tsFuncOriginalParamType.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMFuncReturnType(type: Type): binaryenCAPI.TypeRef {
         assert(type.typeKind === TypeKind.FUNCTION);
-        if (!WASMTypeGen.tsType2WASMTypeMap.has(type)) {
+        if (!this.tsType2WASMTypeMap.has(type)) {
             this.createWASMType(type);
         }
-        return WASMTypeGen.tsFuncReturnType.get(type) as binaryenCAPI.TypeRef;
+        return this.tsFuncReturnType.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMClassVtableType(type: Type): binaryenCAPI.TypeRef {
         assert(type.typeKind === TypeKind.CLASS);
-        if (!WASMTypeGen.tsFuncType2WASMStructType.has(type)) {
+        if (!this.tsFuncType2WASMStructType.has(type)) {
             this.createWASMType(type);
         }
-        return WASMTypeGen.tsClassVtableType.get(type) as binaryenCAPI.TypeRef;
+        return this.tsClassVtableType.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMClassVtableHeapType(type: Type): binaryenCAPI.HeapTypeRef {
         assert(type.typeKind === TypeKind.CLASS);
-        if (!WASMTypeGen.tsFuncType2WASMStructType.has(type)) {
+        if (!this.tsFuncType2WASMStructType.has(type)) {
             this.createWASMType(type);
         }
-        return WASMTypeGen.tsClassVtableHeapType.get(
-            type,
-        ) as binaryenCAPI.HeapTypeRef;
+        return this.tsClassVtableHeapType.get(type) as binaryenCAPI.HeapTypeRef;
     }
 
     getWASMClassVtable(type: Type): binaryen.ExpressionRef {
         assert(type.typeKind === TypeKind.CLASS);
-        return WASMTypeGen.classVtables.get(type) as binaryen.ExpressionRef;
+        return this.classVtables.get(type) as binaryen.ExpressionRef;
     }
 }

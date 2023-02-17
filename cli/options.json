@@ -29,8 +29,13 @@
         "default": "."
     },
     "opt": {
-        "category": "General",
+        "category": "Compile",
         "description": "Specify optimization level",
         "default": 0
+    },
+    "disableAny": {
+        "category": "Compile",
+        "description": "disable any feature",
+        "default": true
     }
 }

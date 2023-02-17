@@ -33,6 +33,7 @@ import {
 } from './memory.js';
 import { initStringBuiltin } from '../lib/builtin/stringBuiltin.js';
 import { dyntype } from '../lib/dyntype/utils.js';
+import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -208,6 +209,10 @@ export class WASMGen {
     wasmDynExprCompiler = new WASMDynExpressionGen(this);
     wasmExprBase = new WASMExpressionBase(this);
     private wasmStmtCompiler = new WASMStatementGen(this);
+    enterModuleScope: GlobalScope | null = null;
+
+    // configurations
+    disableAny = false;
 
     constructor(private compilerCtx: Compiler) {
         this.binaryenModule = compilerCtx.binaryenModule;
@@ -217,16 +222,50 @@ export class WASMGen {
 
     WASMGenerate() {
         WASMGen.contextOfFunc.clear();
+        this.enterModuleScope = this.globalScopeStack.peek();
 
+        // generate configuration
+        this.disableAny = this.compilerCtx.disableAny;
+
+        // init wasm environment
         initGlobalOffset(this.module);
         initDefaultTable(this.module);
-        importLibApi(this.module);
         initStringBuiltin(this.module);
+        if (!this.disableAny) {
+            importLibApi(this.module);
+            // add dyn context in the enter module scope
+            initDynContext(this.enterModuleScope);
+            freeDynContext(this.enterModuleScope);
+        }
 
-        while (!this.globalScopeStack.isEmpty()) {
-            const globalScope = this.globalScopeStack.pop();
+        for (let i = 0; i < this.globalScopeStack.size(); i++) {
+            const globalScope = this.globalScopeStack.getItemAtIdx(i);
             this.WASMGenHelper(globalScope);
         }
+
+        if (this.disableAny) {
+            if (
+                this.wasmTypeCompiler.tsType2WASMTypeMap.has(
+                    builtinTypes.get(TypeKind.ANY)!,
+                )
+            ) {
+                throw Error('any type is in source');
+            }
+        }
+
+        // set enter module start function as wasm start function
+        const wasmStartFuncRef = this.module.addFunction(
+            BuiltinNames.start,
+            binaryen.none,
+            binaryen.none,
+            [],
+            this.module.call(
+                this.enterModuleScope.startFuncName,
+                [],
+                binaryen.none,
+            ),
+        );
+        this.module.setStart(wasmStartFuncRef);
 
         const segments = [];
         const segmentInfo = this.dataSegmentContext!.generateSegment();
@@ -239,7 +278,7 @@ export class WASMGen {
     WASMGenHelper(scope: Scope) {
         switch (scope.kind) {
             case ScopeKind.GlobalScope:
-                /* add ~start function */
+                /* add module start function */
                 this.WASMStartFunctionGen(<GlobalScope>scope);
                 break;
             case ScopeKind.FunctionScope:
@@ -277,102 +316,9 @@ export class WASMGen {
 
     /* add global variables, and generate start function */
     WASMStartFunctionGen(globalScope: GlobalScope) {
-        initDynContext(globalScope);
-
         this.currentFuncCtx = new WASMFunctionContext(this, globalScope);
 
-        // add global dyn context variable
-        const globalVars = globalScope.varArray;
-        for (const globalVar of globalVars) {
-            const varTypeRef =
-                globalVar.varType.kind === TypeKind.FUNCTION
-                    ? this.wasmType.getWASMFuncStructType(globalVar.varType)
-                    : this.wasmType.getWASMType(globalVar.varType);
-            const mutable =
-                globalVar.varModifier === ModifierKind.const ? false : true;
-            if (globalVar.initExpression === null) {
-                this.module.addGlobal(
-                    globalVar.varName,
-                    varTypeRef,
-                    mutable,
-                    this.getVariableInitValue(globalVar.varType),
-                );
-            } else {
-                const varInitExprRef = this.wasmExpr.WASMExprGen(
-                    globalVar.initExpression,
-                );
-                if (
-                    globalVar.varType.kind === TypeKind.NUMBER ||
-                    globalVar.varType.kind === TypeKind.DYNCONTEXTTYPE
-                ) {
-                    if (
-                        globalVar.initExpression.expressionKind ===
-                        ts.SyntaxKind.NumericLiteral
-                    ) {
-                        this.module.addGlobal(
-                            globalVar.varName,
-                            varTypeRef,
-                            mutable,
-                            varInitExprRef,
-                        );
-                    } else {
-                        this.module.addGlobal(
-                            globalVar.varName,
-                            varTypeRef,
-                            true,
-                            globalVar.varType.kind === TypeKind.NUMBER
-                                ? this.module.f64.const(0)
-                                : this.module.i64.const(0, 0),
-                        );
-                        this.curFunctionCtx?.insert(
-                            this.module.global.set(
-                                globalVar.varName,
-                                varInitExprRef,
-                            ),
-                        );
-                    }
-                } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
-                    this.module.addGlobal(
-                        globalVar.varName,
-                        varTypeRef,
-                        mutable,
-                        varInitExprRef,
-                    );
-                } else {
-                    this.module.addGlobal(
-                        globalVar.varName,
-                        varTypeRef,
-                        true,
-                        binaryenCAPI._BinaryenRefNull(
-                            this.module.ptr,
-                            varTypeRef,
-                        ),
-                    );
-                    if (globalVar.varType.kind === TypeKind.ANY) {
-                        const dynInitExprRef =
-                            this.wasmDynExprCompiler.WASMDynExprGen(
-                                globalVar.initExpression,
-                            );
-                        this.curFunctionCtx!.insert(
-                            this.module.global.set(
-                                globalVar.varName,
-                                dynInitExprRef,
-                            ),
-                        );
-                    } else {
-                        this.curFunctionCtx!.insert(
-                            this.module.global.set(
-                                globalVar.varName,
-                                varInitExprRef,
-                            ),
-                        );
-                    }
-                }
-            }
-        }
-
         // parse global scope statements, generate start function body
-        freeDynContext(globalScope);
         for (const stmt of globalScope.statements) {
             const stmtRef = this.wasmStmtCompiler.WASMStmtGen(stmt);
             if (
@@ -385,8 +331,8 @@ export class WASMGen {
         }
         const body = this.module.block(null, this.curFunctionCtx!.getBody());
 
-        // generate wasm start function
-        const startFunctionRef = this.module.addFunction(
+        // generate module start function
+        this.module.addFunction(
             globalScope.startFuncName,
             binaryen.none,
             binaryen.none,
@@ -395,7 +341,6 @@ export class WASMGen {
             ),
             body,
         );
-        this.module.setStart(startFunctionRef);
     }
 
     WASMClassGen(classScope: ClassScope) {
@@ -644,7 +589,9 @@ export class WASMGen {
                     binaryen.none,
                 ),
             );
-            functionStmts.push(initDynContextStmt);
+            if (!this.disableAny) {
+                functionStmts.push(initDynContextStmt);
+            }
 
             // call origin function
             let idx = 0;
@@ -684,7 +631,9 @@ export class WASMGen {
                 ],
                 binaryen.none,
             );
-            functionStmts.push(freeDynContextStmt);
+            if (!this.disableAny) {
+                functionStmts.push(freeDynContextStmt);
+            }
 
             // return value
             const functionVars: binaryen.ExpressionRef[] = [];

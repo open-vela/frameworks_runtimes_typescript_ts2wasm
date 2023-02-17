@@ -1,9 +1,18 @@
-import { assert } from 'console';
 import ts from 'typescript';
+import { assert } from 'console';
 import { Compiler } from './compiler.js';
-import { Expression } from './expression.js';
+import {
+    CallExpression,
+    Expression,
+    IdentifierExpression,
+} from './expression.js';
 import { GlobalScope, Scope, ScopeKind } from './scope.js';
-import { parentIsFunctionLike, Stack } from './utils.js';
+import {
+    parentIsFunctionLike,
+    Stack,
+    getImportModulePath,
+    getGlobalScopeByModuleName,
+} from './utils.js';
 import { Variable } from './variable.js';
 
 type StatementKind = ts.SyntaxKind;
@@ -241,6 +250,14 @@ export class VariableStatement extends Statement {
     }
 }
 
+export class ImportDeclaration extends Statement {
+    importModuleStartFuncName = '';
+
+    constructor() {
+        super(ts.SyntaxKind.ImportDeclaration);
+    }
+}
+
 export default class StatementCompiler {
     private loopLabelStack = new Stack<string>();
     private breakLabelsStack = new Stack<string>();
@@ -249,7 +266,7 @@ export default class StatementCompiler {
 
     constructor(private compilerCtx: Compiler) {}
 
-    visit(nodes: Array<ts.SourceFile>) {
+    visit() {
         this.compilerCtx.nodeScopeMap.forEach((scope, node) => {
             this.currentScope = scope;
             if (
@@ -268,6 +285,27 @@ export default class StatementCompiler {
 
     visitNode(node: ts.Node): Statement | null {
         switch (node.kind) {
+            case ts.SyntaxKind.ImportDeclaration: {
+                const importDeclaration = <ts.ImportDeclaration>node;
+                // Get the import module name according to the relative position of enter scope
+                const enterScope = this.compilerCtx.globalScopeStack.peek();
+                const importModuleName = getImportModulePath(
+                    importDeclaration,
+                    enterScope,
+                );
+                const importGlobalScope = getGlobalScopeByModuleName(
+                    importModuleName,
+                    this.compilerCtx.globalScopeStack,
+                );
+                if (!importGlobalScope.isMarkStart) {
+                    const importStmt = new ImportDeclaration();
+                    importStmt.importModuleStartFuncName =
+                        importGlobalScope.startFuncName;
+                    importGlobalScope.isMarkStart = true;
+                    return importStmt;
+                }
+                break;
+            }
             case ts.SyntaxKind.VariableStatement: {
                 const varStatementNode = <ts.VariableStatement>node;
                 const varStatement = new VariableStatement();
