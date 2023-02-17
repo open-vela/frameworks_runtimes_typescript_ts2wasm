@@ -436,17 +436,11 @@ export default class StatementCompiler {
                 const blockLabel = breakLabels.peek();
                 this.loopLabelStack.push(loopLabel);
 
-                let initializer;
+                let initializer = null;
                 if (forStatementNode.initializer) {
-                    const varStatement = new VariableStatement();
-                    const varDeclarationList = <ts.VariableDeclarationList>(
-                        forStatementNode.initializer
-                    );
-                    this.addVariableInVarStmt(varDeclarationList, varStatement);
-                    initializer = varStatement;
-                } else {
-                    initializer = null;
+                    initializer = this.visitNode(forStatementNode.initializer);
                 }
+
                 const cond = forStatementNode.condition
                     ? this.compilerCtx.expressionCompiler.visitNode(
                           forStatementNode.condition,
