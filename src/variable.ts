@@ -25,6 +25,9 @@ export enum ModifierKind {
 export class Variable {
     private isClosure = false;
     private closureIndex = 0;
+    public mangledName = '';
+    public scope: Scope | null = null;
+
     constructor(
         private name: string,
         private type: Type,
@@ -40,6 +43,10 @@ export class Variable {
 
     get varType(): Type {
         return this.type;
+    }
+
+    set varType(type : Type) {
+        this.type = type;
     }
 
     get varModifier(): ModifierKind {
@@ -131,6 +138,19 @@ export class VariableScanner {
         this.nodeScopeMap.forEach((scope, node) => {
             this.currentScope = scope;
             ts.forEachChild(node, this.visitNode.bind(this));
+
+            if (scope instanceof FunctionScope) {
+                if (scope.className) {
+                    /* For class methods, fix the "this" index */
+                    let isStatic = scope.funcModifiers.find((m) => {
+                        return m === ts.SyntaxKind.StaticKeyword;
+                    })
+
+                    if (!isStatic) {
+                        scope.varArray[0].setVarIndex(scope.paramArray.length);
+                    }
+                }
+            }
         });
     }
 
@@ -228,7 +248,7 @@ export class VariableScanner {
                 const typeString = this.typechecker!.typeToString(
                     this.typechecker!.getTypeAtLocation(node),
                 );
-                const paramType = functionScope.getTSType(typeString);
+                const paramType = functionScope.findType(typeString);
                 const paramIndex = functionScope.paramArray.length;
                 const paramObj = new Parameter(
                     paramName,
@@ -259,7 +279,7 @@ export class VariableScanner {
                 const typeName = this.typechecker!.typeToString(
                     this.typechecker!.getTypeAtLocation(node),
                 );
-                const variableType = currentScope.getTSType(typeName);
+                const variableType = currentScope.findType(typeName);
                 const variable = new Variable(
                     variableName,
                     variableType!,

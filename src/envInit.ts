@@ -262,28 +262,28 @@ export function getReturnTypeRef(funcName: string) {
 }
 
 export function initDynContext(gloalScope: GlobalScope) {
-    const contextType: Type = builtinTypes.get(TypeKind.DYNCONTEXTTYPE)!;
-    const ctxInitExpr = new CallExpression(
-        new IdentifierExpression(dyntype.dyntype_context_init),
-    );
-    const context = new Variable(
-        dyntype.dyntype_context,
-        contextType,
-        ModifierKind.default,
-        0,
-        false,
-        ctxInitExpr,
-    );
-    gloalScope.addVariableAtStart(context);
-    const varStatement = new VariableStatement();
-    varStatement.addVariable(context);
-    gloalScope.addStatementAtStart(varStatement);
+    // const contextType: Type = builtinTypes.get(TypeKind.DYNCONTEXTTYPE)!;
+    // const ctxInitExpr = new CallExpression(
+    //     new IdentifierExpression(dyntype.dyntype_context_init),
+    // );
+    // const context = new Variable(
+    //     dyntype.dyntype_context,
+    //     contextType,
+    //     ModifierKind.default,
+    //     0,
+    //     false,
+    //     ctxInitExpr,
+    // );
+    // gloalScope.addVariableAtStart(context);
+    // const varStatement = new VariableStatement();
+    // varStatement.addVariable(context);
+    // gloalScope.addStatementAtStart(varStatement);
 }
 
 export function freeDynContext(gloalScope: GlobalScope) {
-    const ctxFreeExpr = new CallExpression(
-        new IdentifierExpression(dyntype.dyntype_context_destroy),
-        [new IdentifierExpression(dyntype.dyntype_context)],
-    );
-    gloalScope.addStatement(new ExpressionStatement(ctxFreeExpr));
+    // const ctxFreeExpr = new CallExpression(
+    //     new IdentifierExpression(dyntype.dyntype_context_destroy),
+    //     [new IdentifierExpression(dyntype.dyntype_context)],
+    // );
+    // gloalScope.addStatement(new ExpressionStatement(ctxFreeExpr));
 }

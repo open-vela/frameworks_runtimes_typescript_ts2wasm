@@ -418,7 +418,7 @@ export default class TypeCompiler {
         // iff class/infc
         if (this.isTypeReference(type)) {
             const symbolName = type.symbol.name;
-            const tsType = this.currentScope!.getTSType(symbolName);
+            const tsType = this.currentScope!.findType(symbolName);
             if (!tsType) {
                 throw new Error(
                     `class/interface not found, type name <' + ${symbolName} + '>`,
@@ -530,7 +530,7 @@ export default class TypeCompiler {
             const heritageName = heritage[0].types[0].getText();
             const scope = this.currentScope;
             if (scope !== null) {
-                const heritageType = <TSClass>scope.getTSType(heritageName);
+                const heritageType = <TSClass>scope.findType(heritageName);
                 classType.setBase(heritageType);
 
                 for (const field of heritageType.fields) {
