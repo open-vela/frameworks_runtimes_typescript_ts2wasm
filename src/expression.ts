@@ -1,9 +1,9 @@
 import ts from 'typescript';
 import { Compiler } from './compiler.js';
-import { Scope, FunctionScope, GlobalScope, ScopeKind } from './scope.js';
+import { FunctionScope } from './scope.js';
 import { Variable } from './variable.js';
-import { getCurScope, getNodeTypeInfo } from './utils.js';
-import { builtinTypes, Primitive, TSArray, Type, TypeKind } from './type.js';
+import { getCurScope } from './utils.js';
+import { Type, TypeKind } from './type.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
 type OperatorKind = ts.SyntaxKind;
@@ -619,15 +619,7 @@ export default class ExpressionCompiler {
                     }
                     newExpr.setArgs(args);
                 }
-                const typeCheckerInfo = getNodeTypeInfo(
-                    node,
-                    this.typeCompiler.typechecker!,
-                );
-                newExpr.setExprType(
-                    this.typeCompiler.generateNodeType(
-                        typeCheckerInfo.typeNode,
-                    ),
-                );
+                newExpr.setExprType(this.typeCompiler.generateNodeType(node));
                 return newExpr;
             }
             case ts.SyntaxKind.ObjectLiteralExpression: {

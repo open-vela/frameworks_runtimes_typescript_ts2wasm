@@ -4,7 +4,6 @@ import { Expression } from './expression.js';
 import { Type } from './type.js';
 import { Compiler } from './compiler.js';
 import {
-    getNodeTypeInfo,
     Stack,
     CONST_KEYWORD,
     LET_KEYWORD,
@@ -226,20 +225,10 @@ export class VariableScanner {
                         ts.SyntaxKind.ReadonlyKeyword
                         ? ModifierKind.readonly
                         : ModifierKind.default;
-                const paramType =
-                    parameterNode.type === undefined
-                        ? functionScope.getTSType(
-                              getNodeTypeInfo(
-                                  parameterNode.name,
-                                  this.typechecker!,
-                              ).typeName,
-                          )
-                        : functionScope.getTSType(
-                              getNodeTypeInfo(
-                                  parameterNode.type,
-                                  this.typechecker!,
-                              ).typeName,
-                          );
+                const typeString = this.typechecker!.typeToString(
+                    this.typechecker!.getTypeAtLocation(node),
+                );
+                const paramType = functionScope.getTSType(typeString);
                 const paramIndex = functionScope.paramArray.length;
                 const paramObj = new Parameter(
                     paramName,
@@ -267,21 +256,9 @@ export class VariableScanner {
                     variableModifier = ModifierKind.var;
                 }
                 const variableName = variableDeclarationNode.name.getText();
-                let typeName = '';
-                if (variableDeclarationNode.type === undefined) {
-                    typeName = getNodeTypeInfo(
-                        variableDeclarationNode.name,
-                        this.typechecker!,
-                    ).typeName;
-                } else {
-                    typeName = getNodeTypeInfo(
-                        variableDeclarationNode.type,
-                        this.typechecker!,
-                    ).typeName;
-                }
-                if (typeName.startsWith('typeof')) {
-                    typeName = typeName.substring(7);
-                }
+                const typeName = this.typechecker!.typeToString(
+                    this.typechecker!.getTypeAtLocation(node),
+                );
                 const variableType = currentScope.getTSType(typeName);
                 const variable = new Variable(
                     variableName,
