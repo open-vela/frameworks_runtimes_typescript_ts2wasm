@@ -464,7 +464,7 @@ export class WASMStatementGen {
                     globalVar.varModifier === ModifierKind.const ? false : true;
                 if (globalVar.initExpression === null) {
                     module.addGlobal(
-                        globalVar.varName,
+                        globalVar.mangledName,
                         varTypeRef,
                         mutable,
                         this.WASMCompiler.getVariableInitValue(
@@ -484,14 +484,14 @@ export class WASMStatementGen {
                             ts.SyntaxKind.NumericLiteral
                         ) {
                             module.addGlobal(
-                                globalVar.varName,
+                                globalVar.mangledName,
                                 varTypeRef,
                                 mutable,
                                 varInitExprRef,
                             );
                         } else {
                             module.addGlobal(
-                                globalVar.varName,
+                                globalVar.mangledName,
                                 varTypeRef,
                                 true,
                                 globalVar.varType.kind === TypeKind.NUMBER
@@ -500,21 +500,21 @@ export class WASMStatementGen {
                             );
                             this.currentFuncCtx!.insert(
                                 module.global.set(
-                                    globalVar.varName,
+                                    globalVar.mangledName,
                                     varInitExprRef,
                                 ),
                             );
                         }
                     } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
                         module.addGlobal(
-                            globalVar.varName,
+                            globalVar.mangledName,
                             varTypeRef,
                             mutable,
                             varInitExprRef,
                         );
                     } else {
                         module.addGlobal(
-                            globalVar.varName,
+                            globalVar.mangledName,
                             varTypeRef,
                             true,
                             binaryenCAPI._BinaryenRefNull(
@@ -529,14 +529,14 @@ export class WASMStatementGen {
                                 );
                             this.currentFuncCtx!.insert(
                                 module.global.set(
-                                    globalVar.varName,
+                                    globalVar.mangledName,
                                     dynInitExprRef,
                                 ),
                             );
                         } else {
                             this.currentFuncCtx!.insert(
                                 module.global.set(
-                                    globalVar.varName,
+                                    globalVar.mangledName,
                                     varInitExprRef,
                                 ),
                             );

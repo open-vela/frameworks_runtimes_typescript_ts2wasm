@@ -30,7 +30,6 @@ describe('testExpression', function () {
             objectLiteralExpression,
             identifierExpression,
             baseExpr,
-            false,
         );
 
         expect(identifierExpression.identifierName).eq('a');
