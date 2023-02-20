@@ -92,7 +92,7 @@ export class WASMStatementGen {
 
     WASMIfStmt(stmt: IfStatement): binaryen.ExpressionRef {
         let wasmCond: binaryen.ExpressionRef =
-            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.ifCondition);
+            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.ifCondition).binaryenRef;
         if (binaryen.getExpressionType(wasmCond) === binaryen.f64) {
             const module = this.WASMCompiler.module;
             wasmCond = module.i32.eqz(
@@ -180,11 +180,11 @@ export class WASMStatementGen {
             returnExprRef =
                 this.WASMCompiler.wasmDynExprCompiler.WASMDynExprGen(
                     stmt.returnExpression,
-                );
+                ).binaryenRef;
         } else {
             returnExprRef = this.WASMCompiler.wasmExpr.WASMExprGen(
                 stmt.returnExpression,
-            );
+            ).binaryenRef;
         }
         const setReturnValue = module.local.set(
             this.currentFuncCtx.returnIdx,
@@ -203,7 +203,7 @@ export class WASMStatementGen {
         this.currentFuncCtx.enterScope(scope);
 
         const WASMCond: binaryen.ExpressionRef =
-            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.loopCondtion);
+            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.loopCondtion).binaryenRef;
         const WASMStmts: binaryen.ExpressionRef = this.WASMStmtGen(
             stmt.loopBody,
         );
@@ -247,12 +247,12 @@ export class WASMStatementGen {
         if (stmt.forLoopCondtion !== null) {
             WASMCond = this.WASMCompiler.wasmExpr.WASMExprGen(
                 stmt.forLoopCondtion,
-            );
+            ).binaryenRef;
         }
         if (stmt.forLoopIncrementor !== null) {
             WASMIncrementor = this.WASMCompiler.wasmExpr.WASMExprGen(
                 stmt.forLoopIncrementor,
-            );
+            ).binaryenRef;
         }
         if (stmt.forLoopBody !== null) {
             WASMStmts = this.WASMStmtGen(stmt.forLoopBody);
@@ -280,7 +280,7 @@ export class WASMStatementGen {
 
     WASMSwitchStmt(stmt: SwitchStatement): binaryen.ExpressionRef {
         const WASMCond: binaryen.ExpressionRef =
-            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.switchCondition);
+            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.switchCondition).binaryenRef;
         // switch
         //   |
         // CaseBlock
@@ -315,7 +315,7 @@ export class WASMStatementGen {
                         condtion,
                         this.WASMCompiler.wasmExpr.WASMExprGen(
                             caseCause.caseExpr,
-                        ),
+                        ).binaryenRef,
                     ),
                 );
             }
@@ -360,7 +360,7 @@ export class WASMStatementGen {
 
     WASMExpressionStmt(stmt: ExpressionStatement): binaryen.ExpressionRef {
         const innerExpr = stmt.expression;
-        return this.WASMCompiler.wasmExpr.WASMExprGen(innerExpr);
+        return this.WASMCompiler.wasmExpr.WASMExprGen(innerExpr).binaryenRef;
     }
 
     WASMVarStmt(stmt: VariableStatement): binaryen.ExpressionRef {
@@ -378,7 +378,7 @@ export class WASMStatementGen {
                     if (localVar.varType.kind === TypeKind.ANY) {
                         varInitExprRef = wasmDynExpr.WASMDynExprGen(
                             localVar.initExpression,
-                        );
+                        ).binaryenRef;
                         /* let xxx = zzz && yyy, in this case xxx maybe union(any) type*/
                         if (
                             binaryen.getExpressionType(varInitExprRef) ===
@@ -404,7 +404,7 @@ export class WASMStatementGen {
                     } else {
                         varInitExprRef = wasmExpr.WASMExprGen(
                             localVar.initExpression,
-                        );
+                        ).binaryenRef;
                         // '||' token
                         if (
                             localVar.varType.kind === TypeKind.BOOLEAN &&
@@ -474,7 +474,7 @@ export class WASMStatementGen {
                 } else {
                     const varInitExprRef = wasmExpr.WASMExprGen(
                         globalVar.initExpression,
-                    );
+                    ).binaryenRef;
                     if (
                         globalVar.varType.kind === TypeKind.NUMBER ||
                         globalVar.varType.kind === TypeKind.DYNCONTEXTTYPE
@@ -526,7 +526,7 @@ export class WASMStatementGen {
                             const dynInitExprRef =
                                 this.WASMCompiler.wasmDynExprCompiler.WASMDynExprGen(
                                     globalVar.initExpression,
-                                );
+                                ).binaryenRef;
                             this.currentFuncCtx!.insert(
                                 module.global.set(
                                     globalVar.mangledName,
