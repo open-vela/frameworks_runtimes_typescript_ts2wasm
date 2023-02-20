@@ -50,6 +50,13 @@ import { typeInfo } from './glue/utils.js';
 import { isDynFunc, getReturnTypeRef } from './envInit.js';
 import { WASMGen } from './wasmGen.js';
 
+export interface WasmValue {
+    /* binaryen reference */
+    binaryenRef: binaryen.ExpressionRef,
+    /* original type in source code */
+    tsType: Type,
+}
+
 /* Access information, this is used as return value of IdentifierExpr handler
     or PropertyAccessExpr handler. If these handlers are called with byRef == true,
     or the result is not a direct value (Type, scope), then the Access information
@@ -1015,17 +1022,17 @@ export class WASMExpressionGen extends WASMExpressionBase {
         super(WASMCompiler);
     }
 
-    WASMExprGen(expr: Expression): binaryen.ExpressionRef {
+    WASMExprGen(expr: Expression): WasmValue {
         let res = this.WASMExprGenInternal(expr);
         if (res instanceof AccessBase) {
             throw Error(`Expression is not a value`)
         }
-        return res as binaryen.ExpressionRef;
+        return res as WasmValue;
     }
 
     private WASMExprGenInternal(expr: Expression,
         byRef: boolean = false)
-        : binaryen.ExpressionRef | AccessBase {
+        : WasmValue | AccessBase {
         this.module = this.wasmCompiler.module;
         this.wasmType = this.wasmCompiler.wasmType;
         this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
@@ -1033,62 +1040,92 @@ export class WASMExpressionGen extends WASMExpressionBase {
         this.currentFuncCtx = this.wasmCompiler.curFunctionCtx!;
         this.enterModuleScope = this.wasmCompiler.enterModuleScope!;
 
+        let res : binaryen.ExpressionRef | AccessBase;
+
         switch (expr.expressionKind) {
             case ts.SyntaxKind.NumericLiteral:
-                return this.WASMNumberLiteral(<NumberLiteralExpression>expr);
+                res = this.WASMNumberLiteral(<NumberLiteralExpression>expr);
+                break;
             case ts.SyntaxKind.FalseKeyword:
-                return this.module.i32.const(0);
+                res = this.module.i32.const(0);
+                break;
             case ts.SyntaxKind.TrueKeyword:
-                return this.module.i32.const(1);
+                res = this.module.i32.const(1);
+                break;
             case ts.SyntaxKind.NullKeyword:
-                return this.module.ref.null(emptyStructType.typeRef);
+                res = this.module.ref.null(emptyStructType.typeRef);
+                break;
             case ts.SyntaxKind.StringLiteral:
-                return this.WASMStringLiteral(<StringLiteralExpression>expr);
+                res = this.WASMStringLiteral(<StringLiteralExpression>expr);
+                break;
             case ts.SyntaxKind.Identifier:
-                return this.WASMIdenfierExpr(<IdentifierExpression>expr, byRef);
+                res = this.WASMIdenfierExpr(<IdentifierExpression>expr, byRef);
+                break;
             case ts.SyntaxKind.BinaryExpression:
-                return this.WASMBinaryExpr(<BinaryExpression>expr);
+                res = this.WASMBinaryExpr(<BinaryExpression>expr);
+                break;
             case ts.SyntaxKind.PrefixUnaryExpression:
             case ts.SyntaxKind.PostfixUnaryExpression:
-                return this.WASMUnaryExpr(<UnaryExpression>expr);
+                res = this.WASMUnaryExpr(<UnaryExpression>expr);
+                break;
             case ts.SyntaxKind.ConditionalExpression:
-                return this.WASMConditionalExpr(<ConditionalExpression>expr);
+                res = this.WASMConditionalExpr(<ConditionalExpression>expr);
+                break;
             case ts.SyntaxKind.CallExpression: {
-                return this.WASMCallExpr(<CallExpression>expr);
+                res = this.WASMCallExpr(<CallExpression>expr);
+                break;
             }
             case ts.SyntaxKind.SuperKeyword: {
-                return this.WASMSuperExpr(<SuperCallExpression>expr);
+                res = this.WASMSuperExpr(<SuperCallExpression>expr);
+                break;
             }
             case ts.SyntaxKind.ParenthesizedExpression: {
                 const parentesizedExpr = <ParenthesizedExpression>expr;
                 return this.WASMExprGenInternal(parentesizedExpr.parentesizedExpr);
             }
             case ts.SyntaxKind.ArrayLiteralExpression:
-                return this.WASMArrayLiteralExpr(<ArrayLiteralExpression>expr);
+                res = this.WASMArrayLiteralExpr(<ArrayLiteralExpression>expr);
+                break;
             case ts.SyntaxKind.ObjectLiteralExpression:
-                return this.WASMObjectLiteralExpr(
+                res = this.WASMObjectLiteralExpr(
                     <ObjectLiteralExpression>expr,
                 );
+                break;
             case ts.SyntaxKind.PropertyAccessExpression:
-                return this.WASMPropertyAccessExpr(
+                res = this.WASMPropertyAccessExpr(
                     <PropertyAccessExpression>expr,
                     byRef,
                 );
+                break;
             case ts.SyntaxKind.ElementAccessExpression:
-                return this.WASMElementAccessExpr(
+                res = this.WASMElementAccessExpr(
                     <ElementAccessExpression>expr,
                     byRef,
                 );
+                break;
             case ts.SyntaxKind.NewExpression: {
-                return this.WASMNewExpr(<NewExpression>expr);
+                res = this.WASMNewExpr(<NewExpression>expr);
+                break;
             }
             case ts.SyntaxKind.AsExpression:
-                return this.WASMAsExpr(<AsExpression>expr);
+                res = this.WASMAsExpr(<AsExpression>expr);
+                break;
             case ts.SyntaxKind.FunctionExpression:
             case ts.SyntaxKind.ArrowFunction:
-                return this.WASMFuncExpr(<FunctionExpression>expr);
+                res = this.WASMFuncExpr(<FunctionExpression>expr);
+                break;
             default:
                 throw new Error('unexpected expr kind ' + expr.expressionKind);
+        }
+
+        if (res instanceof AccessBase) {
+            return res;
+        }
+        else {
+            return {
+                binaryenRef: res,
+                tsType: expr.exprType
+            }
         }
     }
 
@@ -1257,7 +1294,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const operatorKind = expr.operatorKind;
         const leftExprType = leftExpr.exprType;
         const rightExprType = rightExpr.exprType;
-        let rightExprRef = this.WASMExprGen(rightExpr);
+        let rightExprRef = this.WASMExprGen(rightExpr).binaryenRef;
         switch (operatorKind) {
             case ts.SyntaxKind.EqualsToken: {
                 /*
@@ -1382,7 +1419,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
             }
             default: {
-                let leftExprRef = this.WASMExprGen(leftExpr);
+                let leftExprRef = this.WASMExprGen(leftExpr).binaryenRef;
 
                 if (
                     leftExpr.expressionKind ===
@@ -1512,12 +1549,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
         let assignValue: binaryen.ExpressionRef;
         if (matchKind === MatchKind.ToAnyMatch) {
-            assignValue = this.dynValueGen.WASMDynExprGen(rightExpr);
+            assignValue = this.dynValueGen.WASMDynExprGen(rightExpr).binaryenRef;
         } else {
             if (rightExprRef) {
                 assignValue = rightExprRef;
             } else {
-                assignValue = this.WASMExprGen(rightExpr);
+                assignValue = this.WASMExprGen(rightExpr).binaryenRef;
             }
         }
 
@@ -1581,7 +1618,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         ),
                         ref,
                         propNameStr,
-                        this.dynValueGen.WASMDynExprGen(rightExpr)!,
+                        this.dynValueGen.WASMDynExprGen(rightExpr)!.binaryenRef,
                     ],
                     dyntype.int,
                 ),
@@ -1711,7 +1748,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 return this.WASMBinaryExpr(binaryExpr);
             }
             case ts.SyntaxKind.ExclamationToken: {
-                let WASMOperandExpr = this.WASMExprGen(operand);
+                let WASMOperandExpr = this.WASMExprGen(operand).binaryenRef;
                 const WASMOperandType =
                     binaryen.getExpressionType(WASMOperandExpr);
                 if (WASMOperandType != binaryen.i32) {
@@ -1728,7 +1765,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         .expressionValue;
                     return this.module.f64.const(-value);
                 } else {
-                    const WASMOperandExpr = this.WASMExprGen(operand);
+                    const WASMOperandExpr = this.WASMExprGen(operand).binaryenRef;
                     return this.module.f64.sub(
                         this.module.f64.const(0),
                         WASMOperandExpr,
@@ -1736,7 +1773,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 }
             }
             case ts.SyntaxKind.PlusToken: {
-                return this.WASMExprGen(operand);
+                return this.WASMExprGen(operand).binaryenRef;
             }
         }
         return this.module.unreachable();
@@ -1745,9 +1782,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private WASMConditionalExpr(
         expr: ConditionalExpression,
     ): binaryen.ExpressionRef {
-        let condWASMExpr = this.WASMExprGen(expr.condtion);
-        const trueWASMExpr = this.WASMExprGen(expr.whenTrue);
-        const falseWASMExpr = this.WASMExprGen(expr.whenFalse);
+        let condWASMExpr = this.WASMExprGen(expr.condtion).binaryenRef;
+        const trueWASMExpr = this.WASMExprGen(expr.whenTrue).binaryenRef;
+        const falseWASMExpr = this.WASMExprGen(expr.whenFalse).binaryenRef;
         // TODO: union type
         assert(
             binaryen.getExpressionType(trueWASMExpr) ===
@@ -1769,7 +1806,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const callExpr = expr.callExpr;
 
         let callWasmArgs = expr.callArgs.map((expr) => {
-            return this.WASMExprGen(expr);
+            return this.WASMExprGen(expr).binaryenRef;
         })
 
         const accessInfo = this.WASMExprGenInternal(callExpr);
@@ -1785,7 +1822,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         i++
                     ) {
                         callWasmArgs.push(
-                            this.WASMExprGen(funcScope.paramArray[i].initExpression!)
+                            this.WASMExprGen(funcScope.paramArray[i].initExpression!).binaryenRef
                         )
                     }
                 }
@@ -1829,7 +1866,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         }
         else {
             /* Call a closure */
-            const closureRef = accessInfo;
+            const closureRef = accessInfo.binaryenRef;
             const closureType = binaryenCAPI._BinaryenExpressionGetType(closureRef);
             const closureHeapType = binaryenCAPI._BinaryenTypeGetHeapType(closureType);
             const context = binaryenCAPI._BinaryenStructGet(
@@ -1870,16 +1907,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const elemExpr = elements[i];
             let elemExprRef: binaryen.ExpressionRef;
             if (arrType.kind === TypeKind.ANY) {
-                elemExprRef = this.dynValueGen.WASMDynExprGen(expr);
+                elemExprRef = this.dynValueGen.WASMDynExprGen(expr).binaryenRef;
             } else if (arrType.kind === TypeKind.ARRAY) {
                 const arrayType = <TSArray>arrType;
                 if (arrayType.elementType.kind === TypeKind.ANY) {
-                    elemExprRef = this.dynValueGen.WASMDynExprGen(elemExpr);
+                    elemExprRef = this.dynValueGen.WASMDynExprGen(elemExpr).binaryenRef;
                 } else {
-                    elemExprRef = this.WASMExprGen(elemExpr);
+                    elemExprRef = this.WASMExprGen(elemExpr).binaryenRef;
                 }
             } else {
-                elemExprRef = this.WASMExprGen(elemExpr);
+                elemExprRef = this.WASMExprGen(elemExpr).binaryenRef;
             }
             array.push(elemExprRef);
         }
@@ -1910,13 +1947,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const propExprType = propExpr.exprType;
             /* TODO: not parse member function yet */
             if (propExprType.kind === TypeKind.FUNCTION) {
-                vtable.push(this.WASMExprGen(propExpr));
+                vtable.push(this.WASMExprGen(propExpr).binaryenRef);
             } else {
                 let propExprRef: binaryen.ExpressionRef;
                 if (propExprType.kind === TypeKind.ANY) {
-                    propExprRef = this.dynValueGen.WASMDynExprGen(propExpr);
+                    propExprRef = this.dynValueGen.WASMDynExprGen(propExpr).binaryenRef;
                 } else {
-                    propExprRef = this.WASMExprGen(propExpr);
+                    propExprRef = this.WASMExprGen(propExpr).binaryenRef;
                 }
                 propRefList.push(propExprRef);
             }
@@ -1961,7 +1998,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const wasmArgs = new Array<binaryen.ExpressionRef>();
         wasmArgs.push(cast);
         for (const arg of expr.callArgs) {
-            wasmArgs.push(this.WASMExprGen(arg));
+            wasmArgs.push(this.WASMExprGen(arg).binaryenRef);
         }
         return module.drop(
             module.call(
@@ -1979,7 +2016,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const arrayHeapType = this.wasmType.getWASMHeapType(type);
             if (expr.lenExpr) {
                 const arraySize = this.convertTypeToI32(
-                    this.WASMExprGen(expr.lenExpr),
+                    this.WASMExprGen(expr.lenExpr).binaryenRef,
                     binaryen.f64,
                 );
                 const arrayInit = this.getArrayInitFromArrayType(<TSArray>type);
@@ -2011,9 +2048,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     const elemExpr = expr.NewArgs[i];
                     let elemExprRef: binaryen.ExpressionRef;
                     if (arrayType.elementType.kind === TypeKind.ANY) {
-                        elemExprRef = this.dynValueGen.WASMDynExprGen(elemExpr);
+                        elemExprRef = this.dynValueGen.WASMDynExprGen(elemExpr).binaryenRef;
                     } else {
-                        elemExprRef = this.WASMExprGen(elemExpr);
+                        elemExprRef = this.WASMExprGen(elemExpr).binaryenRef;
                     }
 
                     array.push(elemExprRef);
@@ -2047,7 +2084,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             args.push(newStruct);
             if (expr.NewArgs) {
                 for (const arg of expr.NewArgs) {
-                    args.push(this.WASMExprGen(arg));
+                    args.push(this.WASMExprGen(arg).binaryenRef);
                 }
             }
 
@@ -2158,7 +2195,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const argExpr = expr.argExpr;
         const accessInfo = this.WASMExprGenInternal(accessExpr, true) as AccessBase;
         const index = this.convertTypeToI32(
-            this.WASMExprGen(argExpr),
+            this.WASMExprGen(argExpr).binaryenRef,
             binaryen.f64,
         );
         const arrayType = <TSArray>accessExpr.exprType;
@@ -2198,7 +2235,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private WASMAsExpr(expr: AsExpression): binaryen.ExpressionRef {
         const module = this.module;
         const originObjExpr = <IdentifierExpression>expr.expression;
-        const originObjExprRef = this.WASMExprGen(originObjExpr);
+        const originObjExprRef = this.WASMExprGen(originObjExpr).binaryenRef;
         const originObjName = originObjExpr.identifierName;
         const targetType = expr.exprType;
         const isExtref = module.call(
@@ -2321,13 +2358,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
             ) {
                 return this.wasmCompiler.module.block(
                     null,
-                    [exprRef, this.WASMExprGen(unaryExpr.operand)],
+                    [exprRef, this.WASMExprGen(unaryExpr.operand).binaryenRef],
                     binaryen.f64,
                 );
             }
         }
         if (unaryExpr.expressionKind === ts.SyntaxKind.PostfixUnaryExpression) {
-            const wasmUnaryOperandExpr = this.WASMExprGen(unaryExpr.operand);
+            const wasmUnaryOperandExpr = this.WASMExprGen(unaryExpr.operand).binaryenRef;
             if (unaryExpr.operatorKind === ts.SyntaxKind.PlusPlusToken) {
                 return this.wasmCompiler.module.block(
                     null,
@@ -2363,75 +2400,94 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
         super(WASMCompiler);
     }
 
-    WASMDynExprGen(expr: Expression): binaryen.ExpressionRef {
+    WASMDynExprGen(expr: Expression): WasmValue {
         this.module = this.wasmCompiler.module;
         this.wasmType = this.wasmCompiler.wasmType;
         this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
         this.dynValueGen = this.wasmCompiler.wasmDynExprCompiler;
         this.currentFuncCtx = this.wasmCompiler.curFunctionCtx!;
 
+        let res : binaryen.ExpressionRef;
+
         switch (expr.expressionKind) {
             case ts.SyntaxKind.NumericLiteral:
-                return this.generateDynNumber(
-                    this.staticValueGen.WASMExprGen(expr),
+                res = this.generateDynNumber(
+                    this.staticValueGen.WASMExprGen(expr).binaryenRef,
                 );
+                break;
             case ts.SyntaxKind.FalseKeyword:
             case ts.SyntaxKind.TrueKeyword:
-                return this.generateDynBoolean(
-                    this.staticValueGen.WASMExprGen(expr),
+                res = this.generateDynBoolean(
+                    this.staticValueGen.WASMExprGen(expr).binaryenRef,
                 );
+                break;
             case ts.SyntaxKind.StringLiteral: {
                 const stringExpr = <StringLiteralExpression>expr;
-                return this.generateDynString(
+                res = this.generateDynString(
                     this.module.i32.const(
                         this.wasmCompiler.generateRawString(
                             stringExpr.expressionValue,
                         ),
                     ),
                 );
+                break;
             }
             case ts.SyntaxKind.NullKeyword:
-                return this.generateDynNull();
+                res = this.generateDynNull();
+                break;
             case ts.SyntaxKind.Identifier: {
                 const identifierExpr = <IdentifierExpression>expr;
                 if (identifierExpr.identifierName === 'undefined') {
-                    return this.generateDynUndefined();
+                    res = this.generateDynUndefined();
                 } else {
                     // generate dynExtref iff identifier's type is not any
                     // judge if identifierExpr's type is primitive
                     const extrfIdenType = identifierExpr.exprType;
                     switch (extrfIdenType.kind) {
                         case TypeKind.NUMBER:
-                            return this.generateDynNumber(
-                                this.staticValueGen.WASMExprGen(expr),
+                            res = this.generateDynNumber(
+                                this.staticValueGen.WASMExprGen(expr).binaryenRef,
                             );
+                            break;
                         case TypeKind.BOOLEAN:
-                            return this.generateDynBoolean(
-                                this.staticValueGen.WASMExprGen(expr),
+                            res = this.generateDynBoolean(
+                                this.staticValueGen.WASMExprGen(expr).binaryenRef,
                             );
+                            break;
                         case TypeKind.NULL:
-                            return this.generateDynNull();
+                            res = this.generateDynNull();
+                            break;
                         case TypeKind.ANY:
-                            return this.staticValueGen.WASMExprGen(
+                            res = this.staticValueGen.WASMExprGen(
                                 identifierExpr,
-                            );
+                            ).binaryenRef;
+                            break;
                         default:
-                            return this.generateDynExtref(
-                                this.staticValueGen.WASMExprGen(identifierExpr),
+                            res = this.generateDynExtref(
+                                this.staticValueGen.WASMExprGen(identifierExpr).binaryenRef,
                             );
+                            break;
                     }
                 }
+                break;
             }
             case ts.SyntaxKind.ArrayLiteralExpression:
-                return this.WASMDynArrayExpr(<ArrayLiteralExpression>expr);
+                res = this.WASMDynArrayExpr(<ArrayLiteralExpression>expr);
+                break;
             case ts.SyntaxKind.ObjectLiteralExpression:
-                return this.WASMDynObjExpr(<ObjectLiteralExpression>expr);
+                res = this.WASMDynObjExpr(<ObjectLiteralExpression>expr);
+                break;
             case ts.SyntaxKind.BinaryExpression:
             case ts.SyntaxKind.CallExpression:
             case ts.SyntaxKind.PropertyAccessExpression:
                 return this.staticValueGen.WASMExprGen(expr);
             default:
                 throw new Error('unexpected expr kind ' + expr.expressionKind);
+        }
+
+        return {
+            binaryenRef: res,
+            tsType: expr.exprType,
         }
     }
 
@@ -2470,7 +2526,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                 ),
             );
             const propValueExpr = values[i];
-            const propValueExprRef = this.WASMDynExprGen(propValueExpr);
+            const propValueExprRef = this.WASMDynExprGen(propValueExpr).binaryenRef;
             const setPropertyExpression = module.drop(
                 module.call(
                     dyntype.dyntype_set_property,
