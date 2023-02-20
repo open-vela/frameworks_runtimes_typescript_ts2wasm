@@ -1558,8 +1558,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 leftExprType.kind === TypeKind.ANY
             ) {
                 return MatchKind.ExactMatch;
-            }
-            else if (leftExprType.kind === TypeKind.ARRAY) {
+            } else if (leftExprType.kind === TypeKind.ARRAY) {
                 const leftArrayType = <TSArray>leftExprType;
                 const rightArrayType = <TSArray>rightExprType;
                 if (leftArrayType.elementType === rightArrayType.elementType) {
@@ -1576,8 +1575,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     leftArrayType.elementType,
                     rightArrayType.elementType,
                 );
-            }
-            else if (leftExprType.kind === TypeKind.CLASS) {
+            } else if (leftExprType.kind === TypeKind.CLASS) {
                 const leftClassType = <TSClass>leftExprType;
                 const rightClassType = <TSClass>rightExprType;
                 const leftClassName = leftClassType.className;
@@ -1594,14 +1592,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     rightClassBaseType = rightClassBaseType.getBase();
                 }
                 return MatchKind.MisMatch;
-            }
-            else if (leftExprType.kind === TypeKind.FUNCTION) {
+            } else if (leftExprType.kind === TypeKind.FUNCTION) {
                 const leftFuncType = <TSFunction>leftExprType;
                 const rightFuncType = <TSFunction>rightExprType;
-                if (this.matchType(
-                    leftFuncType.returnType,
-                    rightFuncType.returnType,
-                ) == MatchKind.MisMatch) {
+                if (
+                    this.matchType(
+                        leftFuncType.returnType,
+                        rightFuncType.returnType,
+                    ) == MatchKind.MisMatch
+                ) {
                     return MatchKind.MisMatch;
                 }
 
@@ -1612,10 +1611,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 }
 
                 for (let i = 0; i < leftParams.length; i++) {
-                    if (this.matchType(
-                        leftParams[i],
-                        rightParams[i],
-                    ) == MatchKind.MisMatch) {
+                    if (
+                        this.matchType(leftParams[i], rightParams[i]) ==
+                        MatchKind.MisMatch
+                    ) {
                         return MatchKind.MisMatch;
                     }
                 }
