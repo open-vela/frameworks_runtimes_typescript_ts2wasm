@@ -1,6 +1,6 @@
 import ts from 'typescript';
 import path from 'path';
-import { GlobalScope, Scope } from './scope.js';
+import { BlockScope, ClassScope, FunctionScope, GlobalScope, NamespaceScope, Scope } from './scope.js';
 import ExpressionCompiler, { Expression } from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
@@ -175,11 +175,47 @@ export function isScopeNode(node: ts.Node) {
 }
 
 export function mangling(
-    leftName: string,
-    rightName: string,
+    scopeArray: Array<Scope>,
     delimiter = BuiltinNames.module_delimiter,
+    prefixStack: Array<string> = []
 ) {
-    return leftName.concat(delimiter).concat(rightName);
+    scopeArray.forEach((scope) => {
+        let currName = '';
+        if (scope instanceof GlobalScope) {
+            currName = scope.moduleName;
+            scope.startFuncName = `${currName}|start`
+            prefixStack.push(currName);
+
+            scope.varArray.forEach((v) => {
+                v.mangledName = `${prefixStack.join(delimiter)}|${v.varName}`
+            })
+        }
+        else if (scope instanceof NamespaceScope) {
+            currName = scope.namespaceName;
+            prefixStack.push(currName);
+
+            scope.varArray.forEach((v) => {
+                v.mangledName = `${prefixStack.join(delimiter)}|${v.varName}`
+            })
+        }
+        else if (scope instanceof FunctionScope) {
+            currName = scope.funcName;
+            prefixStack.push(currName);
+        }
+        else if (scope instanceof ClassScope) {
+            currName = scope.className;
+            prefixStack.push(currName);
+        }
+        else if (scope instanceof BlockScope) {
+            currName = scope.name;
+            prefixStack.push(currName);
+        }
+
+        scope.mangledName = `${prefixStack.join(delimiter)}`
+
+        mangling(scope.children, delimiter, prefixStack);
+        prefixStack.pop();
+    })
 }
 
 export function getImportModulePath(

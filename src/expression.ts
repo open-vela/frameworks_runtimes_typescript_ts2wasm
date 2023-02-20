@@ -223,20 +223,17 @@ export class PropertyAccessExpression extends Expression {
     private expr: Expression;
     private property: Expression;
     private parent: Expression;
-    private _isThis: boolean;
     private callArguments: Expression[] = [];
 
     constructor(
         expr: Expression,
         property: Expression,
         parent: Expression,
-        isThis: boolean,
     ) {
         super(ts.SyntaxKind.PropertyAccessExpression);
         this.expr = expr;
         this.property = property;
         this.parent = parent;
-        this._isThis = isThis;
     }
 
     get propertyAccessExpr(): Expression {
@@ -249,10 +246,6 @@ export class PropertyAccessExpression extends Expression {
 
     get parentExpr(): Expression {
         return this.parent;
-    }
-
-    get isThis(): boolean {
-        return this._isThis;
     }
 
     addCallArg(callArg: Expression) {
@@ -530,22 +523,11 @@ export default class ExpressionCompiler {
                 const propAccessExprNode = <ts.PropertyAccessExpression>node;
                 const parent = new Expression(propAccessExprNode.parent.kind);
                 const property = this.visitNode(propAccessExprNode.name);
-                let isThis = false;
-                let expr: Expression;
-                if (
-                    propAccessExprNode.expression.kind ===
-                    ts.SyntaxKind.ThisKeyword
-                ) {
-                    isThis = true;
-                    expr = new Expression(ts.SyntaxKind.ThisKeyword);
-                } else {
-                    expr = this.visitNode(propAccessExprNode.expression);
-                }
+                let expr = this.visitNode(propAccessExprNode.expression);
                 const propAccessExpr = new PropertyAccessExpression(
                     expr,
                     property,
                     parent,
-                    isThis,
                 );
                 if (parent.expressionKind === ts.SyntaxKind.CallExpression) {
                     const callNode = <ts.CallExpression>(
@@ -685,6 +667,9 @@ export default class ExpressionCompiler {
                 return new FunctionExpression(
                     funcScope!.getNearestFunctionScope()!,
                 );
+            }
+            case ts.SyntaxKind.ThisKeyword: {
+                return new IdentifierExpression('this');
             }
             default:
                 return new Expression(ts.SyntaxKind.Unknown);

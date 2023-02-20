@@ -2,7 +2,7 @@ import ts from 'typescript';
 import path from 'path';
 import { Type, TSFunction, TSClass, builtinTypes } from './type.js';
 import { Compiler } from './compiler.js';
-import { mangling, parentIsFunctionLike, Stack } from './utils.js';
+import { parentIsFunctionLike, Stack } from './utils.js';
 import { ModifierKind, Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
 
@@ -27,6 +27,7 @@ export class Scope {
     namedTypeMap: Map<string, Type> = new Map();
     private variableArray: Variable[] = [];
     private statementArray: Statement[] = [];
+    public mangledName: string = '';
 
     addStatement(statement: Statement) {
         this.statementArray.push(statement);
@@ -49,6 +50,7 @@ export class Scope {
 
     addVariable(variableObj: Variable) {
         this.variableArray.push(variableObj);
+        variableObj.scope = this;
     }
 
     addVariableAtStart(variableObj: Variable) {
@@ -56,6 +58,10 @@ export class Scope {
         this.variableArray.forEach((item, index) => {
             item.setVarIndex(index);
         });
+    }
+
+    addType(name: string, type: Type) {
+        this.namedTypeMap.set(name, type);
     }
 
     get varArray(): Variable[] {
@@ -87,6 +93,7 @@ export class Scope {
         return this._nestFindScopeItem(
             variableName,
             (scope) => {
+                // TODO: process "this" pointer
                 let res = scope.variableArray.find((v) => {
                     return v.varName === variableName;
                 });
@@ -139,7 +146,20 @@ export class Scope {
         );
     }
 
-    getTSType(typeName: string, nested = true): Type | undefined {
+    findNamespaceScope(name: string, nested = true): NamespaceScope | undefined {
+        return this._nestFindScopeItem(
+            name,
+            (scope) => {
+                return scope.children.find((s) => {
+                    return ((s.kind === ScopeKind.NamespaceScope)
+                            && ((<NamespaceScope>s).namespaceName === name))
+                }) as NamespaceScope;
+            },
+            nested
+        )
+    }
+
+    findType(typeName: string, nested = true): Type | undefined {
         const res = builtinTypes.get(typeName);
         if (res) {
             return res;
@@ -152,6 +172,34 @@ export class Scope {
             },
             nested,
         );
+    }
+
+    findIdentifier(name: string, nested = true): Variable | Scope | Type | undefined {
+        return this._nestFindScopeItem(
+            name,
+            (scope) => {
+                let res: Variable | Scope | Type | undefined;
+                /* Step1: Find variable in current scope */
+                res = scope.findVariable(name, false)
+                /* Step2: Find function in current scope */
+                    || scope.findFunctionScope(name, false)
+                /* Step3: Find type in current scope */
+                    || scope.findType(name, false)
+                /* Step4: Find namespace */
+                    || scope.findNamespaceScope(name, false)
+                if (res) {
+                    return res;
+                }
+
+                /* TODO Step5: Find import */
+                if (scope.kind === ScopeKind.GlobalScope) {
+
+                }
+
+                return res;
+            },
+            nested,
+        )
     }
 
     _getScopeByType<T>(type: ScopeKind): T | null {
@@ -197,7 +245,6 @@ export class GlobalScope extends Scope {
 
     set moduleName(moduleName: string) {
         this._moduleName = moduleName;
-        this.functionName = mangling(moduleName, 'start');
     }
 
     get moduleName(): string {
@@ -206,6 +253,10 @@ export class GlobalScope extends Scope {
 
     get startFuncName(): string {
         return this.functionName;
+    }
+
+    set startFuncName(name: string) {
+        this.functionName = name;
     }
 
     get startFuncType(): TSFunction {
@@ -278,6 +329,10 @@ export class FunctionScope extends Scope {
     getIsClosure(): boolean {
         return this.isClosure;
     }
+
+    isMethod(): boolean {
+        return this._classNmae !== ''
+    }
 }
 
 export class BlockScope extends Scope {
@@ -306,6 +361,19 @@ export class ClassScope extends Scope {
 
     setClassType(type: TSClass) {
         this._classType = type;
+
+        /* For class method, fix the "this" variable's type */
+        this.children.forEach((f) => {
+            if (f instanceof FunctionScope) {
+                let isStatic = f.funcModifiers.find((m) => {
+                    return m === ts.SyntaxKind.StaticKeyword;
+                })
+
+                if (!isStatic) {
+                    f.varArray[0].varType = type;
+                }
+            }
+        })
     }
 
     get classType(): TSClass {
@@ -353,19 +421,31 @@ export class ScopeScanner {
     ) {
         const parentScope = this.currentScope!;
         const functionScope = new FunctionScope(parentScope);
-        functionScope.addParameter(
-            new Parameter(
-                '',
-                new Type(),
-                ModifierKind.default,
-                -1,
-                false,
-                false,
-            ),
-        );
-        functionScope.addVariable(
-            new Variable('', new Type(), ModifierKind.default, -1),
-        );
+        const isStatic = node.modifiers?.find((m) => {
+            return m.kind === ts.SyntaxKind.StaticKeyword;
+        }) ? true : false;
+
+        if (node.modifiers !== undefined) {
+            for (const modifier of node.modifiers) {
+                functionScope.addModifier(modifier.kind);
+            }
+        }
+
+        if (!isStatic) {
+            functionScope.addParameter(
+                new Parameter(
+                    '',
+                    new Type(),
+                    ModifierKind.default,
+                    0,
+                    false,
+                    false,
+                ),
+            );
+            functionScope.addVariable(
+                new Variable('this', new Type(), ModifierKind.default, -1),
+            );
+        }
         functionScope.setClassName((<ClassScope>parentScope).className);
         let methodName = '';
         switch (methodType) {
@@ -473,11 +553,11 @@ export class ScopeScanner {
                     functionName = 'anonymous' + ScopeScanner.anonymousIndex++;
                 }
 
-                const outerFuncScope =
-                    functionScope.parent?.getNearestFunctionScope();
-                if (outerFuncScope) {
-                    functionName = `${outerFuncScope.funcName}|${functionName}`;
-                }
+                // const outerFuncScope =
+                //     functionScope.parent?.getNearestFunctionScope();
+                // if (outerFuncScope) {
+                //     functionName = `${outerFuncScope.funcName}|${functionName}`;
+                // }
                 functionScope.setFuncName(functionName);
                 funcDefs.set(functionName, functionScope);
                 this.setCurrentScope(functionScope);

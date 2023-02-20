@@ -11,6 +11,7 @@ import { Variable, Parameter, ModifierKind } from '../../src/variable.js';
 import { Primitive, TSFunction, Type } from '../../src/type.js';
 import { Statement } from '../../src/statement.js';
 import { Expression } from '../../src/expression.js';
+import { mangling } from '../../src/utils.js';
 
 describe('testScope', function () {
     it('nestedScope', function () {
@@ -176,6 +177,7 @@ describe('testScope', function () {
     it('getFunctionFromGlobalScope', function () {
         const globalScope = new GlobalScope();
         globalScope.moduleName = 'moduleA';
+        mangling([globalScope]);
         expect(globalScope.startFuncName).eq('moduleA|start');
     });
 
@@ -234,7 +236,7 @@ describe('testScope', function () {
         const funcType = new TSFunction();
         funcScope.namedTypeMap.set('test', funcType);
 
-        expect(funcScope.getTSType('test')).eq(funcType);
+        expect(funcScope.findType('test')).eq(funcType);
     });
 
     it('InsertVarAtStart', function () {

@@ -1,7 +1,7 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
 import TypeCompiler from './type.js';
-import { Stack } from './utils.js';
+import { mangling, Stack } from './utils.js';
 import { fileURLToPath } from 'url';
 import {
     BlockScope,
@@ -100,7 +100,13 @@ export class Compiler {
         /* Step3: Add variables to scopes */
         this.variableScanner.visit();
         this.variableInit.visit();
-        /* Step4: Add statements to scopes */
+        /* Step4: Mangling function and global variable name */
+        let globalScopeArray = [];
+        for (let i = 0; i < this.globalScopeStack.size(); i++) {
+            globalScopeArray.push(this.globalScopeStack.getItemAtIdx(i));
+        }
+        mangling(globalScopeArray);
+        /* Step5: Add statements to scopes */
         this.stmtCompiler.visit();
 
         if (process.env['TS2WASM_DUMP_SCOPE']) {

@@ -220,6 +220,36 @@ export class WASMGen {
         this.dataSegmentContext = new DataSegmentContext(this);
     }
 
+    _generateInitDynContext() {
+        const initDynContextStmt = this.module.global.set(
+            dyntype.dyntype_context,
+            this.module.call(
+                dyntype.dyntype_context_init,
+                [],
+                binaryen.none,
+            ),
+        );
+
+        return initDynContextStmt;
+    }
+
+    _generateFreeDynContext() {
+        const freeDynContextStmt = this.module.call(
+            dyntype.dyntype_context_destroy,
+            [
+                this.module.global.get(
+                    dyntype.dyntype_context,
+                    this.wasmType.getWASMType(
+                        builtinTypes.get(TypeKind.DYNCONTEXTTYPE)!,
+                    ),
+                ),
+            ],
+            binaryen.none,
+        );
+
+        return freeDynContextStmt;
+    }
+
     WASMGenerate() {
         WASMGen.contextOfFunc.clear();
         this.enterModuleScope = this.globalScopeStack.peek();
@@ -233,9 +263,6 @@ export class WASMGen {
         initStringBuiltin(this.module);
         if (!this.disableAny) {
             importLibApi(this.module);
-            // add dyn context in the enter module scope
-            initDynContext(this.enterModuleScope);
-            freeDynContext(this.enterModuleScope);
         }
 
         for (let i = 0; i < this.globalScopeStack.size(); i++) {
@@ -253,17 +280,29 @@ export class WASMGen {
             }
         }
 
+        let startFuncOpcodes = []
+        if (!this.disableAny) {
+            this.module.addGlobal(dyntype.dyntype_context,
+                                  dyntype.dyn_ctx_t,
+                                  true,
+                                  this.module.f64.const(0));
+            startFuncOpcodes.push(this._generateInitDynContext());
+        }
+        startFuncOpcodes.push(this.module.call(
+            this.enterModuleScope.startFuncName,
+            [],
+            binaryen.none,
+        ));
+        if (!this.disableAny) {
+            startFuncOpcodes.push(this._generateFreeDynContext());
+        }
         // set enter module start function as wasm start function
         const wasmStartFuncRef = this.module.addFunction(
             BuiltinNames.start,
             binaryen.none,
             binaryen.none,
             [],
-            this.module.call(
-                this.enterModuleScope.startFuncName,
-                [],
-                binaryen.none,
-            ),
+            this.module.block(null, startFuncOpcodes),
         );
         this.module.setStart(wasmStartFuncRef);
 
@@ -357,7 +396,7 @@ export class WASMGen {
                 this.wasmType.getWASMHeapType(tsClassType),
             );
             this.module.addFunction(
-                classScope.className + '_constructor',
+                classScope.mangledName + '_constructor',
                 binaryen.createType([emptyStructType.typeRef]),
                 wasmClassType,
                 [],
@@ -604,7 +643,7 @@ export class WASMGen {
                     ),
                 );
             const targetCall = this.module.call(
-                functionScope.funcName,
+                functionScope.mangledName,
                 [
                     binaryenCAPI._BinaryenRefNull(
                         this.module.ptr,
@@ -656,11 +695,11 @@ export class WASMGen {
 
             this.module.addFunctionExport(
                 functionScope.funcName + '-wrapper',
-                functionScope.funcName,
+                functionScope.mangledName,
             );
         }
         this.module.addFunction(
-            functionScope.funcName,
+            functionScope.mangledName,
             paramWASMType,
             returnWASMType,
             varWASMTypes,
