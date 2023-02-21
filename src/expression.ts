@@ -225,11 +225,7 @@ export class PropertyAccessExpression extends Expression {
     private parent: Expression;
     private callArguments: Expression[] = [];
 
-    constructor(
-        expr: Expression,
-        property: Expression,
-        parent: Expression,
-    ) {
+    constructor(expr: Expression, property: Expression, parent: Expression) {
         super(ts.SyntaxKind.PropertyAccessExpression);
         this.expr = expr;
         this.property = property;
@@ -523,7 +519,7 @@ export default class ExpressionCompiler {
                 const propAccessExprNode = <ts.PropertyAccessExpression>node;
                 const parent = new Expression(propAccessExprNode.parent.kind);
                 const property = this.visitNode(propAccessExprNode.name);
-                let expr = this.visitNode(propAccessExprNode.expression);
+                const expr = this.visitNode(propAccessExprNode.expression);
                 const propAccessExpr = new PropertyAccessExpression(
                     expr,
                     property,
