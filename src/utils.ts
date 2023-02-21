@@ -1,13 +1,35 @@
 import ts from 'typescript';
 import path from 'path';
-import { BlockScope, ClassScope, FunctionScope, GlobalScope, NamespaceScope, Scope } from './scope.js';
+import {
+    BlockScope,
+    ClassScope,
+    FunctionScope,
+    GlobalScope,
+    NamespaceScope,
+    Scope,
+} from './scope.js';
 import ExpressionCompiler, { Expression } from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
+import { Type } from './type.js';
 
 export interface TypeCheckerInfo {
     typeName: string;
     typeNode: ts.Node;
     elemNode?: ts.Node;
+}
+
+export interface importGlobalInfo {
+    internalName: string;
+    externalModuleName: string;
+    externalBaseName: string;
+    globalType: Type;
+}
+
+export interface importFunctionInfo {
+    internalName: string;
+    externalModuleName: string;
+    externalBaseName: string;
+    funcType: Type;
 }
 
 export enum MatchKind {
@@ -20,10 +42,6 @@ export enum MatchKind {
     FromArrayAnyMatch,
     MisMatch,
 }
-
-export const CONST_KEYWORD = 'const';
-export const LET_KEYWORD = 'let';
-export const VAR_KEYWORD = 'var';
 
 export class Stack<T> {
     private items: T[] = [];
@@ -177,45 +195,41 @@ export function isScopeNode(node: ts.Node) {
 export function mangling(
     scopeArray: Array<Scope>,
     delimiter = BuiltinNames.module_delimiter,
-    prefixStack: Array<string> = []
+    prefixStack: Array<string> = [],
 ) {
     scopeArray.forEach((scope) => {
         let currName = '';
         if (scope instanceof GlobalScope) {
             currName = scope.moduleName;
-            scope.startFuncName = `${currName}|start`
+            scope.startFuncName = `${currName}|start`;
             prefixStack.push(currName);
 
             scope.varArray.forEach((v) => {
-                v.mangledName = `${prefixStack.join(delimiter)}|${v.varName}`
-            })
-        }
-        else if (scope instanceof NamespaceScope) {
+                v.mangledName = `${prefixStack.join(delimiter)}|${v.varName}`;
+            });
+        } else if (scope instanceof NamespaceScope) {
             currName = scope.namespaceName;
             prefixStack.push(currName);
 
             scope.varArray.forEach((v) => {
-                v.mangledName = `${prefixStack.join(delimiter)}|${v.varName}`
-            })
-        }
-        else if (scope instanceof FunctionScope) {
+                v.mangledName = `${prefixStack.join(delimiter)}|${v.varName}`;
+            });
+        } else if (scope instanceof FunctionScope) {
             currName = scope.funcName;
             prefixStack.push(currName);
-        }
-        else if (scope instanceof ClassScope) {
+        } else if (scope instanceof ClassScope) {
             currName = scope.className;
             prefixStack.push(currName);
-        }
-        else if (scope instanceof BlockScope) {
+        } else if (scope instanceof BlockScope) {
             currName = scope.name;
             prefixStack.push(currName);
         }
 
-        scope.mangledName = `${prefixStack.join(delimiter)}`
+        scope.mangledName = `${prefixStack.join(delimiter)}`;
 
         mangling(scope.children, delimiter, prefixStack);
         prefixStack.pop();
-    })
+    });
 }
 
 export function getImportModulePath(
@@ -245,4 +259,50 @@ export function getGlobalScopeByModuleName(
         }
     }
     throw Error('no such moduleName: ' + moduleName);
+}
+
+export function getImportIdentifierName(
+    importDeclaration: ts.ImportDeclaration,
+) {
+    const importIdentifierArray: string[] = [];
+    let nameAliasImportName: string | null = null;
+    // get import identifier
+    const importClause = importDeclaration.importClause;
+    if (!importClause) {
+        // importing modules with side effects
+        // import "otherModule"
+        // TODO
+        throw Error('TODO');
+    }
+    const namedBindings = importClause.namedBindings;
+    if (namedBindings) {
+        if (ts.isNamedImports(namedBindings)) {
+            // import regular exports from other module
+            // import {module_case2_var1, module_case2_func1} from './module-case2';
+            for (const importSpecifier of namedBindings.elements) {
+                const specificIdentifier = <ts.Identifier>importSpecifier.name;
+                const specificName = specificIdentifier.getText()!;
+                importIdentifierArray.push(specificName);
+            }
+        } else if (ts.isNamespaceImport(namedBindings)) {
+            // import entire module into a variable
+            // import * as xx from './yy'
+            const identifier = <ts.Identifier>namedBindings.name;
+            nameAliasImportName = identifier.getText()!;
+        } else {
+            throw Error('unexpected case');
+        }
+    } else {
+        const importElement = <ts.Identifier>importClause.name;
+        if (importElement) {
+            // import default export from other module
+            // import module_case4_var1 from './module-case4';
+            const importElementName = importElement.getText();
+            importIdentifierArray.push(importElementName);
+        } else {
+            throw Error('importClause.name is undefined');
+        }
+    }
+
+    return { importIdentifierArray, nameAliasImportName };
 }
