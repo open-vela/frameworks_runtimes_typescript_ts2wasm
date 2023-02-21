@@ -6,14 +6,24 @@ import {
     Expression,
     IdentifierExpression,
 } from './expression.js';
-import { GlobalScope, Scope, ScopeKind } from './scope.js';
+import {
+    FunctionScope,
+    GlobalScope,
+    NamespaceScope,
+    Scope,
+    ScopeKind,
+} from './scope.js';
 import {
     parentIsFunctionLike,
     Stack,
     getImportModulePath,
     getGlobalScopeByModuleName,
+    importGlobalInfo,
+    importFunctionInfo,
+    getImportIdentifierName,
 } from './utils.js';
 import { Variable } from './variable.js';
+import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
 type StatementKind = ts.SyntaxKind;
 
@@ -252,9 +262,27 @@ export class VariableStatement extends Statement {
 
 export class ImportDeclaration extends Statement {
     importModuleStartFuncName = '';
+    private _importGlobalArray: importGlobalInfo[] = [];
+    private _importFunctionArray: importFunctionInfo[] = [];
 
     constructor() {
         super(ts.SyntaxKind.ImportDeclaration);
+    }
+
+    addImportGlobal(importGlobalInfo: importGlobalInfo) {
+        this._importGlobalArray.push(importGlobalInfo);
+    }
+
+    addImportFunction(importFunctionInfo: importFunctionInfo) {
+        this._importFunctionArray.push(importFunctionInfo);
+    }
+
+    get importGlobalArray(): importGlobalInfo[] {
+        return this._importGlobalArray;
+    }
+
+    get importFunctionArray(): importFunctionInfo[] {
+        return this._importFunctionArray;
     }
 }
 
@@ -293,18 +321,46 @@ export default class StatementCompiler {
                     importDeclaration,
                     enterScope,
                 );
-                const importGlobalScope = getGlobalScopeByModuleName(
+                const importModuleScope = getGlobalScopeByModuleName(
                     importModuleName,
                     this.compilerCtx.globalScopeStack,
                 );
-                if (!importGlobalScope.isMarkStart) {
-                    const importStmt = new ImportDeclaration();
+                const importStmt = new ImportDeclaration();
+                if (!importModuleScope.isMarkStart) {
                     importStmt.importModuleStartFuncName =
-                        importGlobalScope.startFuncName;
-                    importGlobalScope.isMarkStart = true;
+                        importModuleScope.startFuncName;
+                    importModuleScope.isMarkStart = true;
                     return importStmt;
                 }
-                break;
+                const globalScope = this.currentScope!.getRootGloablScope()!;
+                const { importIdentifierArray, nameAliasImportName } =
+                    getImportIdentifierName(importDeclaration);
+                for (const importIdentifier of importIdentifierArray) {
+                    // find identifier, judge if it is declared
+                    const res = globalScope.findIdentifier(importIdentifier);
+                    if (res instanceof Variable) {
+                        if (res.isDeclare) {
+                            importStmt.addImportGlobal({
+                                internalName: res.mangledName,
+                                externalModuleName:
+                                    BuiltinNames.external_module_name,
+                                externalBaseName: res.varName,
+                                globalType: res.varType,
+                            });
+                        }
+                    } else if (res instanceof FunctionScope) {
+                        if (res.isDeclare) {
+                            importStmt.addImportFunction({
+                                internalName: res.mangledName,
+                                externalModuleName:
+                                    BuiltinNames.external_module_name,
+                                externalBaseName: res.funcName,
+                                funcType: res.funcType,
+                            });
+                        }
+                    }
+                }
+                return importStmt;
             }
             case ts.SyntaxKind.VariableStatement: {
                 const varStatementNode = <ts.VariableStatement>node;

@@ -1,7 +1,7 @@
 import binaryen from 'binaryen';
 import { GlobalScope } from './scope.js';
 import { dyntype } from '../lib/dyntype/utils.js';
-import { ModifierKind, Variable } from './variable.js';
+import { Variable } from './variable.js';
 import { builtinTypes, Type, TypeKind } from './type.js';
 import { CallExpression, IdentifierExpression } from './expression.js';
 import { ExpressionStatement, VariableStatement } from './statement.js';

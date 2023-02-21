@@ -20,11 +20,11 @@ import {
 import { FunctionScope, Scope, ScopeKind } from './scope.js';
 import { FlattenLoop, IfStatementInfo, typeInfo } from './glue/utils.js';
 import { WASMGen } from './wasmGen.js';
-import { TSClass, TypeKind } from './type.js';
+import { TSClass, TSFunction, TypeKind } from './type.js';
 import { IdentifierExpression } from './expression.js';
 import { arrayToPtr } from './glue/transform.js';
-import { ModifierKind } from './variable.js';
 import { assert } from 'console';
+import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 export class WASMStatementGen {
     private currentFuncCtx;
 
@@ -92,7 +92,9 @@ export class WASMStatementGen {
 
     WASMIfStmt(stmt: IfStatement): binaryen.ExpressionRef {
         let wasmCond: binaryen.ExpressionRef =
-            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.ifCondition).binaryenRef;
+            this.WASMCompiler.wasmExpr.WASMExprGen(
+                stmt.ifCondition,
+            ).binaryenRef;
         if (binaryen.getExpressionType(wasmCond) === binaryen.f64) {
             const module = this.WASMCompiler.module;
             wasmCond = module.i32.eqz(
@@ -203,7 +205,9 @@ export class WASMStatementGen {
         this.currentFuncCtx.enterScope(scope);
 
         const WASMCond: binaryen.ExpressionRef =
-            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.loopCondtion).binaryenRef;
+            this.WASMCompiler.wasmExpr.WASMExprGen(
+                stmt.loopCondtion,
+            ).binaryenRef;
         const WASMStmts: binaryen.ExpressionRef = this.WASMStmtGen(
             stmt.loopBody,
         );
@@ -280,7 +284,9 @@ export class WASMStatementGen {
 
     WASMSwitchStmt(stmt: SwitchStatement): binaryen.ExpressionRef {
         const WASMCond: binaryen.ExpressionRef =
-            this.WASMCompiler.wasmExpr.WASMExprGen(stmt.switchCondition).binaryenRef;
+            this.WASMCompiler.wasmExpr.WASMExprGen(
+                stmt.switchCondition,
+            ).binaryenRef;
         // switch
         //   |
         // CaseBlock
@@ -370,7 +376,10 @@ export class WASMStatementGen {
         const wasmExpr = this.WASMCompiler.wasmExpr;
         const wasmDynExpr = this.WASMCompiler.wasmDynExprCompiler;
         const currentScope = this.currentFuncCtx.getCurrentScope();
-        if (currentScope.kind !== ScopeKind.GlobalScope) {
+        if (
+            currentScope.kind !== ScopeKind.GlobalScope &&
+            currentScope.kind !== ScopeKind.NamespaceScope
+        ) {
             // common variable assignment
             for (const localVar of varArray) {
                 if (localVar.initExpression !== null) {
@@ -460,8 +469,16 @@ export class WASMStatementGen {
                     globalVar.varType.kind === TypeKind.FUNCTION
                         ? wasmType.getWASMFuncStructType(globalVar.varType)
                         : wasmType.getWASMType(globalVar.varType);
-                const mutable =
-                    globalVar.varModifier === ModifierKind.const ? false : true;
+                if (globalVar.isDeclare) {
+                    module.addGlobalImport(
+                        globalVar.mangledName,
+                        BuiltinNames.external_module_name,
+                        globalVar.mangledName,
+                        varTypeRef,
+                    );
+                    break;
+                }
+                const mutable = !globalVar.isConst;
                 if (globalVar.initExpression === null) {
                     module.addGlobal(
                         globalVar.mangledName,
@@ -549,11 +566,44 @@ export class WASMStatementGen {
     }
 
     WASMImportStmt(stmt: ImportDeclaration): binaryen.ExpressionRef {
-        return this.WASMCompiler.module.call(
-            stmt.importModuleStartFuncName,
-            [],
-            binaryen.none,
-        );
+        const module = this.WASMCompiler.module;
+        const importGlobalArray = stmt.importGlobalArray;
+        for (const importGlobal of importGlobalArray) {
+            module.addGlobalImport(
+                importGlobal.internalName,
+                importGlobal.externalModuleName,
+                importGlobal.externalBaseName,
+                this.WASMCompiler.wasmType.getWASMType(importGlobal.globalType),
+            );
+        }
+        const importFunctionArray = stmt.importFunctionArray;
+        for (const importFunction of importFunctionArray) {
+            module.addFunctionImport(
+                importFunction.internalName,
+                importFunction.externalModuleName,
+                importFunction.externalBaseName,
+                binaryen.createType(
+                    (importFunction.funcType as TSFunction)
+                        .getParamTypes()
+                        .map((paramType) => {
+                            return this.WASMCompiler.wasmType.getWASMType(
+                                paramType,
+                            );
+                        }),
+                ),
+                this.WASMCompiler.wasmType.getWASMType(
+                    (importFunction.funcType as TSFunction).returnType,
+                ),
+            );
+        }
+        if (stmt.importModuleStartFuncName !== '') {
+            return module.call(
+                stmt.importModuleStartFuncName,
+                [],
+                binaryen.none,
+            );
+        }
+        return module.unreachable();
     }
 
     flattenLoopStatement(

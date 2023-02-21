@@ -10,7 +10,7 @@ import {
     Type,
     TypeKind,
 } from './type.js';
-import { ModifierKind, Variable } from './variable.js';
+import { Variable } from './variable.js';
 import {
     BinaryExpression,
     CallExpression,
@@ -52,9 +52,9 @@ import { WASMGen } from './wasmGen.js';
 
 export interface WasmValue {
     /* binaryen reference */
-    binaryenRef: binaryen.ExpressionRef,
+    binaryenRef: binaryen.ExpressionRef;
     /* original type in source code */
-    tsType: Type,
+    tsType: Type;
 }
 
 /* Access information, this is used as return value of IdentifierExpr handler
@@ -78,9 +78,7 @@ enum AccessType {
 }
 
 class AccessBase {
-    constructor(
-        public readonly accessType: AccessType,
-    ) { }
+    constructor(public readonly accessType: AccessType) {}
 }
 
 class TypedAccessBase extends AccessBase {
@@ -88,7 +86,7 @@ class TypedAccessBase extends AccessBase {
         public readonly accessType: AccessType,
         public readonly tsType: Type,
     ) {
-        super(accessType)
+        super(accessType);
     }
 }
 
@@ -124,9 +122,7 @@ class ClosureAccess extends TypedAccessBase {
 }
 
 class FunctionAccess extends AccessBase {
-    constructor(
-        public funcScope: FunctionScope,
-    ) {
+    constructor(public funcScope: FunctionScope) {
         super(AccessType.Function);
     }
 }
@@ -163,10 +159,7 @@ class ArrayAccess extends TypedAccessBase {
 }
 
 class DynObjectAccess extends AccessBase {
-    constructor(
-        public ref: binaryen.ExpressionRef,
-        public fieldName: string,
-    ) {
+    constructor(public ref: binaryen.ExpressionRef, public fieldName: string) {
         super(AccessType.DynObject);
     }
 }
@@ -181,17 +174,13 @@ class DynArrayAccess extends AccessBase {
 }
 
 class TypeAccess extends AccessBase {
-    constructor(
-        public type: Type,
-    ) {
+    constructor(public type: Type) {
         super(AccessType.Type);
     }
 }
 
 class ScopeAccess extends AccessBase {
-    constructor(
-        public scope: Scope,
-    ) {
+    constructor(public scope: Scope) {
         super(AccessType.Scope);
     }
 }
@@ -262,13 +251,7 @@ export class WASMExpressionBase {
         } else {
             variableType = varType;
         }
-        const tmpVar = new Variable(
-            tmpNumberName,
-            variableType,
-            ModifierKind.default,
-            -1,
-            true,
-        );
+        const tmpVar = new Variable(tmpNumberName, variableType, [], -1, true);
         this.addVariableToCurrentScope(tmpVar);
         return tmpVar;
     }
@@ -601,7 +584,7 @@ export class WASMExpressionBase {
         const tmpTotalNumberVar: Variable = new Variable(
             tmpTotalNumberName,
             builtinTypes.get(TypeKind.ANY)!,
-            ModifierKind.default,
+            [],
             0,
         );
 
@@ -671,7 +654,7 @@ export class WASMExpressionBase {
         const tmpTotalNumberVar: Variable = new Variable(
             tmpTotalNumberName,
             builtinTypes.get(TypeKind.ANY)!,
-            ModifierKind.default,
+            [],
             0,
         );
         const setTotalNumberExpression = this.oprateF64F64ToDyn(
@@ -1023,16 +1006,17 @@ export class WASMExpressionGen extends WASMExpressionBase {
     }
 
     WASMExprGen(expr: Expression): WasmValue {
-        let res = this.WASMExprGenInternal(expr);
+        const res = this.WASMExprGenInternal(expr);
         if (res instanceof AccessBase) {
-            throw Error(`Expression is not a value`)
+            throw Error(`Expression is not a value`);
         }
         return res as WasmValue;
     }
 
-    private WASMExprGenInternal(expr: Expression,
-        byRef: boolean = false)
-        : WasmValue | AccessBase {
+    private WASMExprGenInternal(
+        expr: Expression,
+        byRef = false,
+    ): WasmValue | AccessBase {
         this.module = this.wasmCompiler.module;
         this.wasmType = this.wasmCompiler.wasmType;
         this.staticValueGen = this.wasmCompiler.wasmExprCompiler;
@@ -1040,7 +1024,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         this.currentFuncCtx = this.wasmCompiler.curFunctionCtx!;
         this.enterModuleScope = this.wasmCompiler.enterModuleScope!;
 
-        let res : binaryen.ExpressionRef | AccessBase;
+        let res: binaryen.ExpressionRef | AccessBase;
 
         switch (expr.expressionKind) {
             case ts.SyntaxKind.NumericLiteral:
@@ -1081,15 +1065,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
             }
             case ts.SyntaxKind.ParenthesizedExpression: {
                 const parentesizedExpr = <ParenthesizedExpression>expr;
-                return this.WASMExprGenInternal(parentesizedExpr.parentesizedExpr);
+                return this.WASMExprGenInternal(
+                    parentesizedExpr.parentesizedExpr,
+                );
             }
             case ts.SyntaxKind.ArrayLiteralExpression:
                 res = this.WASMArrayLiteralExpr(<ArrayLiteralExpression>expr);
                 break;
             case ts.SyntaxKind.ObjectLiteralExpression:
-                res = this.WASMObjectLiteralExpr(
-                    <ObjectLiteralExpression>expr,
-                );
+                res = this.WASMObjectLiteralExpr(<ObjectLiteralExpression>expr);
                 break;
             case ts.SyntaxKind.PropertyAccessExpression:
                 res = this.WASMPropertyAccessExpr(
@@ -1120,12 +1104,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
         if (res instanceof AccessBase) {
             return res;
-        }
-        else {
+        } else {
             return {
                 binaryenRef: res,
-                tsType: expr.exprType
-            }
+                tsType: expr.exprType,
+            };
         }
     }
 
@@ -1145,26 +1128,25 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return this.generateStringRef(value);
     }
 
-    private _loadFromAccessInfo(accessInfo: AccessBase): binaryen.ExpressionRef | AccessBase {
+    private _loadFromAccessInfo(
+        accessInfo: AccessBase,
+    ): binaryen.ExpressionRef | AccessBase {
         const module = this.module;
         let loadRef: binaryen.ExpressionRef;
 
         /* Load value according to accessInfo returned from
             Identifier or PropertyAccess */
         if (accessInfo instanceof GlobalAccess) {
-            let { varName, wasmType } = accessInfo;
+            const { varName, wasmType } = accessInfo;
             loadRef = module.global.get(varName, wasmType);
-        }
-        else if (accessInfo instanceof LocalAccess) {
-            let { index, wasmType } = accessInfo;
+        } else if (accessInfo instanceof LocalAccess) {
+            const { index, wasmType } = accessInfo;
             loadRef = module.local.get(index, wasmType);
-        }
-        else if (accessInfo instanceof FunctionAccess) {
-            let { funcScope } = accessInfo;
+        } else if (accessInfo instanceof FunctionAccess) {
+            const { funcScope } = accessInfo;
             loadRef = this.WASMFuncExpr(new FunctionExpression(funcScope));
-        }
-        else if (accessInfo instanceof StructAccess) {
-            let { ref, fieldIndex, wasmType } = accessInfo
+        } else if (accessInfo instanceof StructAccess) {
+            const { ref, fieldIndex, wasmType } = accessInfo;
 
             loadRef = binaryenCAPI._BinaryenStructGet(
                 module.ptr,
@@ -1173,9 +1155,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 wasmType,
                 false,
             );
-        }
-        else if (accessInfo instanceof ArrayAccess) {
-            let { ref, index, wasmType } = accessInfo
+        } else if (accessInfo instanceof ArrayAccess) {
+            const { ref, index, wasmType } = accessInfo;
 
             loadRef = binaryenCAPI._BinaryenArrayGet(
                 module.ptr,
@@ -1184,9 +1165,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 wasmType,
                 false,
             );
-        }
-        else if (accessInfo instanceof DynObjectAccess) {
-            let { ref, fieldName } = accessInfo;
+        } else if (accessInfo instanceof DynObjectAccess) {
+            const { ref, fieldName } = accessInfo;
             if (fieldName === '__proto__') {
                 loadRef = module.drop(
                     module.call(
@@ -1201,8 +1181,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         dyntype.dyn_value_t,
                     ),
                 );
-            }
-            else {
+            } else {
                 const propNameStr = module.i32.const(
                     this.wasmCompiler.generateRawString(fieldName),
                 );
@@ -1218,69 +1197,75 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         propNameStr,
                     ],
                     dyntype.dyn_value_t,
-                )
+                );
             }
-        }
-        else if (accessInfo instanceof DynArrayAccess) {
+        } else if (accessInfo instanceof DynArrayAccess) {
             throw Error(`dynamic array not implemented`);
-        }
-        else {
+        } else {
             return accessInfo;
         }
 
         return loadRef;
     }
 
-    private _createAccessInfo(identifer: string, scope: Scope, nested: boolean = true): AccessBase {
+    private _createAccessInfo(
+        identifer: string,
+        scope: Scope,
+        nested = true,
+    ): AccessBase {
         /* Step1: Find item according to identifier */
-        let identifierInfo = scope.findIdentifier(identifer, nested);
+        const identifierInfo = scope.findIdentifier(identifer, nested);
         if (identifierInfo instanceof Variable) {
             const variable = identifierInfo;
             let varType = this.wasmType.getWASMType(variable.varType);
             if (variable.varType instanceof TSFunction) {
-                varType = this.wasmType.getWASMFuncStructType(
-                    variable.varType
-                );
+                varType = this.wasmType.getWASMFuncStructType(variable.varType);
             }
 
             if (!variable.isLocalVar) {
-                return new GlobalAccess(variable.mangledName, varType, variable.varType);
-            }
-            else if (variable.varIsClosure) {
+                return new GlobalAccess(
+                    variable.mangledName,
+                    varType,
+                    variable.varType,
+                );
+            } else if (variable.varIsClosure) {
                 /* TODO: process closure var */
-                throw Error("unimplement");
-            }
-            else {
+                throw Error('unimplement');
+            } else {
                 /* Local variable */
-                return new LocalAccess(variable.varIndex, varType, variable.varType);
+                return new LocalAccess(
+                    variable.varIndex,
+                    varType,
+                    variable.varType,
+                );
             }
-        }
-        else if (identifierInfo instanceof FunctionScope) {
+        } else if (identifierInfo instanceof FunctionScope) {
             return new FunctionAccess(identifierInfo);
-        }
-        else if (identifierInfo instanceof NamespaceScope) {
-            let namespaceScope = identifierInfo;
-            return new ScopeAccess(namespaceScope);
-        }
-        else if (identifierInfo instanceof Type) {
-            let tsType = identifierInfo;
+        } else if (
+            identifierInfo instanceof NamespaceScope ||
+            identifierInfo instanceof GlobalScope
+        ) {
+            return new ScopeAccess(identifierInfo);
+        } else if (identifierInfo instanceof Type) {
+            const tsType = identifierInfo;
             return new TypeAccess(tsType);
-        }
-        else {
-            throw new Error(
-                `Can't find identifier <"${identifer}">`,
-            );
+        } else {
+            throw new Error(`Can't find identifier <"${identifer}">`);
         }
     }
 
     /* If byRef === true, return AccessInfo for left-value, but right-value is still returned by value */
     private WASMIdenfierExpr(
         expr: IdentifierExpression,
-        byRef: boolean = false,
+        byRef = false,
     ): binaryen.ExpressionRef | AccessBase {
         // find the target scope
-        let currentScope = this.currentFuncCtx.getCurrentScope();
-        let accessInfo = this._createAccessInfo(expr.identifierName, currentScope, true);
+        const currentScope = this.currentFuncCtx.getCurrentScope();
+        const accessInfo = this._createAccessInfo(
+            expr.identifierName,
+            currentScope,
+            true,
+        );
         if (!byRef) {
             return this._loadFromAccessInfo(accessInfo);
         }
@@ -1318,15 +1303,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
                 if (
                     rightExpr.expressionKind ===
-                    ts.SyntaxKind.PostfixUnaryExpression ||
+                        ts.SyntaxKind.PostfixUnaryExpression ||
                     rightExpr.expressionKind ===
-                    ts.SyntaxKind.PrefixUnaryExpression
+                        ts.SyntaxKind.PrefixUnaryExpression
                 ) {
                     const unaryExpr = <UnaryExpression>rightExpr;
                     /* iff  ExclamationToken, no need this step*/
                     if (
                         unaryExpr.operatorKind !==
-                        ts.SyntaxKind.PlusPlusToken &&
+                            ts.SyntaxKind.PlusPlusToken &&
                         unaryExpr.operatorKind !== ts.SyntaxKind.MinusMinusToken
                     ) {
                         return assignWASMExpr;
@@ -1423,14 +1408,14 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
                 if (
                     leftExpr.expressionKind ===
-                    ts.SyntaxKind.PostfixUnaryExpression ||
+                        ts.SyntaxKind.PostfixUnaryExpression ||
                     leftExpr.expressionKind ===
-                    ts.SyntaxKind.PrefixUnaryExpression
+                        ts.SyntaxKind.PrefixUnaryExpression
                 ) {
                     const unaryExpr = <UnaryExpression>leftExpr;
                     if (
                         unaryExpr.operatorKind ===
-                        ts.SyntaxKind.PlusPlusToken ||
+                            ts.SyntaxKind.PlusPlusToken ||
                         unaryExpr.operatorKind === ts.SyntaxKind.MinusMinusToken
                     ) {
                         leftExprRef = <binaryen.ExpressionRef>(
@@ -1440,14 +1425,14 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 }
                 if (
                     rightExpr.expressionKind ===
-                    ts.SyntaxKind.PostfixUnaryExpression ||
+                        ts.SyntaxKind.PostfixUnaryExpression ||
                     rightExpr.expressionKind ===
-                    ts.SyntaxKind.PrefixUnaryExpression
+                        ts.SyntaxKind.PrefixUnaryExpression
                 ) {
                     const unaryExpr = <UnaryExpression>rightExpr;
                     if (
                         unaryExpr.operatorKind ===
-                        ts.SyntaxKind.PlusPlusToken ||
+                            ts.SyntaxKind.PlusPlusToken ||
                         unaryExpr.operatorKind === ts.SyntaxKind.MinusMinusToken
                     ) {
                         rightExprRef = <binaryen.ExpressionRef>(
@@ -1528,9 +1513,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
         }
         throw new Error(
             'unexpected left expr type ' +
-            leftExprType.kind +
-            'unexpected right expr type ' +
-            rightExprType.kind,
+                leftExprType.kind +
+                'unexpected right expr type ' +
+                rightExprType.kind,
         );
     }
 
@@ -1549,7 +1534,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
         let assignValue: binaryen.ExpressionRef;
         if (matchKind === MatchKind.ToAnyMatch) {
-            assignValue = this.dynValueGen.WASMDynExprGen(rightExpr).binaryenRef;
+            assignValue =
+                this.dynValueGen.WASMDynExprGen(rightExpr).binaryenRef;
         } else {
             if (rightExprRef) {
                 assignValue = rightExprRef;
@@ -1558,17 +1544,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
             }
         }
 
-        let accessInfo = this.WASMExprGenInternal(leftExpr, true);
+        const accessInfo = this.WASMExprGenInternal(leftExpr, true);
         if (accessInfo instanceof GlobalAccess) {
-            let { varName } = accessInfo;
+            const { varName } = accessInfo;
             return module.global.set(varName, assignValue);
-        }
-        else if (accessInfo instanceof LocalAccess) {
-            let { index } = accessInfo;
+        } else if (accessInfo instanceof LocalAccess) {
+            const { index } = accessInfo;
             return module.local.set(index, assignValue);
-        }
-        else if (accessInfo instanceof StructAccess) {
-            let { ref, fieldIndex } = accessInfo
+        } else if (accessInfo instanceof StructAccess) {
+            const { ref, fieldIndex } = accessInfo;
 
             return binaryenCAPI._BinaryenStructSet(
                 module.ptr,
@@ -1576,9 +1560,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 ref,
                 assignValue,
             );
-        }
-        else if (accessInfo instanceof ArrayAccess) {
-            let { ref, index } = accessInfo
+        } else if (accessInfo instanceof ArrayAccess) {
+            const { ref, index } = accessInfo;
 
             return binaryenCAPI._BinaryenArraySet(
                 module.ptr,
@@ -1586,9 +1569,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 index,
                 assignValue,
             );
-        }
-        else if (accessInfo instanceof DynObjectAccess) {
-            let { ref, fieldName } = accessInfo;
+        } else if (accessInfo instanceof DynObjectAccess) {
+            const { ref, fieldName } = accessInfo;
             if (fieldName === '__proto__') {
                 return module.drop(
                     module.call(
@@ -1624,15 +1606,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 ),
             );
             return setPropertyExpression;
-        }
-        else if (accessInfo instanceof DynArrayAccess) {
-            throw Error(`Dynamic array not implemented`)
-        }
-        else {
+        } else if (accessInfo instanceof DynArrayAccess) {
+            throw Error(`Dynamic array not implemented`);
+        } else {
             /* TODO: print the related source code */
-            throw new Error(
-                `Invalid assign target`,
-            );
+            throw new Error(`Invalid assign target`);
         }
     }
 
@@ -1765,7 +1743,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         .expressionValue;
                     return this.module.f64.const(-value);
                 } else {
-                    const WASMOperandExpr = this.WASMExprGen(operand).binaryenRef;
+                    const WASMOperandExpr =
+                        this.WASMExprGen(operand).binaryenRef;
                     return this.module.f64.sub(
                         this.module.f64.const(0),
                         WASMOperandExpr,
@@ -1788,7 +1767,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         // TODO: union type
         assert(
             binaryen.getExpressionType(trueWASMExpr) ===
-            binaryen.getExpressionType(falseWASMExpr),
+                binaryen.getExpressionType(falseWASMExpr),
             'trueWASMExprType and falseWASMExprType are not equal in conditional expression ',
         );
         const condWASMExprType = binaryen.getExpressionType(condWASMExpr);
@@ -1807,13 +1786,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
         let callWasmArgs = expr.callArgs.map((expr) => {
             return this.WASMExprGen(expr).binaryenRef;
-        })
+        });
 
         const accessInfo = this.WASMExprGenInternal(callExpr);
         if (accessInfo instanceof AccessBase) {
             if (accessInfo instanceof FunctionAccess) {
                 const { funcScope } = accessInfo;
-                let thisObj: binaryen.ExpressionRef | null = null;
+                const thisObj: binaryen.ExpressionRef | null = null;
 
                 if (callWasmArgs.length + 1 < funcScope.paramArray.length) {
                     for (
@@ -1822,8 +1801,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         i++
                     ) {
                         callWasmArgs.push(
-                            this.WASMExprGen(funcScope.paramArray[i].initExpression!).binaryenRef
-                        )
+                            this.WASMExprGen(
+                                funcScope.paramArray[i].initExpression!,
+                            ).binaryenRef,
+                        );
                     }
                 }
 
@@ -1838,10 +1819,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         callWasmArgs,
                         this.wasmType.getWASMFuncReturnType(funcScope.funcType),
                     );
-                }
-                else {
+                } else {
                     /* Direct call */
-                    let context = binaryenCAPI._BinaryenRefNull(
+                    const context = binaryenCAPI._BinaryenRefNull(
                         this.module.ptr,
                         emptyStructType.typeRef,
                     );
@@ -1856,19 +1836,18 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         this.wasmType.getWASMFuncReturnType(funcScope.funcType),
                     );
                 }
-            }
-            else if (accessInfo instanceof MethodAccess) {
+            } else if (accessInfo instanceof MethodAccess) {
                 throw Error(`call class method not supported`);
-            }
-            else {
+            } else {
                 throw Error(`invalid call target`);
             }
-        }
-        else {
+        } else {
             /* Call a closure */
             const closureRef = accessInfo.binaryenRef;
-            const closureType = binaryenCAPI._BinaryenExpressionGetType(closureRef);
-            const closureHeapType = binaryenCAPI._BinaryenTypeGetHeapType(closureType);
+            const closureType =
+                binaryenCAPI._BinaryenExpressionGetType(closureRef);
+            const closureHeapType =
+                binaryenCAPI._BinaryenTypeGetHeapType(closureType);
             const context = binaryenCAPI._BinaryenStructGet(
                 this.module.ptr,
                 0,
@@ -1911,7 +1890,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
             } else if (arrType.kind === TypeKind.ARRAY) {
                 const arrayType = <TSArray>arrType;
                 if (arrayType.elementType.kind === TypeKind.ANY) {
-                    elemExprRef = this.dynValueGen.WASMDynExprGen(elemExpr).binaryenRef;
+                    elemExprRef =
+                        this.dynValueGen.WASMDynExprGen(elemExpr).binaryenRef;
                 } else {
                     elemExprRef = this.WASMExprGen(elemExpr).binaryenRef;
                 }
@@ -1951,7 +1931,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
             } else {
                 let propExprRef: binaryen.ExpressionRef;
                 if (propExprType.kind === TypeKind.ANY) {
-                    propExprRef = this.dynValueGen.WASMDynExprGen(propExpr).binaryenRef;
+                    propExprRef =
+                        this.dynValueGen.WASMDynExprGen(propExpr).binaryenRef;
                 } else {
                     propExprRef = this.WASMExprGen(propExpr).binaryenRef;
                 }
@@ -2048,7 +2029,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     const elemExpr = expr.NewArgs[i];
                     let elemExprRef: binaryen.ExpressionRef;
                     if (arrayType.elementType.kind === TypeKind.ANY) {
-                        elemExprRef = this.dynValueGen.WASMDynExprGen(elemExpr).binaryenRef;
+                        elemExprRef =
+                            this.dynValueGen.WASMDynExprGen(
+                                elemExpr,
+                            ).binaryenRef;
                     } else {
                         elemExprRef = this.WASMExprGen(elemExpr).binaryenRef;
                     }
@@ -2094,7 +2078,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
     }
 
     private WASMPropertyAccessExpr(
-        expr: PropertyAccessExpression, byRef: boolean = false,
+        expr: PropertyAccessExpression,
+        byRef = false,
     ): binaryen.ExpressionRef | AccessBase {
         const module = this.module;
         const objPropAccessExpr = expr.propertyAccessExpr;
@@ -2103,9 +2088,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const propName = propIdenExpr.identifierName;
         let curAccessInfo: AccessBase | null = null;
 
-        let accessInfo = this.WASMExprGenInternal(objPropAccessExpr, true);
+        const accessInfo = this.WASMExprGenInternal(objPropAccessExpr, true);
         if (accessInfo instanceof TypedAccessBase) {
-            let { tsType } = accessInfo;
+            const { tsType } = accessInfo;
             const loadRef = this._loadFromAccessInfo(accessInfo);
             if (loadRef instanceof AccessBase) {
                 throw Error(`invalid property access`);
@@ -2113,18 +2098,18 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
             if (tsType instanceof TSClass) {
                 /* Access class field or method */
-                let propIndex = tsType.getMemberFieldIndex(propName);
+                const propIndex = tsType.getMemberFieldIndex(propName);
                 if (propIndex != -1) {
                     /* member field */
-                    let propType = tsType.getMemberField(propName)!.type;
+                    const propType = tsType.getMemberField(propName)!.type;
                     curAccessInfo = new StructAccess(
                         loadRef,
-                        propIndex + 1,  /* The first slot is reserved for vtable */
+                        propIndex +
+                            1 /* The first slot is reserved for vtable */,
                         this.wasmType.getWASMType(propType),
-                        propType
-                    )
-                }
-                else if (tsType.getMethodIndex(propName) != -1) {
+                        propType,
+                    );
+                } else if (tsType.getMethodIndex(propName) != -1) {
                     /* class method */
                     const method = tsType.getMethod(propName);
                     /* Currently, we don't have a mechanism to get FunctionScope
@@ -2137,47 +2122,43 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     //     loadRef
                     // );
                     throw Error(`call class method not supported`);
+                } else {
+                    throw new Error(
+                        `${propName} property does not exist on ${tsType}`,
+                    );
                 }
-                else {
-                    throw new Error(`${propName} property does not exist on ${tsType}`);
-                }
-            }
-            else if (tsType instanceof Primitive) {
+            } else if (tsType instanceof Primitive) {
                 if (tsType.typeKind === TypeKind.ANY) {
                     /* Any-objects */
-                    curAccessInfo = new DynObjectAccess(
-                        loadRef,
-                        propName
-                    )
-                }
-                else {
+                    curAccessInfo = new DynObjectAccess(loadRef, propName);
+                } else {
                     /* TODO: boxing other primitive types */
                 }
             }
-        }
-        else if (accessInfo instanceof DynObjectAccess) {
+        } else if (accessInfo instanceof DynObjectAccess) {
             const loadRef = this._loadFromAccessInfo(accessInfo);
             if (loadRef instanceof AccessBase) {
                 throw Error(`invalid property access`);
             }
 
             curAccessInfo = new DynObjectAccess(loadRef, propName);
-        }
-        else if (accessInfo instanceof ScopeAccess) {
-            curAccessInfo = this._createAccessInfo(propName, accessInfo.scope, false);
-        }
-        else if (accessInfo instanceof Type) {
-            throw Error("unimplement");
-        }
-        else {
-            /* TODO: print the related source code */
-            throw Error(
-                `Invalid property access receiver`,
+        } else if (accessInfo instanceof ScopeAccess) {
+            curAccessInfo = this._createAccessInfo(
+                propName,
+                accessInfo.scope,
+                false,
             );
+        } else if (accessInfo instanceof Type) {
+            throw Error('unimplement');
+        } else {
+            /* TODO: print the related source code */
+            throw Error(`Invalid property access receiver`);
         }
 
         if (!curAccessInfo) {
-            throw Error(`unexpected error during processing propertyAccessExpression`);
+            throw Error(
+                `unexpected error during processing propertyAccessExpression`,
+            );
         }
 
         if (!byRef) {
@@ -2188,12 +2169,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
     }
 
     private WASMElementAccessExpr(
-        expr: ElementAccessExpression, byRef: boolean = false,
+        expr: ElementAccessExpression,
+        byRef = false,
     ): binaryen.ExpressionRef | AccessBase {
         const module = this.module;
         const accessExpr = expr.accessExpr;
         const argExpr = expr.argExpr;
-        const accessInfo = this.WASMExprGenInternal(accessExpr, true) as AccessBase;
+        const accessInfo = this.WASMExprGenInternal(
+            accessExpr,
+            true,
+        ) as AccessBase;
         const index = this.convertTypeToI32(
             this.WASMExprGen(argExpr).binaryenRef,
             binaryen.f64,
@@ -2216,17 +2201,19 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     elemWasmType,
                     false,
                 );
+            } else {
+                return new ArrayAccess(
+                    arrayRef,
+                    index,
+                    elemWasmType,
+                    elementType,
+                );
             }
-            else {
-                return new ArrayAccess(arrayRef, index, elemWasmType, elementType);
-            }
-        }
-        else {
+        } else {
             /* Any-objects */
             if (!byRef) {
                 throw Error(`Dynamic array not implemented`);
-            }
-            else {
+            } else {
                 return new DynArrayAccess(arrayRef, index);
             }
         }
@@ -2364,7 +2351,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
             }
         }
         if (unaryExpr.expressionKind === ts.SyntaxKind.PostfixUnaryExpression) {
-            const wasmUnaryOperandExpr = this.WASMExprGen(unaryExpr.operand).binaryenRef;
+            const wasmUnaryOperandExpr = this.WASMExprGen(
+                unaryExpr.operand,
+            ).binaryenRef;
             if (unaryExpr.operatorKind === ts.SyntaxKind.PlusPlusToken) {
                 return this.wasmCompiler.module.block(
                     null,
@@ -2407,7 +2396,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
         this.dynValueGen = this.wasmCompiler.wasmDynExprCompiler;
         this.currentFuncCtx = this.wasmCompiler.curFunctionCtx!;
 
-        let res : binaryen.ExpressionRef;
+        let res: binaryen.ExpressionRef;
 
         switch (expr.expressionKind) {
             case ts.SyntaxKind.NumericLiteral:
@@ -2446,25 +2435,29 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                     switch (extrfIdenType.kind) {
                         case TypeKind.NUMBER:
                             res = this.generateDynNumber(
-                                this.staticValueGen.WASMExprGen(expr).binaryenRef,
+                                this.staticValueGen.WASMExprGen(expr)
+                                    .binaryenRef,
                             );
                             break;
                         case TypeKind.BOOLEAN:
                             res = this.generateDynBoolean(
-                                this.staticValueGen.WASMExprGen(expr).binaryenRef,
+                                this.staticValueGen.WASMExprGen(expr)
+                                    .binaryenRef,
                             );
                             break;
                         case TypeKind.NULL:
                             res = this.generateDynNull();
                             break;
                         case TypeKind.ANY:
-                            res = this.staticValueGen.WASMExprGen(
-                                identifierExpr,
-                            ).binaryenRef;
+                            res =
+                                this.staticValueGen.WASMExprGen(
+                                    identifierExpr,
+                                ).binaryenRef;
                             break;
                         default:
                             res = this.generateDynExtref(
-                                this.staticValueGen.WASMExprGen(identifierExpr).binaryenRef,
+                                this.staticValueGen.WASMExprGen(identifierExpr)
+                                    .binaryenRef,
                             );
                             break;
                     }
@@ -2488,7 +2481,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
         return {
             binaryenRef: res,
             tsType: expr.exprType,
-        }
+        };
     }
 
     private WASMDynArrayExpr(
@@ -2526,7 +2519,8 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                 ),
             );
             const propValueExpr = values[i];
-            const propValueExprRef = this.WASMDynExprGen(propValueExpr).binaryenRef;
+            const propValueExprRef =
+                this.WASMDynExprGen(propValueExpr).binaryenRef;
             const setPropertyExpression = module.drop(
                 module.call(
                     dyntype.dyntype_set_property,

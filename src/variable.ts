@@ -5,22 +5,25 @@ import { Type } from './type.js';
 import { Compiler } from './compiler.js';
 import {
     Stack,
-    CONST_KEYWORD,
-    LET_KEYWORD,
-    VAR_KEYWORD,
     generateNodeExpression,
     isScopeNode,
     getGlobalScopeByModuleName,
     getImportModulePath,
+    getImportIdentifierName,
 } from './utils.js';
-import { FunctionScope, GlobalScope, Scope, ScopeKind } from './scope.js';
+import {
+    FunctionScope,
+    GlobalScope,
+    NamespaceScope,
+    Scope,
+    ScopeKind,
+} from './scope.js';
 
 export enum ModifierKind {
     default = '',
     const = 'const',
     let = 'let',
     var = 'var',
-    readonly = 'readonly',
 }
 export class Variable {
     private isClosure = false;
@@ -31,8 +34,8 @@ export class Variable {
     constructor(
         private name: string,
         private type: Type,
-        private modifier: ModifierKind,
-        private index: number,
+        private modifiers: (ModifierKind | ts.SyntaxKind)[] = [],
+        private index = -1,
         private isLocal = true,
         private init: Expression | null = null,
     ) {}
@@ -41,16 +44,32 @@ export class Variable {
         return this.name;
     }
 
+    set varType(type: Type) {
+        this.type = type;
+    }
+
     get varType(): Type {
         return this.type;
     }
 
-    set varType(type : Type) {
-        this.type = type;
+    get varModifiers(): (ModifierKind | ts.SyntaxKind)[] {
+        return this.modifiers;
     }
 
-    get varModifier(): ModifierKind {
-        return this.modifier;
+    get isConst(): boolean {
+        return this.modifiers.includes(ModifierKind.const);
+    }
+
+    get isReadOnly(): boolean {
+        return this.modifiers.includes(ts.SyntaxKind.ReadonlyKeyword);
+    }
+
+    get isDeclare(): boolean {
+        return this.modifiers.includes(ts.SyntaxKind.DeclareKeyword);
+    }
+
+    get isExport(): boolean {
+        return this.modifiers.includes(ts.SyntaxKind.ExportKeyword);
     }
 
     setInitExpr(expr: Expression) {
@@ -101,14 +120,14 @@ export class Parameter extends Variable {
     constructor(
         name: string,
         type: Type,
-        modifier: ModifierKind,
-        index: number,
-        isOptional: boolean,
-        isDestructuring: boolean,
+        modifiers: (ModifierKind | ts.SyntaxKind)[] = [],
+        index = -1,
+        isOptional = false,
+        isDestructuring = false,
         init: Expression | null = null,
         isLocal = true,
     ) {
-        super(name, type, modifier, index, isLocal, init);
+        super(name, type, modifiers, index, isLocal, init);
         this.isOptional = isOptional;
         this.isDestructuring = isDestructuring;
     }
@@ -142,11 +161,7 @@ export class VariableScanner {
             if (scope instanceof FunctionScope) {
                 if (scope.className) {
                     /* For class methods, fix the "this" index */
-                    let isStatic = scope.funcModifiers.find((m) => {
-                        return m === ts.SyntaxKind.StaticKeyword;
-                    })
-
-                    if (!isStatic) {
+                    if (!scope.isStatic) {
                         scope.varArray[0].setVarIndex(scope.paramArray.length);
                     }
                 }
@@ -170,49 +185,19 @@ export class VariableScanner {
                     this.globalScopeStack,
                 );
                 // get import identifier
-                const importClause = importDeclaration.importClause;
-                if (!importClause) {
-                    // importing modules with side effects
-                    // import "otherModule"
-                    // TODO
-                    break;
+                const { importIdentifierArray, nameAliasImportName } =
+                    getImportIdentifierName(importDeclaration);
+                for (const importIdentifier of importIdentifierArray) {
+                    globalScope.addImportIdentifier(
+                        importIdentifier,
+                        importModuleScope,
+                    );
                 }
-                const namedImports = <ts.NamedImports>(
-                    importClause.namedBindings
-                );
-                if (namedImports) {
-                    // import regular exports from other module
-                    // import {module_case2_var1, module_case2_func1} from './module-case2';
-                    for (const importSpecifier of namedImports.elements) {
-                        const specificIdentifier = <ts.Identifier>(
-                            importSpecifier.name
-                        );
-                        const specificName = specificIdentifier.getText()!;
-                        globalScope.addImportIdentifier(
-                            specificName,
-                            importModuleScope,
-                        );
-                        // globalScope.addImportIdentifier(
-                        //     this.compilerCtx.moduleScopeMap.get(
-                        //         importModuleName,
-                        //     )!.startFuncName,
-                        //     importModuleScope,
-                        // );
-                    }
-                } else {
-                    const importElement = <ts.Identifier>importClause.name;
-                    if (importElement) {
-                        // import default export from other module
-                        // import module_case4_var1 from './module-case4';
-                        const importElementName = importElement.getText();
-                        globalScope.addImportIdentifier(
-                            importElementName,
-                            importModuleScope,
-                        );
-                    } else {
-                        // import entire module into a variable
-                        // import * as xx from './yy'
-                    }
+                if (nameAliasImportName) {
+                    globalScope.addImportNameAlias(
+                        nameAliasImportName,
+                        importModuleScope,
+                    );
                 }
                 break;
             }
@@ -239,12 +224,12 @@ export class VariableScanner {
                     isOptional || parameterNode.initializer === undefined
                         ? false
                         : true;
-                const paramModifier =
-                    parameterNode.modifiers !== undefined &&
-                    parameterNode.modifiers[0].kind ===
-                        ts.SyntaxKind.ReadonlyKeyword
-                        ? ModifierKind.readonly
-                        : ModifierKind.default;
+                const paramModifiers = [];
+                if (parameterNode.modifiers !== undefined) {
+                    for (const modifier of parameterNode.modifiers) {
+                        paramModifiers.push(modifier.kind);
+                    }
+                }
                 const typeString = this.typechecker!.typeToString(
                     this.typechecker!.getTypeAtLocation(node),
                 );
@@ -253,7 +238,7 @@ export class VariableScanner {
                 const paramObj = new Parameter(
                     paramName,
                     paramType!,
-                    paramModifier,
+                    paramModifiers,
                     paramIndex,
                     isOptional,
                     isDestructuring,
@@ -268,13 +253,22 @@ export class VariableScanner {
                 let variableModifier = ModifierKind.default;
                 const variableAssignText =
                     variableDeclarationNode.parent.getText();
-                if (variableAssignText.includes(CONST_KEYWORD)) {
+                if (variableAssignText.includes(ModifierKind.const)) {
                     variableModifier = ModifierKind.const;
-                } else if (variableAssignText.includes(LET_KEYWORD)) {
+                } else if (variableAssignText.includes(ModifierKind.let)) {
                     variableModifier = ModifierKind.let;
-                } else if (variableAssignText.includes(VAR_KEYWORD)) {
+                } else if (variableAssignText.includes(ModifierKind.var)) {
                     variableModifier = ModifierKind.var;
                 }
+                const varModifiers = [];
+                varModifiers.push(variableModifier);
+                const stmtNode = variableDeclarationNode.parent.parent;
+                if (ts.isVariableStatement(stmtNode) && stmtNode.modifiers) {
+                    for (const modifier of stmtNode.modifiers) {
+                        varModifiers.push(modifier.kind);
+                    }
+                }
+
                 const variableName = variableDeclarationNode.name.getText();
                 const typeName = this.typechecker!.typeToString(
                     this.typechecker!.getTypeAtLocation(node),
@@ -283,19 +277,17 @@ export class VariableScanner {
                 const variable = new Variable(
                     variableName,
                     variableType!,
-                    variableModifier,
+                    varModifiers,
                     -1,
                     true,
                 );
                 /* iff in a global scope, set index based on global scope variable array */
-                if (currentScope.kind === ScopeKind.GlobalScope) {
+                if (
+                    currentScope.kind === ScopeKind.GlobalScope ||
+                    currentScope.kind === ScopeKind.NamespaceScope
+                ) {
                     variable.setIsLocalVar(false);
                     variable.setVarIndex(currentScope.varArray.length);
-                } else if (currentScope.kind === ScopeKind.NamespaceScope) {
-                    variable.setIsLocalVar(false);
-                    const globalScope = currentScope.getRootGloablScope()!;
-                    variable.setVarIndex(globalScope.varArray.length);
-                    globalScope.addVariable(variable);
                 } else {
                     const functionScope =
                         currentScope.getNearestFunctionScope()!;

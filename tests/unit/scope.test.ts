@@ -36,15 +36,15 @@ describe('testScope', function () {
 
     it('findVariableInScope', function () {
         const globalScope = new GlobalScope();
-        const var1 = new Variable('var1', new Type(), ModifierKind.default, 0);
+        const var1 = new Variable('var1', new Type(), [], 0);
         globalScope.addVariable(var1);
 
         const funcScope = new FunctionScope(globalScope);
-        const var2 = new Variable('var2', new Type(), ModifierKind.default, 0);
+        const var2 = new Variable('var2', new Type(), [], 0);
         funcScope.addVariable(var2);
 
         const blockScope = new BlockScope(funcScope);
-        const var3 = new Variable('var3', new Type(), ModifierKind.default, 0);
+        const var3 = new Variable('var3', new Type(), [], 0);
         blockScope.addVariable(var3);
 
         expect(globalScope.findVariable('var1')).eq(var1);
@@ -63,35 +63,18 @@ describe('testScope', function () {
     it('findVariableAcrossModule', function () {
         const globalScope2 = new GlobalScope();
         globalScope2.moduleName = 'module2';
-        const global2var1 = new Variable(
-            'global2var1',
-            new Type(),
-            ModifierKind.default,
-            0,
-        );
+        const global2var1 = new Variable('global2var1', new Type(), [], 0);
         globalScope2.addVariable(global2var1);
 
         const globalScope = new GlobalScope();
         globalScope.moduleName = 'module1';
         globalScope.addImportIdentifier('global2var1', globalScope2);
-        const var1 = new Variable('var1', new Type(), ModifierKind.default, 0);
+        const var1 = new Variable('var1', new Type(), [], 0);
         globalScope.addVariable(var1);
 
         const funcScope = new FunctionScope(globalScope);
-        const var2 = new Variable(
-            'global2var1',
-            new Type(),
-            ModifierKind.default,
-            0,
-        );
-        const param1 = new Parameter(
-            'parma1',
-            new Type(),
-            ModifierKind.default,
-            0,
-            true,
-            false,
-        );
+        const var2 = new Variable('global2var1', new Type(), [], 0);
+        const param1 = new Parameter('parma1', new Type(), [], 0, true, false);
         funcScope.addVariable(var1);
         funcScope.addVariable(var2);
         funcScope.addParameter(param1);
@@ -110,14 +93,7 @@ describe('testScope', function () {
         const funcScope = new FunctionScope(globalScope);
         const blockScope = new BlockScope(funcScope);
 
-        const param1 = new Parameter(
-            'param1',
-            new Type(),
-            ModifierKind.default,
-            0,
-            false,
-            false,
-        );
+        const param1 = new Parameter('param1', new Type(), [], 0, false, false);
         funcScope.addVariable(param1);
 
         expect(globalScope.findVariable('param1')).eq(undefined);
@@ -183,7 +159,7 @@ describe('testScope', function () {
 
     it('getStartFunctionVariableArray', function () {
         const globalScope = new GlobalScope();
-        const var1 = new Variable('var1', new Type(), ModifierKind.default, 0);
+        const var1 = new Variable('var1', new Type(), [], 0);
         globalScope.addStartFuncVar(var1);
         const startVarList = globalScope.startFuncVarArray;
 
@@ -241,14 +217,14 @@ describe('testScope', function () {
 
     it('InsertVarAtStart', function () {
         const globalScope = new GlobalScope();
-        const var1 = new Variable('var1', new Type(), ModifierKind.default, 0);
+        const var1 = new Variable('var1', new Type(), [], 0);
         globalScope.addVariable(var1);
-        const var2 = new Variable('var2', new Type(), ModifierKind.default, 1);
+        const var2 = new Variable('var2', new Type(), [], 1);
         globalScope.addVariable(var2);
         const context = new Variable(
             'dyntype_context',
             new Primitive('any'),
-            ModifierKind.default,
+            [],
             0,
         );
         globalScope.addVariableAtStart(context);

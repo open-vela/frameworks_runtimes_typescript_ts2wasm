@@ -101,7 +101,7 @@ export class Compiler {
         this.variableScanner.visit();
         this.variableInit.visit();
         /* Step4: Mangling function and global variable name */
-        let globalScopeArray = [];
+        const globalScopeArray = [];
         for (let i = 0; i < this.globalScopeStack.size(); i++) {
             globalScopeArray.push(this.globalScopeStack.getItemAtIdx(i));
         }
@@ -204,7 +204,7 @@ export class Compiler {
                         name: v.varName,
                         type: v.varType,
                         isClosure: v.varIsClosure,
-                        modifier: v.varModifier,
+                        modifiers: v.varModifiers,
                         index: v.varIndex,
                     });
                 });
@@ -219,7 +219,7 @@ export class Compiler {
                     name: v.varName,
                     type: v.varType,
                     isClosure: v.varIsClosure,
-                    modifier: v.varModifier,
+                    modifiers: v.varModifiers,
                     index: v.varIndex,
                 });
             });

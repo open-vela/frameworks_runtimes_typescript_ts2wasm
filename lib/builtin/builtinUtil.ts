@@ -27,6 +27,9 @@ export namespace BuiltinNames {
     // delimiters
     export const module_delimiter = '|';
 
+    // import external name
+    export const external_module_name = 'env';
+
     // other builtin Identifiers
     export const builtinIdentifiers = ['Array', 'Math'];
 }
