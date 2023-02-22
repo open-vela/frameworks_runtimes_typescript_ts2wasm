@@ -9,6 +9,7 @@ import {
     getGlobalScopeByModuleName,
     getImportModulePath,
     getImportIdentifierName,
+    getExportIdentifierName,
 } from './utils.js';
 import {
     FunctionScope,
@@ -69,6 +70,10 @@ export class Variable {
 
     get isExport(): boolean {
         return this.modifiers.includes(ts.SyntaxKind.ExportKeyword);
+    }
+
+    get isDefault(): boolean {
+        return this.modifiers.includes(ts.SyntaxKind.DefaultKeyword);
     }
 
     setInitExpr(expr: Expression) {
@@ -184,20 +189,49 @@ export class VariableScanner {
                     this.globalScopeStack,
                 );
                 // get import identifier
-                const { importIdentifierArray, nameAliasImportName } =
-                    getImportIdentifierName(importDeclaration);
+                const {
+                    importIdentifierArray,
+                    nameScopeImportName,
+                    nameAliasImportMap,
+                    defaultImportName,
+                } = getImportIdentifierName(importDeclaration);
                 for (const importIdentifier of importIdentifierArray) {
                     globalScope.addImportIdentifier(
                         importIdentifier,
                         importModuleScope,
                     );
                 }
-                if (nameAliasImportName) {
-                    globalScope.addImportNameAlias(
-                        nameAliasImportName,
+                globalScope.setImportNameAlias(nameAliasImportMap);
+                if (nameScopeImportName) {
+                    globalScope.addImportNameScope(
+                        nameScopeImportName,
                         importModuleScope,
                     );
                 }
+                if (defaultImportName) {
+                    globalScope.addImportDefaultName(
+                        defaultImportName,
+                        importModuleScope,
+                    );
+                }
+                break;
+            }
+            case ts.SyntaxKind.ExportDeclaration: {
+                const exportDeclaration = <ts.ExportDeclaration>node;
+                const globalScope = this.currentScope!.getRootGloablScope()!;
+                const nameAliasExportMap =
+                    getExportIdentifierName(exportDeclaration);
+                globalScope.setExportNameAlias(nameAliasExportMap);
+                break;
+            }
+            case ts.SyntaxKind.ExportAssignment: {
+                const exportAssign = <ts.ExportAssignment>node;
+                const globalScope = this.currentScope!.getRootGloablScope()!;
+                const defaultIdentifier = <ts.Identifier>(
+                    exportAssign.expression
+                );
+                const defaultName = defaultIdentifier.getText()!;
+                globalScope.defaultNoun = defaultName;
                 break;
             }
             case ts.SyntaxKind.Parameter: {
@@ -280,6 +314,10 @@ export class VariableScanner {
                     -1,
                     true,
                 );
+                if (variable.isDefault) {
+                    currentScope.getRootGloablScope()!.defaultNoun =
+                        variable.varName;
+                }
                 /* iff in a global scope, set index based on global scope variable array */
                 if (
                     currentScope.kind === ScopeKind.GlobalScope ||

@@ -9,13 +9,7 @@ import {
     getMethodPrefix,
 } from './type.js';
 import { Compiler } from './compiler.js';
-import {
-    mangling,
-    parentIsFunctionLike,
-    Stack,
-    importGlobalInfo,
-    importFunctionInfo,
-} from './utils.js';
+import { parentIsFunctionLike, Stack } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
 
@@ -117,14 +111,6 @@ export class Scope {
                     });
                 }
 
-                if (!res && scope instanceof GlobalScope) {
-                    const targetModuleScope =
-                        scope.identifierModuleImportMap.get(variableName);
-                    if (targetModuleScope) {
-                        res = targetModuleScope.findVariable(variableName);
-                    }
-                }
-
                 return res;
             },
             nested,
@@ -135,46 +121,18 @@ export class Scope {
         functionName: string,
         nested = true,
     ): FunctionScope | undefined {
-        let scope: Scope | null = this;
-        let targetFuncScope: Scope | undefined = undefined;
-        let name = functionName;
-        // iff target is nested function
-        while (scope) {
-            const nearFuncScope = scope.getNearestFunctionScope();
-            if (nearFuncScope) {
-                name = `${nearFuncScope.funcName}|${name}`;
-            }
-            targetFuncScope = scope.children.find((c) => {
-                return (
-                    c.kind === ScopeKind.FunctionScope &&
-                    (c as FunctionScope).funcName === name
-                );
-            });
-            if (targetFuncScope || !nested) {
-                break;
-            }
-            scope = scope.parent;
-        }
-        // iff target is top level function
-        const global = this.getRootGloablScope() as GlobalScope;
-        if (!targetFuncScope) {
-            targetFuncScope = global.children.find((c) => {
-                return (
-                    c.kind === ScopeKind.FunctionScope &&
-                    (c as FunctionScope).funcName === functionName
-                );
-            });
-        }
-        // iff target in other module
-        if (!targetFuncScope) {
-            const targetModuleScope =
-                global.identifierModuleImportMap.get(functionName);
-            if (targetModuleScope) {
-                targetFuncScope =
-                    targetModuleScope.findFunctionScope(functionName);
-            }
-        }
-        return targetFuncScope as FunctionScope | undefined;
+        return this._nestFindScopeItem(
+            functionName,
+            (scope) => {
+                return scope.children.find((c) => {
+                    return (
+                        c.kind === ScopeKind.FunctionScope &&
+                        (c as FunctionScope).funcName === functionName
+                    );
+                }) as FunctionScope;
+            },
+            nested,
+        );
     }
 
     findNamespaceScope(
@@ -218,6 +176,7 @@ export class Scope {
             name,
             (scope) => {
                 let res: Variable | Scope | Type | undefined;
+
                 /* Step1: Find variable in current scope */
                 res =
                     scope.findVariable(name, false) ||
@@ -231,9 +190,45 @@ export class Scope {
                     return res;
                 }
 
-                /* TODO Step5: Find import */
+                /* Step5: Find in other module*/
                 if (scope instanceof GlobalScope) {
-                    res = scope.nameAliasModuleImportMap.get(name);
+                    let searchName: string;
+                    // judge if name is default name
+                    if (scope.defaultModuleImportMap.has(name)) {
+                        const defaultModule =
+                            scope.defaultModuleImportMap.get(name)!;
+                        searchName = defaultModule.defaultNoun;
+                        res = defaultModule.findIdentifier(searchName);
+                    } else {
+                        if (
+                            scope.identifierModuleImportMap.has(name) ||
+                            scope.nameAliasImportMap.has(name)
+                        ) {
+                            const originName =
+                                scope.nameAliasImportMap.get(name);
+                            searchName = originName ? originName : name;
+                            const targetModuleScope =
+                                scope.identifierModuleImportMap.get(searchName);
+                            if (targetModuleScope) {
+                                const targetName =
+                                    targetModuleScope.nameAliasExportMap.get(
+                                        searchName,
+                                    );
+                                const oriTargetName = targetName
+                                    ? targetName
+                                    : searchName;
+                                res =
+                                    targetModuleScope.findIdentifier(
+                                        oriTargetName,
+                                    );
+                            }
+                        } else {
+                            // import * as T from xx
+                            searchName = name;
+                            res =
+                                scope.nameScopeModuleImportMap.get(searchName);
+                        }
+                    }
                 }
 
                 return res;
@@ -265,6 +260,10 @@ export class Scope {
         return this.modifiers.includes(ts.SyntaxKind.DeclareKeyword);
     }
 
+    get isDefault(): boolean {
+        return this.modifiers.includes(ts.SyntaxKind.DefaultKeyword);
+    }
+
     get isExport(): boolean {
         return this.modifiers.includes(ts.SyntaxKind.ExportKeyword);
     }
@@ -280,9 +279,18 @@ export class GlobalScope extends Scope {
     private functionName = '';
     private startFunctionVariableArray: Variable[] = [];
     private functionType = new TSFunction();
+    // import {xx} from yy, import zz from yy; store [xx, zz]
     identifierModuleImportMap = new Map<string, GlobalScope>();
-    // import * as T from yy, Alias is T
-    nameAliasModuleImportMap = new Map<string, GlobalScope>();
+    // import * as T from yy, Scope is T
+    nameScopeModuleImportMap = new Map<string, GlobalScope>();
+    // import {xx as zz} from yy, Alias is zz, store <zz, xx>
+    nameAliasImportMap = new Map<string, string>();
+    // export alias, export { c as renamed_c }; store <renamed_c, c>
+    nameAliasExportMap = new Map<string, string>();
+    // default identifier map: import theDefault from "./export-case1"; import theOtherDefault from "./export-case2";
+    defaultModuleImportMap = new Map<string, GlobalScope>();
+    defaultNoun = '';
+
     isMarkStart = false;
 
     constructor(parent: Scope | null = null) {
@@ -321,8 +329,24 @@ export class GlobalScope extends Scope {
         this.identifierModuleImportMap.set(identifier, moduleScope);
     }
 
-    addImportNameAlias(nameAlias: string, moduleScope: GlobalScope) {
-        this.nameAliasModuleImportMap.set(nameAlias, moduleScope);
+    addImportDefaultName(defaultImportName: string, moduleScope: GlobalScope) {
+        this.defaultModuleImportMap.set(defaultImportName, moduleScope);
+    }
+
+    addImportNameScope(nameScope: string, moduleScope: GlobalScope) {
+        this.nameScopeModuleImportMap.set(nameScope, moduleScope);
+    }
+
+    setImportNameAlias(nameAliasImportMap: Map<string, string>) {
+        for (const [key, value] of nameAliasImportMap) {
+            this.nameAliasImportMap.set(key, value);
+        }
+    }
+
+    setExportNameAlias(nameAliasExportMap: Map<string, string>) {
+        for (const [key, value] of nameAliasExportMap) {
+            this.nameAliasExportMap.set(key, value);
+        }
     }
 }
 
@@ -573,17 +597,15 @@ export class ScopeScanner {
                 functionScope.setFuncName(functionName);
                 this.nodeScopeMap.set(functionDeclarationNode, functionScope);
 
+                if (functionScope.isDefault) {
+                    functionScope.getRootGloablScope()!.defaultNoun =
+                        functionName;
+                }
                 if (!functionScope.isDeclare) {
                     this.setCurrentScope(functionScope);
                     this.visitNode(functionDeclarationNode.body!);
                     this.setCurrentScope(parentScope);
                 }
-
-                // const outerFuncScope =
-                //     functionScope.parent?.getNearestFunctionScope();
-                // if (outerFuncScope) {
-                //     functionName = `${outerFuncScope.funcName}|${functionName}`;
-                // }
                 break;
             }
             case ts.SyntaxKind.ClassDeclaration: {
