@@ -67,8 +67,6 @@ describe('testType', function () {
         objLiteralType.addMethod({
             name: 'add',
             type: funcType,
-            isSetter: false,
-            isGetter: false,
         });
 
         expect(objLiteralType.getMemberField('a')).eq(objField);
@@ -93,8 +91,6 @@ describe('testType', function () {
         baseClassType.addMethod({
             name: 'add',
             type: baseFuncType,
-            isGetter: false,
-            isSetter: false,
         });
 
         const classType = new TSClass();
@@ -115,8 +111,6 @@ describe('testType', function () {
         classType.addMethod({
             name: 'add',
             type: funcType,
-            isSetter: false,
-            isGetter: false,
         });
         classType.setBase(baseClassType);
 
@@ -147,8 +141,6 @@ describe('testType', function () {
         objLiteralType.addMethod({
             name: 'add',
             type: funcType,
-            isSetter: false,
-            isGetter: false,
         });
         const arrayType4 = new TSArray(objLiteralType);
 

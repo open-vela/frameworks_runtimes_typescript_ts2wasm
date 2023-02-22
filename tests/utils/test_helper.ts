@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { Compiler } from '../../src/compiler.js';
-import { funcDefs } from '../../src/scope.js';
 
 const doCompile = (filename: string) => {
     const compiler = new Compiler();
@@ -31,7 +30,6 @@ const doCompile = (filename: string) => {
  */
 export function testCompile(filename: string): boolean {
     try {
-        funcDefs.clear();
         const wasmFile = doCompile(filename);
         if (!wasmFile) return false;
         /* TODO: check wasm file */

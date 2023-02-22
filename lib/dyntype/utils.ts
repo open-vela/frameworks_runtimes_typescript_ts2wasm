@@ -28,6 +28,7 @@ export namespace dyntype {
     export const DYNTYPE_TYPEERR = module.i32.const(2);
     export const ExtObj = module.f64.const(0);
     export const ExtFunc = module.f64.const(1);
+    export const ExtInfc = module.f64.const(2);
 
     // export dyntype functions
     export const dyntype_context_init = 'dyntype_context_init';
