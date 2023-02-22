@@ -333,7 +333,7 @@ export default class StatementCompiler {
                     return importStmt;
                 }
                 const globalScope = this.currentScope!.getRootGloablScope()!;
-                const { importIdentifierArray, nameAliasImportName } =
+                const { importIdentifierArray, nameScopeImportName } =
                     getImportIdentifierName(importDeclaration);
                 for (const importIdentifier of importIdentifierArray) {
                     // find identifier, judge if it is declared
