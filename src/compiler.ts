@@ -16,6 +16,11 @@ import ExpressionCompiler from './expression.js';
 import StatementCompiler from './statement.js';
 import { WASMGen } from './wasmGen.js';
 import path from 'path';
+import { ArgNames } from '../lib/builtin/builtinUtil.js';
+
+export interface CompileArgs {
+    [key: string]: any;
+}
 
 export const COMPILER_OPTIONS: ts.CompilerOptions = {
     module: ts.ModuleKind.ESNext,
@@ -48,7 +53,7 @@ export class Compiler {
     typeIdMap = new Map<string, number>();
 
     // configurations
-    disableAny = false;
+    compileArgs: CompileArgs = {};
 
     constructor() {
         this.scopeScanner = new ScopeScanner(this);
@@ -60,14 +65,14 @@ export class Compiler {
         this.wasmGen = new WASMGen(this);
     }
 
-    compile(fileNames: string[], optlevel = 0, disableAny = false): void {
+    compile(fileNames: string[], compileArgs: CompileArgs = {}): void {
         const compilerOptions: ts.CompilerOptions = this.getCompilerOptions();
         const program: ts.Program = ts.createProgram(
             fileNames,
             compilerOptions,
         );
         this.typeChecker = program.getTypeChecker();
-        this.disableAny = disableAny;
+        this.compileArgs = compileArgs;
 
         const allDiagnostics = ts.getPreEmitDiagnostics(program);
         if (allDiagnostics.length > 0) {
@@ -140,8 +145,8 @@ export class Compiler {
         this.binaryenModule.setFeatures(binaryen.Features.All);
         this.binaryenModule.autoDrop();
 
-        if (optlevel) {
-            binaryen.setOptimizeLevel(optlevel);
+        if (this.compileArgs[ArgNames.opt]) {
+            binaryen.setOptimizeLevel(this.compileArgs[ArgNames.opt]);
             this.binaryenModule.optimize();
         }
 

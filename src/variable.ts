@@ -67,7 +67,12 @@ export class Variable {
     }
 
     get isDeclare(): boolean {
-        return this.modifiers.includes(ts.SyntaxKind.DeclareKeyword);
+        let res = false;
+        if (this.modifiers.includes(ts.SyntaxKind.DeclareKeyword)) {
+            res = true;
+            return res;
+        }
+        return this.scope?.isDeclare || false;
     }
 
     get isExport(): boolean {
