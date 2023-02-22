@@ -187,6 +187,17 @@ export class WASMStatementGen {
             returnExprRef = this.WASMCompiler.wasmExpr.WASMExprGen(
                 stmt.returnExpression,
             ).binaryenRef;
+            if (
+                stmt.returnExpression.exprType instanceof TSClass &&
+                nearestFuncScope.funcType.returnType instanceof TSClass
+            ) {
+                returnExprRef =
+                    this.WASMCompiler.wasmExprCompiler.maybeTypeBoxingAndUnboxing(
+                        stmt.returnExpression.exprType,
+                        nearestFuncScope.funcType.returnType,
+                        returnExprRef,
+                    );
+            }
         }
         const setReturnValue = module.local.set(
             this.currentFuncCtx.returnIdx,
@@ -452,6 +463,18 @@ export class WASMStatementGen {
                                 );
                             this.currentFuncCtx.insert(freeVarSetWasmStmt);
                         } else {
+                            if (
+                                localVar.initExpression.exprType instanceof
+                                    TSClass &&
+                                localVar.varType instanceof TSClass
+                            ) {
+                                varInitExprRef =
+                                    this.WASMCompiler.wasmExprCompiler.maybeTypeBoxingAndUnboxing(
+                                        localVar.initExpression.exprType,
+                                        localVar.varType,
+                                        varInitExprRef,
+                                    );
+                            }
                             this.currentFuncCtx.insert(
                                 module.local.set(
                                     localVar.varIndex,

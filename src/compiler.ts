@@ -43,6 +43,10 @@ export class Compiler {
     binaryenModule = new binaryen.Module();
     currentScope: Scope | null = null;
 
+    typeId = 0;
+    /* mapping type_string to type id */
+    typeIdMap = new Map<string, number>();
+
     // configurations
     disableAny = false;
 

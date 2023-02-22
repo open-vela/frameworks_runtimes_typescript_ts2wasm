@@ -24,6 +24,7 @@ typedef void *dyn_value_t;
 typedef enum external_ref_tag {
   ExtObj,
   ExtFunc,
+  ExtInfc
 } external_ref_tag;
 
 typedef enum dyn_type_t {
@@ -37,7 +38,8 @@ typedef enum dyn_type_t {
   DynSymbol,
   DynBigInt,
   DynExtRefObj,
-  DynExtRefFunc
+  DynExtRefFunc,
+  DynExtRefInfc
 } dyn_type_t;
 
 /******************* Initialization and destroy *******************/

@@ -4,9 +4,11 @@ import * as binaryenCAPI from './glue/binaryen.js';
 import {
     builtinTypes,
     Primitive,
+    FunctionKind,
     TSArray,
     TSClass,
     TSFunction,
+    TSInterface,
     Type,
     TypeKind,
 } from './type.js';
@@ -30,15 +32,17 @@ import {
     ParenthesizedExpression,
     FunctionExpression,
 } from './expression.js';
-import { arrayToPtr, emptyStructType } from './glue/transform.js';
+import {
+    arrayToPtr,
+    createCondBlock,
+    emptyStructType,
+} from './glue/transform.js';
 import { assert } from 'console';
 import {
     FunctionScope,
     GlobalScope,
     ClassScope,
     ScopeKind,
-    funcDefs,
-    findTargetFunction,
     Scope,
     NamespaceScope,
 } from './scope.js';
@@ -1543,7 +1547,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 assignValue = this.WASMExprGen(rightExpr).binaryenRef;
             }
         }
-
+        if (matchKind === MatchKind.ClassInfcMatch) {
+            assignValue = this.maybeTypeBoxingAndUnboxing(
+                <TSClass>rightExprType,
+                <TSClass>leftExprType,
+                assignValue,
+            );
+        }
         const accessInfo = this.WASMExprGenInternal(leftExpr, true);
         if (accessInfo instanceof GlobalAccess) {
             const { varName } = accessInfo;
@@ -1620,7 +1630,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 leftExprType.kind === TypeKind.NUMBER ||
                 leftExprType.kind === TypeKind.STRING ||
                 leftExprType.kind === TypeKind.BOOLEAN ||
-                leftExprType.kind === TypeKind.ANY
+                leftExprType.kind === TypeKind.ANY ||
+                leftExprType.kind === TypeKind.INTERFACE
             ) {
                 return MatchKind.ExactMatch;
             } else if (leftExprType.kind === TypeKind.ARRAY) {
@@ -1687,6 +1698,14 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 // TODO: check rest parameters
                 return MatchKind.ExactMatch;
             }
+        }
+        if (
+            (leftExprType.kind === TypeKind.CLASS &&
+                rightExprType.kind === TypeKind.INTERFACE) ||
+            (leftExprType.kind === TypeKind.INTERFACE &&
+                rightExprType.kind === TypeKind.CLASS)
+        ) {
+            return MatchKind.ClassInfcMatch;
         }
         if (leftExprType.kind === TypeKind.ANY) {
             return MatchKind.ToAnyMatch;
@@ -1807,7 +1826,20 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         );
                     }
                 }
-
+                for (let i = 0; i < expr.callArgs.length; i++) {
+                    const argType = expr.callArgs[i].exprType,
+                        paramType = funcScope.paramArray[i + 1].varType;
+                    if (
+                        argType instanceof TSClass &&
+                        paramType instanceof TSClass
+                    ) {
+                        callWasmArgs[i] = this.maybeTypeBoxingAndUnboxing(
+                            argType,
+                            paramType,
+                            callWasmArgs[i],
+                        );
+                    }
+                }
                 if (funcScope.isMethod()) {
                     /* Call class method */
                     if (thisObj) {
@@ -2381,6 +2413,80 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
             }
         }
+    }
+
+    private objAssignToInfc(from: Type, to: Type) {
+        if (from.kind === TypeKind.CLASS && to.kind === TypeKind.INTERFACE) {
+            return true;
+        }
+        return false;
+    }
+
+    private infcAssgnToObj(from: Type, to: Type) {
+        if (from.kind === TypeKind.INTERFACE && to.kind === TypeKind.CLASS) {
+            return true;
+        }
+        return false;
+    }
+
+    private getInfcTypeId(ref: binaryenCAPI.ExpressionRef) {
+        assert(
+            binaryen.getExpressionType(ref) === this.wasmType.getInfcTypeRef(),
+        );
+        const infcTypeId = binaryenCAPI._BinaryenStructGet(
+            this.module.ptr,
+            1,
+            ref,
+            this.wasmType.getInfcTypeRef(),
+            false,
+        );
+        return infcTypeId;
+    }
+
+    private objTypeBoxing(ref: binaryen.ExpressionRef, type: TSClass) {
+        const itablePtr = this.module.i32.const(
+            this.wasmCompiler.generateItable(type),
+        );
+        const wasmTypeId = this.module.i32.const(type.typeId);
+        return binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr([itablePtr, wasmTypeId, ref]).ptr,
+            3,
+            this.wasmType.getInfcHeapTypeRef(),
+        );
+    }
+
+    private infcTypeUnboxing(ref: binaryen.ExpressionRef, type: Type) {
+        assert(type instanceof TSClass);
+        const obj = binaryenCAPI._BinaryenStructGet(
+            this.module.ptr,
+            2,
+            ref,
+            this.wasmType.getInfcTypeRef(),
+            false,
+        );
+        return binaryenCAPI._BinaryenRefCast(
+            this.module.ptr,
+            obj,
+            this.wasmType.getWASMHeapType(type),
+        );
+    }
+
+    maybeTypeBoxingAndUnboxing(
+        fromType: TSClass,
+        toType: TSClass,
+        ref: binaryen.ExpressionRef,
+    ) {
+        if (this.objAssignToInfc(fromType, toType)) {
+            return this.objTypeBoxing(ref, fromType);
+        }
+        if (this.infcAssgnToObj(fromType, toType)) {
+            const infcTypeId = this.getInfcTypeId(ref);
+            const objTypeId = this.module.i32.const(toType.typeId);
+            const obj = this.infcTypeUnboxing(ref, toType);
+            return createCondBlock(this.module, infcTypeId, objTypeId, obj);
+        }
+        return ref;
     }
 }
 

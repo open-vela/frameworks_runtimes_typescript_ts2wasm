@@ -9,7 +9,7 @@ This document helps to configure dyntype library.
 #### step 1
 
 ```shell
-cd ts2wasm/lib/dyntype/
+cd ts2wasm/runtime-library/dyntype/
 ```
 
 then run command below to initiate quickjs library.

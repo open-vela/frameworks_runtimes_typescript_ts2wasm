@@ -3,7 +3,6 @@ import { Compiler } from './compiler.js';
 import { Stack } from './utils.js';
 import {
     ClassScope,
-    funcDefs,
     FunctionScope,
     GlobalScope,
     Scope,
@@ -20,9 +19,10 @@ export const enum TypeKind {
     ARRAY = 'array',
     FUNCTION = 'function',
     CLASS = 'class',
-    UNKNOWN = 'unknown',
     NULL = 'null',
     DYNCONTEXTTYPE = 'dyntype_context',
+    INTERFACE = 'interface',
+    UNKNOWN = 'unknown',
 }
 
 export class Type {
@@ -91,32 +91,48 @@ export interface TsClassField {
     static?: 'static';
 }
 
+export const enum FunctionKind {
+    DEFAULT,
+    CONSTRUCTOR,
+    METHOD,
+    GETTER,
+    SETTER,
+    STATIC,
+}
+
+/* A + '_' +  getMethodPrefix(kind)*/
+export function getMethodPrefix(kind: FunctionKind): string {
+    switch (kind) {
+        case FunctionKind.CONSTRUCTOR:
+            return 'constructor';
+        case FunctionKind.GETTER:
+            return 'get_';
+        case FunctionKind.SETTER:
+            return 'set_';
+        default:
+            return '';
+    }
+}
+
 export interface TsClassFunc {
     name: string;
     type: TSFunction;
-    isSetter: boolean;
-    isGetter: boolean;
 }
 
 export class TSClass extends Type {
     typeKind = TypeKind.CLASS;
+    private _typeId = 0;
     private name = '';
     private memberFields: Array<TsClassField> = [];
     private staticFields: Array<TsClassField> = [];
-    private constructorMethodName = '';
     private constructorMethod: TSFunction | null = null;
     private methods: Array<TsClassFunc> = [];
     /* override or own methods */
     public overrideOrOwnMethods: Set<string> = new Set();
-    private staticMethods: Map<string, TSFunction> = new Map();
     private baseClass: TSClass | null = null;
 
     constructor() {
         super();
-    }
-
-    get classConstructorName(): string {
-        return this.constructorMethodName;
     }
 
     get classConstructorType(): TSFunction | null {
@@ -131,8 +147,7 @@ export class TSClass extends Type {
         return this.methods;
     }
 
-    setClassConstructor(name: string, functionType: TSFunction) {
-        this.constructorMethodName = name;
+    setClassConstructor(functionType: TSFunction) {
         this.constructorMethod = functionType;
     }
 
@@ -180,34 +195,24 @@ export class TSClass extends Type {
     }
 
     /* when calling a getter, it's not a CallExpression */
-    getMethod(name: string, findGetter = false): TsClassFunc | null {
+    getMethod(
+        name: string,
+        kind: FunctionKind = FunctionKind.DEFAULT,
+    ): TsClassFunc | null {
         return (
             this.memberFuncs.find((f) => {
-                return name === f.name && findGetter === f.isGetter;
+                return name === f.name && kind === f.type.funcKind;
             }) || null
         );
     }
 
-    getMethodIndex(name: string, findGetter = false): number {
+    getMethodIndex(
+        name: string,
+        kind: FunctionKind = FunctionKind.DEFAULT,
+    ): number {
         return this.memberFuncs.findIndex((f) => {
-            return name === f.name && findGetter === f.isGetter;
+            return name === f.name && kind === f.type.funcKind;
         });
-    }
-
-    addStaticMethod(name: string, methodType: TSFunction): void {
-        this.staticMethods.set(name, methodType);
-    }
-
-    getStaticMethod(name: string): TSFunction {
-        const method = this.staticMethods.get(name);
-        if (method === undefined) {
-            throw new Error(
-                'static method function not found, function name <' +
-                    name +
-                    '>',
-            );
-        }
-        return method;
     }
 
     setClassName(name: string) {
@@ -216,6 +221,22 @@ export class TSClass extends Type {
 
     get className(): string {
         return this.name;
+    }
+
+    setTypeId(id: number) {
+        this._typeId = id;
+    }
+
+    get typeId() {
+        return this._typeId;
+    }
+}
+
+export class TSInterface extends TSClass {
+    typeKind = TypeKind.INTERFACE;
+
+    constructor() {
+        super();
     }
 }
 
@@ -237,7 +258,7 @@ export class TSFunction extends Type {
     // iff last parameter is rest paremeter
     private hasRestParameter = false;
 
-    constructor() {
+    constructor(public funcKind: FunctionKind = FunctionKind.DEFAULT) {
         super();
     }
 
@@ -271,6 +292,9 @@ export default class TypeCompiler {
     globalScopeStack: Stack<GlobalScope>;
     currentScope: Scope | null = null;
     nodeScopeMap: Map<ts.Node, Scope>;
+    // cache class shape layout string, <class name, type string>
+    methodShapeStr = new Map<string, string>();
+    fieldShapeStr = new Map<string, string>();
 
     constructor(private compilerCtx: Compiler) {
         this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
@@ -299,6 +323,13 @@ export default class TypeCompiler {
             }
             case ts.SyntaxKind.ClassDeclaration: {
                 const type = this.parseClassDecl(node as ts.ClassDeclaration);
+                this.addTypeToTypeMap(type, node);
+                break;
+            }
+            case ts.SyntaxKind.InterfaceDeclaration: {
+                const type = this.parseInfcDecl(
+                    node as ts.InterfaceDeclaration,
+                );
                 this.addTypeToTypeMap(type, node);
                 break;
             }
@@ -416,7 +447,7 @@ export default class TypeCompiler {
             return new TSArray(elemType);
         }
         // iff class/infc
-        if (this.isTypeReference(type)) {
+        if (this.isTypeReference(type) || this.isInterface(type)) {
             const symbolName = type.symbol.name;
             const tsType = this.currentScope!.findType(symbolName);
             if (!tsType) {
@@ -429,27 +460,38 @@ export default class TypeCompiler {
         // iff object literal type
         if (this.isObjectLiteral(type)) {
             const tsClass = new TSClass();
+            const methodTypeStrs: string[] = [];
+            const fieldTypeStrs: string[] = [];
             type.getProperties().map((prop) => {
                 const propertyAssignment =
                     prop.valueDeclaration as ts.PropertyAssignment;
-                const propType = this.typechecker!.getTypeAtLocation(
-                    propertyAssignment.initializer,
-                );
+                const propType =
+                    this.typechecker!.getTypeAtLocation(propertyAssignment);
+                let typeString = this.typeToString(propertyAssignment);
+                // ts.Type's intrinsicName is `true` or `false`, instead of `boolean`
+                if (typeString === 'true' || typeString === 'false') {
+                    typeString = 'boolean';
+                }
+                const fieldName = prop.name;
                 const tsType = this.tsTypeToType(propType);
-                if (tsType.kind === TypeKind.FUNCTION) {
+                if (tsType instanceof TSFunction) {
+                    tsType.funcKind = FunctionKind.METHOD;
                     tsClass.addMethod({
-                        name: prop.name,
-                        type: <TSFunction>tsType,
-                        isSetter: false,
-                        isGetter: false,
-                    });
-                } else {
-                    tsClass.addMemberField({
-                        name: prop.name,
+                        name: fieldName,
                         type: tsType,
                     });
+                    methodTypeStrs.push(`${fieldName}: ${typeString}`);
+                } else {
+                    tsClass.addMemberField({
+                        name: fieldName,
+                        type: tsType,
+                    });
+                    fieldTypeStrs.push(`${fieldName}: ${typeString}`);
                 }
             });
+            const typeString =
+                methodTypeStrs.join(', ') + ', ' + fieldTypeStrs.join(', ');
+            tsClass.setTypeId(this.generateTypeId(typeString));
             return tsClass;
         }
 
@@ -471,6 +513,13 @@ export default class TypeCompiler {
         return (
             this.isObject(type) &&
             !!(type.objectFlags & ts.ObjectFlags.Reference)
+        );
+    }
+
+    private isInterface(type: ts.Type): type is ts.InterfaceType {
+        return (
+            this.isObject(type) &&
+            !!(type.objectFlags & ts.ObjectFlags.Interface)
         );
     }
 
@@ -508,10 +557,9 @@ export default class TypeCompiler {
         /* maybe we can deduce the return type of constructor?
           constructor(): void ==> constructor: TsClass ??
         */
-        const symbol = returnType.symbol;
         if (
-            symbol &&
-            symbol.valueDeclaration?.kind === ts.SyntaxKind.ClassDeclaration
+            signature.declaration &&
+            ts.isConstructorDeclaration(signature.declaration)
         ) {
             tsFunction.returnType = builtinTypes.get('void')!;
         } else {
@@ -524,37 +572,45 @@ export default class TypeCompiler {
     private parseClassDecl(node: ts.ClassDeclaration): TSClass {
         const classType = new TSClass();
         classType.setClassName(node.name!.getText());
+        let methodTypeStrs: string[] = [];
+        let fieldTypeStrs: string[] = [];
+
         const heritage = node.heritageClauses;
+        let baseType: TSClass | null = null;
         if (heritage !== undefined) {
             /* base class node, iff it really has the one */
             const heritageName = heritage[0].types[0].getText();
-            const scope = this.currentScope;
-            if (scope !== null) {
-                const heritageType = <TSClass>scope.findType(heritageName);
-                classType.setBase(heritageType);
-
-                for (const field of heritageType.fields) {
-                    classType.addMemberField(field);
-                }
-                for (const method of heritageType.memberFuncs) {
-                    classType.addMethod(method);
-                }
+            methodTypeStrs = this.methodShapeStr.get(heritageName)!.split(', ');
+            fieldTypeStrs = this.fieldShapeStr.get(heritageName)!.split(', ');
+            const scope = this.currentScope!;
+            const heritageType = <TSClass>scope.findType(heritageName);
+            classType.setBase(heritageType);
+            baseType = heritageType;
+            for (const field of heritageType.fields) {
+                classType.addMemberField(field);
+            }
+            for (const method of heritageType.memberFuncs) {
+                classType.addMethod(method);
             }
         }
         for (const member of node.members) {
+            const name = ts.isConstructorDeclaration(member)
+                ? 'constructor'
+                : member.name!.getText();
+
+            const typeString = this.typeToString(member);
             if (member.kind === ts.SyntaxKind.PropertyDeclaration) {
-                if (classType.getMemberField(member.name!.getText())) {
+                if (classType.getMemberField(name)) {
                     continue;
                 }
                 const field = <ts.PropertyDeclaration>member;
-                const name = member.name!.getText(),
-                    type = this.generateNodeType(field);
-                const modifier = field.modifiers?.some((m) => {
+                const type = this.generateNodeType(field);
+                const modifier = field.modifiers?.find((m) => {
                     return m.kind === ts.SyntaxKind.ReadonlyKeyword;
                 })
                     ? 'readonly'
                     : undefined;
-                const staticModifier = field.modifiers?.some((m) => {
+                const staticModifier = field.modifiers?.find((m) => {
                     return m.kind === ts.SyntaxKind.StaticKeyword;
                 })
                     ? 'static'
@@ -566,123 +622,151 @@ export default class TypeCompiler {
                     visibility: 'public',
                     static: staticModifier,
                 };
+                fieldTypeStrs.push(`${name}: ${typeString}`);
                 classType.addMemberField(classField);
             }
             if (member.kind === ts.SyntaxKind.SetAccessor) {
                 const func = <ts.SetAccessorDeclaration>member;
-                const methodName = member.name!.getText();
-                const base = classType.getBase();
-                let isOverride = false;
-                if (base !== null) {
-                    for (const method of base.memberFuncs) {
-                        if (method.name === methodName && method.isSetter) {
-                            isOverride = true;
-                            break;
-                        }
-                    }
-                }
-                const tsFuncType = new TSFunction();
-                tsFuncType.addParamType(this.generateNodeType(func));
-
-                if (!isOverride) {
-                    classType.addMethod({
-                        name: methodName,
-                        type: tsFuncType,
-                        isSetter: true,
-                        isGetter: false,
-                    });
-                }
-                const targetFuncDef = funcDefs.get(
-                    classType.className + '_set_' + methodName,
-                );
-                if (targetFuncDef !== undefined) {
-                    targetFuncDef.setFuncType(tsFuncType);
-                }
-
-                classType.overrideOrOwnMethods.add('_set_' + methodName);
+                methodTypeStrs.push(`${name}: ${typeString}`);
+                this.setMethod(func, baseType, classType, FunctionKind.SETTER);
             }
             if (member.kind === ts.SyntaxKind.GetAccessor) {
                 const func = <ts.GetAccessorDeclaration>member;
-                const methodName = member.name!.getText();
-                const base = classType.getBase();
-                let isOverride = false;
-                if (base !== null) {
-                    for (const method of base.memberFuncs) {
-                        if (method.name === methodName && method.isGetter) {
-                            isOverride = true;
-                            break;
-                        }
-                    }
-                }
-                const tsFuncType = new TSFunction();
-                tsFuncType.returnType = this.generateNodeType(func);
-
-                if (!isOverride) {
-                    classType.addMethod({
-                        name: methodName,
-                        type: tsFuncType,
-                        isSetter: false,
-                        isGetter: true,
-                    });
-                }
-                if (!isOverride) {
-                    classType.addMethod({
-                        name: methodName,
-                        type: tsFuncType,
-                        isSetter: false,
-                        isGetter: true,
-                    });
-                }
-                const targetFuncDef = funcDefs.get(
-                    classType.className + '_get_' + methodName,
-                );
-                if (targetFuncDef !== undefined) {
-                    targetFuncDef.setFuncType(tsFuncType);
-                }
-                classType.overrideOrOwnMethods.add('_get_' + methodName);
+                methodTypeStrs.push(`${name}: ${typeString}`);
+                this.setMethod(func, baseType, classType, FunctionKind.GETTER);
             }
             if (member.kind === ts.SyntaxKind.MethodDeclaration) {
                 const func = <ts.MethodDeclaration>member;
-                const methodName = member.name!.getText();
-                const base = classType.getBase();
-                let isOverride = false;
-                if (base !== null) {
-                    for (const method of base.memberFuncs) {
-                        if (method.name === methodName) {
-                            isOverride = true;
-                            break;
-                        }
-                    }
-                }
-                const tsFuncType = <TSFunction>this.generateNodeType(func);
-                if (!isOverride) {
-                    classType.addMethod({
-                        name: methodName,
-                        type: tsFuncType,
-                        isSetter: false,
-                        isGetter: false,
-                    });
-                }
-                const targetFuncDef = funcDefs.get(
-                    classType.className + '_' + methodName,
-                );
-                if (targetFuncDef !== undefined) {
-                    targetFuncDef.setFuncType(tsFuncType);
-                }
-                classType.overrideOrOwnMethods.add(methodName);
+                const kind = func.modifiers?.find((m) => {
+                    return m.kind === ts.SyntaxKind.StaticKeyword;
+                })
+                    ? FunctionKind.STATIC
+                    : FunctionKind.METHOD;
+                methodTypeStrs.push(`${name}: ${typeString}`);
+                this.setMethod(func, baseType, classType, kind);
             }
             if (member.kind === ts.SyntaxKind.Constructor) {
                 const func = <ts.ConstructorDeclaration>member;
                 const tsFuncType = this.generateNodeType(func) as TSFunction;
-                classType.setClassConstructor('constructor', tsFuncType);
-                const targetFuncDef = funcDefs.get(
-                    classType.className + '_constructor',
-                );
-                if (targetFuncDef !== undefined) {
-                    targetFuncDef.setFuncType(tsFuncType);
+                tsFuncType.funcKind = FunctionKind.CONSTRUCTOR;
+                classType.setClassConstructor(tsFuncType);
+                const funcDef = this.compilerCtx.getScopeByNode(func);
+                if (funcDef && funcDef instanceof FunctionScope) {
+                    funcDef.setFuncType(tsFuncType);
                 }
             }
         }
+
+        const methodType = methodTypeStrs.join(', ');
+        const fieldType = fieldTypeStrs.join(', ');
+        this.methodShapeStr.set(classType.className, methodType);
+        this.fieldShapeStr.set(classType.className, fieldType);
+        const typeString = methodType + ', ' + fieldType;
+        classType.setTypeId(this.generateTypeId(typeString));
         return classType;
+    }
+
+    private parseInfcDecl(node: ts.InterfaceDeclaration): TSInterface {
+        const infc = new TSInterface();
+        const methodTypeStrs: string[] = [];
+        const fieldTypeStrs: string[] = [];
+
+        node.members.map((member) => {
+            let fieldType = this.generateNodeType(member);
+            const typeString = this.typeToString(member);
+            if (ts.isSetAccessor(member)) {
+                const type = new TSFunction(FunctionKind.SETTER);
+                type.addParamType(fieldType);
+                fieldType = type;
+            }
+            if (ts.isGetAccessor(member)) {
+                const type = new TSFunction(FunctionKind.GETTER);
+                type.returnType = fieldType;
+                fieldType = type;
+            }
+            const fieldName = member.name!.getText();
+            if (fieldType instanceof TSFunction) {
+                infc.addMethod({
+                    name: fieldName,
+                    type: fieldType,
+                });
+                methodTypeStrs.push(`${fieldName}: ${typeString}`);
+            } else {
+                infc.addMemberField({
+                    name: fieldName,
+                    type: fieldType,
+                });
+                fieldTypeStrs.push(`${fieldName}: ${typeString}`);
+            }
+        });
+        const typeString =
+            methodTypeStrs.join(', ') + ', ' + fieldTypeStrs.join(', ');
+        infc.setTypeId(this.generateTypeId(typeString));
+
+        return infc;
+    }
+
+    private generateTypeId(typeString: string): number {
+        if (this.compilerCtx.typeIdMap.has(typeString)) {
+            return this.compilerCtx.typeIdMap.get(typeString)!;
+        }
+        const id = this.compilerCtx.typeIdMap.size;
+        this.compilerCtx.typeIdMap.set(typeString, id);
+        return id;
+    }
+
+    private typeToString(node: ts.Node) {
+        const type = this.typechecker!.getTypeAtLocation(node);
+        let typeString = this.typechecker!.typeToString(type);
+        // setter : T ==> (x: T) => void
+        if (ts.isSetAccessor(node)) {
+            const paramName = node.parameters[0].getText();
+            typeString = `(${paramName}) => void`;
+        }
+        // getter : T ==> () => T
+        if (ts.isGetAccessor(node)) {
+            typeString = `() => ${typeString}`;
+        }
+        // typeReference: T ==> typeId
+        // TODO
+        return typeString;
+    }
+
+    private setMethod(
+        func: ts.AccessorDeclaration | ts.MethodDeclaration,
+        baseType: TSClass | null,
+        classType: TSClass,
+        funcKind: FunctionKind,
+    ) {
+        const methodName = func.name.getText();
+        const isOverride =
+            baseType && baseType.getMethod(methodName, funcKind) ? true : false;
+
+        const type = this.generateNodeType(func);
+        let tsFuncType = new TSFunction();
+        const nameWithPrefix = getMethodPrefix(funcKind) + func.name.getText();
+
+        if (type instanceof TSFunction) {
+            tsFuncType = type;
+        }
+        if (funcKind === FunctionKind.GETTER) {
+            tsFuncType.returnType = type;
+        }
+        if (funcKind === FunctionKind.SETTER) {
+            tsFuncType.addParamType(type);
+        }
+
+        tsFuncType.funcKind = funcKind;
+        if (!isOverride) {
+            classType.addMethod({
+                name: methodName,
+                type: tsFuncType,
+            });
+        }
+        const funcDef = this.compilerCtx.getScopeByNode(func);
+        if (funcDef && funcDef instanceof FunctionScope) {
+            funcDef.setFuncType(tsFuncType);
+        }
+        classType.overrideOrOwnMethods.add(nameWithPrefix);
     }
 }

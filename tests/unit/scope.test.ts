@@ -132,9 +132,12 @@ describe('testScope', function () {
 
         const internalFunctionScope = new FunctionScope(blockScope);
         const internalBlockScope = new BlockScope(internalFunctionScope);
-        internalFunctionScope.setFuncName('function2');
+        internalFunctionScope.setFuncName('function1|function2');
 
-        expect(blockScope.findFunctionScope('function1', false)).eq(undefined);
+        // 'function1' => top level function
+        expect(blockScope.findFunctionScope('function1', false)).eq(
+            functionScope,
+        );
         expect(blockScope.findFunctionScope('function1')).eq(functionScope);
         expect(blockScope.findFunctionScope('function2', false)).eq(
             internalFunctionScope,
@@ -142,9 +145,7 @@ describe('testScope', function () {
         expect(internalBlockScope.findFunctionScope('function2', false)).eq(
             undefined,
         );
-        expect(internalBlockScope.findFunctionScope('function2')).eq(
-            internalFunctionScope,
-        );
+        expect(internalBlockScope.findFunctionScope('function2')).eq(undefined);
         expect(internalBlockScope.findFunctionScope('function1')).eq(
             functionScope,
         );
