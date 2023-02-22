@@ -195,6 +195,7 @@ export function mangling(
         } else if (scope instanceof ClassScope) {
             currName = scope.className;
             prefixStack.push(currName);
+            scope.classType.mangledName = `${prefixStack.join(delimiter)}`;
         } else if (scope instanceof BlockScope) {
             currName = scope.name;
             prefixStack.push(currName);

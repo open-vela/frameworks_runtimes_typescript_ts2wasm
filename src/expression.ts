@@ -1,6 +1,6 @@
 import ts from 'typescript';
 import { Compiler } from './compiler.js';
-import { FunctionScope } from './scope.js';
+import { ClosureEnvironment, FunctionScope } from './scope.js';
 import { Variable } from './variable.js';
 import { getCurScope } from './utils.js';
 import { Type, TypeKind } from './type.js';
@@ -223,7 +223,6 @@ export class PropertyAccessExpression extends Expression {
     private expr: Expression;
     private property: Expression;
     private parent: Expression;
-    private callArguments: Expression[] = [];
 
     constructor(expr: Expression, property: Expression, parent: Expression) {
         super(ts.SyntaxKind.PropertyAccessExpression);
@@ -242,14 +241,6 @@ export class PropertyAccessExpression extends Expression {
 
     get parentExpr(): Expression {
         return this.parent;
-    }
-
-    addCallArg(callArg: Expression) {
-        this.callArguments.push(callArg);
-    }
-
-    get callArgs(): Expression[] {
-        return this.callArguments;
     }
 }
 
@@ -413,30 +404,34 @@ export default class ExpressionCompiler {
                     return identifierExpr;
                 }
                 let scope = this.compilerCtx.getScopeByNode(node) || null;
-                const currentFuncScope = scope!.getNearestFunctionScope();
+                const varReferenceScope = scope!.getNearestFunctionScope();
                 let variable: Variable | undefined = undefined;
-                if (currentFuncScope) {
-                    while (scope !== null) {
+                let maybeClosureVar = false;
+
+                if (varReferenceScope) {
+                    while (scope) {
                         variable = scope.findVariable(targetIdentifier, false);
                         if (variable) {
                             break;
                         }
+
+                        if (varReferenceScope === scope) {
+                            /* Variable not found in current function,
+                                it may be a closure var, but we still need
+                                to check if it's a global var */
+                            maybeClosureVar = true;
+                        }
                         scope = scope.parent;
                     }
 
-                    if (scope) {
-                        const varDefinedFuncScope =
-                            scope.getNearestFunctionScope();
-                        if (
-                            varDefinedFuncScope &&
-                            currentFuncScope !== varDefinedFuncScope
-                        ) {
+                    if (maybeClosureVar) {
+                        if (scope && scope.getNearestFunctionScope()) {
                             variable!.setVarIsClosure();
-                            varDefinedFuncScope.setIsClosure();
+                            (scope as ClosureEnvironment).setIsClosure();
                         }
-                        /* otherwise it's a global var */
                     }
                 }
+
                 identifierExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),
                 );
@@ -525,16 +520,6 @@ export default class ExpressionCompiler {
                     property,
                     parent,
                 );
-                if (parent.expressionKind === ts.SyntaxKind.CallExpression) {
-                    const callNode = <ts.CallExpression>(
-                        propAccessExprNode.parent
-                    );
-                    for (let i = 0; i < callNode.arguments.length; ++i) {
-                        propAccessExpr.addCallArg(
-                            this.visitNode(callNode.arguments[i]),
-                        );
-                    }
-                }
                 propAccessExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),
                 );
@@ -665,7 +650,9 @@ export default class ExpressionCompiler {
                 );
             }
             case ts.SyntaxKind.ThisKeyword: {
-                return new IdentifierExpression('this');
+                const expr = new IdentifierExpression('this');
+                expr.setExprType(this.typeCompiler.generateNodeType(node));
+                return expr;
             }
             default:
                 return new Expression(ts.SyntaxKind.Unknown);

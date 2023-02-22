@@ -15,12 +15,14 @@ import {
     ClassScope,
     ScopeKind,
     Scope,
+    ClosureEnvironment,
+    BlockScope,
     NamespaceScope,
 } from './scope.js';
 import { Stack } from './utils.js';
 import { typeInfo } from './glue/utils.js';
 import { Compiler } from './compiler.js';
-import { importLibApi, initDynContext, freeDynContext } from './envInit.js';
+import { importLibApi } from './envInit.js';
 import { WASMTypeGen } from './wasmTypeGen.js';
 import {
     WASMExpressionGen,
@@ -78,6 +80,15 @@ export class WASMFunctionContext {
     enterScope(scope: Scope) {
         this.currentScope = scope;
         this.opcodeArrayStack.push(new Array<binaryen.ExpressionRef>());
+        /* Init context variable */
+        if (scope.getNearestFunctionScope()) {
+            /* Only create context for scopes inside function scope */
+            this.insert(
+                this.binaryenCtx.createClosureContext(
+                    scope as ClosureEnvironment,
+                ),
+            );
+        }
     }
 
     exitScope() {
@@ -209,10 +220,7 @@ export class WASMGen {
     private dataSegmentContext: DataSegmentContext | null = null;
     private binaryenModule = new binaryen.Module();
     private globalScopeStack: Stack<GlobalScope>;
-    static contextOfFunc: Map<FunctionScope, typeInfo> = new Map<
-        FunctionScope,
-        typeInfo
-    >();
+    static contextOfScope: Map<Scope, typeInfo> = new Map<Scope, typeInfo>();
     private wasmTypeCompiler = new WASMTypeGen(this);
     wasmExprCompiler = new WASMExpressionGen(this);
     wasmDynExprCompiler = new WASMDynExpressionGen(this);
@@ -257,7 +265,7 @@ export class WASMGen {
     }
 
     WASMGenerate() {
-        WASMGen.contextOfFunc.clear();
+        WASMGen.contextOfScope.clear();
         this.enterModuleScope = this.globalScopeStack.peek();
 
         // generate configuration
@@ -366,18 +374,59 @@ export class WASMGen {
         return this.currentFuncCtx;
     }
 
+    generateStartFuncVarTypes(
+        scope: Scope,
+        globalScope: GlobalScope,
+        varWasmTypes: Array<binaryen.ExpressionRef>,
+    ) {
+        /* Don't process global vars */
+        if (scope !== globalScope) {
+            for (const variable of scope.varArray) {
+                if (variable.varType.kind !== TypeKind.FUNCTION) {
+                    varWasmTypes.push(
+                        this.wasmType.getWASMType(variable.varType),
+                    );
+                } else {
+                    varWasmTypes.push(
+                        this.wasmType.getWASMFuncStructType(variable.varType),
+                    );
+                }
+            }
+        }
+
+        scope.children.forEach((s) => {
+            if (s instanceof BlockScope) {
+                /* Only process block scope, inner functions will be processed separately */
+                this.generateStartFuncVarTypes(s, globalScope, varWasmTypes);
+            }
+        });
+
+        if (scope === globalScope) {
+            /* Append temp vars */
+            (scope as FunctionScope).getTempVars().forEach((v) => {
+                if (v.varType.kind !== TypeKind.FUNCTION) {
+                    varWasmTypes.push(this.wasmType.getWASMType(v.varType));
+                } else {
+                    varWasmTypes.push(
+                        this.wasmType.getWASMFuncStructType(v.varType),
+                    );
+                }
+            });
+        }
+    }
+
     /* add global variables, and generate start function */
     WASMStartFunctionGen(globalScope: GlobalScope) {
         const body = this.module.block(null, this.startBodyArray);
 
+        const wasmTypes = new Array<binaryen.ExpressionRef>();
+        this.generateStartFuncVarTypes(globalScope, globalScope, wasmTypes);
         // generate module start function
         this.module.addFunction(
             globalScope.startFuncName,
             binaryen.none,
             binaryen.none,
-            globalScope.startFuncVarArray.map((variable: Variable) =>
-                this.wasmType.getWASMType(variable.varType),
-            ),
+            wasmTypes,
             body,
         );
     }
@@ -392,15 +441,171 @@ export class WASMGen {
             tsClassType.setClassConstructor(tsFuncType);
             const classInstance = binaryenCAPI._BinaryenRefCast(
                 this.module.ptr,
-                this.module.local.get(0, emptyStructType.typeRef),
+                this.module.local.get(1, emptyStructType.typeRef),
                 this.wasmType.getWASMHeapType(tsClassType),
             );
             this.module.addFunction(
-                classScope.mangledName + '_constructor',
-                binaryen.createType([emptyStructType.typeRef]),
+                classScope.mangledName + '|constructor',
+                binaryen.createType([
+                    emptyStructType.typeRef,
+                    emptyStructType.typeRef,
+                ]),
                 wasmClassType,
                 [],
                 this.module.block(null, [this.module.return(classInstance)]),
+            );
+        }
+    }
+
+    generateFuncVarTypes(
+        scope: Scope,
+        funcScope: FunctionScope,
+        varWasmTypes: Array<binaryen.ExpressionRef>,
+    ) {
+        varWasmTypes.push(
+            (<typeInfo>WASMGen.contextOfScope.get(scope)).typeRef,
+        );
+        const remainVars = scope.varArray.slice(1);
+
+        // if (funcScope.className !== '' && scope === funcScope) {
+        //     /* For class method, the second parameter is "this" pointer */
+        //     const classScope = <ClassScope>funcScope.parent;
+        //     varWasmTypes.push(this.wasmType.getWASMType(classScope.classType));
+        //     remainVars = remainVars.slice(1);
+        // }
+
+        /* the first one is context struct, no need to parse */
+        for (const variable of remainVars) {
+            if (variable.varType.kind !== TypeKind.FUNCTION) {
+                varWasmTypes.push(this.wasmType.getWASMType(variable.varType));
+            } else {
+                varWasmTypes.push(
+                    this.wasmType.getWASMFuncStructType(variable.varType),
+                );
+            }
+        }
+
+        scope.children.forEach((s) => {
+            if (s instanceof BlockScope) {
+                /* Only process block scope, inner functions will be processed separately */
+                this.generateFuncVarTypes(s, funcScope, varWasmTypes);
+            }
+        });
+
+        if (scope === funcScope) {
+            /* Append temp vars */
+            (scope as FunctionScope).getTempVars().forEach((v) => {
+                if (v.varType.kind !== TypeKind.FUNCTION) {
+                    varWasmTypes.push(this.wasmType.getWASMType(v.varType));
+                } else {
+                    varWasmTypes.push(
+                        this.wasmType.getWASMFuncStructType(v.varType),
+                    );
+                }
+            });
+        }
+    }
+
+    createClosureContext(scope: ClosureEnvironment) {
+        let closureIndex = 1;
+        const closureVarTypes = new Array<binaryenCAPI.TypeRef>();
+        const closureVarValues = new Array<binaryen.ExpressionRef>();
+        const muts = new Array<boolean>();
+        closureVarTypes.push(emptyStructType.typeRef);
+        muts.push(false);
+        closureVarValues.push(
+            this.module.local.get(0, emptyStructType.typeRef),
+        );
+
+        /* parent level function's context type */
+        let maybeParentCtxType: typeInfo | null = null;
+        const parentScope = scope.parent;
+        if (parentScope) {
+            maybeParentCtxType = <typeInfo>(
+                WASMGen.contextOfScope.get(parentScope)
+            );
+            if (
+                maybeParentCtxType !== null &&
+                maybeParentCtxType !== emptyStructType
+            ) {
+                closureVarTypes[0] = maybeParentCtxType.typeRef;
+                closureVarValues[0] = binaryenCAPI._BinaryenRefCast(
+                    this.module.ptr,
+                    this.module.local.get(0, emptyStructType.typeRef),
+                    maybeParentCtxType.heapTypeRef,
+                );
+            }
+        }
+
+        if (scope instanceof FunctionScope) {
+            for (const param of scope.paramArray) {
+                if (param.varIsClosure) {
+                    const type = this.wasmTypeCompiler.getWASMType(
+                        param.varType,
+                    );
+                    closureVarTypes.push(type);
+                    closureVarValues.push(
+                        this.module.local.get(param.varIndex, type),
+                    );
+                    param.setClosureIndex(closureIndex++);
+                    muts.push(param.isReadOnly ? false : true);
+                }
+            }
+        }
+        for (const variable of scope.varArray) {
+            if (variable.varIsClosure) {
+                const type = this.wasmTypeCompiler.getWASMType(
+                    variable.varType,
+                );
+                closureVarTypes.push(type);
+                closureVarValues.push(
+                    this.module.local.get(variable.varIndex, type),
+                );
+                variable.setClosureIndex(closureIndex++);
+                muts.push(variable.isConst ? false : true);
+            }
+        }
+
+        const packed = new Array<binaryenCAPI.PackedType>(
+            closureVarTypes.length,
+        ).fill(typeNotPacked);
+
+        /* TODO: maybe the condition is not very clearly */
+
+        /* No closure variable */
+        if (closureVarTypes.length === 1) {
+            WASMGen.contextOfScope.set(
+                scope,
+                maybeParentCtxType === null
+                    ? emptyStructType
+                    : maybeParentCtxType,
+            );
+            return this.binaryenModule.local.set(
+                scope.contextVariable!.varIndex,
+                closureVarValues[0],
+            );
+        } else {
+            WASMGen.contextOfScope.set(
+                scope,
+                initStructType(
+                    closureVarTypes,
+                    packed,
+                    muts,
+                    closureVarTypes.length,
+                    true,
+                ),
+            );
+            const targetHeapType = (<typeInfo>WASMGen.contextOfScope.get(scope))
+                .heapTypeRef;
+            const context = binaryenCAPI._BinaryenStructNew(
+                this.module.ptr,
+                arrayToPtr(closureVarValues).ptr,
+                closureVarValues.length,
+                targetHeapType,
+            );
+            return this.binaryenModule.local.set(
+                scope.contextVariable!.varIndex,
+                context,
             );
         }
     }
@@ -443,21 +648,18 @@ export class WASMGen {
         );
 
         /* parent level function's context type */
-        let maybeParentFuncCtxType: typeInfo | null = null;
-        const parentFuncScope = functionScope.parent?.getNearestFunctionScope();
-        if (parentFuncScope) {
-            maybeParentFuncCtxType = <typeInfo>(
-                WASMGen.contextOfFunc.get(parentFuncScope)
+        let maybeParentCtxType: typeInfo | null = null;
+        const parentScope = functionScope.parent;
+        if (parentScope) {
+            maybeParentCtxType = <typeInfo>(
+                (WASMGen.contextOfScope.get(parentScope) || null)
             );
-            if (
-                maybeParentFuncCtxType !== null &&
-                maybeParentFuncCtxType !== emptyStructType
-            ) {
-                closureVarTypes[0] = maybeParentFuncCtxType.typeRef;
+            if (maybeParentCtxType && maybeParentCtxType !== emptyStructType) {
+                closureVarTypes[0] = maybeParentCtxType.typeRef;
                 closureVarValues[0] = binaryenCAPI._BinaryenRefCast(
                     this.module.ptr,
                     this.module.local.get(0, emptyStructType.typeRef),
-                    maybeParentFuncCtxType.heapTypeRef,
+                    maybeParentCtxType.heapTypeRef,
                 );
             }
         }
@@ -491,64 +693,65 @@ export class WASMGen {
             closureVarTypes.length,
         ).fill(typeNotPacked);
 
-        if (functionScope.funcType.funcKind === FunctionKind.DEFAULT) {
-            /* iff it hasn't free variables */
-            if (closureVarTypes.length === 1) {
-                WASMGen.contextOfFunc.set(
-                    functionScope,
-                    maybeParentFuncCtxType === null
-                        ? emptyStructType
-                        : maybeParentFuncCtxType,
-                );
-            } else {
-                WASMGen.contextOfFunc.set(
-                    functionScope,
-                    initStructType(
-                        closureVarTypes,
-                        packed,
-                        muts,
-                        closureVarTypes.length,
-                        true,
-                    ),
-                );
-            }
+        /* iff it hasn't free variables */
+        if (closureVarTypes.length === 1) {
+            WASMGen.contextOfScope.set(
+                functionScope,
+                maybeParentCtxType === null
+                    ? emptyStructType
+                    : maybeParentCtxType,
+            );
+        } else {
+            WASMGen.contextOfScope.set(
+                functionScope,
+                initStructType(
+                    closureVarTypes,
+                    packed,
+                    muts,
+                    closureVarTypes.length,
+                    true,
+                ),
+            );
         }
+
         const paramWASMType =
             this.wasmTypeCompiler.getWASMFuncParamType(tsFuncType);
         let returnWASMType =
             this.wasmTypeCompiler.getWASMFuncReturnType(tsFuncType);
 
         /* context struct variable index */
-        const targetVarIndex = functionScope.paramArray.length;
-        if (functionScope.className === '') {
-            /* iff the function doesn't have free variables */
-            if (closureVarTypes.length === 1) {
-                this.currentFuncCtx!.insert(
-                    this.module.local.set(targetVarIndex, closureVarValues[0]),
-                );
-            } else {
-                const targetHeapType = (<typeInfo>(
-                    WASMGen.contextOfFunc.get(functionScope)
-                )).heapTypeRef;
-                const context = binaryenCAPI._BinaryenStructNew(
-                    this.module.ptr,
-                    arrayToPtr(closureVarValues).ptr,
-                    closureVarValues.length,
-                    targetHeapType,
-                );
-                this.currentFuncCtx!.insert(
-                    this.module.local.set(targetVarIndex, context),
-                );
-            }
+        const targetVarIndex = functionScope.contextVariable!.varIndex;
+        /* iff the function doesn't have free variables */
+        if (closureVarTypes.length === 1) {
+            this.currentFuncCtx!.insert(
+                this.module.local.set(targetVarIndex, closureVarValues[0]),
+            );
         } else {
+            const targetHeapType = (<typeInfo>(
+                WASMGen.contextOfScope.get(functionScope)
+            )).heapTypeRef;
+            const context = binaryenCAPI._BinaryenStructNew(
+                this.module.ptr,
+                arrayToPtr(closureVarValues).ptr,
+                closureVarValues.length,
+                targetHeapType,
+            );
+            this.currentFuncCtx!.insert(
+                this.module.local.set(targetVarIndex, context),
+            );
+        }
+
+        /* Class's "this" parameter */
+        if (functionScope.className !== '') {
             const classType = (<ClassScope>functionScope.parent).classType;
             const wasmClassHeapType = this.wasmType.getWASMHeapType(classType);
+            const thisVarIndex = functionScope.getThisIndex();
             this.currentFuncCtx!.insert(
                 this.module.local.set(
-                    targetVarIndex,
+                    thisVarIndex,
                     binaryenCAPI._BinaryenRefCast(
                         this.module.ptr,
-                        this.module.local.get(0, emptyStructType.typeRef),
+                        this.module.local.get(1, emptyStructType.typeRef),
                         wasmClassHeapType,
                     ),
                 ),
@@ -557,8 +760,7 @@ export class WASMGen {
 
         // add return value iff return type is not void
         if (functionScope.funcType.returnType.kind !== TypeKind.VOID) {
-            const returnVarIdx =
-                functionScope.paramArray.length + functionScope.varArray.length;
+            const returnVarIdx = functionScope.allocateLocalIndex();
             const returnVar = new Variable(
                 '~returnVar',
                 functionScope.funcType.returnType,
@@ -567,7 +769,7 @@ export class WASMGen {
                 true,
             );
             this.currentFuncCtx!.returnIdx = returnVarIdx;
-            functionScope.addVariable(returnVar);
+            functionScope.addTempVar(returnVar);
         }
 
         // generate wasm statements
@@ -591,41 +793,19 @@ export class WASMGen {
             );
         }
         /* iff constructor, return type is class type  */
-        if (
-            functionScope.funcName ===
-            functionScope.className + '_constructor'
-        ) {
+        if (functionScope.funcName === 'constructor') {
             const classScope = <ClassScope>functionScope.parent;
             const wasmClassType = this.wasmType.getWASMType(
                 classScope.classType,
             );
+            // const thisVarIndex = functionScope.getThisIndex();
             this.currentFuncCtx!.setReturnOpcode(
-                this.module.return(
-                    this.module.local.get(targetVarIndex, returnWASMType),
-                ),
+                this.module.return(this.module.local.get(1, returnWASMType)),
             );
             returnWASMType = wasmClassType;
         }
         const varWASMTypes = new Array<binaryen.ExpressionRef>();
-        // iff not a member function
-        if (functionScope.funcType.funcKind === FunctionKind.DEFAULT) {
-            varWASMTypes.push(
-                (<typeInfo>WASMGen.contextOfFunc.get(functionScope)).typeRef,
-            );
-        } else {
-            const classScope = <ClassScope>functionScope.parent;
-            varWASMTypes.push(this.wasmType.getWASMType(classScope.classType));
-        }
-        /* the first one is context struct, no need to parse */
-        for (const variable of functionScope.varArray.slice(1)) {
-            if (variable.varType.kind !== TypeKind.FUNCTION) {
-                varWASMTypes.push(this.wasmType.getWASMType(variable.varType));
-            } else {
-                varWASMTypes.push(
-                    this.wasmType.getWASMFuncStructType(variable.varType),
-                );
-            }
-        }
+        this.generateFuncVarTypes(functionScope, functionScope, varWASMTypes);
 
         // 4: add wrapper function if exported
         const isExport = functionScope.isExport;

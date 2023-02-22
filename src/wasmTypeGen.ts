@@ -1,6 +1,7 @@
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
 import {
+    FunctionKind,
     getMethodPrefix,
     TSArray,
     TSClass,
@@ -97,17 +98,26 @@ export class WASMTypeGen {
             case TypeKind.FUNCTION: {
                 const funcType = <TSFunction>type;
                 const paramTypes = funcType.getParamTypes();
-                const paramWASMTypes = new Array<binaryenCAPI.TypeRef>(
-                    paramTypes.length + 1,
-                );
-                paramWASMTypes[0] = emptyStructType.typeRef;
+                const paramWASMTypes = new Array<binaryenCAPI.TypeRef>();
+
+                /* First parameter is closure context */
+                paramWASMTypes.push(emptyStructType.typeRef);
+
+                if (
+                    funcType.funcKind !== FunctionKind.DEFAULT &&
+                    funcType.funcKind !== FunctionKind.STATIC
+                ) {
+                    /* For class method, second parameter is "this" pointer */
+                    paramWASMTypes.push(emptyStructType.typeRef);
+                }
+
                 for (let i = 0; i < paramTypes.length; ++i) {
                     if (paramTypes[i].typeKind === TypeKind.FUNCTION) {
-                        paramWASMTypes[i + 1] = this.getWASMFuncStructType(
-                            paramTypes[i],
+                        paramWASMTypes.push(
+                            this.getWASMFuncStructType(paramTypes[i]),
                         );
                     } else {
-                        paramWASMTypes[i + 1] = this.getWASMType(paramTypes[i]);
+                        paramWASMTypes.push(this.getWASMType(paramTypes[i]));
                     }
                 }
                 this.tsFuncParamType.set(
@@ -161,7 +171,7 @@ export class WASMTypeGen {
                     if (tsClassType.overrideOrOwnMethods.has(nameWithPrefix)) {
                         vtableFuncs.push(
                             this.WASMCompiler.module.ref.func(
-                                tsClassType.className + '_' + nameWithPrefix,
+                                tsClassType.mangledName + '|' + nameWithPrefix,
                                 wasmFuncTypes[wasmFuncTypes.length - 1],
                             ),
                         );
@@ -170,7 +180,9 @@ export class WASMTypeGen {
                         const baseClassType = <TSClass>tsClassType.getBase();
                         vtableFuncs.push(
                             this.WASMCompiler.module.ref.func(
-                                baseClassType.className + '_' + nameWithPrefix,
+                                baseClassType.mangledName +
+                                    '|' +
+                                    nameWithPrefix,
                                 wasmFuncTypes[wasmFuncTypes.length - 1],
                             ),
                         );

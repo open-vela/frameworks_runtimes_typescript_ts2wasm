@@ -199,13 +199,13 @@ export class Compiler {
             const varInfos: Array<any> = [];
             if (scope.kind === ScopeKind.FunctionScope) {
                 (<FunctionScope>scope).paramArray.forEach((v) => {
-                    if (v.varName === '') {
-                        /* Skip implicit variable */
-                        return;
+                    let displayName = v.varName;
+                    if (displayName === '') {
+                        displayName = '@context';
                     }
                     varInfos.push({
                         kind: 'param',
-                        name: v.varName,
+                        name: displayName,
                         type: v.varType,
                         isClosure: v.varIsClosure,
                         modifiers: v.varModifiers,
@@ -214,13 +214,13 @@ export class Compiler {
                 });
             }
             scope.varArray.forEach((v) => {
-                if (v.varName === '') {
-                    /* Skip implicit variable */
-                    return;
+                let displayName = v.varName;
+                if (displayName === '') {
+                    displayName = '@context';
                 }
                 varInfos.push({
                     kind: 'var',
-                    name: v.varName,
+                    name: displayName,
                     type: v.varType,
                     isClosure: v.varIsClosure,
                     modifiers: v.varModifiers,

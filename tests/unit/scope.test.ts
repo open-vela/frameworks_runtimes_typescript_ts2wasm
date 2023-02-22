@@ -157,16 +157,6 @@ describe('testScope', function () {
         expect(globalScope.startFuncName).eq('moduleA|start');
     });
 
-    it('getStartFunctionVariableArray', function () {
-        const globalScope = new GlobalScope();
-        const var1 = new Variable('var1', new Type(), [], 0);
-        globalScope.addStartFuncVar(var1);
-        const startVarList = globalScope.startFuncVarArray;
-
-        expect(startVarList.length).eq(1);
-        expect(startVarList[0].varName).eq('var1');
-    });
-
     it('getStartFunctionStatementArray', function () {
         const globalScope = new GlobalScope();
         globalScope.addStatement(new Statement(ts.SyntaxKind.IfStatement));
@@ -213,28 +203,5 @@ describe('testScope', function () {
         funcScope.namedTypeMap.set('test', funcType);
 
         expect(funcScope.findType('test')).eq(funcType);
-    });
-
-    it('InsertVarAtStart', function () {
-        const globalScope = new GlobalScope();
-        const var1 = new Variable('var1', new Type(), [], 0);
-        globalScope.addVariable(var1);
-        const var2 = new Variable('var2', new Type(), [], 1);
-        globalScope.addVariable(var2);
-        const context = new Variable(
-            'dyntype_context',
-            new Primitive('any'),
-            [],
-            0,
-        );
-        globalScope.addVariableAtStart(context);
-
-        expect(globalScope.varArray.length).eq(3);
-        expect(globalScope.varArray[0].varName).eq('dyntype_context');
-        expect(globalScope.varArray[1].varName).eq('var1');
-        expect(globalScope.varArray[2].varName).eq('var2');
-        expect(globalScope.varArray[0].varIndex).eq(0);
-        expect(globalScope.varArray[1].varIndex).eq(1);
-        expect(globalScope.varArray[2].varIndex).eq(2);
     });
 });

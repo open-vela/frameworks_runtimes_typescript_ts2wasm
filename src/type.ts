@@ -92,12 +92,12 @@ export interface TsClassField {
 }
 
 export const enum FunctionKind {
-    DEFAULT,
-    CONSTRUCTOR,
-    METHOD,
-    GETTER,
-    SETTER,
-    STATIC,
+    DEFAULT = 'default',
+    CONSTRUCTOR = 'constructor',
+    METHOD = 'method',
+    GETTER = 'getter',
+    SETTER = 'setter',
+    STATIC = 'static',
 }
 
 /* A + '_' +  getMethodPrefix(kind)*/
@@ -123,6 +123,7 @@ export class TSClass extends Type {
     typeKind = TypeKind.CLASS;
     private _typeId = 0;
     private name = '';
+    private _mangledName = '';
     private memberFields: Array<TsClassField> = [];
     private staticFields: Array<TsClassField> = [];
     private constructorMethod: TSFunction | null = null;
@@ -191,13 +192,14 @@ export class TSClass extends Type {
     }
 
     addMethod(classMethod: TsClassFunc): void {
+        classMethod.type.isMethod = true;
         this.methods.push(classMethod);
     }
 
     /* when calling a getter, it's not a CallExpression */
     getMethod(
         name: string,
-        kind: FunctionKind = FunctionKind.DEFAULT,
+        kind: FunctionKind = FunctionKind.METHOD,
     ): TsClassFunc | null {
         return (
             this.memberFuncs.find((f) => {
@@ -208,7 +210,7 @@ export class TSClass extends Type {
 
     getMethodIndex(
         name: string,
-        kind: FunctionKind = FunctionKind.DEFAULT,
+        kind: FunctionKind = FunctionKind.METHOD,
     ): number {
         return this.memberFuncs.findIndex((f) => {
             return name === f.name && kind === f.type.funcKind;
@@ -221,6 +223,14 @@ export class TSClass extends Type {
 
     get className(): string {
         return this.name;
+    }
+
+    get mangledName(): string {
+        return this._mangledName;
+    }
+
+    set mangledName(name: string) {
+        this._mangledName = name;
     }
 
     setTypeId(id: number) {
@@ -257,6 +267,7 @@ export class TSFunction extends Type {
     private _returnType: Type = new Primitive('void');
     // iff last parameter is rest paremeter
     private hasRestParameter = false;
+    private _isMethod = false;
 
     constructor(public funcKind: FunctionKind = FunctionKind.DEFAULT) {
         super();
@@ -284,6 +295,14 @@ export class TSFunction extends Type {
 
     hasRest() {
         return this.hasRestParameter === true;
+    }
+
+    get isMethod() {
+        return this._isMethod;
+    }
+
+    set isMethod(value: boolean) {
+        this._isMethod = value;
     }
 }
 
@@ -368,7 +387,11 @@ export default class TypeCompiler {
                 this.typechecker!.getSignatureFromDeclaration(node)!,
             );
         }
-        const tsType = this.typechecker!.getTypeAtLocation(node);
+        let tsType = this.typechecker!.getTypeAtLocation(node);
+        if ('isThisType' in tsType && (tsType as any).isThisType) {
+            /* For "this" keyword, tsc will inference the actual type */
+            tsType = this.typechecker!.getDeclaredTypeOfSymbol(tsType.symbol);
+        }
         const type = this.tsTypeToType(tsType);
         /* for example, a: string[] = new Array(), the type of new Array() should be string[]
          instead of any[]*/
