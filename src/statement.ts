@@ -20,7 +20,6 @@ import {
     getGlobalScopeByModuleName,
     importGlobalInfo,
     importFunctionInfo,
-    getImportIdentifierName,
 } from './utils.js';
 import { Variable } from './variable.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
@@ -333,9 +332,7 @@ export default class StatementCompiler {
                     return importStmt;
                 }
                 const globalScope = this.currentScope!.getRootGloablScope()!;
-                const { importIdentifierArray, nameScopeImportName } =
-                    getImportIdentifierName(importDeclaration);
-                for (const importIdentifier of importIdentifierArray) {
+                for (const importIdentifier of globalScope.identifierModuleImportMap.keys()) {
                     // find identifier, judge if it is declared
                     const res = globalScope.findIdentifier(importIdentifier);
                     if (res instanceof Variable) {

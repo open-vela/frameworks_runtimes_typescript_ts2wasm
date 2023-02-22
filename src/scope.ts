@@ -300,7 +300,12 @@ export class Scope {
     }
 
     get isDeclare(): boolean {
-        return this.modifiers.includes(ts.SyntaxKind.DeclareKeyword);
+        let res = false;
+        if (this.modifiers.includes(ts.SyntaxKind.DeclareKeyword)) {
+            res = true;
+            return res;
+        }
+        return this.parent?.isDeclare || false;
     }
 
     get isDefault(): boolean {
@@ -642,6 +647,11 @@ export class ScopeScanner {
                     parentScope,
                     namespaceName,
                 );
+                if (moduleDeclaration.modifiers !== undefined) {
+                    for (const modifier of moduleDeclaration.modifiers) {
+                        namespaceScope.addModifier(modifier.kind);
+                    }
+                }
                 const moduleBlock = <ts.ModuleBlock>moduleDeclaration.body!;
                 this.setCurrentScope(namespaceScope);
                 this.nodeScopeMap.set(moduleBlock, namespaceScope);

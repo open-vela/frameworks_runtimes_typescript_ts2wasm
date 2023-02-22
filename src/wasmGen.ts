@@ -37,7 +37,7 @@ import {
 } from './memory.js';
 import { initStringBuiltin } from '../lib/builtin/stringBuiltin.js';
 import { dyntype } from '../lib/dyntype/utils.js';
-import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
+import { ArgNames, BuiltinNames } from '../lib/builtin/builtinUtil.js';
 import { off } from 'process';
 
 export class WASMFunctionContext {
@@ -229,9 +229,6 @@ export class WASMGen {
     enterModuleScope: GlobalScope | null = null;
     private startBodyArray: Array<binaryen.ExpressionRef> = [];
 
-    // configurations
-    disableAny = false;
-
     constructor(private compilerCtx: Compiler) {
         this.binaryenModule = compilerCtx.binaryenModule;
         this.globalScopeStack = compilerCtx.globalScopeStack;
@@ -268,14 +265,13 @@ export class WASMGen {
         WASMGen.contextOfScope.clear();
         this.enterModuleScope = this.globalScopeStack.peek();
 
-        // generate configuration
-        this.disableAny = this.compilerCtx.disableAny;
-
         // init wasm environment
         initGlobalOffset(this.module);
         initDefaultTable(this.module);
-        initStringBuiltin(this.module);
-        if (!this.disableAny) {
+        if (!this.compilerCtx.compileArgs[ArgNames.disableBuiltIn]) {
+            initStringBuiltin(this.module);
+        }
+        if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
             importLibApi(this.module);
         }
 
@@ -285,7 +281,7 @@ export class WASMGen {
             this.WASMStartFunctionGen(globalScope);
         }
 
-        if (this.disableAny) {
+        if (this.compilerCtx.compileArgs[ArgNames.disableAny]) {
             if (
                 this.wasmTypeCompiler.tsType2WASMTypeMap.has(
                     builtinTypes.get(TypeKind.ANY)!,
@@ -296,7 +292,7 @@ export class WASMGen {
         }
 
         const startFuncOpcodes = [];
-        if (!this.disableAny) {
+        if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
             this.module.addGlobal(
                 dyntype.dyntype_context,
                 dyntype.dyn_ctx_t,
@@ -312,7 +308,7 @@ export class WASMGen {
                 binaryen.none,
             ),
         );
-        if (!this.disableAny) {
+        if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
             startFuncOpcodes.push(this._generateFreeDynContext());
         }
         // set enter module start function as wasm start function
@@ -808,7 +804,9 @@ export class WASMGen {
         this.generateFuncVarTypes(functionScope, functionScope, varWASMTypes);
 
         // 4: add wrapper function if exported
-        const isExport = functionScope.isExport;
+        const isExport =
+            functionScope.parent === this.enterModuleScope &&
+            functionScope.isExport;
         if (isExport) {
             const functionStmts: binaryen.ExpressionRef[] = [];
             // init dyntype contex
@@ -820,7 +818,7 @@ export class WASMGen {
                     binaryen.none,
                 ),
             );
-            if (!this.disableAny) {
+            if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
                 functionStmts.push(initDynContextStmt);
             }
 
@@ -862,7 +860,7 @@ export class WASMGen {
                 ],
                 binaryen.none,
             );
-            if (!this.disableAny) {
+            if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
                 functionStmts.push(freeDynContextStmt);
             }
 
@@ -878,7 +876,7 @@ export class WASMGen {
             }
             // add export function
             this.module.addFunction(
-                functionScope.mangledName + '-wrapper',
+                functionScope.funcName + '-wrapper',
                 this.wasmTypeCompiler.getWASMFuncOrignalParamType(tsFuncType),
                 returnWASMType,
                 functionVars,
@@ -886,8 +884,8 @@ export class WASMGen {
             );
 
             this.module.addFunctionExport(
-                functionScope.mangledName + '-wrapper',
-                functionScope.mangledName,
+                functionScope.funcName + '-wrapper',
+                functionScope.funcName,
             );
         }
 
