@@ -12,6 +12,7 @@ import { Compiler } from './compiler.js';
 import { parentIsFunctionLike, Stack } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
+import { assert } from 'console';
 
 export enum ScopeKind {
     Scope,
@@ -27,10 +28,13 @@ export class Scope {
     children: Scope[] = [];
     parent: Scope | null;
     namedTypeMap: Map<string, Type> = new Map();
+    /* Hold all temp variables inserted during code generation */
+    private tempVarArray: Variable[] = [];
     private variableArray: Variable[] = [];
     private statementArray: Statement[] = [];
-    private modifiers: ts.SyntaxKind[] = [];
+    private localIndex = -1;
     public mangledName = '';
+    private modifiers: ts.SyntaxKind[] = [];
 
     addStatement(statement: Statement) {
         this.statementArray.push(statement);
@@ -56,15 +60,54 @@ export class Scope {
         variableObj.scope = this;
     }
 
-    addVariableAtStart(variableObj: Variable) {
-        this.variableArray.unshift(variableObj);
-        this.variableArray.forEach((item, index) => {
-            item.setVarIndex(index);
+    addType(name: string, type: Type) {
+        this.namedTypeMap.set(name, type);
+    }
+
+    allocateLocalIndex() {
+        return this.localIndex++;
+    }
+
+    assignVariableIndex(scope: Scope) {
+        if (scope instanceof FunctionScope || scope instanceof BlockScope) {
+            scope.varArray.forEach((v) => {
+                v.setVarIndex(this.localIndex++);
+            });
+        }
+
+        scope.children.forEach((s) => {
+            if (s instanceof BlockScope) {
+                this.assignVariableIndex(s);
+            }
         });
     }
 
-    addType(name: string, type: Type) {
-        this.namedTypeMap.set(name, type);
+    initVariableIndex() {
+        if (this.localIndex !== -1) {
+            throw Error(`Can't initialize variables multiple times`);
+        }
+
+        if (this instanceof FunctionScope) {
+            this.localIndex = this.paramArray.length;
+        } else if (this instanceof GlobalScope) {
+            this.localIndex = 0;
+        } else {
+            return;
+        }
+        this.assignVariableIndex(this);
+    }
+
+    addTempVar(variableObj: Variable) {
+        if (this.localIndex === -1) {
+            throw Error(
+                `Can't add temp variable begore index assigned, add variable instead`,
+            );
+        }
+        this.tempVarArray.push(variableObj);
+    }
+
+    getTempVars() {
+        return this.tempVarArray;
     }
 
     get varArray(): Variable[] {
@@ -273,6 +316,38 @@ export class Scope {
     }
 }
 
+export class ClosureEnvironment extends Scope {
+    private isClosure = false;
+    contextVariable: Variable | null = null;
+
+    constructor(parent: Scope | null = null) {
+        super(parent);
+        if (
+            this instanceof FunctionScope ||
+            parent?.getNearestFunctionScope()
+        ) {
+            /* Add context variable if this scope is inside a function scope */
+            const contextVar = new Variable(
+                '@context',
+                new Type(),
+                [],
+                -1,
+                true,
+            );
+            this.addVariable(contextVar);
+            this.contextVariable = contextVar;
+        }
+    }
+
+    setIsClosure(): void {
+        this.isClosure = true;
+    }
+
+    getIsClosure(): boolean {
+        return this.isClosure;
+    }
+}
+
 export class GlobalScope extends Scope {
     kind = ScopeKind.GlobalScope;
     private _moduleName = '';
@@ -297,12 +372,9 @@ export class GlobalScope extends Scope {
         super(parent);
     }
 
-    addStartFuncVar(variableObj: Variable) {
-        this.startFunctionVariableArray.push(variableObj);
-    }
-
-    get startFuncVarArray(): Variable[] {
-        return this.startFunctionVariableArray;
+    addVariable(variableObj: Variable) {
+        super.addVariable(variableObj);
+        variableObj.setIsLocalVar(false);
     }
 
     set moduleName(moduleName: string) {
@@ -350,12 +422,11 @@ export class GlobalScope extends Scope {
     }
 }
 
-export class FunctionScope extends Scope {
+export class FunctionScope extends ClosureEnvironment {
     kind = ScopeKind.FunctionScope;
     private functionName = '';
     private parameterArray: Parameter[] = [];
     private functionType = new TSFunction();
-    private isClosure = false;
     /* iff the function is a member function, which class it belong to */
     private _classNmae = '';
 
@@ -363,8 +434,15 @@ export class FunctionScope extends Scope {
         super(parent);
     }
 
+    getThisIndex() {
+        return this.varArray.find((v) => {
+            return v.varName === 'this';
+        })!.varIndex;
+    }
+
     addParameter(parameter: Parameter) {
         this.parameterArray.push(parameter);
+        parameter.scope = this;
     }
 
     get paramArray(): Parameter[] {
@@ -395,26 +473,26 @@ export class FunctionScope extends Scope {
         return this._classNmae;
     }
 
-    setIsClosure(): void {
-        this.isClosure = true;
-    }
-
-    getIsClosure(): boolean {
-        return this.isClosure;
-    }
-
     isMethod(): boolean {
         return this._classNmae !== '';
     }
 }
 
-export class BlockScope extends Scope {
+export class BlockScope extends ClosureEnvironment {
     kind = ScopeKind.BlockScope;
     name = '';
+    /* belong function scope of this block scope,
+        may be null if this block is in global scope */
+    funcScope: FunctionScope | null = null;
 
-    constructor(parent: Scope, name = '') {
+    constructor(
+        parent: Scope,
+        name = '',
+        funcScope: FunctionScope | null = null,
+    ) {
         super(parent);
         this.name = name;
+        this.funcScope = funcScope;
     }
 }
 
@@ -458,6 +536,11 @@ export class NamespaceScope extends Scope {
         super(parent);
         this.namespaceName = name;
     }
+
+    addVariable(variableObj: Variable) {
+        super.addVariable(variableObj);
+        variableObj.setIsLocalVar(false);
+    }
 }
 
 export class ScopeScanner {
@@ -481,10 +564,6 @@ export class ScopeScanner {
     ) {
         const parentScope = this.currentScope!;
         const functionScope = new FunctionScope(parentScope);
-        functionScope.addParameter(
-            new Parameter('', new Type(), [], -1, false, false),
-        );
-        functionScope.addVariable(new Variable('', new Type(), [], -1));
         const isStatic = node.modifiers?.find((m) => {
             return m.kind === ts.SyntaxKind.StaticKeyword;
         })
@@ -497,15 +576,19 @@ export class ScopeScanner {
             }
         }
 
+        functionScope.addParameter(
+            new Parameter('@context', new Type(), [], 0, false, false),
+        );
+
         if (!isStatic) {
             functionScope.addParameter(
-                new Parameter('', new Type(), [], -1, false, false),
+                new Parameter('@this', new Type(), [], 1, false, false),
             );
-            functionScope.addVariable(new Variable('', new Type(), [], -1));
+            functionScope.addVariable(new Variable('this', new Type(), [], -1));
         }
+
         functionScope.setClassName((<ClassScope>parentScope).className);
-        let methodName =
-            functionScope.className + '_' + getMethodPrefix(methodType);
+        let methodName = getMethodPrefix(methodType);
         if (node.name) {
             methodName += node.name.getText();
         }
@@ -579,9 +662,8 @@ export class ScopeScanner {
                 const functionScope = new FunctionScope(parentScope);
                 /* function context struct placeholder */
                 functionScope.addParameter(
-                    new Parameter('', new Type(), [], -1, false, false),
+                    new Parameter('@context', new Type(), [], 0, false, false),
                 );
-                functionScope.addVariable(new Variable('', new Type(), [], -1));
                 if (functionDeclarationNode.modifiers !== undefined) {
                     for (const modifier of functionDeclarationNode.modifiers) {
                         functionScope.addModifier(modifier.kind);
@@ -709,9 +791,11 @@ export class ScopeScanner {
             const parentScope = this.currentScope!;
             const parentName = ScopeScanner.getPossibleScopeName(parentScope);
             const blockName = ts.isCaseOrDefaultClause(node) ? 'case' : 'block';
+            const maybeFuncScope = parentScope.getNearestFunctionScope();
             const blockScope = new BlockScope(
                 parentScope,
                 `${parentName}.${blockName}`,
+                maybeFuncScope,
             );
             this.setCurrentScope(blockScope);
             this.nodeScopeMap.set(node, blockScope);
@@ -734,9 +818,11 @@ export class ScopeScanner {
     ) {
         const parentScope = this.currentScope!;
         const parentName = ScopeScanner.getPossibleScopeName(parentScope);
+        const maybeFuncScope = parentScope.getNearestFunctionScope();
         const outOfLoopBlock = new BlockScope(
             parentScope,
             `${parentName}.loop`,
+            maybeFuncScope,
         );
         this.setCurrentScope(outOfLoopBlock);
         this.nodeScopeMap.set(node, outOfLoopBlock);
