@@ -240,7 +240,9 @@ export function getImportIdentifierName(
     importDeclaration: ts.ImportDeclaration,
 ) {
     const importIdentifierArray: string[] = [];
-    let nameAliasImportName: string | null = null;
+    const nameAliasImportMap = new Map<string, string>();
+    let nameScopeImportName: string | null = null;
+    let defaultImportName: string | null = null;
     // get import identifier
     const importClause = importDeclaration.importClause;
     if (!importClause) {
@@ -250,6 +252,13 @@ export function getImportIdentifierName(
         throw Error('TODO');
     }
     const namedBindings = importClause.namedBindings;
+    const importElement = importClause.name;
+    if (importElement) {
+        // import default export from other module
+        // import module_case4_var1 from './module-case4';
+        const importElementName = importElement.getText();
+        defaultImportName = importElementName;
+    }
     if (namedBindings) {
         if (ts.isNamedImports(namedBindings)) {
             // import regular exports from other module
@@ -257,27 +266,58 @@ export function getImportIdentifierName(
             for (const importSpecifier of namedBindings.elements) {
                 const specificIdentifier = <ts.Identifier>importSpecifier.name;
                 const specificName = specificIdentifier.getText()!;
-                importIdentifierArray.push(specificName);
+                const propertyIdentifier = importSpecifier.propertyName;
+                if (propertyIdentifier) {
+                    const propertyName = (<ts.Identifier>(
+                        propertyIdentifier
+                    )).getText()!;
+                    nameAliasImportMap.set(specificName, propertyName);
+                    importIdentifierArray.push(propertyName);
+                } else {
+                    importIdentifierArray.push(specificName);
+                }
             }
         } else if (ts.isNamespaceImport(namedBindings)) {
             // import entire module into a variable
             // import * as xx from './yy'
             const identifier = <ts.Identifier>namedBindings.name;
-            nameAliasImportName = identifier.getText()!;
+            nameScopeImportName = identifier.getText()!;
         } else {
             throw Error('unexpected case');
         }
-    } else {
-        const importElement = <ts.Identifier>importClause.name;
-        if (importElement) {
-            // import default export from other module
-            // import module_case4_var1 from './module-case4';
-            const importElementName = importElement.getText();
-            importIdentifierArray.push(importElementName);
-        } else {
-            throw Error('importClause.name is undefined');
+    }
+
+    return {
+        importIdentifierArray,
+        nameScopeImportName,
+        nameAliasImportMap,
+        defaultImportName,
+    };
+}
+
+export function getExportIdentifierName(
+    exportDeclaration: ts.ExportDeclaration,
+) {
+    const nameAliasExportMap = new Map<string, string>();
+    // only need to record export alias
+    const exportClause = exportDeclaration.exportClause;
+    if (!exportClause) {
+        throw Error('exportClause is undefined');
+    }
+    if (ts.isNamedExports(exportClause)) {
+        const exportSpecifiers = exportClause.elements;
+        for (const exportSpecifier of exportSpecifiers) {
+            const specificIdentifier = <ts.Identifier>exportSpecifier.name;
+            const specificName = specificIdentifier.getText()!;
+            const propertyIdentifier = exportSpecifier.propertyName;
+            if (propertyIdentifier) {
+                const propertyName = (<ts.Identifier>(
+                    propertyIdentifier
+                )).getText()!;
+                nameAliasExportMap.set(specificName, propertyName);
+            }
         }
     }
 
-    return { importIdentifierArray, nameAliasImportName };
+    return nameAliasExportMap;
 }

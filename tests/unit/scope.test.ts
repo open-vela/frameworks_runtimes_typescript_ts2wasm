@@ -81,7 +81,7 @@ describe('testScope', function () {
 
         expect(globalScope.findVariable('var1')).eq(var1);
         expect(globalScope.findVariable('var2')).eq(undefined);
-        expect(globalScope.findVariable('global2var1')).eq(global2var1);
+        expect(globalScope.findIdentifier('global2var1')).eq(global2var1);
 
         expect(funcScope.findVariable('var1')).eq(var1);
         expect(funcScope.findVariable('global2var1')).eq(var2);
@@ -132,20 +132,19 @@ describe('testScope', function () {
 
         const internalFunctionScope = new FunctionScope(blockScope);
         const internalBlockScope = new BlockScope(internalFunctionScope);
-        internalFunctionScope.setFuncName('function1|function2');
+        internalFunctionScope.setFuncName('function2');
 
-        // 'function1' => top level function
-        expect(blockScope.findFunctionScope('function1', false)).eq(
-            functionScope,
-        );
         expect(blockScope.findFunctionScope('function1')).eq(functionScope);
-        expect(blockScope.findFunctionScope('function2', false)).eq(
+        expect(functionScope.findFunctionScope('function1', false)).eq(
+            undefined,
+        );
+        expect(functionScope.findFunctionScope('function1')).eq(functionScope);
+        expect(blockScope.findFunctionScope('function2')).eq(
             internalFunctionScope,
         );
         expect(internalBlockScope.findFunctionScope('function2', false)).eq(
             undefined,
         );
-        expect(internalBlockScope.findFunctionScope('function2')).eq(undefined);
         expect(internalBlockScope.findFunctionScope('function1')).eq(
             functionScope,
         );
