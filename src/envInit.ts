@@ -1,10 +1,5 @@
 import binaryen from 'binaryen';
-import { GlobalScope } from './scope.js';
 import { dyntype } from '../lib/dyntype/utils.js';
-import { Variable } from './variable.js';
-import { builtinTypes, Type, TypeKind } from './type.js';
-import { CallExpression, IdentifierExpression } from './expression.js';
-import { ExpressionStatement, VariableStatement } from './statement.js';
 
 export function importLibApi(module: binaryen.Module) {
     module.addFunctionImport(
@@ -259,31 +254,4 @@ export function getReturnTypeRef(funcName: string) {
         default:
             return dyntype.cvoid;
     }
-}
-
-export function initDynContext(gloalScope: GlobalScope) {
-    // const contextType: Type = builtinTypes.get(TypeKind.DYNCONTEXTTYPE)!;
-    // const ctxInitExpr = new CallExpression(
-    //     new IdentifierExpression(dyntype.dyntype_context_init),
-    // );
-    // const context = new Variable(
-    //     dyntype.dyntype_context,
-    //     contextType,
-    //     ModifierKind.default,
-    //     0,
-    //     false,
-    //     ctxInitExpr,
-    // );
-    // gloalScope.addVariableAtStart(context);
-    // const varStatement = new VariableStatement();
-    // varStatement.addVariable(context);
-    // gloalScope.addStatementAtStart(varStatement);
-}
-
-export function freeDynContext(gloalScope: GlobalScope) {
-    // const ctxFreeExpr = new CallExpression(
-    //     new IdentifierExpression(dyntype.dyntype_context_destroy),
-    //     [new IdentifierExpression(dyntype.dyntype_context)],
-    // );
-    // gloalScope.addStatement(new ExpressionStatement(ctxFreeExpr));
 }

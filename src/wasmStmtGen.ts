@@ -17,7 +17,13 @@ import {
     VariableStatement,
     ImportDeclaration,
 } from './statement.js';
-import { FunctionScope, Scope, ScopeKind } from './scope.js';
+import {
+    FunctionScope,
+    Scope,
+    ClosureEnvironment,
+    ScopeKind,
+    BlockScope,
+} from './scope.js';
 import { FlattenLoop, IfStatementInfo, typeInfo } from './glue/utils.js';
 import { WASMGen } from './wasmGen.js';
 import { TSClass, TSFunction, TypeKind } from './type.js';
@@ -151,31 +157,32 @@ export class WASMStatementGen {
         const nearestFuncScope = <FunctionScope>curNearestFuncScope;
         let returnExprRef: binaryen.ExpressionRef;
         const type = nearestFuncScope.funcType;
-        if (type.returnType.kind === TypeKind.FUNCTION) {
-            const returnedFuncName =
-                nearestFuncScope.funcName +
-                '|' +
-                (<IdentifierExpression>stmt.returnExpression).identifierName;
-            const array = [
-                module.local.get(
-                    nearestFuncScope.paramArray.length,
-                    (<typeInfo>WASMGen.contextOfFunc.get(nearestFuncScope))
-                        .typeRef,
-                ),
-                module.ref.func(
-                    returnedFuncName,
-                    this.WASMCompiler.wasmType.getWASMType(type.returnType),
-                ),
-            ];
-            returnExprRef = binaryenCAPI._BinaryenStructNew(
-                module.ptr,
-                arrayToPtr(array).ptr,
-                2,
-                this.WASMCompiler.wasmType.getWASMFuncStructHeapType(
-                    type.returnType,
-                ),
-            );
-        } else if (
+        // if (type.returnType.kind === TypeKind.FUNCTION) {
+        //     const returnedFuncName =
+        //         nearestFuncScope.funcName +
+        //         '|' +
+        //         (<IdentifierExpression>stmt.returnExpression).identifierName;
+        //     const array = [
+        //         module.local.get(
+        //             nearestFuncScope.paramArray.length,
+        //             (<typeInfo>WASMGen.contextOfScope.get(nearestFuncScope))
+        //                 .typeRef,
+        //         ),
+        //         module.ref.func(
+        //             returnedFuncName,
+        //             this.WASMCompiler.wasmType.getWASMType(type.returnType),
+        //         ),
+        //     ];
+        //     returnExprRef = binaryenCAPI._BinaryenStructNew(
+        //         module.ptr,
+        //         arrayToPtr(array).ptr,
+        //         2,
+        //         this.WASMCompiler.wasmType.getWASMFuncStructHeapType(
+        //             type.returnType,
+        //         ),
+        //     );
+        // } else if (
+        if (
             type.returnType.kind === TypeKind.ANY &&
             stmt.returnExpression.exprType.kind !== TypeKind.ANY
         ) {
@@ -448,10 +455,11 @@ export class WASMStatementGen {
                             /* free variable index in context struct */
                             const index = localVar.getClosureIndex();
                             const ctxStructType = <typeInfo>(
-                                WASMGen.contextOfFunc.get(funcScope)
+                                WASMGen.contextOfScope.get(funcScope)
                             );
                             const contextStruct = module.local.get(
-                                (<FunctionScope>scope).paramArray.length,
+                                (<ClosureEnvironment>scope).contextVariable!
+                                    .varIndex,
                                 ctxStructType.typeRef,
                             );
                             const freeVarSetWasmStmt =

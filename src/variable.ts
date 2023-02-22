@@ -12,6 +12,8 @@ import {
     getExportIdentifierName,
 } from './utils.js';
 import {
+    BlockScope,
+    ClassScope,
     FunctionScope,
     GlobalScope,
     NamespaceScope,
@@ -163,12 +165,23 @@ export class VariableScanner {
             ts.forEachChild(node, this.visitNode.bind(this));
 
             if (scope instanceof FunctionScope) {
+                const classScope = scope.parent as ClassScope;
                 if (scope.className) {
-                    /* For class methods, fix the "this" index */
+                    /* For class methods, fix type for "this" parameter */
                     if (!scope.isStatic) {
-                        scope.varArray[0].setVarIndex(scope.paramArray.length);
+                        scope.varArray[1].varType = classScope.classType;
                     }
                 }
+            }
+        });
+
+        this.nodeScopeMap.forEach((scope, node) => {
+            if (
+                scope instanceof FunctionScope ||
+                scope instanceof GlobalScope
+            ) {
+                /* Assign index for function variables */
+                scope.initVariableIndex();
             }
         });
     }
@@ -318,47 +331,7 @@ export class VariableScanner {
                     currentScope.getRootGloablScope()!.defaultNoun =
                         variable.varName;
                 }
-                /* iff in a global scope, set index based on global scope variable array */
-                if (
-                    currentScope.kind === ScopeKind.GlobalScope ||
-                    currentScope.kind === ScopeKind.NamespaceScope
-                ) {
-                    variable.setIsLocalVar(false);
-                    variable.setVarIndex(currentScope.varArray.length);
-                } else {
-                    const functionScope =
-                        currentScope.getNearestFunctionScope()!;
-                    /* under global scope, set index based on start function variable array */
-                    if (!functionScope) {
-                        if (currentScope.getRootGloablScope() === null) {
-                            throw new Error('global scope is null');
-                        }
-                        variable.setVarIndex(
-                            (<GlobalScope>currentScope.getRootGloablScope())
-                                .startFuncVarArray.length,
-                        );
-                        (<GlobalScope>(
-                            currentScope.getRootGloablScope()
-                        )).addStartFuncVar(variable);
-                    } else {
-                        /* under function scope, set index based on function variable array */
-                        variable.setVarIndex(
-                            (<FunctionScope>functionScope).paramArray.length +
-                                functionScope.varArray.length,
-                        );
-                        if (currentScope.kind !== ScopeKind.FunctionScope) {
-                            functionScope.addVariable(variable);
-                        }
-                    }
-                }
 
-                if (variable.varIndex === -1) {
-                    throw new Error(
-                        'variable index is not set, variable name is <' +
-                            variable.varName +
-                            '>',
-                    );
-                }
                 currentScope.addVariable(variable);
                 break;
             }
