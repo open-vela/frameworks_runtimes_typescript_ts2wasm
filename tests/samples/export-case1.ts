@@ -31,3 +31,14 @@ export namespace ns {
 }
 
 export default ns;
+
+export declare namespace ns2 {
+    function one(): number;
+    const v1: string;
+    export function two(): void;
+
+    export namespace ns3 {
+        const v2: number;
+        function three(): boolean;
+    }
+}

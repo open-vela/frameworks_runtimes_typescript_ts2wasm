@@ -3,7 +3,7 @@ import cp from 'child_process';
 import fs, { constants } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Compiler } from '../src/compiler.js';
+import { Compiler, CompileArgs } from '../src/compiler.js';
 
 interface HelpMessageCategory {
     General: string[];
@@ -27,9 +27,7 @@ function showVersion(packagePath: string) {
     process.exit(0);
 }
 
-function showHelp(optionPath: string) {
-    const helpConfig = parseOptions(optionPath);
-
+function showHelp(helpConfig: any) {
     const printOption = {
         indent: 2,
         padding: 24,
@@ -147,6 +145,15 @@ function main() {
         const packagePath = path.join(dirname, '..', '..', 'package.json');
         const optionConfig = parseOptions(optionPath);
         const optionKey: string[] = [];
+        const compileArgs: CompileArgs = {};
+
+        Object.keys(optionConfig).forEach((commandKey) => {
+            const option = optionConfig[commandKey];
+            if (option.category.toString() === 'Compile') {
+                compileArgs[commandKey] = args[commandKey];
+            }
+        });
+
         Object.keys(optionConfig).forEach((commandKey) => {
             optionKey.push(commandKey);
             if (optionConfig[commandKey].alias) {
@@ -158,8 +165,9 @@ function main() {
                 console.warn("WARNING: Unknown option '" + arg + "'");
             }
         });
+
         if (args.help || args.h) {
-            showHelp(optionPath);
+            showHelp(optionConfig);
         }
         if (args.version || args.v) {
             showVersion(packagePath);
@@ -178,7 +186,7 @@ function main() {
         }
 
         if (!sourceFileList.length && !paramString) {
-            showHelp(optionPath);
+            showHelp(optionConfig);
         }
 
         if (!sourceFileList.length) {
@@ -187,7 +195,7 @@ function main() {
 
         const compiler = new Compiler();
         try {
-            compiler.compile(sourceFileList, args.opt, args.disableAny);
+            compiler.compile(sourceFileList, compileArgs);
         } catch (e) {
             process.exit(1);
         }

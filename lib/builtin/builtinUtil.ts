@@ -33,3 +33,9 @@ export namespace BuiltinNames {
     // other builtin Identifiers
     export const builtinIdentifiers = ['Array', 'Math'];
 }
+
+export namespace ArgNames {
+    export const opt = 'opt';
+    export const disableAny = 'disableAny';
+    export const disableBuiltIn = 'disableBuiltIn';
+}
