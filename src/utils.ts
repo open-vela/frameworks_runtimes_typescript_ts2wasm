@@ -12,12 +12,6 @@ import ExpressionCompiler, { Expression } from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 import { Type } from './type.js';
 
-export interface TypeCheckerInfo {
-    typeName: string;
-    typeNode: ts.Node;
-    elemNode?: ts.Node;
-}
-
 export interface importGlobalInfo {
     internalName: string;
     externalModuleName: string;
@@ -38,6 +32,7 @@ export enum MatchKind {
     FromAnyMatch,
     ClassMatch,
     ClassInheritMatch,
+    ClassInfcMatch,
     ToArrayAnyMatch,
     FromArrayAnyMatch,
     MisMatch,
@@ -77,40 +72,6 @@ export class Stack<T> {
     }
 }
 
-export function getNodeTypeInfo(
-    node: ts.Node,
-    checker: ts.TypeChecker,
-): TypeCheckerInfo {
-    let variableType: ts.Type;
-    let elemNode: ts.Node | undefined = undefined;
-    if (ts.isTypeReferenceNode(node)) {
-        const typeRefNode = node as ts.TypeReferenceNode;
-        node = typeRefNode.typeName;
-        if (typeRefNode.typeArguments) {
-            elemNode = typeRefNode.typeArguments[0];
-        }
-    }
-    const symbol = checker.getSymbolAtLocation(node);
-    if (symbol === undefined) {
-        variableType = checker.getTypeAtLocation(node);
-    } else {
-        if (ts.isTypeReferenceNode(node)) {
-            variableType = checker.getDeclaredTypeOfSymbol(symbol);
-        } else {
-            variableType = checker.getTypeOfSymbolAtLocation(
-                symbol,
-                symbol.declarations![0],
-            );
-        }
-    }
-    const typeCheckerInfo: TypeCheckerInfo = {
-        typeName: checker.typeToString(variableType),
-        typeNode: checker.typeToTypeNode(variableType, undefined, undefined)!,
-        elemNode: elemNode,
-    };
-    return typeCheckerInfo;
-}
-
 export function getCurScope(
     node: ts.Node,
     nodeScopeMap: Map<ts.Node, Scope>,
@@ -119,6 +80,17 @@ export function getCurScope(
     const scope = nodeScopeMap.get(node);
     if (scope) return scope;
     return getCurScope(node.parent, nodeScopeMap);
+}
+
+export function getNearestFunctionScopeFromCurrent(currentScope: Scope | null) {
+    if (!currentScope) {
+        throw new Error('current scope is null');
+    }
+    const functionScope = currentScope.getNearestFunctionScope();
+    if (!functionScope) {
+        return null;
+    }
+    return functionScope;
 }
 
 export function generateNodeExpression(
@@ -184,6 +156,9 @@ export function isScopeNode(node: ts.Node) {
         node.kind === ts.SyntaxKind.CaseClause ||
         node.kind === ts.SyntaxKind.DefaultClause
     ) {
+        if (ts.isAccessor(node) && !node.body) {
+            return false;
+        }
         return true;
     }
     if (node.kind === ts.SyntaxKind.Block && !parentIsFunctionLike(node)) {

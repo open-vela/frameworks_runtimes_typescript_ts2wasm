@@ -1,6 +1,13 @@
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
-import { TSArray, TSClass, TSFunction, Type, TypeKind } from './type.js';
+import {
+    getMethodPrefix,
+    TSArray,
+    TSClass,
+    TSFunction,
+    Type,
+    TypeKind,
+} from './type.js';
 import {
     arrayToPtr,
     emptyStructType,
@@ -9,7 +16,7 @@ import {
     createSignatureTypeRefAndHeapTypeRef,
 } from './glue/transform.js';
 import { assert } from 'console';
-import { stringTypeInfo } from './glue/packType.js';
+import { infcTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './wasmGen.js';
 import { dyntype } from '../lib/dyntype/utils.js';
 
@@ -149,23 +156,12 @@ export class WASMTypeGen {
                 const vtableFuncs = new Array<binaryen.ExpressionRef>();
                 for (const method of tsClassType.memberFuncs) {
                     wasmFuncTypes.push(this.getWASMType(method.type));
-                    const modifier = method.isSetter
-                        ? '_set_'
-                        : method.isGetter
-                        ? '_get_'
-                        : '_';
-                    if (
-                        tsClassType.overrideOrOwnMethods.has(
-                            '_set_' + method.name,
-                        ) ||
-                        tsClassType.overrideOrOwnMethods.has(
-                            '_get_' + method.name,
-                        ) ||
-                        tsClassType.overrideOrOwnMethods.has(method.name)
-                    ) {
+                    const nameWithPrefix =
+                        getMethodPrefix(method.type.funcKind) + method.name;
+                    if (tsClassType.overrideOrOwnMethods.has(nameWithPrefix)) {
                         vtableFuncs.push(
                             this.WASMCompiler.module.ref.func(
-                                tsClassType.className + modifier + method.name,
+                                tsClassType.className + '_' + nameWithPrefix,
                                 wasmFuncTypes[wasmFuncTypes.length - 1],
                             ),
                         );
@@ -174,9 +170,7 @@ export class WASMTypeGen {
                         const baseClassType = <TSClass>tsClassType.getBase();
                         vtableFuncs.push(
                             this.WASMCompiler.module.ref.func(
-                                baseClassType.className +
-                                    modifier +
-                                    method.name,
+                                baseClassType.className + '_' + nameWithPrefix,
                                 wasmFuncTypes[wasmFuncTypes.length - 1],
                             ),
                         );
@@ -235,6 +229,11 @@ export class WASMTypeGen {
                     type,
                     wasmClassType.heapTypeRef,
                 );
+                break;
+            }
+            case TypeKind.INTERFACE: {
+                this.tsType2WASMTypeMap.set(type, infcTypeInfo.typeRef);
+                this.tsType2WASMHeapTypeMap.set(type, infcTypeInfo.heapTypeRef);
                 break;
             }
             default:
@@ -331,5 +330,13 @@ export class WASMTypeGen {
     getWASMClassVtable(type: Type): binaryen.ExpressionRef {
         assert(type.typeKind === TypeKind.CLASS);
         return this.classVtables.get(type) as binaryen.ExpressionRef;
+    }
+
+    getInfcTypeRef(): binaryenCAPI.TypeRef {
+        return infcTypeInfo.typeRef;
+    }
+
+    getInfcHeapTypeRef(): binaryenCAPI.HeapTypeRef {
+        return infcTypeInfo.heapTypeRef;
     }
 }

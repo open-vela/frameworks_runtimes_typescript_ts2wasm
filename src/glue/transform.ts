@@ -1,4 +1,5 @@
 import binaryen from 'binaryen';
+import { assert } from 'console';
 import * as binaryenCAPI from './binaryen.js';
 import { ptrInfo, typeInfo } from './utils.js';
 export function arrayToPtr(array: number[]): ptrInfo {
@@ -137,6 +138,7 @@ export const stringArrayTypeInformation = genarateStringArrayTypeInfo();
 export const boolArrayTypeInformation = genarateBoolArrayTypeInfo();
 export const anyArrayTypeInformation = genarateAnyArrayTypeInfo();
 export const objectStructTypeInformation = genarateObjectStructTypeInfo();
+export const infcTypeInformation = generateInfcTypeInfo();
 
 export const emptyStructType = initStructType([], [], [], 0, true);
 // generate array type to store character context
@@ -193,6 +195,20 @@ function genarateStringArrayTypeInfo(): typeInfo {
         true,
     );
     return stringArrayTypeInfo;
+}
+
+function generateInfcTypeInfo(): typeInfo {
+    return initStructType(
+        [binaryen.i32, binaryen.i32, binaryen.anyref],
+        [
+            binaryenCAPI._BinaryenPackedTypeNotPacked(),
+            binaryenCAPI._BinaryenPackedTypeNotPacked(),
+            binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        ],
+        [false, false, true],
+        3,
+        true,
+    );
 }
 
 // generate bool array type
@@ -265,4 +281,16 @@ export function createSignatureTypeRefAndHeapTypeRef(
         heapTypeRef: signatureHeapType,
     };
     return signature;
+}
+
+export function createCondBlock(
+    module: binaryen.Module,
+    l: binaryen.ExpressionRef,
+    r: binaryen.ExpressionRef,
+    result: binaryen.ExpressionRef,
+): binaryen.ExpressionRef {
+    const cond = module.if(module.i32.eq(l, r), result, module.unreachable());
+    const resType = binaryen.getExpressionType(result);
+    const condBlock = module.block(null, [cond], resType);
+    return condBlock;
 }

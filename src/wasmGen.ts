@@ -1,6 +1,7 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
+import { FunctionKind, getMethodPrefix, TSClass } from './type.js';
 import { builtinTypes, TSFunction, Type, TypeKind } from './type.js';
 import { Variable } from './variable.js';
 import {
@@ -35,6 +36,7 @@ import {
 import { initStringBuiltin } from '../lib/builtin/stringBuiltin.js';
 import { dyntype } from '../lib/dyntype/utils.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
+import { off } from 'process';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -116,6 +118,8 @@ class DataSegmentContext {
     private binaryenCtx: WASMGen;
     currentOffset;
     stringOffsetMap;
+    /* cache <typeid, itable*>*/
+    itableMap;
     dataArray: Array<segmentInfo> = [];
 
     constructor(binaryenCtx: WASMGen) {
@@ -123,6 +127,7 @@ class DataSegmentContext {
         this.binaryenCtx = binaryenCtx;
         this.currentOffset = DataSegmentContext.reservedSpace;
         this.stringOffsetMap = new Map<string, number>();
+        this.itableMap = new Map<number, number>();
     }
 
     addData(data: Uint8Array) {
@@ -382,9 +387,9 @@ export class WASMGen {
         this.wasmTypeCompiler.createWASMType(tsClassType);
         /* iff a class haven't a constructor, create a default on for it */
         if (tsClassType.classConstructorType === null) {
-            const tsFuncType = new TSFunction();
+            const tsFuncType = new TSFunction(FunctionKind.CONSTRUCTOR);
             const wasmClassType = this.wasmType.getWASMType(tsClassType);
-            tsClassType.setClassConstructor('constructor', tsFuncType);
+            tsClassType.setClassConstructor(tsFuncType);
             const classInstance = binaryenCAPI._BinaryenRefCast(
                 this.module.ptr,
                 this.module.local.get(0, emptyStructType.typeRef),
@@ -486,8 +491,7 @@ export class WASMGen {
             closureVarTypes.length,
         ).fill(typeNotPacked);
 
-        /* TODO: maybe the condition is not very clearly */
-        if (functionScope.className === '') {
+        if (functionScope.funcType.funcKind === FunctionKind.DEFAULT) {
             /* iff it hasn't free variables */
             if (closureVarTypes.length === 1) {
                 WASMGen.contextOfFunc.set(
@@ -604,7 +608,7 @@ export class WASMGen {
         }
         const varWASMTypes = new Array<binaryen.ExpressionRef>();
         // iff not a member function
-        if (functionScope.className === '') {
+        if (functionScope.funcType.funcKind === FunctionKind.DEFAULT) {
             varWASMTypes.push(
                 (<typeInfo>WASMGen.contextOfFunc.get(functionScope)).typeRef,
             );
@@ -752,6 +756,34 @@ export class WASMGen {
 
     generateRawString(str: string): number {
         const offset = this.dataSegmentContext!.addString(str);
+        return offset;
+    }
+
+    generateItable(shape: TSClass): number {
+        if (this.dataSegmentContext!.itableMap.has(shape.typeId)) {
+            return this.dataSegmentContext!.itableMap.get(shape.typeId)!;
+        }
+        const methodLen = shape.memberFuncs.length;
+        const fieldLen = shape.fields.length;
+        const dataLength = methodLen + fieldLen;
+        const buffer = new Uint32Array(2 + 3 * dataLength);
+        buffer[0] = this.module.i32.const(shape.typeId);
+        buffer[1] = dataLength;
+        for (let i = 0, j = 2; i < methodLen; i++, j += 3) {
+            buffer[j] = this.generateRawString(shape.memberFuncs[i].name);
+            buffer[j + 1] = 1;
+            buffer[j + 2] = i;
+        }
+        const previousPartLength = 2 + shape.memberFuncs.length * 3;
+        for (let i = 0, j = previousPartLength; i < fieldLen; i++, j += 3) {
+            buffer[j] = this.generateRawString(shape.fields[i].name);
+            buffer[j + 1] = 0;
+            buffer[j + 2] = i + 1;
+        }
+        const offset = this.dataSegmentContext!.addData(
+            new Uint8Array(buffer.buffer),
+        );
+        this.dataSegmentContext!.itableMap.set(shape.typeId, offset);
         return offset;
     }
 }
