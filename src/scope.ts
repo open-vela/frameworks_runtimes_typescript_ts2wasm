@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import ts, { factory } from 'typescript';
 import path from 'path';
 import {
     Type,
@@ -12,7 +12,6 @@ import { Compiler } from './compiler.js';
 import { parentIsFunctionLike, Stack } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
-import { assert } from 'console';
 
 export enum ScopeKind {
     Scope,
@@ -319,6 +318,13 @@ export class Scope {
     get isStatic(): boolean {
         return this.modifiers.includes(ts.SyntaxKind.StaticKeyword);
     }
+
+    traverseScopTree(traverseMethod: (scope: Scope) => void) {
+        traverseMethod(this);
+        for (const child of this.children) {
+            child.traverseScopTree(traverseMethod);
+        }
+    }
 }
 
 export class ClosureEnvironment extends Scope {
@@ -569,12 +575,6 @@ export class ScopeScanner {
     ) {
         const parentScope = this.currentScope!;
         const functionScope = new FunctionScope(parentScope);
-        const isStatic = node.modifiers?.find((m) => {
-            return m.kind === ts.SyntaxKind.StaticKeyword;
-        })
-            ? true
-            : false;
-
         if (node.modifiers !== undefined) {
             for (const modifier of node.modifiers) {
                 functionScope.addModifier(modifier.kind);
@@ -585,7 +585,7 @@ export class ScopeScanner {
             new Parameter('@context', new Type(), [], 0, false, false),
         );
 
-        if (!isStatic) {
+        if (methodType !== FunctionKind.STATIC) {
             functionScope.addParameter(
                 new Parameter('@this', new Type(), [], 1, false, false),
             );

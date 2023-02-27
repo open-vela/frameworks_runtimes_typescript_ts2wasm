@@ -287,10 +287,11 @@ export function createCondBlock(
     module: binaryen.Module,
     l: binaryen.ExpressionRef,
     r: binaryen.ExpressionRef,
-    result: binaryen.ExpressionRef,
+    ifTrue: binaryen.ExpressionRef,
+    ifFalse: binaryen.ExpressionRef = module.unreachable(),
 ): binaryen.ExpressionRef {
-    const cond = module.if(module.i32.eq(l, r), result, module.unreachable());
-    const resType = binaryen.getExpressionType(result);
+    const cond = module.if(module.i32.eq(l, r), ifTrue, ifFalse);
+    const resType = binaryen.getExpressionType(ifTrue);
     const condBlock = module.block(null, [cond], resType);
     return condBlock;
 }

@@ -6,6 +6,7 @@ import {
     TSArray,
     TSClass,
     TSFunction,
+    TSInterface,
     Type,
     TypeKind,
 } from './type.js';
@@ -158,7 +159,8 @@ export class WASMTypeGen {
                 );
                 break;
             }
-            case TypeKind.CLASS: {
+            case TypeKind.CLASS:
+            case TypeKind.INTERFACE: {
                 const tsClassType = <TSClass>type;
                 // 1. add vtable
                 /* currently vtable stores all member functions(without constructor) */
@@ -243,11 +245,6 @@ export class WASMTypeGen {
                 );
                 break;
             }
-            case TypeKind.INTERFACE: {
-                this.tsType2WASMTypeMap.set(type, infcTypeInfo.typeRef);
-                this.tsType2WASMHeapTypeMap.set(type, infcTypeInfo.heapTypeRef);
-                break;
-            }
             default:
                 break;
         }
@@ -257,22 +254,29 @@ export class WASMTypeGen {
         if (
             type.kind === TypeKind.VOID ||
             type.kind === TypeKind.BOOLEAN ||
-            type.kind === TypeKind.NUMBER
+            type.kind === TypeKind.NUMBER ||
+            type.kind === TypeKind.ANY
         ) {
             return false;
         }
         return true;
     }
 
-    getWASMType(type: Type): binaryenCAPI.TypeRef {
+    getWASMType(type: Type, infcType = false): binaryenCAPI.TypeRef {
+        if (type instanceof TSInterface && !infcType) {
+            return this.getInfcTypeRef();
+        }
         if (!this.tsType2WASMTypeMap.has(type)) {
             this.createWASMType(type);
         }
         return this.tsType2WASMTypeMap.get(type) as binaryenCAPI.TypeRef;
     }
 
-    getWASMHeapType(type: Type): binaryenCAPI.HeapTypeRef {
+    getWASMHeapType(type: Type, infcType = false): binaryenCAPI.HeapTypeRef {
         assert(this.hasHeapType(type));
+        if (type instanceof TSInterface && !infcType) {
+            return this.getInfcHeapTypeRef();
+        }
         if (!this.tsType2WASMHeapTypeMap.has(type)) {
             this.createWASMType(type);
         }
