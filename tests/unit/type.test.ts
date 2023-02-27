@@ -71,8 +71,11 @@ describe('testType', function () {
         });
 
         expect(objLiteralType.getMemberField('a')).eq(objField);
-        expect(objLiteralType.getMethod('add', FunctionKind.DEFAULT)?.type).eq(
-            funcType,
+        expect(
+            objLiteralType.getMethod('add', FunctionKind.DEFAULT).method?.type,
+        ).eq(funcType);
+        expect(objLiteralType.getMethod('add', FunctionKind.DEFAULT).index).eq(
+            0,
         );
     });
 
@@ -118,12 +121,16 @@ describe('testType', function () {
         classType.setBase(baseClassType);
 
         expect(baseClassType.getMemberField('b')).eq(baseClassField);
-        expect(baseClassType.getMethod('add', FunctionKind.DEFAULT)?.type).eq(
-            baseFuncType,
+        expect(
+            baseClassType.getMethod('add', FunctionKind.DEFAULT).method?.type,
+        ).eq(baseFuncType);
+        expect(baseClassType.getMethod('add', FunctionKind.DEFAULT).index).eq(
+            0,
         );
-        expect(classType.getMethod('add', FunctionKind.DEFAULT)?.type).eq(
-            funcType,
-        );
+        expect(
+            classType.getMethod('add', FunctionKind.DEFAULT).method?.type,
+        ).eq(funcType);
+        expect(classType.getMethod('add', FunctionKind.DEFAULT).index).eq(0);
     });
 
     it('judgeArrayType', function () {

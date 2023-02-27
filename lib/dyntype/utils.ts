@@ -26,9 +26,12 @@ export namespace dyntype {
     export const DYNTYPE_SUCCESS = module.i32.const(0);
     export const DYNTYPE_EXCEPTION = module.i32.const(1);
     export const DYNTYPE_TYPEERR = module.i32.const(2);
-    export const ExtObj = module.f64.const(0);
-    export const ExtFunc = module.f64.const(1);
-    export const ExtInfc = module.f64.const(2);
+
+    export const enum ExtObjKind {
+        ExtObj = 0,
+        ExtFunc = 1,
+        ExtInfc = 2,
+    }
 
     // export dyntype functions
     export const dyntype_context_init = 'dyntype_context_init';
@@ -74,4 +77,20 @@ export namespace dyntype {
     export const dyntype_hold = 'dyntype_hold';
     export const dyntype_release = 'dyntype_release';
     export const dyntype_collect = 'dyntype_collect';
+}
+
+export namespace structdyn {
+    export const module_name = 'libdstructdyn';
+    export const enum StructDyn {
+        struct_get_dyn_i32 = 'struct_get_dyn_i32',
+        struct_get_dyn_i64 = 'struct_get_dyn_i64',
+        struct_get_dyn_f32 = 'struct_get_dyn_f32',
+        struct_get_dyn_f64 = 'struct_get_dyn_f64',
+        struct_get_dyn_anyref = 'struct_get_dyn_anyref',
+        struct_set_dyn_i32 = 'struct_set_dyn_i32',
+        struct_set_dyn_i64 = 'struct_set_dyn_i64',
+        struct_set_dyn_f32 = 'struct_set_dyn_f32',
+        struct_set_dyn_f64 = 'struct_set_dyn_f64',
+        struct_set_dyn_anyref = 'struct_set_dyn_anyref',
+    }
 }

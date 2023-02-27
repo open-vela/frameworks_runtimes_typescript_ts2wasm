@@ -48,7 +48,7 @@ import {
     ClosureEnvironment,
 } from './scope.js';
 import { MatchKind, Stack } from './utils.js';
-import { dyntype } from '../lib/dyntype/utils.js';
+import { dyntype, structdyn } from '../lib/dyntype/utils.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 import { charArrayTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { typeInfo } from './glue/utils.js';
@@ -77,6 +77,7 @@ enum AccessType {
     Getter,
     Setter,
     Struct,
+    Interface,
     Array,
     DynObject,
     DynArray,
@@ -126,7 +127,7 @@ class FunctionAccess extends AccessBase {
 class MethodAccess extends AccessBase {
     constructor(
         public methodType: TSFunction,
-        public methodName: string,
+        public methodIndex: number,
         public classType: TSClass,
         public thisObj: binaryen.ExpressionRef | null = null,
     ) {
@@ -137,7 +138,7 @@ class MethodAccess extends AccessBase {
 class GetterAccess extends AccessBase {
     constructor(
         public methodType: TSFunction,
-        public methodName: string,
+        public methodIndex: number,
         public classType: TSClass,
         public thisObj: binaryen.ExpressionRef,
     ) {
@@ -153,6 +154,20 @@ class StructAccess extends TypedAccessBase {
         tsType: Type,
     ) {
         super(AccessType.Struct, tsType);
+    }
+}
+
+class InterfaceAccess extends TypedAccessBase {
+    constructor(
+        public infcTypeId: binaryen.ExpressionRef,
+        public objTypeId: binaryen.ExpressionRef,
+        public objRef: binaryen.ExpressionRef,
+        public objHeapType: binaryenCAPI.HeapTypeRef, // ref.cast objHeapType anyref
+        public fieldIndex: number,
+        public dynFieldIndex: binaryen.ExpressionRef,
+        tsType: Type,
+    ) {
+        super(AccessType.Interface, tsType);
     }
 }
 
@@ -929,7 +944,10 @@ export class WASMExpressionBase {
         );
     }
 
-    generateDynExtref(dynValue: binaryen.ExpressionRef) {
+    generateDynExtref(
+        dynValue: binaryen.ExpressionRef,
+        extObjKind: dyntype.ExtObjKind,
+    ) {
         const module = this.module;
         // table type is anyref, no need to cast
         const objTarget = dynValue;
@@ -973,7 +991,7 @@ export class WASMExpressionBase {
             [
                 module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
                 numberPointer,
-                dyntype.ExtObj,
+                module.i32.const(extObjKind),
             ],
             dyntype.dyn_value_t,
         );
@@ -1157,6 +1175,38 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 wasmType,
                 false,
             );
+        } else if (accessInfo instanceof InterfaceAccess) {
+            const {
+                infcTypeId,
+                objTypeId,
+                objRef,
+                objHeapType,
+                fieldIndex,
+                dynFieldIndex,
+                tsType, // field Type
+            } = accessInfo;
+            const castedObjRef = binaryenCAPI._BinaryenRefCast(
+                module.ptr,
+                objRef,
+                objHeapType,
+            );
+            const wasmFieldType = this.wasmType.getWASMType(tsType);
+            const ifTrue = binaryenCAPI._BinaryenStructGet(
+                module.ptr,
+                fieldIndex,
+                castedObjRef,
+                wasmFieldType,
+                false,
+            );
+            const ifFalse = this.dynGetInfcField(objRef, dynFieldIndex, tsType);
+
+            loadRef = createCondBlock(
+                module,
+                infcTypeId,
+                objTypeId,
+                ifTrue,
+                ifFalse,
+            );
         } else if (accessInfo instanceof ArrayAccess) {
             const { ref, index, wasmType } = accessInfo;
 
@@ -1202,15 +1252,18 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
             }
         } else if (accessInfo instanceof GetterAccess) {
-            const { methodType, methodName, classType, thisObj } = accessInfo;
-
-            const getterName = `get_${methodName}`;
-            const callFuncName = `${classType.mangledName}|${getterName}`;
-
-            return this.module.call(
-                callFuncName,
+            const { methodType, methodIndex, classType, thisObj } = accessInfo;
+            if (!thisObj) {
+                throw new Error(
+                    `object is null when accessing getter method of class, class name is '${classType.className}'`,
+                );
+            }
+            return this._generateClassMethodCallRef(
+                thisObj,
+                classType,
+                methodType,
+                methodIndex,
                 [thisObj!],
-                this.wasmType.getWASMFuncReturnType(methodType),
             );
         } else if (accessInfo instanceof DynArrayAccess) {
             throw Error(`dynamic array not implemented`);
@@ -1624,6 +1677,39 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 ref,
                 assignValue,
             );
+        } else if (accessInfo instanceof InterfaceAccess) {
+            const {
+                infcTypeId,
+                objTypeId,
+                objRef,
+                objHeapType,
+                fieldIndex,
+                dynFieldIndex,
+                tsType, // field Type
+            } = accessInfo;
+            const castedObjRef = binaryenCAPI._BinaryenRefCast(
+                module.ptr,
+                objRef,
+                objHeapType,
+            );
+            const ifTrue = binaryenCAPI._BinaryenStructSet(
+                module.ptr,
+                fieldIndex,
+                castedObjRef,
+                assignValue,
+            );
+            const ifFalse = this.dynSetInfcField(
+                objRef,
+                dynFieldIndex,
+                assignValue,
+                tsType,
+            );
+
+            return module.if(
+                module.i32.eq(infcTypeId, objTypeId),
+                ifTrue,
+                ifFalse,
+            );
         } else if (accessInfo instanceof ArrayAccess) {
             const { ref, index } = accessInfo;
 
@@ -1912,19 +1998,21 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     this.wasmType.getWASMFuncReturnType(funcScope.funcType),
                 );
             } else if (accessInfo instanceof MethodAccess) {
-                const { methodType, methodName, classType, thisObj } =
+                const { methodType, methodIndex, classType, thisObj } =
                     accessInfo;
-
-                const callFuncName = `${classType.mangledName}|${methodName}`;
-
-                if (thisObj) {
-                    callWasmArgs = [thisObj, ...callWasmArgs];
+                if (!thisObj) {
+                    throw new Error(
+                        `object is null when accessing method of class, class name is '${classType.className}'`,
+                    );
                 }
+                callWasmArgs = [thisObj, ...callWasmArgs];
 
-                return this.module.call(
-                    callFuncName,
+                return this._generateClassMethodCallRef(
+                    thisObj,
+                    classType,
+                    methodType,
+                    methodIndex,
                     callWasmArgs,
-                    this.wasmType.getWASMFuncReturnType(methodType),
                 );
             } else {
                 throw Error(`invalid call target`);
@@ -2216,36 +2304,81 @@ export class WASMExpressionGen extends WASMExpressionBase {
                             this.wasmType.getWASMType(propType),
                             propType,
                         );
-                    } else if (classType.getMethodIndex(propName) != -1) {
-                        /* class method */
-                        const method = classType.getMethod(propName);
-                        /* Currently, we don't have a mechanism to get FunctionScope
-                            from TsClassFunc.
-                        This is just a work around, we get the class's defined scope
-                            (parent scope of the class), then find the ClassScope, then
-                            find the method's FunctionScope */
-                        curAccessInfo = new MethodAccess(
-                            method!.type,
-                            propName,
-                            classType,
-                            ref,
+                    } else {
+                        let classMethod = classType.getMethod(propName);
+                        // iff xxx.getter()
+                        if (
+                            classMethod.index === -1 &&
+                            propExpr.expressionKind ===
+                                ts.SyntaxKind.CallExpression
+                        ) {
+                            classMethod = classType.getMethod(
+                                propName,
+                                FunctionKind.SETTER,
+                            );
+                        }
+                        if (classMethod.index !== -1) {
+                            curAccessInfo = new MethodAccess(
+                                classMethod.method!.type,
+                                classMethod.index,
+                                classType,
+                                ref,
+                            );
+                        } else {
+                            classMethod = classType.getMethod(
+                                propName,
+                                FunctionKind.GETTER,
+                            );
+                            if (classMethod.index === -1) {
+                                throw Error(
+                                    `${propName} property does not exist on ${tsType}`,
+                                );
+                            }
+                            curAccessInfo = new GetterAccess(
+                                classMethod.method!.type,
+                                classMethod.index,
+                                classType,
+                                ref,
+                            );
+                        }
+                    }
+                    break;
+                }
+                case TypeKind.INTERFACE: {
+                    const infcType = tsType as TSInterface;
+                    const ifcTypeId = this.module.i32.const(infcType.typeId);
+                    const objTypeId = this.getInfcTypeId(ref);
+                    const propIndex = infcType.getMemberFieldIndex(propName);
+                    const dynFieldIndex = this.module.call(
+                        'find_index',
+                        [
+                            this.getInfcItable(ref),
+                            module.i32.const(
+                                this.wasmCompiler.generateRawString(propName),
+                            ),
+                        ],
+                        binaryen.i32,
+                    );
+
+                    const objRef = this.getInfcObj(ref); // anyref
+                    const objHeapType = this.wasmType.getWASMHeapType(
+                        infcType,
+                        true,
+                    );
+                    if (propIndex != -1) {
+                        const propType =
+                            infcType.getMemberField(propName)!.type;
+                        curAccessInfo = new InterfaceAccess(
+                            ifcTypeId,
+                            objTypeId,
+                            objRef,
+                            objHeapType,
+                            propIndex + 1,
+                            dynFieldIndex,
+                            propType,
                         );
-                    } else if (
-                        classType.getMethodIndex(
-                            propName,
-                            FunctionKind.GETTER,
-                        ) != -1
-                    ) {
-                        const getterMethod = classType.getMethod(
-                            propName,
-                            FunctionKind.GETTER,
-                        );
-                        curAccessInfo = new GetterAccess(
-                            getterMethod!.type,
-                            propName,
-                            classType,
-                            ref,
-                        );
+                    } else if (infcType.getMethod(propName).index != -1) {
+                        throw new Error('interface method not implemented');
                     } else {
                         throw Error(
                             `${propName} property does not exist on ${tsType}`,
@@ -2518,6 +2651,20 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return false;
     }
 
+    private getInfcItable(ref: binaryenCAPI.ExpressionRef) {
+        assert(
+            binaryen.getExpressionType(ref) === this.wasmType.getInfcTypeRef(),
+        );
+        const infcItable = binaryenCAPI._BinaryenStructGet(
+            this.module.ptr,
+            0,
+            ref,
+            binaryen.i32,
+            false,
+        );
+        return infcItable;
+    }
+
     private getInfcTypeId(ref: binaryenCAPI.ExpressionRef) {
         assert(
             binaryen.getExpressionType(ref) === this.wasmType.getInfcTypeRef(),
@@ -2530,6 +2677,20 @@ export class WASMExpressionGen extends WASMExpressionBase {
             false,
         );
         return infcTypeId;
+    }
+
+    private getInfcObj(ref: binaryenCAPI.ExpressionRef) {
+        assert(
+            binaryen.getExpressionType(ref) === this.wasmType.getInfcTypeRef(),
+        );
+        const infcObj = binaryenCAPI._BinaryenStructGet(
+            this.module.ptr,
+            2,
+            ref,
+            binaryen.anyref,
+            false,
+        );
+        return infcObj;
     }
 
     private objTypeBoxing(ref: binaryen.ExpressionRef, type: TSClass) {
@@ -2576,6 +2737,95 @@ export class WASMExpressionGen extends WASMExpressionBase {
             return createCondBlock(this.module, infcTypeId, objTypeId, obj);
         }
         return ref;
+    }
+
+    private dynGetInfcField(
+        ref: binaryen.ExpressionRef,
+        index: binaryen.ExpressionRef,
+        type: Type,
+    ) {
+        const wasmType = this.wasmType.getWASMType(type);
+        switch (wasmType) {
+            case binaryen.i32:
+                return this.module.call(
+                    structdyn.StructDyn.struct_get_dyn_i32,
+                    [ref, index],
+                    binaryen.i32,
+                );
+            case binaryen.i64:
+                return this.module.call(
+                    structdyn.StructDyn.struct_get_dyn_i64,
+                    [ref, index],
+                    binaryen.i64,
+                );
+            case binaryen.f32:
+                return this.module.call(
+                    structdyn.StructDyn.struct_get_dyn_f32,
+                    [ref, index],
+                    binaryen.f32,
+                );
+            case binaryen.f64:
+                return this.module.call(
+                    structdyn.StructDyn.struct_get_dyn_f64,
+                    [ref, index],
+                    binaryen.f64,
+                );
+            default: {
+                const obj = this.module.call(
+                    structdyn.StructDyn.struct_get_dyn_anyref,
+                    [ref, index],
+                    binaryen.anyref,
+                );
+                const wasmHeapType = this.wasmType.getWASMHeapType(type);
+                return binaryenCAPI._BinaryenRefCast(
+                    this.module.ptr,
+                    obj,
+                    wasmHeapType,
+                );
+            }
+        }
+    }
+
+    private dynSetInfcField(
+        ref: binaryen.ExpressionRef,
+        index: binaryen.ExpressionRef,
+        value: binaryen.ExpressionRef,
+        type: Type,
+    ) {
+        const wasmType = this.wasmType.getWASMType(type);
+        switch (wasmType) {
+            case binaryen.i32:
+                return this.module.call(
+                    structdyn.StructDyn.struct_set_dyn_i32,
+                    [ref, index, value],
+                    binaryen.none,
+                );
+            case binaryen.i64:
+                return this.module.call(
+                    structdyn.StructDyn.struct_set_dyn_i64,
+                    [ref, index, value],
+                    binaryen.none,
+                );
+            case binaryen.f32:
+                return this.module.call(
+                    structdyn.StructDyn.struct_set_dyn_f32,
+                    [ref, index, value],
+                    binaryen.none,
+                );
+            case binaryen.f64:
+                return this.module.call(
+                    structdyn.StructDyn.struct_set_dyn_f64,
+                    [ref, index, value],
+                    binaryen.none,
+                );
+            default: {
+                return this.module.call(
+                    structdyn.StructDyn.struct_set_dyn_anyref,
+                    [ref, index, value],
+                    binaryen.none,
+                );
+            }
+        }
     }
 }
 
@@ -2649,10 +2899,18 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                                     identifierExpr,
                                 ).binaryenRef;
                             break;
+                        case TypeKind.INTERFACE:
+                            res = this.generateDynExtref(
+                                this.staticValueGen.WASMExprGen(identifierExpr)
+                                    .binaryenRef,
+                                dyntype.ExtObjKind.ExtInfc,
+                            );
+                            break;
                         default:
                             res = this.generateDynExtref(
                                 this.staticValueGen.WASMExprGen(identifierExpr)
                                     .binaryenRef,
+                                dyntype.ExtObjKind.ExtObj,
                             );
                             break;
                     }

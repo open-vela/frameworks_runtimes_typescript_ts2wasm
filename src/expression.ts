@@ -222,13 +222,11 @@ export class SuperCallExpression extends Expression {
 export class PropertyAccessExpression extends Expression {
     private expr: Expression;
     private property: Expression;
-    private parent: Expression;
 
-    constructor(expr: Expression, property: Expression, parent: Expression) {
+    constructor(expr: Expression, property: Expression) {
         super(ts.SyntaxKind.PropertyAccessExpression);
         this.expr = expr;
         this.property = property;
-        this.parent = parent;
     }
 
     get propertyAccessExpr(): Expression {
@@ -237,10 +235,6 @@ export class PropertyAccessExpression extends Expression {
 
     get propertyExpr(): Expression {
         return this.property;
-    }
-
-    get parentExpr(): Expression {
-        return this.parent;
     }
 }
 
@@ -512,13 +506,11 @@ export default class ExpressionCompiler {
             }
             case ts.SyntaxKind.PropertyAccessExpression: {
                 const propAccessExprNode = <ts.PropertyAccessExpression>node;
-                const parent = new Expression(propAccessExprNode.parent.kind);
                 const property = this.visitNode(propAccessExprNode.name);
                 const expr = this.visitNode(propAccessExprNode.expression);
                 const propAccessExpr = new PropertyAccessExpression(
                     expr,
                     property,
-                    parent,
                 );
                 propAccessExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),

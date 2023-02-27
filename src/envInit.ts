@@ -1,5 +1,5 @@
 import binaryen from 'binaryen';
-import { dyntype } from '../lib/dyntype/utils.js';
+import { dyntype, structdyn } from '../lib/dyntype/utils.js';
 
 export function importLibApi(module: binaryen.Module) {
     module.addFunctionImport(
@@ -188,6 +188,87 @@ export function importLibApi(module: binaryen.Module) {
             dyntype.dyn_value_t,
         ]),
         dyntype.int,
+    );
+
+    /* add struct_dyn related APIs */
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_get_dyn_i32,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_get_dyn_i32,
+        binaryen.createType([binaryen.anyref, binaryen.i32]),
+        binaryen.i32,
+    );
+
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_get_dyn_i64,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_get_dyn_i64,
+        binaryen.createType([binaryen.anyref, binaryen.i32]),
+        binaryen.i64,
+    );
+
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_get_dyn_f32,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_get_dyn_f32,
+        binaryen.createType([binaryen.anyref, binaryen.i32]),
+        binaryen.f32,
+    );
+
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_get_dyn_f64,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_get_dyn_f64,
+        binaryen.createType([binaryen.anyref, binaryen.i32]),
+        binaryen.f64,
+    );
+
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_get_dyn_anyref,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_get_dyn_anyref,
+        binaryen.createType([binaryen.anyref, binaryen.i32]),
+        binaryen.anyref,
+    );
+
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_set_dyn_i32,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_set_dyn_i32,
+        binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.i32]),
+        binaryen.none,
+    );
+
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_set_dyn_i64,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_set_dyn_i64,
+        binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.i64]),
+        binaryen.none,
+    );
+
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_set_dyn_f32,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_set_dyn_f32,
+        binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.f32]),
+        binaryen.none,
+    );
+
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_set_dyn_f64,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_set_dyn_f64,
+        binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.f64]),
+        binaryen.none,
+    );
+
+    module.addFunctionImport(
+        structdyn.StructDyn.struct_set_dyn_anyref,
+        structdyn.module_name,
+        structdyn.StructDyn.struct_set_dyn_anyref,
+        binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.anyref]),
+        binaryen.none,
     );
 }
 

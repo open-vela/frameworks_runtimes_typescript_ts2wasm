@@ -1,6 +1,6 @@
 import ts from 'typescript';
 import { Expression } from './expression.js';
-import { Type } from './type.js';
+import { FunctionKind, Type } from './type.js';
 import { Compiler } from './compiler.js';
 import {
     Stack,
@@ -171,7 +171,7 @@ export class VariableScanner {
 
             if (scope instanceof FunctionScope) {
                 const classScope = scope.parent as ClassScope;
-                if (scope.className) {
+                if (scope.funcType.funcKind !== FunctionKind.DEFAULT) {
                     /* For class methods, fix type for "this" parameter */
                     if (!scope.isStatic) {
                         scope.varArray[1].varType = classScope.classType;
@@ -180,15 +180,18 @@ export class VariableScanner {
             }
         });
 
-        this.nodeScopeMap.forEach((scope, node) => {
-            if (
-                scope instanceof FunctionScope ||
-                scope instanceof GlobalScope
-            ) {
-                /* Assign index for function variables */
-                scope.initVariableIndex();
-            }
-        });
+        for (let i = 0; i < this.globalScopeStack.size(); ++i) {
+            const scope = this.globalScopeStack.getItemAtIdx(i);
+            scope.traverseScopTree((scope) => {
+                if (
+                    scope instanceof FunctionScope ||
+                    scope instanceof GlobalScope
+                ) {
+                    /* Assign index for function variables */
+                    scope.initVariableIndex();
+                }
+            });
+        }
     }
 
     visitNode(node: ts.Node): void {

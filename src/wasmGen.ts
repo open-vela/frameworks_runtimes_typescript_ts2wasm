@@ -38,7 +38,9 @@ import {
 import { initStringBuiltin } from '../lib/builtin/stringBuiltin.js';
 import { dyntype } from '../lib/dyntype/utils.js';
 import { ArgNames, BuiltinNames } from '../lib/builtin/builtinUtil.js';
-import { off } from 'process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -327,6 +329,27 @@ export class WASMGen {
             segments.push(segmentInfo);
         }
         initDefaultMemory(this.module, segments);
+
+        /* add find_index function from .wat */
+
+        /* TODO: Have not found an effiective way to load import function from .wat yet */
+        this.module.addFunctionImport(
+            'strcmp',
+            'env',
+            'strcmp',
+            binaryen.createType([binaryen.i32, binaryen.i32]),
+            binaryen.i32,
+        );
+        const itableFilePath = path.join(
+            path.dirname(fileURLToPath(import.meta.url)),
+            '..',
+            'runtime-library',
+            'interface-lib',
+            'itable.wat',
+        );
+        const itableLib = fs.readFileSync(itableFilePath, 'utf-8');
+        const module = binaryen.parseText(itableLib);
+        this.addInterfaceAPIFuncs(module, 'find_index');
     }
 
     WASMGenHelper(scope: Scope) {
@@ -341,10 +364,6 @@ export class WASMGen {
                 this.WASMFunctionGen(<FunctionScope>scope);
                 break;
             case ScopeKind.ClassScope:
-                //   classscope
-                //       |
-                // functionscope
-                this.WASMClassGen(<ClassScope>scope);
                 break;
             default:
                 break;
@@ -425,32 +444,6 @@ export class WASMGen {
             wasmTypes,
             body,
         );
-    }
-
-    WASMClassGen(classScope: ClassScope) {
-        const tsClassType = classScope.classType;
-        this.wasmTypeCompiler.createWASMType(tsClassType);
-        /* iff a class haven't a constructor, create a default on for it */
-        if (tsClassType.classConstructorType === null) {
-            const tsFuncType = new TSFunction(FunctionKind.CONSTRUCTOR);
-            const wasmClassType = this.wasmType.getWASMType(tsClassType);
-            tsClassType.setClassConstructor(tsFuncType);
-            const classInstance = binaryenCAPI._BinaryenRefCast(
-                this.module.ptr,
-                this.module.local.get(1, emptyStructType.typeRef),
-                this.wasmType.getWASMHeapType(tsClassType),
-            );
-            this.module.addFunction(
-                classScope.mangledName + '|constructor',
-                binaryen.createType([
-                    emptyStructType.typeRef,
-                    emptyStructType.typeRef,
-                ]),
-                wasmClassType,
-                [],
-                this.module.block(null, [this.module.return(classInstance)]),
-            );
-        }
     }
 
     generateFuncVarTypes(
@@ -565,8 +558,6 @@ export class WASMGen {
         const packed = new Array<binaryenCAPI.PackedType>(
             closureVarTypes.length,
         ).fill(typeNotPacked);
-
-        /* TODO: maybe the condition is not very clearly */
 
         /* No closure variable */
         if (closureVarTypes.length === 1) {
@@ -712,9 +703,8 @@ export class WASMGen {
 
         const paramWASMType =
             this.wasmTypeCompiler.getWASMFuncParamType(tsFuncType);
-        let returnWASMType =
+        const returnWASMType =
             this.wasmTypeCompiler.getWASMFuncReturnType(tsFuncType);
-
         /* context struct variable index */
         const targetVarIndex = functionScope.contextVariable!.varIndex;
         /* iff the function doesn't have free variables */
@@ -738,7 +728,7 @@ export class WASMGen {
         }
 
         /* Class's "this" parameter */
-        if (functionScope.className !== '') {
+        if (functionScope.funcType.funcKind !== FunctionKind.DEFAULT) {
             const classType = (<ClassScope>functionScope.parent).classType;
             const wasmClassHeapType = this.wasmType.getWASMHeapType(classType);
             const thisVarIndex = functionScope.getThisIndex();
@@ -753,9 +743,11 @@ export class WASMGen {
                 ),
             );
         }
-
         // add return value iff return type is not void
-        if (functionScope.funcType.returnType.kind !== TypeKind.VOID) {
+        if (
+            functionScope.funcType.funcKind !== FunctionKind.CONSTRUCTOR &&
+            functionScope.funcType.returnType.kind !== TypeKind.VOID
+        ) {
             const returnVarIdx = functionScope.allocateLocalIndex();
             const returnVar = new Variable(
                 '~returnVar',
@@ -779,27 +771,21 @@ export class WASMGen {
 
         // add return in last iff return type is not void
         if (functionScope.funcType.returnType.kind !== TypeKind.VOID) {
+            let returnValue = this.module.local.get(
+                this.curFunctionCtx!.returnIdx,
+                returnWASMType,
+            );
+            if (functionScope.funcType.funcKind === FunctionKind.CONSTRUCTOR) {
+                returnValue = this.module.local.get(
+                    functionScope.paramArray.length + 1,
+                    returnWASMType,
+                );
+            }
             this.currentFuncCtx!.setReturnOpcode(
-                this.module.return(
-                    this.module.local.get(
-                        this.currentFuncCtx!.returnIdx,
-                        returnWASMType,
-                    ),
-                ),
+                this.module.return(returnValue),
             );
         }
-        /* iff constructor, return type is class type  */
-        if (functionScope.funcName === 'constructor') {
-            const classScope = <ClassScope>functionScope.parent;
-            const wasmClassType = this.wasmType.getWASMType(
-                classScope.classType,
-            );
-            // const thisVarIndex = functionScope.getThisIndex();
-            this.currentFuncCtx!.setReturnOpcode(
-                this.module.return(this.module.local.get(1, returnWASMType)),
-            );
-            returnWASMType = wasmClassType;
-        }
+
         const varWASMTypes = new Array<binaryen.ExpressionRef>();
         this.generateFuncVarTypes(functionScope, functionScope, varWASMTypes);
 
@@ -918,8 +904,6 @@ export class WASMGen {
         }
     }
 
-    // [this.wasmType.getWASMType((<ClassScope>functionScope.parent).classType), binaryen.f64],
-
     getVariableInitValue(varType: Type): binaryen.ExpressionRef {
         const module = this.module;
         if (varType.kind === TypeKind.NUMBER) {
@@ -950,18 +934,41 @@ export class WASMGen {
         for (let i = 0, j = 2; i < methodLen; i++, j += 3) {
             buffer[j] = this.generateRawString(shape.memberFuncs[i].name);
             buffer[j + 1] = 1;
-            buffer[j + 2] = i;
+            buffer[j + 2] = this.module.i32.const(i);
         }
         const previousPartLength = 2 + shape.memberFuncs.length * 3;
         for (let i = 0, j = previousPartLength; i < fieldLen; i++, j += 3) {
             buffer[j] = this.generateRawString(shape.fields[i].name);
             buffer[j + 1] = 0;
-            buffer[j + 2] = i + 1;
+            buffer[j + 2] = this.module.i32.const(i + 1);
         }
         const offset = this.dataSegmentContext!.addData(
             new Uint8Array(buffer.buffer),
         );
         this.dataSegmentContext!.itableMap.set(shape.typeId, offset);
         return offset;
+    }
+
+    /* add function rely on name in other .wat*/
+    addInterfaceAPIFuncs(module: binaryen.Module, funcName: string) {
+        const func = module.getFunction(funcName);
+        const name = binaryenCAPI._BinaryenFunctionGetName(func);
+        const params = binaryenCAPI._BinaryenFunctionGetParams(func);
+        const results = binaryenCAPI._BinaryenFunctionGetResults(func);
+        const vars = [];
+        const numvars = binaryenCAPI._BinaryenFunctionGetNumVars(func);
+        for (let i = 0; i < numvars; i++) {
+            vars.push(binaryenCAPI._BinaryenFunctionGetVar(func, i));
+        }
+        const body = binaryenCAPI._BinaryenFunctionGetBody(func);
+        binaryenCAPI._BinaryenAddFunction(
+            this.binaryenModule.ptr,
+            name,
+            params,
+            results,
+            arrayToPtr(vars).ptr,
+            vars.length,
+            body,
+        );
     }
 }
