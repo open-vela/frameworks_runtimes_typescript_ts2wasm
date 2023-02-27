@@ -2,9 +2,11 @@ import ts from 'typescript';
 import { assert } from 'console';
 import { Compiler } from './compiler.js';
 import {
+    BinaryExpression,
     CallExpression,
     Expression,
     IdentifierExpression,
+    PropertyAccessExpression,
 } from './expression.js';
 import {
     FunctionScope,
@@ -23,6 +25,7 @@ import {
 } from './utils.js';
 import { Variable } from './variable.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
+import { TSClass, Type } from './type.js';
 
 type StatementKind = ts.SyntaxKind;
 
@@ -634,5 +637,31 @@ export default class StatementCompiler {
             }
             varStatement.addVariable(variable);
         }
+    }
+
+    createFieldAssignStmt(
+        initializer: ts.Node,
+        classType: TSClass,
+        fieldType: Type,
+        fieldName: string,
+    ): Statement {
+        const thisExpr = new IdentifierExpression('this');
+        thisExpr.setExprType(classType);
+        const fieldExpr = new IdentifierExpression(fieldName);
+        fieldExpr.setExprType(fieldType);
+        const propAccessExpr = new PropertyAccessExpression(
+            thisExpr,
+            fieldExpr,
+        );
+        propAccessExpr.setExprType(fieldType);
+        const initExpr =
+            this.compilerCtx.expressionCompiler.visitNode(initializer);
+        const assignExpr = new BinaryExpression(
+            ts.SyntaxKind.EqualsToken,
+            propAccessExpr,
+            initExpr,
+        );
+        assignExpr.setExprType(fieldType);
+        return new ExpressionStatement(assignExpr);
     }
 }

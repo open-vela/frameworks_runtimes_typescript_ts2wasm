@@ -177,39 +177,62 @@ export class Compiler {
         return this.exprCompiler;
     }
 
+    get statementCompiler(): StatementCompiler {
+        return this.stmtCompiler;
+    }
+
     get errorMessage() {
         return this._errorMessage;
     }
 
     dumpScopes() {
         const scopeInfos: Array<any> = [];
-        this.nodeScopeMap.forEach((scope) => {
-            const scopeName = ScopeScanner.getPossibleScopeName(scope);
-            let paramCount = 0;
 
-            if (scope.kind === ScopeKind.FunctionScope) {
-                const funcScope = <FunctionScope>scope;
-                paramCount = funcScope.paramArray.length;
-            }
+        for (let i = 0; i < this.globalScopeStack.size(); ++i) {
+            const scope = this.globalScopeStack.getItemAtIdx(i);
+            scope.traverseScopTree((scope) => {
+                const scopeName = ScopeScanner.getPossibleScopeName(scope);
+                let paramCount = 0;
 
-            scopeInfos.push({
-                kind: `${scope.kind}`,
-                name: scopeName,
-                param_cnt: paramCount,
-                var_cnt: scope.varArray.length,
-                stmt_cnt: scope.statements.length,
-                child_cnt: scope.children.length,
-            });
+                if (scope.kind === ScopeKind.FunctionScope) {
+                    const funcScope = <FunctionScope>scope;
+                    paramCount = funcScope.paramArray.length;
+                }
 
-            const varInfos: Array<any> = [];
-            if (scope.kind === ScopeKind.FunctionScope) {
-                (<FunctionScope>scope).paramArray.forEach((v) => {
+                scopeInfos.push({
+                    kind: `${scope.kind}`,
+                    name: scopeName,
+                    param_cnt: paramCount,
+                    var_cnt: scope.varArray.length,
+                    stmt_cnt: scope.statements.length,
+                    child_cnt: scope.children.length,
+                });
+
+                const varInfos: Array<any> = [];
+                if (scope.kind === ScopeKind.FunctionScope) {
+                    (<FunctionScope>scope).paramArray.forEach((v) => {
+                        let displayName = v.varName;
+                        if (displayName === '') {
+                            displayName = '@context';
+                        }
+                        varInfos.push({
+                            kind: 'param',
+                            name: displayName,
+                            type: v.varType,
+                            isClosure: v.varIsClosure,
+                            modifiers: v.varModifiers,
+                            index: v.varIndex,
+                        });
+                    });
+                }
+
+                scope.varArray.forEach((v) => {
                     let displayName = v.varName;
                     if (displayName === '') {
                         displayName = '@context';
                     }
                     varInfos.push({
-                        kind: 'param',
+                        kind: 'var',
                         name: displayName,
                         type: v.varType,
                         isClosure: v.varIsClosure,
@@ -217,40 +240,26 @@ export class Compiler {
                         index: v.varIndex,
                     });
                 });
-            }
-            scope.varArray.forEach((v) => {
-                let displayName = v.varName;
-                if (displayName === '') {
-                    displayName = '@context';
-                }
-                varInfos.push({
-                    kind: 'var',
-                    name: displayName,
-                    type: v.varType,
-                    isClosure: v.varIsClosure,
-                    modifiers: v.varModifiers,
-                    index: v.varIndex,
+
+                console.log(
+                    `============= Variables in scope '${scopeName}' (${scope.kind}) =============`,
+                );
+                console.table(varInfos);
+
+                const typeInfos: Array<any> = [];
+                scope.namedTypeMap.forEach((t, name) => {
+                    typeInfos.push({
+                        name: name,
+                        type: t,
+                    });
                 });
+
+                console.log(
+                    `============= Types in scope '${scopeName}' (${scope.kind}) =============`,
+                );
+                console.table(typeInfos);
             });
-
-            console.log(
-                `============= Variables in scope '${scopeName}' (${scope.kind}) =============`,
-            );
-            console.table(varInfos);
-
-            const typeInfos: Array<any> = [];
-            scope.namedTypeMap.forEach((t, name) => {
-                typeInfos.push({
-                    name: name,
-                    type: t,
-                });
-            });
-
-            console.log(
-                `============= Types in scope '${scopeName}' (${scope.kind}) =============`,
-            );
-            console.table(typeInfos);
-        });
+        }
 
         console.log(`============= Scope Summary =============`);
         console.table(scopeInfos);

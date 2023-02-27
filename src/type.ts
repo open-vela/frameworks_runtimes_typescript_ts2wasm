@@ -9,6 +9,7 @@ import {
     ScopeKind,
 } from './scope.js';
 import { assert } from 'console';
+import { Parameter, Variable } from './variable.js';
 
 export const enum TypeKind {
     VOID = 'void',
@@ -119,6 +120,11 @@ export interface TsClassFunc {
     type: TSFunction;
 }
 
+export interface ClassMethod {
+    index: number;
+    method: TsClassFunc | null;
+}
+
 export class TSClass extends Type {
     typeKind = TypeKind.CLASS;
     private _typeId = 0;
@@ -196,25 +202,17 @@ export class TSClass extends Type {
         this.methods.push(classMethod);
     }
 
-    /* when calling a getter, it's not a CallExpression */
     getMethod(
         name: string,
         kind: FunctionKind = FunctionKind.METHOD,
-    ): TsClassFunc | null {
-        return (
-            this.memberFuncs.find((f) => {
-                return name === f.name && kind === f.type.funcKind;
-            }) || null
-        );
-    }
-
-    getMethodIndex(
-        name: string,
-        kind: FunctionKind = FunctionKind.METHOD,
-    ): number {
-        return this.memberFuncs.findIndex((f) => {
+    ): ClassMethod {
+        const res = this.memberFuncs.findIndex((f) => {
             return name === f.name && kind === f.type.funcKind;
         });
+        if (res !== -1) {
+            return { index: res, method: this.memberFuncs[res] };
+        }
+        return { index: -1, method: null };
     }
 
     setClassName(name: string) {
@@ -577,15 +575,10 @@ export default class TypeCompiler {
 
         const returnType =
             this.typechecker!.getReturnTypeOfSignature(signature);
-        /* maybe we can deduce the return type of constructor?
-          constructor(): void ==> constructor: TsClass ??
-        */
         if (
-            signature.declaration &&
-            ts.isConstructorDeclaration(signature.declaration)
+            !signature.declaration ||
+            !ts.isConstructorDeclaration(signature.declaration)
         ) {
-            tsFunction.returnType = builtinTypes.get('void')!;
-        } else {
             tsFunction.returnType = this.tsTypeToType(returnType);
         }
 
@@ -616,6 +609,38 @@ export default class TypeCompiler {
                 classType.addMethod(method);
             }
         }
+        // 1. parse constructor
+        const constructor = node.members.find((member) => {
+            return ts.isConstructorDeclaration(member);
+        });
+        let ctorScope: FunctionScope;
+        let ctorTye: TSFunction;
+        // iff not, add a default constructor
+        if (!constructor) {
+            ctorScope = new FunctionScope(this.currentScope!);
+            ctorScope.setFuncName('constructor');
+            ctorScope.setClassName(node.name!.getText());
+            ctorScope.addParameter(
+                new Parameter('@context', new Type(), [], 0, false, false),
+            );
+            ctorScope.addParameter(
+                new Parameter('@this', new Type(), [], 1, false, false),
+            );
+            ctorScope.addVariable(new Variable('this', classType, [], -1));
+            ctorTye = new TSFunction(FunctionKind.CONSTRUCTOR);
+        } else {
+            const func = <ts.ConstructorDeclaration>constructor;
+            ctorTye = this.generateNodeType(func) as TSFunction;
+            ctorScope =
+                <FunctionScope>this.compilerCtx.getScopeByNode(func) ||
+                undefined;
+        }
+        ctorTye.returnType = classType;
+        ctorTye.funcKind = FunctionKind.CONSTRUCTOR;
+        ctorScope.setFuncType(ctorTye);
+        classType.setClassConstructor(ctorTye);
+
+        // 2. parse other fields
         for (const member of node.members) {
             const name = ts.isConstructorDeclaration(member)
                 ? 'constructor'
@@ -645,6 +670,16 @@ export default class TypeCompiler {
                     visibility: 'public',
                     static: staticModifier,
                 };
+                if (field.initializer) {
+                    ctorScope.addStatement(
+                        this.compilerCtx.statementCompiler.createFieldAssignStmt(
+                            field.initializer,
+                            classType,
+                            type,
+                            name,
+                        ),
+                    );
+                }
                 fieldTypeStrs.push(`${name}: ${typeString}`);
                 classType.addMemberField(classField);
             }
@@ -667,16 +702,6 @@ export default class TypeCompiler {
                     : FunctionKind.METHOD;
                 methodTypeStrs.push(`${name}: ${typeString}`);
                 this.setMethod(func, baseType, classType, kind);
-            }
-            if (member.kind === ts.SyntaxKind.Constructor) {
-                const func = <ts.ConstructorDeclaration>member;
-                const tsFuncType = this.generateNodeType(func) as TSFunction;
-                tsFuncType.funcKind = FunctionKind.CONSTRUCTOR;
-                classType.setClassConstructor(tsFuncType);
-                const funcDef = this.compilerCtx.getScopeByNode(func);
-                if (funcDef && funcDef instanceof FunctionScope) {
-                    funcDef.setFuncType(tsFuncType);
-                }
             }
         }
 
@@ -754,7 +779,6 @@ export default class TypeCompiler {
         // TODO
         return typeString;
     }
-
     private setMethod(
         func: ts.AccessorDeclaration | ts.MethodDeclaration,
         baseType: TSClass | null,
@@ -762,14 +786,14 @@ export default class TypeCompiler {
         funcKind: FunctionKind,
     ) {
         const methodName = func.name.getText();
-        const isOverride =
-            baseType && baseType.getMethod(methodName, funcKind) ? true : false;
 
         const type = this.generateNodeType(func);
-        let tsFuncType = new TSFunction();
+        let tsFuncType = new TSFunction(funcKind);
+
         const nameWithPrefix = getMethodPrefix(funcKind) + func.name.getText();
 
         if (type instanceof TSFunction) {
+            type.funcKind = tsFuncType.funcKind;
             tsFuncType = type;
         }
         if (funcKind === FunctionKind.GETTER) {
@@ -778,14 +802,17 @@ export default class TypeCompiler {
         if (funcKind === FunctionKind.SETTER) {
             tsFuncType.addParamType(type);
         }
-
-        tsFuncType.funcKind = funcKind;
+        const isOverride =
+            baseType && baseType.getMethod(methodName, funcKind).method
+                ? true
+                : false;
         if (!isOverride) {
             classType.addMethod({
                 name: methodName,
                 type: tsFuncType,
             });
         }
+
         const funcDef = this.compilerCtx.getScopeByNode(func);
         if (funcDef && funcDef instanceof FunctionScope) {
             funcDef.setFuncType(tsFuncType);
