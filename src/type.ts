@@ -312,8 +312,6 @@ export default class TypeCompiler {
     // cache class shape layout string, <class name, type string>
     methodShapeStr = new Map<string, string>();
     fieldShapeStr = new Map<string, string>();
-    // cache class shape layout, <ts.Node, tsType>
-    nodeTypeCache = new Map<ts.Node, TSClass>();
 
     constructor(private compilerCtx: Compiler) {
         this.nodeScopeMap = this.compilerCtx.nodeScopeMap;
@@ -471,11 +469,11 @@ export default class TypeCompiler {
         }
         // iff class/infc
         if (this.isTypeReference(type) || this.isInterface(type)) {
-            const decl = type.symbol.declarations![0];
-            const tsType = this.nodeTypeCache.get(decl);
+            const symbolName = type.symbol.name;
+            const tsType = this.currentScope!.findType(symbolName);
             if (!tsType) {
                 throw new Error(
-                    `class/interface not found, type name <' + ${type.symbol.name} + '>`,
+                    `class/interface not found, type name <' + ${symbolName} + '>`,
                 );
             }
             return tsType;
@@ -589,7 +587,6 @@ export default class TypeCompiler {
 
     private parseClassDecl(node: ts.ClassDeclaration): TSClass {
         const classType = new TSClass();
-        this.nodeTypeCache.set(node, classType);
         classType.setClassName(node.name!.getText());
         let methodTypeStrs: string[] = [];
         let fieldTypeStrs: string[] = [];
@@ -617,42 +614,31 @@ export default class TypeCompiler {
             return ts.isConstructorDeclaration(member);
         });
         let ctorScope: FunctionScope;
-        let ctorType: TSFunction;
+        let ctorTye: TSFunction;
         // iff not, add a default constructor
-        const defaultCtor = this.currentScope!.children.find((child) => {
-            if (child instanceof FunctionScope) {
-                return child.funcName === 'constructor';
-            }
-            return false;
-        });
         if (!constructor) {
-            if (defaultCtor) {
-                ctorScope = <FunctionScope>defaultCtor;
-                ctorType = ctorScope.funcType;
-            } else {
-                ctorScope = new FunctionScope(this.currentScope!);
-                ctorScope.setFuncName('constructor');
-                ctorScope.setClassName(node.name!.getText());
-                ctorScope.addParameter(
-                    new Parameter('@context', new Type(), [], 0, false, false),
-                );
-                ctorScope.addParameter(
-                    new Parameter('@this', new Type(), [], 1, false, false),
-                );
-                ctorScope.addVariable(new Variable('this', classType, [], -1));
-                ctorType = new TSFunction(FunctionKind.CONSTRUCTOR);
-            }
+            ctorScope = new FunctionScope(this.currentScope!);
+            ctorScope.setFuncName('constructor');
+            ctorScope.setClassName(node.name!.getText());
+            ctorScope.addParameter(
+                new Parameter('@context', new Type(), [], 0, false, false),
+            );
+            ctorScope.addParameter(
+                new Parameter('@this', new Type(), [], 1, false, false),
+            );
+            ctorScope.addVariable(new Variable('this', classType, [], -1));
+            ctorTye = new TSFunction(FunctionKind.CONSTRUCTOR);
         } else {
             const func = <ts.ConstructorDeclaration>constructor;
-            ctorType = this.generateNodeType(func) as TSFunction;
+            ctorTye = this.generateNodeType(func) as TSFunction;
             ctorScope =
                 <FunctionScope>this.compilerCtx.getScopeByNode(func) ||
                 undefined;
         }
-        ctorType.returnType = classType;
-        ctorType.funcKind = FunctionKind.CONSTRUCTOR;
-        ctorScope.setFuncType(ctorType);
-        classType.setClassConstructor(ctorType);
+        ctorTye.returnType = classType;
+        ctorTye.funcKind = FunctionKind.CONSTRUCTOR;
+        ctorScope.setFuncType(ctorTye);
+        classType.setClassConstructor(ctorTye);
 
         // 2. parse other fields
         for (const member of node.members) {
@@ -730,7 +716,6 @@ export default class TypeCompiler {
 
     private parseInfcDecl(node: ts.InterfaceDeclaration): TSInterface {
         const infc = new TSInterface();
-        this.nodeTypeCache.set(node, infc);
         const methodTypeStrs: string[] = [];
         const fieldTypeStrs: string[] = [];
 
