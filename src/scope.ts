@@ -328,7 +328,7 @@ export class Scope {
 }
 
 export class ClosureEnvironment extends Scope {
-    private isClosure = false;
+    hasFreeVar = false;
     contextVariable: Variable | null = null;
 
     constructor(parent: Scope | null = null) {
@@ -348,14 +348,6 @@ export class ClosureEnvironment extends Scope {
             this.addVariable(contextVar);
             this.contextVariable = contextVar;
         }
-    }
-
-    setIsClosure(): void {
-        this.isClosure = true;
-    }
-
-    getIsClosure(): boolean {
-        return this.isClosure;
     }
 }
 
@@ -523,15 +515,6 @@ export class ClassScope extends Scope {
 
     setClassType(type: TSClass) {
         this._classType = type;
-
-        /* For class method, fix the "this" variable's type */
-        this.children.forEach((f) => {
-            if (f instanceof FunctionScope) {
-                if (!f.isStatic) {
-                    f.varArray[0].varType = type;
-                }
-            }
-        });
     }
 
     get classType(): TSClass {
@@ -748,10 +731,14 @@ export class ScopeScanner {
                 break;
             }
             case ts.SyntaxKind.MethodDeclaration: {
-                this._generateClassFuncScope(
-                    <ts.MethodDeclaration>node,
-                    FunctionKind.METHOD,
-                );
+                const kind = (<ts.MethodDeclaration>node).modifiers?.find(
+                    (m) => {
+                        return m.kind === ts.SyntaxKind.StaticKeyword;
+                    },
+                )
+                    ? FunctionKind.STATIC
+                    : FunctionKind.METHOD;
+                this._generateClassFuncScope(<ts.MethodDeclaration>node, kind);
                 break;
             }
             case ts.SyntaxKind.Block: {

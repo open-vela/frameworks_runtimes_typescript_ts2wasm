@@ -421,7 +421,7 @@ export default class ExpressionCompiler {
                     if (maybeClosureVar) {
                         if (scope && scope.getNearestFunctionScope()) {
                             variable!.setVarIsClosure();
-                            (scope as ClosureEnvironment).setIsClosure();
+                            (scope as ClosureEnvironment).hasFreeVar = true;
                         }
                     }
                 }

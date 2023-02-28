@@ -17,7 +17,7 @@ export namespace dyntype {
     export const bool = binaryen.i32;
     export const cstring = binaryen.i32;
     export const pointer = binaryen.i32;
-    export const external_ref_tag = binaryen.f64;
+    export const external_ref_tag = binaryen.i32;
 
     // export const
     const module = new binaryen.Module();

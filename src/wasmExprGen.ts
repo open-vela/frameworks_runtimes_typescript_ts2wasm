@@ -1263,7 +1263,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 classType,
                 methodType,
                 methodIndex,
-                [thisObj!],
+                [
+                    binaryenCAPI._BinaryenRefNull(
+                        module.ptr,
+                        emptyStructType.typeRef,
+                    ),
+                    thisObj!,
+                ],
             );
         } else if (accessInfo instanceof DynArrayAccess) {
             throw Error(`dynamic array not implemented`);
@@ -1313,21 +1319,22 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
 
                 while (scope?.getNearestFunctionScope()) {
-                    contextType = WASMGen.contextOfScope.get(scope)!.typeRef;
+                    if (scope.kind === ScopeKind.ClassScope) {
+                        scope = scope!.parent;
+                        continue;
+                    }
+                    contextType = WASMGen.contextOfScope.get(scope!)!.typeRef;
 
-                    if (
-                        (scope as ClosureEnvironment).getIsClosure() &&
-                        scope !== closureScope
-                    ) {
-                        /* Current scope is not the scope of the variable,
-                            get parent scope's context */
-                        contextRef = binaryenCAPI._BinaryenStructGet(
-                            this.module.ptr,
-                            0,
-                            contextRef,
-                            contextType,
-                            false,
-                        );
+                    if (scope !== closureScope) {
+                        if ((scope as ClosureEnvironment).hasFreeVar) {
+                            contextRef = binaryenCAPI._BinaryenStructGet(
+                                this.module.ptr,
+                                0,
+                                contextRef,
+                                contextType,
+                                false,
+                            );
+                        }
                     } else {
                         /* Variable is defined in this scope, covert to StructAccess */
                         return new StructAccess(
@@ -1337,8 +1344,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                             tsType,
                         );
                     }
-
-                    scope = scope.parent;
+                    scope = scope!.parent;
                 }
 
                 throw Error(`Can't find closure scope`);
@@ -1972,7 +1978,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     this.module.ptr,
                     emptyStructType.typeRef,
                 );
-
                 for (let i = 0; i < expr.callArgs.length; i++) {
                     const argType = expr.callArgs[i].exprType,
                         paramType = funcScope.paramArray[i + 1].varType;
@@ -1988,7 +1993,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     }
                 }
 
-                if (funcScope.getIsClosure()) {
+                if (funcScope.hasFreeVar) {
                     throw Error(`unimplemented`);
                 }
 
@@ -2000,12 +2005,31 @@ export class WASMExpressionGen extends WASMExpressionBase {
             } else if (accessInfo instanceof MethodAccess) {
                 const { methodType, methodIndex, classType, thisObj } =
                     accessInfo;
+                const refnull = binaryenCAPI._BinaryenRefNull(
+                    this.module.ptr,
+                    emptyStructType.typeRef,
+                );
+                // access static method
                 if (!thisObj) {
-                    throw new Error(
-                        `object is null when accessing method of class, class name is '${classType.className}'`,
+                    const vtable = this.wasmType.getWASMClassVtable(classType);
+                    const wasmFuncType = this.wasmType.getWASMType(methodType);
+                    const target = binaryenCAPI._BinaryenStructGet(
+                        this.module.ptr,
+                        methodIndex,
+                        vtable,
+                        wasmFuncType,
+                        false,
+                    );
+                    return binaryenCAPI._BinaryenCallRef(
+                        this.module.ptr,
+                        target,
+                        arrayToPtr([refnull, ...callWasmArgs]).ptr,
+                        1 + callWasmArgs.length,
+                        wasmFuncType,
+                        false,
                     );
                 }
-                callWasmArgs = [thisObj, ...callWasmArgs];
+                callWasmArgs = [refnull, thisObj, ...callWasmArgs];
 
                 return this._generateClassMethodCallRef(
                     thisObj,
@@ -2036,7 +2060,23 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 closureType,
                 false,
             );
-
+            const paramTypes = (
+                accessInfo.tsType as TSFunction
+            ).getParamTypes();
+            for (let i = 0; i < expr.callArgs.length; i++) {
+                const paramType = paramTypes[i];
+                const argType = expr.callArgs[i].exprType;
+                if (
+                    paramType instanceof TSClass &&
+                    argType instanceof TSClass
+                ) {
+                    callWasmArgs[i] = this.maybeTypeBoxingAndUnboxing(
+                        argType,
+                        paramType,
+                        callWasmArgs[i],
+                    );
+                }
+            }
             return binaryenCAPI._BinaryenCallRef(
                 this.module.ptr,
                 funcref,
@@ -2151,6 +2191,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
             wasmBaseRefHeapType,
         );
         const wasmArgs = new Array<binaryen.ExpressionRef>();
+        wasmArgs.push(
+            binaryenCAPI._BinaryenRefNull(module.ptr, emptyStructType.typeRef),
+        );
         wasmArgs.push(cast);
         for (const arg of expr.callArgs) {
             wasmArgs.push(this.WASMExprGen(arg).binaryenRef);
@@ -2239,13 +2282,19 @@ export class WASMExpressionGen extends WASMExpressionBase {
             );
 
             const args = new Array<binaryen.ExpressionRef>();
+            // TODO: here just set @context to null
+            args.push(
+                binaryenCAPI._BinaryenRefNull(
+                    this.module.ptr,
+                    emptyStructType.typeRef,
+                ),
+            );
             args.push(newStruct);
             if (expr.NewArgs) {
                 for (const arg of expr.NewArgs) {
                     args.push(this.WASMExprGen(arg).binaryenRef);
                 }
             }
-
             return this.module.call(
                 classMangledName + '|constructor',
                 args,
@@ -2274,6 +2323,25 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     accessInfo.scope,
                     false,
                 );
+            } else if (accessInfo instanceof TypeAccess) {
+                const type = accessInfo.type;
+                if (type instanceof TSClass) {
+                    const methodInfo = type.getMethod(
+                        propName,
+                        FunctionKind.STATIC,
+                    );
+                    if (methodInfo.index === -1) {
+                        throw new Error(
+                            `static method of class '${type.className}' not found`,
+                        );
+                    }
+                    curAccessInfo = new MethodAccess(
+                        methodInfo.method!.type,
+                        methodInfo.index,
+                        type,
+                        null,
+                    );
+                }
             } else if (accessInfo instanceof Type) {
                 throw Error("Access type's builtin method unimplement");
             }

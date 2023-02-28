@@ -345,6 +345,9 @@ export class WASMTypeGen {
 
     getWASMClassVtable(type: Type): binaryen.ExpressionRef {
         assert(type.typeKind === TypeKind.CLASS);
+        if (!this.classVtables.has(type)) {
+            this.createWASMType(type);
+        }
         return this.classVtables.get(type) as binaryen.ExpressionRef;
     }
 
