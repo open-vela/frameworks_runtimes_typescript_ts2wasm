@@ -27,6 +27,8 @@ import {
 import { FlattenLoop, IfStatementInfo, typeInfo } from './glue/utils.js';
 import { WASMGen } from './wasmGen.js';
 import { TSClass, TSFunction, TypeKind } from './type.js';
+import { IdentifierExpression } from './expression.js';
+import { arrayToPtr } from './glue/transform.js';
 import { assert } from 'console';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 export class WASMStatementGen {
