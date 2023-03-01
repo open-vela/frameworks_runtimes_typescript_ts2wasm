@@ -343,8 +343,7 @@ export class WASMGen {
         const itableFilePath = path.join(
             path.dirname(fileURLToPath(import.meta.url)),
             '..',
-            '..', // node build, to find the path of .wat
-            'runtime-library',
+            'lib',
             'interface-lib',
             'itable.wat',
         );

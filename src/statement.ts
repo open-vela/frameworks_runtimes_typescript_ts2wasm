@@ -370,17 +370,6 @@ export default class StatementCompiler {
                 this.addVariableInVarStmt(varDeclarationList, varStatement);
                 return varStatement;
             }
-            case ts.SyntaxKind.FunctionDeclaration:
-            case ts.SyntaxKind.FunctionExpression:
-            case ts.SyntaxKind.ArrowFunction:
-            case ts.SyntaxKind.ClassDeclaration:
-            case ts.SyntaxKind.Constructor:
-            case ts.SyntaxKind.SetAccessor:
-            case ts.SyntaxKind.GetAccessor:
-            case ts.SyntaxKind.MethodDeclaration:
-            case ts.SyntaxKind.EndOfFileToken:
-                /* Ignore end of file token */
-                break;
             case ts.SyntaxKind.IfStatement: {
                 const ifStatementNode = <ts.IfStatement>node;
                 const condtion: Expression =
@@ -613,10 +602,6 @@ export default class StatementCompiler {
                 );
                 return exprStmt;
             }
-            default: {
-                return null;
-            }
-            // throw Error(`Unknown statement type ${node.kind}`);
         }
 
         return null;
