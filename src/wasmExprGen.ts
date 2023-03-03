@@ -162,7 +162,7 @@ class InterfaceAccess extends TypedAccessBase {
         public infcTypeId: binaryen.ExpressionRef,
         public objTypeId: binaryen.ExpressionRef,
         public objRef: binaryen.ExpressionRef,
-        public objHeapType: binaryenCAPI.HeapTypeRef, // ref.cast objHeapType anyref
+        public objType: binaryenCAPI.TypeRef,
         public fieldIndex: number,
         public dynFieldIndex: binaryen.ExpressionRef,
         tsType: Type,
@@ -822,7 +822,7 @@ export class WASMExpressionBase {
         const objTargetValue = binaryenCAPI._BinaryenRefCast(
             module.ptr,
             objOrigValue,
-            this.wasmType.getWASMHeapType(targetType),
+            this.wasmType.getWASMType(targetType),
         );
         const setExtrefExpression = this.setVariableToCurrentScope(
             tmpObjVarInfo,
@@ -1180,7 +1180,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 infcTypeId,
                 objTypeId,
                 objRef,
-                objHeapType,
+                objType,
                 fieldIndex,
                 dynFieldIndex,
                 tsType, // field Type
@@ -1188,7 +1188,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const castedObjRef = binaryenCAPI._BinaryenRefCast(
                 module.ptr,
                 objRef,
-                objHeapType,
+                objType,
             );
             const wasmFieldType = this.wasmType.getWASMType(tsType);
             const ifTrue = binaryenCAPI._BinaryenStructGet(
@@ -1688,7 +1688,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 infcTypeId,
                 objTypeId,
                 objRef,
-                objHeapType,
+                objType,
                 fieldIndex,
                 dynFieldIndex,
                 tsType, // field Type
@@ -1696,7 +1696,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const castedObjRef = binaryenCAPI._BinaryenRefCast(
                 module.ptr,
                 objRef,
-                objHeapType,
+                objType,
             );
             const ifTrue = binaryenCAPI._BinaryenStructSet(
                 module.ptr,
@@ -2182,13 +2182,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const classScope = <ClassScope>scope.getNearestFunctionScope()!.parent;
         const classType = classScope.classType;
         const baseClassType = <TSClass>classType.getBase();
-        const wasmBaseRefHeapType =
-            this.wasmType.getWASMHeapType(baseClassType);
+        const wasmBaseTypeRef = this.wasmType.getWASMType(baseClassType);
         const ref = module.local.get(0, emptyStructType.typeRef);
         const cast = binaryenCAPI._BinaryenRefCast(
             module.ptr,
             ref,
-            wasmBaseRefHeapType,
+            wasmBaseTypeRef,
         );
         const wasmArgs = new Array<binaryen.ExpressionRef>();
         wasmArgs.push(
@@ -2429,10 +2428,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     );
 
                     const objRef = this.getInfcObj(ref); // anyref
-                    const objHeapType = this.wasmType.getWASMHeapType(
-                        infcType,
-                        true,
-                    );
+                    const objType = this.wasmType.getWASMType(infcType, true);
                     if (propIndex != -1) {
                         const propType =
                             infcType.getMemberField(propName)!.type;
@@ -2440,7 +2436,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                             ifcTypeId,
                             objTypeId,
                             objRef,
-                            objHeapType,
+                            objType,
                             propIndex + 1,
                             dynFieldIndex,
                             propType,
@@ -2786,7 +2782,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return binaryenCAPI._BinaryenRefCast(
             this.module.ptr,
             obj,
-            this.wasmType.getWASMHeapType(type),
+            this.wasmType.getWASMType(type),
         );
     }
 
@@ -2844,11 +2840,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     [ref, index],
                     binaryen.anyref,
                 );
-                const wasmHeapType = this.wasmType.getWASMHeapType(type);
+                const wasmType = this.wasmType.getWASMType(type);
                 return binaryenCAPI._BinaryenRefCast(
                     this.module.ptr,
                     obj,
-                    wasmHeapType,
+                    wasmType,
                 );
             }
         }
