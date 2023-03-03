@@ -1,7 +1,34 @@
 import binaryen from 'binaryen';
-import { assert } from 'console';
 import * as binaryenCAPI from './binaryen.js';
 import { ptrInfo, typeInfo } from './utils.js';
+
+/** type system */
+export const isorecursive: binaryenCAPI.TypeSystem = 0;
+export const nominal: binaryenCAPI.TypeSystem = 1;
+
+/** value types */
+export namespace BinaryenType {
+    // value types
+    // _BinaryenTypeInt32
+    export const I32: binaryen.Type = 2;
+    // _BinaryenTypeInt64
+    export const I64: binaryen.Type = 3;
+    // _BinaryenTypeFloat32
+    export const F32: binaryen.Type = 4;
+    // _BinaryenTypeFloat64
+    export const F64: binaryen.Type = 5;
+}
+
+/** packed struct field types */
+export namespace Pakced {
+    // _BinaryenPackedTypeNotPacked
+    export const Not: binaryenCAPI.PackedType = 0;
+    // _BinaryenPackedTypeInt8
+    export const I8: binaryenCAPI.PackedType = 1;
+    // _BinaryenPackedTypeInt16
+    export const I16: binaryenCAPI.PackedType = 2;
+}
+
 export function arrayToPtr(array: number[]): ptrInfo {
     const ptrInfo: ptrInfo = {
         ptr: 0,
@@ -97,6 +124,8 @@ export function initArrayType(
     return arrayTypeInfo;
 }
 
+export const emptyStructType = initStructType([], [], [], 0, true);
+
 export function initStructType(
     fieldTypesList: Array<binaryenCAPI.TypeRef>,
     fieldPackedTypesList: Array<binaryenCAPI.PackedType>,
@@ -116,6 +145,9 @@ export function initStructType(
         fieldMutables,
         numFields,
     );
+    if (fieldTypesList.length > 0) {
+        binaryenCAPI._TypeBuilderSetSubType(tb, 0, emptyStructType.heapTypeRef);
+    }
     const builtHeapType: binaryenCAPI.HeapTypeRef[] = new Array(1);
     const builtHeapTypePtr = arrayToPtr(builtHeapType);
     binaryenCAPI._TypeBuilderBuildAndDispose(tb, builtHeapTypePtr.ptr, 0, 0);
@@ -137,15 +169,14 @@ export const numberArrayTypeInformation = genarateNumberArrayTypeInfo();
 export const stringArrayTypeInformation = genarateStringArrayTypeInfo();
 export const boolArrayTypeInformation = genarateBoolArrayTypeInfo();
 export const anyArrayTypeInformation = genarateAnyArrayTypeInfo();
-export const objectStructTypeInformation = genarateObjectStructTypeInfo();
+export const objectStructTypeInformation = emptyStructType;
 export const infcTypeInformation = generateInfcTypeInfo();
 
-export const emptyStructType = initStructType([], [], [], 0, true);
 // generate array type to store character context
 function genarateCharArrayTypeInfo(): typeInfo {
     const charArrayTypeInfo = initArrayType(
-        binaryenCAPI._BinaryenTypeInt32(),
-        binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        BinaryenType.I32,
+        Pakced.Not,
         true,
         true,
     );
@@ -157,16 +188,13 @@ function generateStringTypeInfo(): typeInfo {
     const charArrayTypeInfo = charArrayTypeInformation;
     const stringTypeInfo = initStructType(
         [
-            binaryenCAPI._BinaryenTypeInt32(),
+            BinaryenType.I32,
             binaryenCAPI._BinaryenTypeFromHeapType(
                 charArrayTypeInfo.heapTypeRef,
                 true,
             ),
         ],
-        [
-            binaryenCAPI._BinaryenPackedTypeNotPacked(),
-            binaryenCAPI._BinaryenPackedTypeNotPacked(),
-        ],
+        [Pakced.Not, Pakced.Not],
         [true, true],
         2,
         true,
@@ -177,8 +205,8 @@ function generateStringTypeInfo(): typeInfo {
 // generate number array type
 function genarateNumberArrayTypeInfo(): typeInfo {
     const numberArrayTypeInfo = initArrayType(
-        binaryenCAPI._BinaryenTypeFloat64(),
-        binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        BinaryenType.F64,
+        Pakced.Not,
         true,
         true,
     );
@@ -190,7 +218,7 @@ function genarateStringArrayTypeInfo(): typeInfo {
     const stringTypeInfo = stringTypeInformation;
     const stringArrayTypeInfo = initArrayType(
         stringTypeInfo.typeRef,
-        binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        Pakced.Not,
         true,
         true,
     );
@@ -200,11 +228,7 @@ function genarateStringArrayTypeInfo(): typeInfo {
 function generateInfcTypeInfo(): typeInfo {
     return initStructType(
         [binaryen.i32, binaryen.i32, binaryen.anyref],
-        [
-            binaryenCAPI._BinaryenPackedTypeNotPacked(),
-            binaryenCAPI._BinaryenPackedTypeNotPacked(),
-            binaryenCAPI._BinaryenPackedTypeNotPacked(),
-        ],
+        [Pakced.Not, Pakced.Not, Pakced.Not],
         [false, false, true],
         3,
         true,
@@ -214,8 +238,8 @@ function generateInfcTypeInfo(): typeInfo {
 // generate bool array type
 function genarateBoolArrayTypeInfo(): typeInfo {
     const boolArrayTypeInfo = initArrayType(
-        binaryenCAPI._BinaryenTypeInt32(),
-        binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        BinaryenType.I32,
+        Pakced.Not,
         true,
         true,
     );
@@ -226,17 +250,11 @@ function genarateBoolArrayTypeInfo(): typeInfo {
 function genarateAnyArrayTypeInfo(): typeInfo {
     const anyArrayTypeInfo = initArrayType(
         binaryenCAPI._BinaryenTypeAnyref(),
-        binaryenCAPI._BinaryenPackedTypeNotPacked(),
+        Pakced.Not,
         true,
         true,
     );
     return anyArrayTypeInfo;
-}
-
-// generate object empty struct type
-function genarateObjectStructTypeInfo(): typeInfo {
-    const emptyStructTypeInfo = initStructType([], [], [], 0, true);
-    return emptyStructTypeInfo;
 }
 
 export function createSignatureTypeRefAndHeapTypeRef(

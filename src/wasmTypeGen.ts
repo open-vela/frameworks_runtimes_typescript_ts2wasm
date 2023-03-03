@@ -16,13 +16,13 @@ import {
     initArrayType,
     initStructType,
     createSignatureTypeRefAndHeapTypeRef,
+    Pakced,
 } from './glue/transform.js';
 import { assert } from 'console';
 import { infcTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './wasmGen.js';
 import { dyntype } from '../lib/dyntype/utils.js';
 
-const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
 export class WASMTypeGen {
     tsType2WASMTypeMap: Map<Type, binaryenCAPI.TypeRef> = new Map();
     private tsType2WASMHeapTypeMap: Map<Type, binaryenCAPI.HeapTypeRef> =
@@ -85,7 +85,7 @@ export class WASMTypeGen {
                 }
                 const arrayTypeInfo = initArrayType(
                     elemTypeRef,
-                    binaryenCAPI._BinaryenPackedTypeNotPacked(),
+                    Pakced.Not,
                     true,
                     true,
                 );
@@ -144,7 +144,7 @@ export class WASMTypeGen {
                 this.tsType2WASMHeapTypeMap.set(type, signature.heapTypeRef);
                 const funcStructType = initStructType(
                     [emptyStructType.typeRef, signature.typeRef],
-                    [typeNotPacked, typeNotPacked],
+                    [Pakced.Not, Pakced.Not],
                     [true, false],
                     2,
                     true,
@@ -192,7 +192,7 @@ export class WASMTypeGen {
                 }
                 let packed = new Array<binaryenCAPI.PackedType>(
                     wasmFuncTypes.length,
-                ).fill(typeNotPacked);
+                ).fill(Pakced.Not);
                 let muts = new Array<boolean>(wasmFuncTypes.length).fill(false);
                 const vtableType = initStructType(
                     wasmFuncTypes,
@@ -218,7 +218,7 @@ export class WASMTypeGen {
                 muts[0] = false;
                 packed = new Array<binaryenCAPI.PackedType>(
                     tsClassType.fields.length + 1,
-                ).fill(typeNotPacked);
+                ).fill(Pakced.Not);
                 wasmFieldTypes[0] = vtableType.typeRef;
                 for (let i = 0; i !== tsClassType.fields.length; ++i) {
                     const field = tsClassType.fields[i];

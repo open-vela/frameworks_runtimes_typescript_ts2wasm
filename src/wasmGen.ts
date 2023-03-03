@@ -8,6 +8,7 @@ import {
     arrayToPtr,
     emptyStructType,
     initStructType,
+    Pakced,
 } from './glue/transform.js';
 import {
     FunctionScope,
@@ -213,9 +214,6 @@ class DataSegmentContext {
         return this.currentOffset;
     }
 }
-
-/* used it when creating a wasm struct, to mark a field iff the field is not packed */
-const typeNotPacked = binaryenCAPI._BinaryenPackedTypeNotPacked();
 
 export class WASMGen {
     private currentFuncCtx: WASMFunctionContext | null = null;
@@ -529,7 +527,7 @@ export class WASMGen {
                     closureVarValues[0] = binaryenCAPI._BinaryenRefCast(
                         this.module.ptr,
                         closureVarValues[0],
-                        parentCtxType.heapTypeRef,
+                        parentCtxType.typeRef,
                     );
                 }
             } else {
@@ -587,7 +585,7 @@ export class WASMGen {
             }
             const packed = new Array<binaryenCAPI.PackedType>(
                 closureVarTypes.length,
-            ).fill(typeNotPacked);
+            ).fill(Pakced.Not);
             const contextType = initStructType(
                 closureVarTypes,
                 packed,
@@ -645,7 +643,7 @@ export class WASMGen {
             functionScope.funcType.funcKind !== FunctionKind.STATIC
         ) {
             const classType = (<ClassScope>functionScope.parent).classType;
-            const wasmClassHeapType = this.wasmType.getWASMHeapType(classType);
+            const wasmClassype = this.wasmType.getWASMType(classType);
             const thisVarIndex = functionScope.getThisIndex();
             this.currentFuncCtx!.insert(
                 this.module.local.set(
@@ -653,7 +651,7 @@ export class WASMGen {
                     binaryenCAPI._BinaryenRefCast(
                         this.module.ptr,
                         this.module.local.get(1, emptyStructType.typeRef),
-                        wasmClassHeapType,
+                        wasmClassype,
                     ),
                 ),
             );
