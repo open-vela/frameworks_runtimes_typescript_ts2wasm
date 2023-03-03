@@ -26,10 +26,10 @@ RUN apt update \
 ## lsb-release  allows us to find out which distro we run inside the dev container
 
 # Add WAMR gc branch
-RUN git clone -b dev/gc https://github.com/bytecodealliance/wasm-micro-runtime.git
+RUN git clone -b dev/gc_refactor https://github.com/bytecodealliance/wasm-micro-runtime.git
 RUN cd wasm-micro-runtime/product-mini/platforms/linux/ \
     && mkdir build && cd build \
-    && cmake .. -DWAMR_BUILD_GC=1 \
+    && cmake .. -DWAMR_BUILD_GC=1 -DWAMR_BUILD_FAST_INTERP=0 \
     && make
 RUN ln -s /wasm-micro-runtime/product-mini/platforms/linux/build/iwasm  \
     /usr/local/bin/iwasm
@@ -44,6 +44,7 @@ RUN cd binaryen/ \
     && make
 RUN ln -s /binaryen/build/bin/wasm-as /usr/local/bin/wasm-as
 RUN ln -s /binaryen/build/bin/wasm-opt /usr/local/bin/wasm-opt
+RUN ln -s /binaryen/build/bin/wasm-shell /usr/local/bin/wasm-shell
 
 # Add gc interpreter to validate
 RUN git clone https://github.com/WebAssembly/gc.git
