@@ -165,30 +165,8 @@ export class WASMTypeGen {
                 // 1. add vtable
                 /* currently vtable stores all member functions(without constructor) */
                 const wasmFuncTypes = new Array<binaryenCAPI.TypeRef>();
-                const vtableFuncs = new Array<binaryen.ExpressionRef>();
                 for (const method of tsClassType.memberFuncs) {
                     wasmFuncTypes.push(this.getWASMType(method.type));
-                    const nameWithPrefix =
-                        getMethodPrefix(method.type.funcKind) + method.name;
-                    if (tsClassType.overrideOrOwnMethods.has(nameWithPrefix)) {
-                        vtableFuncs.push(
-                            this.WASMCompiler.module.ref.func(
-                                tsClassType.mangledName + '|' + nameWithPrefix,
-                                wasmFuncTypes[wasmFuncTypes.length - 1],
-                            ),
-                        );
-                    } else {
-                        /* base class must exist in this condition */
-                        const baseClassType = <TSClass>tsClassType.getBase();
-                        vtableFuncs.push(
-                            this.WASMCompiler.module.ref.func(
-                                baseClassType.mangledName +
-                                    '|' +
-                                    nameWithPrefix,
-                                wasmFuncTypes[wasmFuncTypes.length - 1],
-                            ),
-                        );
-                    }
                 }
                 let packed = new Array<binaryenCAPI.PackedType>(
                     wasmFuncTypes.length,
@@ -201,16 +179,9 @@ export class WASMTypeGen {
                     wasmFuncTypes.length,
                     true,
                 );
-                const vtableInstance = binaryenCAPI._BinaryenStructNew(
-                    this.WASMCompiler.module.ptr,
-                    arrayToPtr(vtableFuncs).ptr,
-                    vtableFuncs.length,
-                    vtableType.heapTypeRef,
-                );
+
                 this.tsClassVtableType.set(type, vtableType.typeRef);
                 this.tsClassVtableHeapType.set(type, vtableType.heapTypeRef);
-                this.classVtables.set(type, vtableInstance);
-
                 // 2. add vtable and fields
                 const wasmFieldTypes = new Array<binaryenCAPI.TypeRef>();
                 /* vtable + fields */
@@ -243,6 +214,41 @@ export class WASMTypeGen {
                     type,
                     wasmClassType.heapTypeRef,
                 );
+                if (type.typeKind === TypeKind.INTERFACE) {
+                    break;
+                }
+                const vtableFuncs = new Array<binaryen.ExpressionRef>();
+                for (let i = 0; i < tsClassType.memberFuncs.length; i++) {
+                    const method = tsClassType.memberFuncs[i];
+                    const nameWithPrefix =
+                        getMethodPrefix(method.type.funcKind) + method.name;
+                    if (tsClassType.overrideOrOwnMethods.has(nameWithPrefix)) {
+                        vtableFuncs.push(
+                            this.WASMCompiler.module.ref.func(
+                                tsClassType.mangledName + '|' + nameWithPrefix,
+                                wasmFuncTypes[i],
+                            ),
+                        );
+                    } else {
+                        /* base class must exist in this condition */
+                        const baseClassType = <TSClass>tsClassType.getBase();
+                        vtableFuncs.push(
+                            this.WASMCompiler.module.ref.func(
+                                baseClassType.mangledName +
+                                    '|' +
+                                    nameWithPrefix,
+                                wasmFuncTypes[i],
+                            ),
+                        );
+                    }
+                }
+                const vtableInstance = binaryenCAPI._BinaryenStructNew(
+                    this.WASMCompiler.module.ptr,
+                    arrayToPtr(vtableFuncs).ptr,
+                    vtableFuncs.length,
+                    vtableType.heapTypeRef,
+                );
+                this.classVtables.set(type, vtableInstance);
                 break;
             }
             default:
@@ -328,16 +334,16 @@ export class WASMTypeGen {
     }
 
     getWASMClassVtableType(type: Type): binaryenCAPI.TypeRef {
-        assert(type.typeKind === TypeKind.CLASS);
-        if (!this.tsFuncType2WASMStructType.has(type)) {
+        assert(type instanceof TSClass);
+        if (!this.tsClassVtableType.has(type)) {
             this.createWASMType(type);
         }
         return this.tsClassVtableType.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMClassVtableHeapType(type: Type): binaryenCAPI.HeapTypeRef {
-        assert(type.typeKind === TypeKind.CLASS);
-        if (!this.tsFuncType2WASMStructType.has(type)) {
+        assert(type instanceof TSClass);
+        if (!this.tsClassVtableHeapType.has(type)) {
             this.createWASMType(type);
         }
         return this.tsClassVtableHeapType.get(type) as binaryenCAPI.HeapTypeRef;

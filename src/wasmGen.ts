@@ -845,14 +845,24 @@ export class WASMGen {
         buffer[0] = this.module.i32.const(shape.typeId);
         buffer[1] = dataLength;
         for (let i = 0, j = 2; i < methodLen; i++, j += 3) {
-            buffer[j] = this.generateRawString(shape.memberFuncs[i].name);
-            buffer[j + 1] = 1;
+            const method = shape.memberFuncs[i];
+            if (method.type.funcKind === FunctionKind.STATIC) {
+                continue;
+            }
+            const flag =
+                method.type.funcKind === FunctionKind.METHOD
+                    ? 1
+                    : method.type.funcKind === FunctionKind.GETTER
+                    ? 2
+                    : 3;
+            buffer[j] = this.generateRawString(method.name);
+            buffer[j + 1] = this.module.i32.const(flag);
             buffer[j + 2] = this.module.i32.const(i);
         }
         const previousPartLength = 2 + shape.memberFuncs.length * 3;
         for (let i = 0, j = previousPartLength; i < fieldLen; i++, j += 3) {
             buffer[j] = this.generateRawString(shape.fields[i].name);
-            buffer[j + 1] = 0;
+            buffer[j + 1] = this.module.i32.const(0);
             buffer[j + 2] = this.module.i32.const(i + 1);
         }
         const offset = this.dataSegmentContext!.addData(
