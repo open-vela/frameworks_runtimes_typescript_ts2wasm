@@ -31,6 +31,7 @@ export namespace dyntype {
         ExtObj = 0,
         ExtFunc = 1,
         ExtInfc = 2,
+        ExtArray = 3,
     }
 
     // export dyntype functions

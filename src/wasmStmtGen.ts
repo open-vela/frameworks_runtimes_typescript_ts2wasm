@@ -404,25 +404,6 @@ export class WASMStatementGen {
                         varInitExprRef = wasmDynExpr.WASMDynExprGen(
                             localVar.initExpression,
                         ).binaryenRef;
-                        /* let xxx = zzz && yyy, in this case xxx maybe union(any) type*/
-                        if (
-                            binaryen.getExpressionType(varInitExprRef) ===
-                            binaryen.f64
-                        ) {
-                            varInitExprRef =
-                                this.WASMCompiler.wasmDynExprCompiler.generateDynNumber(
-                                    varInitExprRef,
-                                );
-                        }
-                        if (
-                            binaryen.getExpressionType(varInitExprRef) ===
-                            binaryen.i32
-                        ) {
-                            varInitExprRef =
-                                this.WASMCompiler.wasmDynExprCompiler.generateDynBoolean(
-                                    varInitExprRef,
-                                );
-                        }
                         this.currentFuncCtx.insert(
                             module.local.set(localVar.varIndex, varInitExprRef),
                         );
@@ -596,35 +577,10 @@ export class WASMStatementGen {
 
     WASMImportStmt(stmt: ImportDeclaration): binaryen.ExpressionRef {
         const module = this.WASMCompiler.module;
-        const importGlobalArray = stmt.importGlobalArray;
-        for (const importGlobal of importGlobalArray) {
-            module.addGlobalImport(
-                importGlobal.internalName,
-                importGlobal.externalModuleName,
-                importGlobal.externalBaseName,
-                this.WASMCompiler.wasmType.getWASMType(importGlobal.globalType),
-            );
-        }
-        const importFunctionArray = stmt.importFunctionArray;
-        for (const importFunction of importFunctionArray) {
-            module.addFunctionImport(
-                importFunction.internalName,
-                importFunction.externalModuleName,
-                importFunction.externalBaseName,
-                binaryen.createType(
-                    (importFunction.funcType as TSFunction)
-                        .getParamTypes()
-                        .map((paramType) => {
-                            return this.WASMCompiler.wasmType.getWASMType(
-                                paramType,
-                            );
-                        }),
-                ),
-                this.WASMCompiler.wasmType.getWASMType(
-                    (importFunction.funcType as TSFunction).returnType,
-                ),
-            );
-        }
+        /** Currently, we put all ts files into a whole wasm file.
+         *  So we don't need to addGlobalImport and addFunctionImport here.
+         *  If we generate several wasm files, we need to add imports here.
+         */
         if (stmt.importModuleStartFuncName !== '') {
             return module.call(
                 stmt.importModuleStartFuncName,

@@ -222,6 +222,7 @@ export class SuperCallExpression extends Expression {
 export class PropertyAccessExpression extends Expression {
     private expr: Expression;
     private property: Expression;
+    parent: Expression = new Expression(ts.SyntaxKind.Unknown);
     accessSetter = false;
 
     constructor(expr: Expression, property: Expression) {
@@ -393,9 +394,7 @@ export default class ExpressionCompiler {
                 const identifierExpr = new IdentifierExpression(
                     targetIdentifier,
                 );
-                if (
-                    BuiltinNames.builtinIdentifiers.includes(targetIdentifier)
-                ) {
+                if (BuiltinNames.builtInObjInfo[targetIdentifier]) {
                     return identifierExpr;
                 }
                 let scope = this.compilerCtx.getScopeByNode(node) || null;
@@ -533,15 +532,8 @@ export default class ExpressionCompiler {
             }
             case ts.SyntaxKind.PropertyAccessExpression: {
                 const propAccessExprNode = <ts.PropertyAccessExpression>node;
-                const property = this.visitNode(propAccessExprNode.name);
-                const expr = this.visitNode(propAccessExprNode.expression);
-                const propAccessExpr = new PropertyAccessExpression(
-                    expr,
-                    property,
-                );
-                propAccessExpr.setExprType(
-                    this.typeCompiler.generateNodeType(node),
-                );
+                const propAccessExpr =
+                    this.generatePropertyAccessExpr(propAccessExprNode);
                 return propAccessExpr;
             }
             case ts.SyntaxKind.ParenthesizedExpression: {
@@ -676,5 +668,29 @@ export default class ExpressionCompiler {
             default:
                 return new Expression(ts.SyntaxKind.Unknown);
         }
+    }
+
+    generatePropertyAccessExpr(node: ts.PropertyAccessExpression) {
+        const expr = this.visitNode(node.expression);
+        let property: Expression;
+        let propAccessExpr: PropertyAccessExpression;
+        switch (expr.exprType.kind) {
+            case TypeKind.ARRAY:
+            case TypeKind.NUMBER:
+            case TypeKind.STRING:
+            case TypeKind.BOOLEAN: {
+                const propertyName = node.name.getText();
+                property = new IdentifierExpression(propertyName);
+                propAccessExpr = new PropertyAccessExpression(expr, property);
+                break;
+            }
+            default: {
+                property = this.visitNode(node.name);
+                propAccessExpr = new PropertyAccessExpression(expr, property);
+            }
+        }
+        propAccessExpr.setExprType(this.typeCompiler.generateNodeType(node));
+        propAccessExpr.parent = new Expression(node.parent.kind);
+        return propAccessExpr;
     }
 }

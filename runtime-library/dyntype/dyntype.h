@@ -24,7 +24,8 @@ typedef void *dyn_value_t;
 typedef enum external_ref_tag {
   ExtObj,
   ExtFunc,
-  ExtInfc
+  ExtInfc,
+  ExtArray,
 } external_ref_tag;
 
 typedef enum dyn_type_t {

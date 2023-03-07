@@ -21,7 +21,7 @@
     "eslint": "eslint --fix '**/*.ts'",
     "setup-hooks": "ts-node-esm scripts/link-hooks.ts",
     "prepare": "npm run setup-hooks",
-    "build": "npx tsc & cp -r ./lib/interface-lib ./build/lib/"
+    "build": "rm -rf lib/builtin/watFile/ && ts-node-esm lib/builtin/initBuiltInAPI.ts && ts-node-esm lib/builtin/initBuiltInTS.ts && npx tsc && cp -r lib/builtin/watFile/ build/lib/builtin/ && cp -r ./lib/interface-lib ./build/lib/"
   },
   "repository": {
     "type": "git",

@@ -11,6 +11,9 @@ import {
 import ExpressionCompiler, { Expression } from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 import { Type } from './type.js';
+import binaryen from 'binaryen';
+import * as binaryenCAPI from './glue/binaryen.js';
+import { arrayToPtr } from './glue/transform.js';
 
 export interface importGlobalInfo {
     internalName: string;
@@ -321,4 +324,36 @@ export function getExportIdentifierName(
     }
 
     return nameAliasExportMap;
+}
+
+export function addWatFuncs(
+    watModule: binaryen.Module,
+    funcName: string,
+    curModule: binaryen.Module,
+) {
+    const func = watModule.getFunction(funcName);
+    const name = binaryenCAPI._BinaryenFunctionGetName(func);
+    const params = binaryenCAPI._BinaryenFunctionGetParams(func);
+    const results = binaryenCAPI._BinaryenFunctionGetResults(func);
+    const vars = [];
+    const numvars = binaryenCAPI._BinaryenFunctionGetNumVars(func);
+    for (let i = 0; i < numvars; i++) {
+        vars.push(binaryenCAPI._BinaryenFunctionGetVar(func, i));
+    }
+    const body = binaryenCAPI._BinaryenFunctionGetBody(func);
+    binaryenCAPI._BinaryenAddFunction(
+        curModule.ptr,
+        name,
+        params,
+        results,
+        arrayToPtr(vars).ptr,
+        vars.length,
+        body,
+    );
+}
+
+export function getBuiltInFuncName(oriFuncName: string) {
+    return BuiltinNames.bulitIn_module_name
+        .concat(BuiltinNames.module_delimiter)
+        .concat(oriFuncName);
 }

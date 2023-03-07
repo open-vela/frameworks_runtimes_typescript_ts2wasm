@@ -42,5 +42,15 @@
         "category": "Compile",
         "description": "disable builtin functions",
         "default": true
+    },
+    "disableInterface": {
+        "category": "Compile",
+        "description": "disable interface feature",
+        "default": true
+    },
+    "isBuiltIn": {
+        "category": "Compile",
+        "description": "decide whether to compile the built-in ts files",
+        "default": true
     }
 }

@@ -221,22 +221,48 @@ void dyntype_collect_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx) {
     { #func_name, func_name##_wrapper, signature, NULL }
 
 static NativeSymbol native_symbols[] = {
-    REG_NATIVE_FUNC(dyntype_context_init, "()"),
-    REG_NATIVE_FUNC(dyntype_context_destroy, "(i)"),
-    REG_NATIVE_FUNC(dyntype_new_number, "(iF)i"),
-    REG_NATIVE_FUNC(dyntype_new_boolean, "(ii)i"),
-    REG_NATIVE_FUNC(dyntype_new_string, "(ii)i"),
-    REG_NATIVE_FUNC(dyntype_new_undefined, "(i)i"),
-    REG_NATIVE_FUNC(dyntype_new_null, "(i)i"),
-    REG_NATIVE_FUNC(dyntype_new_object, "(i)i"),
-    REG_NATIVE_FUNC(dyntype_new_array, "(i)i"),
-    REG_NATIVE_FUNC(dyntype_new_extref, "(iii)i"),
+    REG_NATIVE_FUNC(dyntype_context_init, "()I"),
+    REG_NATIVE_FUNC(dyntype_context_destroy, "(I)"),
 
-    REG_NATIVE_FUNC(dyntype_set_property, "(iiii)i"),
-    REG_NATIVE_FUNC(dyntype_define_property, "(iiii)i"),
-    REG_NATIVE_FUNC(dyntype_get_property, "(iii)i"),
-    REG_NATIVE_FUNC(dyntype_has_property, "(iii)i"),
-    REG_NATIVE_FUNC(dyntype_delete_property, "(iii)i"),
+    REG_NATIVE_FUNC(dyntype_new_number, "(IF)r"),
+    REG_NATIVE_FUNC(dyntype_new_boolean, "(Ii)r"),
+    REG_NATIVE_FUNC(dyntype_new_string, "(Ir)r"),
+    REG_NATIVE_FUNC(dyntype_new_undefined, "(I)r"),
+    REG_NATIVE_FUNC(dyntype_new_null, "(I)r"),
+    REG_NATIVE_FUNC(dyntype_new_object, "(I)r"),
+    REG_NATIVE_FUNC(dyntype_new_array, "(I)r"),
+    REG_NATIVE_FUNC(dyntype_new_extref, "(IiF)r"),
+    REG_NATIVE_FUNC(dyntype_new_object_with_proto, "(Ir)r"),
+
+    REG_NATIVE_FUNC(dyntype_set_prototype, "(Irr)i"),
+    REG_NATIVE_FUNC(dyntype_get_prototype, "(Ir)r"),
+    REG_NATIVE_FUNC(dyntype_get_own_property, "(Irr)r"),
+
+    REG_NATIVE_FUNC(dyntype_set_property, "(Irrr)i"),
+    REG_NATIVE_FUNC(dyntype_define_property, "(Irrr)i"),
+    REG_NATIVE_FUNC(dyntype_get_property, "(Irr)r"),
+    REG_NATIVE_FUNC(dyntype_has_property, "(Irr)i"),
+    REG_NATIVE_FUNC(dyntype_delete_property, "(Irr)i"),
+
+    REG_NATIVE_FUNC(dyntype_is_undefined, "(Ir)i"),
+    REG_NATIVE_FUNC(dyntype_is_null, "(Ir)i"),
+    REG_NATIVE_FUNC(dyntype_is_bool, "(Ir)i"),
+    REG_NATIVE_FUNC(dyntype_is_number, "(Ir)i"),
+    REG_NATIVE_FUNC(dyntype_is_string, "(Ir)i"),
+    REG_NATIVE_FUNC(dyntype_is_object, "(Ir)i"),
+    REG_NATIVE_FUNC(dyntype_is_array, "(Ir)i"),
+    REG_NATIVE_FUNC(dyntype_is_extref, "(Ir)i"),
+
+    REG_NATIVE_FUNC(dyntype_to_bool, "(Iri)i"),
+    REG_NATIVE_FUNC(dyntype_to_number, "(Iri)i"),
+    REG_NATIVE_FUNC(dyntype_to_cstring, "(Iri)i"),
+    REG_NATIVE_FUNC(dyntype_to_extref, "(Iri)i"),
+
+    REG_NATIVE_FUNC(dyntype_free_cstring, "(Ir)"),
+
+    REG_NATIVE_FUNC(dyntype_typeof, "(Ir)r"),
+    REG_NATIVE_FUNC(dyntype_type_eq, "(Irr)i"),
+    REG_NATIVE_FUNC(dyntype_instanceof, "(Irr)i"),
 
     /* TODO */
 };

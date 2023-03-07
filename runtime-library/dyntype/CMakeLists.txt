@@ -27,3 +27,4 @@ set (WAMR_BUILD_AOT 1)
 include(${CMAKE_CURRENT_LIST_DIR}/wamr/build-scripts/runtime_lib.cmake)
 
 add_library(dyntype_export SHARED lib_dyntype_wrapper.c)
+target_link_libraries(dyntype_export dyntype)

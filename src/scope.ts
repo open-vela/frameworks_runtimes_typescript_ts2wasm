@@ -1,4 +1,4 @@
-import ts, { factory } from 'typescript';
+import ts from 'typescript';
 import path from 'path';
 import {
     Type,
@@ -12,6 +12,7 @@ import { Compiler } from './compiler.js';
 import { parentIsFunctionLike, Stack } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
+import { ArgNames, BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
 export enum ScopeKind {
     Scope,
@@ -33,7 +34,7 @@ export class Scope {
     private statementArray: Statement[] = [];
     private localIndex = -1;
     public mangledName = '';
-    private modifiers: ts.SyntaxKind[] = [];
+    private modifiers: ts.Node[] = [];
 
     addStatement(statement: Statement) {
         this.statementArray.push(statement);
@@ -117,7 +118,7 @@ export class Scope {
         this.children.push(child);
     }
 
-    addModifier(modifier: ts.SyntaxKind) {
+    addModifier(modifier: ts.Node) {
         this.modifiers.push(modifier);
     }
 
@@ -300,7 +301,11 @@ export class Scope {
 
     get isDeclare(): boolean {
         let res = false;
-        if (this.modifiers.includes(ts.SyntaxKind.DeclareKeyword)) {
+        if (
+            this.modifiers.find((modifier) => {
+                return modifier.kind === ts.SyntaxKind.DeclareKeyword;
+            })
+        ) {
             res = true;
             return res;
         }
@@ -308,15 +313,38 @@ export class Scope {
     }
 
     get isDefault(): boolean {
-        return this.modifiers.includes(ts.SyntaxKind.DefaultKeyword);
+        return this.modifiers.find((modifier) => {
+            return modifier.kind === ts.SyntaxKind.DefaultKeyword;
+        }) === undefined
+            ? false
+            : true;
     }
 
     get isExport(): boolean {
-        return this.modifiers.includes(ts.SyntaxKind.ExportKeyword);
+        return this.modifiers.find((modifier) => {
+            return modifier.kind === ts.SyntaxKind.ExportKeyword;
+        }) === undefined
+            ? false
+            : true;
     }
 
     get isStatic(): boolean {
-        return this.modifiers.includes(ts.SyntaxKind.StaticKeyword);
+        return this.modifiers.find((modifier) => {
+            return modifier.kind === ts.SyntaxKind.StaticKeyword;
+        }) === undefined
+            ? false
+            : true;
+    }
+
+    hasDecorator(name: string): boolean {
+        return this.modifiers.find((modifier) => {
+            return (
+                modifier.kind === ts.SyntaxKind.Decorator &&
+                (<ts.Decorator>modifier).expression.getText() === name
+            );
+        }) === undefined
+            ? false
+            : true;
     }
 
     traverseScopTree(traverseMethod: (scope: Scope) => void) {
@@ -560,7 +588,7 @@ export class ScopeScanner {
         const functionScope = new FunctionScope(parentScope);
         if (node.modifiers !== undefined) {
             for (const modifier of node.modifiers) {
-                functionScope.addModifier(modifier.kind);
+                functionScope.addModifier(modifier);
             }
         }
 
@@ -605,7 +633,11 @@ export class ScopeScanner {
                     -'.ts'.length,
                 );
                 const moduleName = path.relative(process.cwd(), filePath);
-                globalScope.moduleName = moduleName;
+                if (!this.compilerCtx.compileArgs[ArgNames.isBuiltIn]) {
+                    globalScope.moduleName = moduleName;
+                } else {
+                    globalScope.moduleName = 'builtIn';
+                }
                 this.globalScopeStack.push(globalScope);
                 this.nodeScopeMap.set(sourceFileNode, globalScope);
                 for (let i = 0; i < sourceFileNode.statements.length; i++) {
@@ -632,7 +664,7 @@ export class ScopeScanner {
                 );
                 if (moduleDeclaration.modifiers !== undefined) {
                     for (const modifier of moduleDeclaration.modifiers) {
-                        namespaceScope.addModifier(modifier.kind);
+                        namespaceScope.addModifier(modifier);
                     }
                 }
                 const moduleBlock = <ts.ModuleBlock>moduleDeclaration.body!;
@@ -659,7 +691,7 @@ export class ScopeScanner {
                 );
                 if (functionDeclarationNode.modifiers !== undefined) {
                     for (const modifier of functionDeclarationNode.modifiers) {
-                        functionScope.addModifier(modifier.kind);
+                        functionScope.addModifier(modifier);
                     }
                 }
                 let functionName: string;
@@ -731,14 +763,13 @@ export class ScopeScanner {
                 break;
             }
             case ts.SyntaxKind.MethodDeclaration: {
-                const kind = (<ts.MethodDeclaration>node).modifiers?.find(
-                    (m) => {
-                        return m.kind === ts.SyntaxKind.StaticKeyword;
-                    },
-                )
+                const methodNode = <ts.MethodDeclaration>node;
+                const kind = methodNode.modifiers?.find((m) => {
+                    return m.kind === ts.SyntaxKind.StaticKeyword;
+                })
                     ? FunctionKind.STATIC
                     : FunctionKind.METHOD;
-                this._generateClassFuncScope(<ts.MethodDeclaration>node, kind);
+                this._generateClassFuncScope(methodNode, kind);
                 break;
             }
             case ts.SyntaxKind.Block: {
