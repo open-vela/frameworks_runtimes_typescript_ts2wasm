@@ -54,11 +54,13 @@
     "eslint-plugin-no-null": "^1.0.2",
     "eslint-plugin-prettier": "^4.2.1",
     "lint-staged": "^13.0.3",
+    "log4js": "^6.8.0",
     "long": "^5.2.1",
     "minimist": "^1.2.6",
     "mocha": "^10.0.0",
     "prettier": "^2.7.1",
-    "sinon": "^14.0.0"
+    "sinon": "^14.0.0",
+    "stacktrace-js": "^2.0.2"
   },
   "lint-staged": {
     "*.ts": [

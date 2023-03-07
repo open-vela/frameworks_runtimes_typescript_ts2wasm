@@ -17,6 +17,8 @@ import StatementCompiler from './statement.js';
 import { WASMGen } from './wasmGen.js';
 import path from 'path';
 import { ArgNames } from '../lib/builtin/builtinUtil.js';
+import { Logger } from './log.js';
+import { SyntaxError } from './error.js';
 
 export interface CompileArgs {
     [key: string]: any;
@@ -93,7 +95,7 @@ export class Compiler {
             );
             console.log(formattedError);
             this._errorMessage = allDiagnostics as ts.Diagnostic[];
-            throw Error('\nSyntax error in source file.');
+            throw new SyntaxError('Syntax error in source file.');
         }
 
         const sourceFileList = program
@@ -119,6 +121,7 @@ export class Compiler {
         /* Step5: Add statements to scopes */
         this.stmtCompiler.visit();
 
+        this.recordScopes();
         if (process.env['TS2WASM_DUMP_SCOPE']) {
             this.dumpScopes();
         }
@@ -139,8 +142,8 @@ export class Compiler {
         try {
             this.binaryenModule = binaryen.parseText(textModule);
         } catch (e) {
-            console.log(textModule);
-            console.log(`Generated module is invalid`);
+            Logger.debug(textModule);
+            Logger.error(`Generated module is invalid`);
             throw e;
         }
         this.binaryenModule.setFeatures(binaryen.Features.All);
@@ -186,8 +189,48 @@ export class Compiler {
         return this._errorMessage;
     }
 
+    recordScopes() {
+        const scopes = this.generateScopes();
+        const scopeInfos: Array<any> = scopes.scopeInfos;
+        const scopeVarInfos: Array<any> = scopes.scopeVarInfos;
+        const scopeTypeInfos: Array<any> = scopes.scopeTypeInfos;
+        for (let i = 0; i < scopeInfos.length; ++i) {
+            Logger.debug(
+                `============= Variables in scope '${scopeInfos[i].name}' (${scopeInfos[i].kind}) =============`,
+            );
+            Logger.debug(scopeVarInfos[i]);
+            Logger.debug(
+                `============= Types in scope '${scopeInfos[i].name}' (${scopeInfos[i].kind})=============`,
+            );
+            Logger.debug(scopeTypeInfos[i]);
+        }
+        Logger.debug(`============= Scope Summary =============`);
+        Logger.debug(scopeInfos);
+    }
+
     dumpScopes() {
+        const scopes = this.generateScopes();
+        const scopeInfos: Array<any> = scopes.scopeInfos;
+        const scopeVarInfos: Array<any> = scopes.scopeVarInfos;
+        const scopeTypeInfos: Array<any> = scopes.scopeTypeInfos;
+        for (let i = 0; i < scopeInfos.length; ++i) {
+            console.log(
+                `============= Variables in scope '${scopeInfos[i].name}' (${scopeInfos[i].kind}) =============`,
+            );
+            console.table(scopeVarInfos[i]);
+            console.log(
+                `============= Types in scope '${scopeInfos[i].name}' (${scopeInfos[i].kind})=============`,
+            );
+            console.table(scopeTypeInfos[i]);
+        }
+        console.log(`============= Scope Summary =============`);
+        console.table(scopeInfos);
+    }
+
+    generateScopes() {
         const scopeInfos: Array<any> = [];
+        const scopeVarInfos: Array<any> = [];
+        const scopeTypeInfos: Array<any> = [];
 
         for (let i = 0; i < this.globalScopeStack.size(); ++i) {
             const scope = this.globalScopeStack.getItemAtIdx(i);
@@ -241,11 +284,7 @@ export class Compiler {
                         index: v.varIndex,
                     });
                 });
-
-                console.log(
-                    `============= Variables in scope '${scopeName}' (${scope.kind}) =============`,
-                );
-                console.table(varInfos);
+                scopeVarInfos.push(varInfos);
 
                 const typeInfos: Array<any> = [];
                 scope.namedTypeMap.forEach((t, name) => {
@@ -254,16 +293,10 @@ export class Compiler {
                         type: t,
                     });
                 });
-
-                console.log(
-                    `============= Types in scope '${scopeName}' (${scope.kind}) =============`,
-                );
-                console.table(typeInfos);
+                scopeTypeInfos.push(typeInfos);
             });
         }
-
-        console.log(`============= Scope Summary =============`);
-        console.table(scopeInfos);
+        return { scopeInfos, scopeVarInfos, scopeTypeInfos };
     }
 
     private getCompilerOptions() {
