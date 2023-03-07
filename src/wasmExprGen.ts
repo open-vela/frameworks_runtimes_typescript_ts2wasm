@@ -135,12 +135,42 @@ class MethodAccess extends AccessBase {
     }
 }
 
+class InfcMethodAccess extends AccessBase {
+    constructor(
+        public infcTypeId: binaryen.ExpressionRef,
+        public objTypeId: binaryen.ExpressionRef,
+        public objRef: binaryen.ExpressionRef,
+        public objHeapType: binaryenCAPI.HeapTypeRef, // ref.cast objHeapType anyref
+        public methodIndex: number,
+        public dynMethodIndex: binaryen.ExpressionRef,
+        public infcType: TSInterface,
+        public methodType: TSFunction,
+    ) {
+        super(AccessType.Function);
+    }
+}
+
 class GetterAccess extends AccessBase {
     constructor(
         public methodType: TSFunction,
         public methodIndex: number,
         public classType: TSClass,
         public thisObj: binaryen.ExpressionRef,
+    ) {
+        super(AccessType.Getter);
+    }
+}
+
+class InfcGetterAccess extends AccessBase {
+    constructor(
+        public infcTypeId: binaryen.ExpressionRef,
+        public objTypeId: binaryen.ExpressionRef,
+        public objRef: binaryen.ExpressionRef,
+        public objHeapType: binaryenCAPI.HeapTypeRef, // ref.cast objHeapType anyref
+        public methodIndex: number,
+        public dynMethodIndex: binaryen.ExpressionRef,
+        public infcType: TSInterface,
+        public methodType: TSFunction,
     ) {
         super(AccessType.Getter);
     }
@@ -1258,7 +1288,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     `object is null when accessing getter method of class, class name is '${classType.className}'`,
                 );
             }
-            return this._generateClassMethodCallRef(
+            loadRef = this._generateClassMethodCallRef(
                 thisObj,
                 classType,
                 methodType,
@@ -1270,6 +1300,59 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     ),
                     thisObj!,
                 ],
+            );
+        } else if (accessInfo instanceof InfcGetterAccess) {
+            const {
+                infcTypeId,
+                objTypeId,
+                objRef,
+                objHeapType,
+                methodIndex,
+                dynMethodIndex,
+                infcType,
+                methodType,
+            } = accessInfo;
+            const refnull = binaryenCAPI._BinaryenRefNull(
+                this.module.ptr,
+                emptyStructType.typeRef,
+            );
+            const castedObjRef = binaryenCAPI._BinaryenRefCast(
+                this.module.ptr,
+                objRef,
+                objHeapType,
+            );
+            const callWasmArgs = [refnull, castedObjRef];
+            const ifTrue = this._generateClassMethodCallRef(
+                castedObjRef,
+                infcType,
+                methodType,
+                methodIndex,
+                callWasmArgs,
+            );
+            const dynTargetField = this.dynGetInfcField(
+                objRef,
+                dynMethodIndex,
+                methodType,
+            );
+            callWasmArgs[1] = binaryenCAPI._BinaryenRefCast(
+                this.module.ptr,
+                objRef,
+                emptyStructType.heapTypeRef,
+            );
+            const ifFalse = binaryenCAPI._BinaryenCallRef(
+                this.module.ptr,
+                dynTargetField,
+                arrayToPtr(callWasmArgs).ptr,
+                callWasmArgs.length,
+                this.wasmType.getWASMType(methodType),
+                false,
+            );
+            loadRef = createCondBlock(
+                this.module,
+                infcTypeId,
+                objTypeId,
+                ifTrue,
+                ifFalse,
             );
         } else if (accessInfo instanceof DynArrayAccess) {
             throw Error(`dynamic array not implemented`);
@@ -2038,6 +2121,59 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     methodIndex,
                     callWasmArgs,
                 );
+            } else if (accessInfo instanceof InfcMethodAccess) {
+                const {
+                    infcTypeId,
+                    objTypeId,
+                    objRef,
+                    objHeapType,
+                    methodIndex,
+                    dynMethodIndex,
+                    infcType,
+                    methodType,
+                } = accessInfo;
+                const refnull = binaryenCAPI._BinaryenRefNull(
+                    this.module.ptr,
+                    emptyStructType.typeRef,
+                );
+                const castedObjRef = binaryenCAPI._BinaryenRefCast(
+                    this.module.ptr,
+                    objRef,
+                    objHeapType,
+                );
+                callWasmArgs = [refnull, castedObjRef, ...callWasmArgs];
+                const ifTrue = this._generateClassMethodCallRef(
+                    castedObjRef,
+                    infcType,
+                    methodType,
+                    methodIndex,
+                    callWasmArgs,
+                );
+                const dynTargetField = this.dynGetInfcField(
+                    objRef,
+                    dynMethodIndex,
+                    methodType,
+                );
+                callWasmArgs[1] = binaryenCAPI._BinaryenRefCast(
+                    this.module.ptr,
+                    objRef,
+                    emptyStructType.heapTypeRef,
+                );
+                const ifFalse = binaryenCAPI._BinaryenCallRef(
+                    this.module.ptr,
+                    dynTargetField,
+                    arrayToPtr(callWasmArgs).ptr,
+                    callWasmArgs.length,
+                    this.wasmType.getWASMType(methodType),
+                    false,
+                );
+                return createCondBlock(
+                    this.module,
+                    infcTypeId,
+                    objTypeId,
+                    ifTrue,
+                    ifFalse,
+                );
             } else {
                 throw Error(`invalid call target`);
             }
@@ -2373,12 +2509,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         );
                     } else {
                         let classMethod = classType.getMethod(propName);
-                        // iff xxx.getter()
-                        if (
-                            classMethod.index === -1 &&
-                            propExpr.expressionKind ===
-                                ts.SyntaxKind.CallExpression
-                        ) {
+                        // iff xxx.setter()
+                        if (classMethod.index === -1 && expr.accessSetter) {
                             classMethod = classType.getMethod(
                                 propName,
                                 FunctionKind.SETTER,
@@ -2416,16 +2548,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     const ifcTypeId = this.module.i32.const(infcType.typeId);
                     const objTypeId = this.getInfcTypeId(ref);
                     const propIndex = infcType.getMemberFieldIndex(propName);
-                    const dynFieldIndex = this.module.call(
-                        'find_index',
-                        [
-                            this.getInfcItable(ref),
-                            module.i32.const(
-                                this.wasmCompiler.generateRawString(propName),
-                            ),
-                        ],
-                        binaryen.i32,
-                    );
+                    let dynFieldIndex = this.findItableIndex(ref, propName, 0);
 
                     const objRef = this.getInfcObj(ref); // anyref
                     const objType = this.wasmType.getWASMType(infcType, true);
@@ -2441,12 +2564,57 @@ export class WASMExpressionGen extends WASMExpressionBase {
                             dynFieldIndex,
                             propType,
                         );
-                    } else if (infcType.getMethod(propName).index != -1) {
-                        throw new Error('interface method not implemented');
                     } else {
-                        throw Error(
-                            `${propName} property does not exist on ${tsType}`,
-                        );
+                        let method = infcType.getMethod(propName);
+                        dynFieldIndex = this.findItableIndex(ref, propName, 1);
+                        if (method.index === -1 && expr.accessSetter) {
+                            method = infcType.getMethod(
+                                propName,
+                                FunctionKind.SETTER,
+                            );
+                            dynFieldIndex = this.findItableIndex(
+                                ref,
+                                propName,
+                                3,
+                            );
+                        }
+                        if (method.index !== -1) {
+                            curAccessInfo = new InfcMethodAccess(
+                                ifcTypeId,
+                                objTypeId,
+                                objRef,
+                                objHeapType,
+                                method.index,
+                                dynFieldIndex,
+                                infcType,
+                                method.method!.type,
+                            );
+                        } else {
+                            method = infcType.getMethod(
+                                propName,
+                                FunctionKind.GETTER,
+                            );
+                            dynFieldIndex = this.findItableIndex(
+                                ref,
+                                propName,
+                                2,
+                            );
+                            curAccessInfo = new InfcGetterAccess(
+                                ifcTypeId,
+                                objTypeId,
+                                objRef,
+                                objHeapType,
+                                method.index,
+                                dynFieldIndex,
+                                infcType,
+                                method.method!.type,
+                            );
+                            if (method.index === -1) {
+                                throw Error(
+                                    `${propName} property does not exist on ${tsType}`,
+                                );
+                            }
+                        }
                     }
                     break;
                 }
@@ -2848,6 +3016,24 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
             }
         }
+    }
+
+    private findItableIndex(
+        infcRef: binaryen.ExpressionRef,
+        propName: string,
+        tag: number,
+    ) {
+        return this.module.call(
+            'find_index',
+            [
+                this.getInfcItable(infcRef),
+                this.module.i32.const(
+                    this.wasmCompiler.generateRawString(propName),
+                ),
+                this.module.i32.const(tag),
+            ],
+            binaryen.i32,
+        );
     }
 
     private dynSetInfcField(
