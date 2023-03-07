@@ -256,7 +256,12 @@ export class VariableScanner {
                 break;
             }
             case ts.SyntaxKind.Parameter: {
-                if (node.parent.kind === ts.SyntaxKind.FunctionType) {
+                if (
+                    node.parent.kind === ts.SyntaxKind.FunctionType ||
+                    (node.parent &&
+                        node.parent.parent.kind ===
+                            ts.SyntaxKind.InterfaceDeclaration)
+                ) {
                     break;
                 }
                 const parameterNode = <ts.ParameterDeclaration>node;
@@ -375,7 +380,12 @@ export class VariableInit {
     visitNode(node: ts.Node): void {
         switch (node.kind) {
             case ts.SyntaxKind.Parameter: {
-                if (node.parent.kind === ts.SyntaxKind.FunctionType) {
+                if (
+                    node.parent.kind === ts.SyntaxKind.FunctionType ||
+                    (node.parent &&
+                        node.parent.parent.kind ===
+                            ts.SyntaxKind.InterfaceDeclaration)
+                ) {
                     break;
                 }
                 const parameterNode = <ts.ParameterDeclaration>node;

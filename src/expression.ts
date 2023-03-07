@@ -222,6 +222,7 @@ export class SuperCallExpression extends Expression {
 export class PropertyAccessExpression extends Expression {
     private expr: Expression;
     private property: Expression;
+    accessSetter = false;
 
     constructor(expr: Expression, property: Expression) {
         super(ts.SyntaxKind.PropertyAccessExpression);
@@ -435,11 +436,37 @@ export default class ExpressionCompiler {
                 const binaryExprNode = <ts.BinaryExpression>node;
                 const leftExpr = this.visitNode(binaryExprNode.left);
                 const rightExpr = this.visitNode(binaryExprNode.right);
-                const binaryExpr = new BinaryExpression(
+                let binaryExpr: Expression = new BinaryExpression(
                     binaryExprNode.operatorToken.kind,
                     leftExpr,
                     rightExpr,
                 );
+
+                if (
+                    ts.isPropertyAccessExpression(binaryExprNode.left) &&
+                    binaryExprNode.operatorToken.kind ===
+                        ts.SyntaxKind.EqualsToken
+                ) {
+                    const symbol =
+                        this.compilerCtx.typeChecker!.getSymbolAtLocation(
+                            binaryExprNode.left.name,
+                        );
+                    if (symbol && symbol.declarations) {
+                        const symbolDecls = symbol.declarations;
+                        const hasSetter = symbolDecls.find((d) => {
+                            return d.kind === ts.SyntaxKind.SetAccessor;
+                        });
+                        if (hasSetter) {
+                            (
+                                leftExpr as PropertyAccessExpression
+                            ).accessSetter = true;
+                            binaryExpr = new CallExpression(leftExpr, [
+                                rightExpr,
+                            ]);
+                        }
+                    }
+                }
+
                 binaryExpr.setExprType(
                     this.typeCompiler.generateNodeType(node),
                 );

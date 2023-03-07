@@ -9,7 +9,7 @@
  */
 typedef struct ItableField {
     char *name;
-    int flag;
+    int flag; // 0: field, 1: method 2: getter 3: setter
     int index;
 } ItableField;
 
@@ -25,9 +25,9 @@ typedef struct Itable {
 } Itable;
 
 /* find field index based on prop_name*/
-int find_index(Itable *table, char *prop_name) {
+int find_index(Itable *table, char *prop_name, int flag) {
     for (int i = 0; i < table->size; i++) {
-        if (strcmp(table->fields[i].name, prop_name) == 0) {
+        if (strcmp(table->fields[i].name, prop_name) == 0 && table->fields[i].flag == flag) {
             return i;
         }
     }

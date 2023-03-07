@@ -737,18 +737,22 @@ export default class TypeCompiler {
         node.members.map((member) => {
             let fieldType = this.generateNodeType(member);
             const typeString = this.typeToString(member);
+            let funcKind = FunctionKind.METHOD;
             if (ts.isSetAccessor(member)) {
-                const type = new TSFunction(FunctionKind.SETTER);
+                const type = new TSFunction();
                 type.addParamType(fieldType);
                 fieldType = type;
+                funcKind = FunctionKind.SETTER;
             }
             if (ts.isGetAccessor(member)) {
                 const type = new TSFunction(FunctionKind.GETTER);
                 type.returnType = fieldType;
                 fieldType = type;
+                funcKind = FunctionKind.GETTER;
             }
             const fieldName = member.name!.getText();
             if (fieldType instanceof TSFunction) {
+                fieldType.funcKind = funcKind;
                 infc.addMethod({
                     name: fieldName,
                     type: fieldType,
@@ -794,6 +798,7 @@ export default class TypeCompiler {
         // TODO
         return typeString;
     }
+
     private setMethod(
         func: ts.AccessorDeclaration | ts.MethodDeclaration,
         baseType: TSClass | null,
