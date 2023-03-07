@@ -4,3 +4,4 @@ dist
 out
 .nyc_output
 coverage
+logs

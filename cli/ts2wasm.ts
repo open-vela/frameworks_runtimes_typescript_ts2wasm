@@ -4,6 +4,8 @@ import fs, { constants } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Compiler, CompileArgs } from '../src/compiler.js';
+import log4js from 'log4js';
+import { Logger } from '../src/log.js';
 
 interface HelpMessageCategory {
     General: string[];
@@ -194,11 +196,7 @@ function main() {
         }
 
         const compiler = new Compiler();
-        try {
-            compiler.compile(sourceFileList, compileArgs);
-        } catch (e) {
-            process.exit(1);
-        }
+        compiler.compile(sourceFileList, compileArgs);
 
         // Set up base directory
         const baseDir = path.normalize(args.baseDir || '.');
@@ -247,9 +245,8 @@ function main() {
             console.log(compiler.binaryenModule.emitText());
         }
     } catch (e) {
-        const error = <Error>e;
-        console.error(error.message);
-        process.exit(1);
+        Logger.error(e);
+        log4js.shutdown(() => process.exit(1));
     }
 }
 
