@@ -9,7 +9,8 @@
     "skipLibCheck": true,
     "outDir": "build",
     "sourceMap": true,
-    "allowJs": true
+    "allowJs": true,
+    "experimentalDecorators": true,
   },
   "exclude": ["runtime-library/dyntype/*", "**/build/*", "tools/*", "tests/*"]
 }

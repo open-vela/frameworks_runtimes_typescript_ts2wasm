@@ -266,6 +266,7 @@ export class TSFunction extends Type {
     // iff last parameter is rest paremeter
     private hasRestParameter = false;
     private _isMethod = false;
+    private _isDeclare = false;
 
     constructor(public funcKind: FunctionKind = FunctionKind.DEFAULT) {
         super();
@@ -301,6 +302,14 @@ export class TSFunction extends Type {
 
     set isMethod(value: boolean) {
         this._isMethod = value;
+    }
+
+    get isDeclare() {
+        return this._isDeclare;
+    }
+
+    set isDeclare(value: boolean) {
+        this._isDeclare = value;
     }
 }
 
@@ -584,7 +593,32 @@ export default class TypeCompiler {
             tsFunction.returnType = this.tsTypeToType(returnType);
         }
 
+        tsFunction.isDeclare = signature.declaration
+            ? this.parseNestDeclare(
+                  <ts.FunctionLikeDeclaration | ts.ModuleDeclaration>(
+                      signature.declaration
+                  ),
+              )
+            : false;
         return tsFunction;
+    }
+
+    private parseNestDeclare(
+        node: ts.FunctionLikeDeclaration | ts.ModuleDeclaration,
+    ): boolean {
+        let res = false;
+        if (node.modifiers) {
+            const hasDeclareKeyword = node.modifiers.find((modifier) => {
+                return modifier.kind === ts.SyntaxKind.DeclareKeyword;
+            });
+            if (hasDeclareKeyword) {
+                res = true;
+                return res;
+            }
+        }
+        return node.parent.kind === ts.SyntaxKind.ModuleBlock
+            ? this.parseNestDeclare(<ts.ModuleDeclaration>node.parent.parent)
+            : false;
     }
 
     private parseClassDecl(node: ts.ClassDeclaration): TSClass {

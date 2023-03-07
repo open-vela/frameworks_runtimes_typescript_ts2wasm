@@ -72,6 +72,8 @@ export class WASMTypeGen {
                 );
                 break;
             }
+            /** regard unknown as any currently */
+            case TypeKind.UNKNOWN:
             case TypeKind.ANY: {
                 this.tsType2WASMTypeMap.set(type, binaryen.anyref);
                 break;
@@ -101,8 +103,10 @@ export class WASMTypeGen {
                 const paramTypes = funcType.getParamTypes();
                 const paramWASMTypes = new Array<binaryenCAPI.TypeRef>();
 
-                /* First parameter is closure context */
-                paramWASMTypes.push(emptyStructType.typeRef);
+                if (!funcType.isDeclare) {
+                    /* First parameter is closure context */
+                    paramWASMTypes.push(emptyStructType.typeRef);
+                }
 
                 if (
                     funcType.funcKind !== FunctionKind.DEFAULT &&
@@ -125,10 +129,17 @@ export class WASMTypeGen {
                     type,
                     binaryen.createType(paramWASMTypes),
                 );
-                this.tsFuncOriginalParamType.set(
-                    type,
-                    binaryen.createType(paramWASMTypes.slice(1)),
-                );
+                if (!funcType.isDeclare) {
+                    this.tsFuncOriginalParamType.set(
+                        type,
+                        binaryen.createType(paramWASMTypes.slice(1)),
+                    );
+                } else {
+                    this.tsFuncOriginalParamType.set(
+                        type,
+                        binaryen.createType(paramWASMTypes),
+                    );
+                }
                 let resultWASMType = this.getWASMType(funcType.returnType);
                 if (funcType.returnType.typeKind === TypeKind.FUNCTION) {
                     resultWASMType = this.getWASMFuncStructType(
@@ -142,21 +153,29 @@ export class WASMTypeGen {
                 );
                 this.tsType2WASMTypeMap.set(type, signature.typeRef);
                 this.tsType2WASMHeapTypeMap.set(type, signature.heapTypeRef);
-                const funcStructType = initStructType(
-                    [emptyStructType.typeRef, signature.typeRef],
-                    [Pakced.Not, Pakced.Not],
-                    [true, false],
-                    2,
-                    true,
-                );
-                this.tsFuncType2WASMStructType.set(
-                    type,
-                    funcStructType.typeRef,
-                );
-                this.tsFuncType2WASMStructHeapType.set(
-                    type,
-                    funcStructType.heapTypeRef,
-                );
+                if (!funcType.isDeclare) {
+                    const funcStructType = initStructType(
+                        [emptyStructType.typeRef, signature.typeRef],
+                        [Pakced.Not, Pakced.Not],
+                        [true, false],
+                        2,
+                        true,
+                    );
+                    this.tsFuncType2WASMStructType.set(
+                        type,
+                        funcStructType.typeRef,
+                    );
+                    this.tsFuncType2WASMStructHeapType.set(
+                        type,
+                        funcStructType.heapTypeRef,
+                    );
+                } else {
+                    this.tsFuncType2WASMStructType.set(type, signature.typeRef);
+                    this.tsFuncType2WASMStructHeapType.set(
+                        type,
+                        signature.heapTypeRef,
+                    );
+                }
                 break;
             }
             case TypeKind.CLASS:

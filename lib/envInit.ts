@@ -1,7 +1,13 @@
 import binaryen from 'binaryen';
-import { dyntype, structdyn } from '../lib/dyntype/utils.js';
+import { dyntype, structdyn } from './dyntype/utils.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { addWatFuncs } from '../src/utils.js';
+import { getWatFilesDir, getFuncName } from './builtin/utils.js';
+import { BuiltinNames } from './builtin/builtinUtil.js';
 
-export function importLibApi(module: binaryen.Module) {
+export function importAnyLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
         dyntype.dyntype_context_init,
         dyntype.module_name,
@@ -102,6 +108,13 @@ export function importLibApi(module: binaryen.Module) {
         dyntype.dyn_value_t,
     );
     module.addFunctionImport(
+        dyntype.dyntype_is_array,
+        dyntype.module_name,
+        dyntype.dyntype_is_array,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.bool,
+    );
+    module.addFunctionImport(
         dyntype.dyntype_set_property,
         dyntype.module_name,
         dyntype.dyntype_set_property,
@@ -189,8 +202,9 @@ export function importLibApi(module: binaryen.Module) {
         ]),
         dyntype.int,
     );
+}
 
-    /* add struct_dyn related APIs */
+export function importInfcLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
         structdyn.StructDyn.struct_get_dyn_i32,
         structdyn.module_name,
@@ -286,6 +300,7 @@ export function isDynFunc(funcName: string) {
         case dyntype.dyntype_new_undefined:
         case dyntype.dyntype_new_null:
         case dyntype.dyntype_new_object:
+        case dyntype.dyntype_is_array:
         case dyntype.dyntype_new_array:
         case dyntype.dyntype_set_property:
         case dyntype.dyntype_get_property:
@@ -331,8 +346,74 @@ export function getReturnTypeRef(funcName: string) {
         case dyntype.dyntype_type_eq:
         case dyntype.dyntype_is_number:
         case dyntype.dyntype_is_object:
+        case dyntype.dyntype_is_array:
             return dyntype.bool;
         default:
             return dyntype.cvoid;
+    }
+}
+
+export function generateGlobalContext(module: binaryen.Module) {
+    module.addGlobal(
+        dyntype.dyntype_context,
+        dyntype.dyn_ctx_t,
+        true,
+        module.i64.const(0, 0),
+    );
+}
+
+export function generateInitDynContext(module: binaryen.Module) {
+    const initDynContextStmt = module.global.set(
+        dyntype.dyntype_context,
+        module.call(dyntype.dyntype_context_init, [], binaryen.none),
+    );
+
+    return initDynContextStmt;
+}
+
+export function generateFreeDynContext(module: binaryen.Module) {
+    const freeDynContextStmt = module.call(
+        dyntype.dyntype_context_destroy,
+        [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
+        binaryen.none,
+    );
+
+    return freeDynContextStmt;
+}
+
+export function addItableFunc(module: binaryen.Module) {
+    /* add find_index function from .wat */
+    /* TODO: Have not found an effiective way to load import function from .wat yet */
+    module.addFunctionImport(
+        'strcmp',
+        'env',
+        'strcmp',
+        binaryen.createType([binaryen.i32, binaryen.i32]),
+        binaryen.i32,
+    );
+    const itableFilePath = path.join(
+        path.dirname(fileURLToPath(import.meta.url)),
+        'interface-lib',
+        'itable.wat',
+    );
+    const itableLib = fs.readFileSync(itableFilePath, 'utf-8');
+    const watModule = binaryen.parseText(itableLib);
+    addWatFuncs(watModule, 'find_index', module);
+}
+
+export function addDecoratorFunc(
+    curModule: binaryen.Module,
+    builtInFuncName: string,
+) {
+    const watFileDir = getWatFilesDir();
+    const watFiles = fs.readdirSync(watFileDir);
+    for (const file of watFiles) {
+        const filePath = path.join(watFileDir, file);
+        const libWat = fs.readFileSync(filePath, 'utf-8');
+        const watModule = binaryen.parseText(libWat);
+        const fileName = file.slice(undefined, -'.wat'.length);
+        if (fileName === 'API') {
+            addWatFuncs(watModule, builtInFuncName, curModule);
+        }
     }
 }

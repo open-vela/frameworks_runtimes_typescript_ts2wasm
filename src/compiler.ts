@@ -30,6 +30,7 @@ export const COMPILER_OPTIONS: ts.CompilerOptions = {
     skipLibCheck: true,
     skipDefaultLibCheck: true,
     types: [],
+    experimentalDecorators: true,
 };
 
 export class Compiler {
