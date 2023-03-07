@@ -23,7 +23,15 @@ import {
 import { Stack } from './utils.js';
 import { typeInfo } from './glue/utils.js';
 import { Compiler } from './compiler.js';
-import { importLibApi } from './envInit.js';
+import {
+    importAnyLibAPI,
+    importInfcLibAPI,
+    generateGlobalContext,
+    generateInitDynContext,
+    generateFreeDynContext,
+    addItableFunc,
+    addDecoratorFunc,
+} from '../lib/envInit.js';
 import { WASMTypeGen } from './wasmTypeGen.js';
 import {
     WASMExpressionGen,
@@ -36,12 +44,8 @@ import {
     initDefaultMemory,
     initDefaultTable,
 } from './memory.js';
-import { initStringBuiltin } from '../lib/builtin/stringBuiltin.js';
-import { dyntype } from '../lib/dyntype/utils.js';
 import { ArgNames, BuiltinNames } from '../lib/builtin/builtinUtil.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+import { addBuiltInFunc } from '../lib/builtin/addBuiltIn.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -235,32 +239,6 @@ export class WASMGen {
         this.dataSegmentContext = new DataSegmentContext(this);
     }
 
-    _generateInitDynContext() {
-        const initDynContextStmt = this.module.global.set(
-            dyntype.dyntype_context,
-            this.module.call(dyntype.dyntype_context_init, [], binaryen.none),
-        );
-
-        return initDynContextStmt;
-    }
-
-    _generateFreeDynContext() {
-        const freeDynContextStmt = this.module.call(
-            dyntype.dyntype_context_destroy,
-            [
-                this.module.global.get(
-                    dyntype.dyntype_context,
-                    this.wasmType.getWASMType(
-                        builtinTypes.get(TypeKind.DYNCONTEXTTYPE)!,
-                    ),
-                ),
-            ],
-            binaryen.none,
-        );
-
-        return freeDynContextStmt;
-    }
-
     WASMGenerate() {
         WASMGen.contextOfScope.clear();
         this.enterModuleScope = this.globalScopeStack.peek();
@@ -269,10 +247,15 @@ export class WASMGen {
         initGlobalOffset(this.module);
         initDefaultTable(this.module);
         if (!this.compilerCtx.compileArgs[ArgNames.disableBuiltIn]) {
-            initStringBuiltin(this.module);
+            addBuiltInFunc(this.module);
+            // addBuiltInTSFunc(this.module);
         }
         if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
-            importLibApi(this.module);
+            importAnyLibAPI(this.module);
+        }
+        if (!this.compilerCtx.compileArgs[ArgNames.disableInterface]) {
+            importInfcLibAPI(this.module);
+            addItableFunc(this.module);
         }
 
         for (let i = 0; i < this.globalScopeStack.size(); i++) {
@@ -291,15 +274,20 @@ export class WASMGen {
             }
         }
 
+        if (this.compilerCtx.compileArgs[ArgNames.disableInterface]) {
+            if (
+                this.wasmTypeCompiler.tsType2WASMTypeMap.has(
+                    builtinTypes.get(TypeKind.INTERFACE)!,
+                )
+            ) {
+                throw Error('interface type is in source');
+            }
+        }
+
         const startFuncOpcodes = [];
         if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
-            this.module.addGlobal(
-                dyntype.dyntype_context,
-                dyntype.dyn_ctx_t,
-                true,
-                this.module.i64.const(0, 0),
-            );
-            startFuncOpcodes.push(this._generateInitDynContext());
+            generateGlobalContext(this.module);
+            startFuncOpcodes.push(generateInitDynContext(this.module));
         }
         startFuncOpcodes.push(
             this.module.call(
@@ -309,7 +297,7 @@ export class WASMGen {
             ),
         );
         if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
-            startFuncOpcodes.push(this._generateFreeDynContext());
+            startFuncOpcodes.push(generateFreeDynContext(this.module));
         }
         // set enter module start function as wasm start function
         const wasmStartFuncRef = this.module.addFunction(
@@ -327,27 +315,6 @@ export class WASMGen {
             segments.push(segmentInfo);
         }
         initDefaultMemory(this.module, segments);
-
-        /* add find_index function from .wat */
-
-        /* TODO: Have not found an effiective way to load import function from .wat yet */
-        this.module.addFunctionImport(
-            'strcmp',
-            'env',
-            'strcmp',
-            binaryen.createType([binaryen.i32, binaryen.i32]),
-            binaryen.i32,
-        );
-        const itableFilePath = path.join(
-            path.dirname(fileURLToPath(import.meta.url)),
-            '..',
-            'lib',
-            'interface-lib',
-            'itable.wat',
-        );
-        const itableLib = fs.readFileSync(itableFilePath, 'utf-8');
-        const module = binaryen.parseText(itableLib);
-        this.addInterfaceAPIFuncs(module, 'find_index');
     }
 
     WASMGenHelper(scope: Scope) {
@@ -628,14 +595,36 @@ export class WASMGen {
 
     /* parse function scope */
     WASMFunctionGen(functionScope: FunctionScope) {
-        this.currentFuncCtx = new WASMFunctionContext(this, functionScope);
-
         const tsFuncType = functionScope.funcType;
-        this.curFunctionCtx!.insert(this.createClosureContext(functionScope));
         const paramWASMType =
             this.wasmTypeCompiler.getWASMFuncParamType(tsFuncType);
+        const originParamWasmType =
+            this.wasmTypeCompiler.getWASMFuncOrignalParamType(tsFuncType);
         const returnWASMType =
             this.wasmTypeCompiler.getWASMFuncReturnType(tsFuncType);
+
+        if (functionScope.isDeclare) {
+            this.module.addFunctionImport(
+                functionScope.mangledName,
+                BuiltinNames.external_module_name,
+                functionScope.mangledName,
+                originParamWasmType,
+                returnWASMType,
+            );
+            return;
+        }
+
+        if (functionScope.hasDecorator(BuiltinNames.decorator)) {
+            const builtInFuncName = functionScope.mangledName.replace(
+                functionScope.getRootGloablScope()!.moduleName,
+                BuiltinNames.bulitIn_module_name,
+            );
+            addDecoratorFunc(this.module, builtInFuncName);
+            return;
+        }
+
+        this.currentFuncCtx = new WASMFunctionContext(this, functionScope);
+        this.curFunctionCtx!.insert(this.createClosureContext(functionScope));
 
         /* Class's "this" parameter */
         if (
@@ -702,23 +691,14 @@ export class WASMGen {
         const varWASMTypes = new Array<binaryen.ExpressionRef>();
         this.generateFuncVarTypes(functionScope, functionScope, varWASMTypes);
 
-        // 4: add wrapper function if exported
+        // add wrapper function if exported
         const isExport =
             functionScope.parent === this.enterModuleScope &&
             functionScope.isExport;
         if (isExport) {
             const functionStmts: binaryen.ExpressionRef[] = [];
-            // init dyntype contex
-            const initDynContextStmt = this.module.global.set(
-                dyntype.dyntype_context,
-                this.module.call(
-                    dyntype.dyntype_context_init,
-                    [],
-                    binaryen.none,
-                ),
-            );
             if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
-                functionStmts.push(initDynContextStmt);
+                functionStmts.push(generateInitDynContext(this.module));
             }
 
             // call origin function
@@ -745,22 +725,8 @@ export class WASMGen {
             functionStmts.push(
                 isReturn ? this.module.local.set(idx, targetCall) : targetCall,
             );
-
-            // free dyntype context
-            const freeDynContextStmt = this.module.call(
-                dyntype.dyntype_context_destroy,
-                [
-                    this.module.global.get(
-                        dyntype.dyntype_context,
-                        this.wasmType.getWASMType(
-                            builtinTypes.get(TypeKind.DYNCONTEXTTYPE)!,
-                        ),
-                    ),
-                ],
-                binaryen.none,
-            );
             if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
-                functionStmts.push(freeDynContextStmt);
+                functionStmts.push(generateFreeDynContext(this.module));
             }
 
             // return value
@@ -776,7 +742,7 @@ export class WASMGen {
             // add export function
             this.module.addFunction(
                 functionScope.funcName + '-wrapper',
-                this.wasmTypeCompiler.getWASMFuncOrignalParamType(tsFuncType),
+                originParamWasmType,
                 returnWASMType,
                 functionVars,
                 this.module.block(null, functionStmts),
@@ -788,33 +754,23 @@ export class WASMGen {
             );
         }
 
-        if (functionScope.isDeclare) {
-            this.module.addFunctionImport(
-                functionScope.mangledName,
-                BuiltinNames.external_module_name,
-                functionScope.mangledName,
-                paramWASMType,
+        this.module.addFunction(
+            functionScope.mangledName,
+            paramWASMType,
+            returnWASMType,
+            varWASMTypes,
+            this.module.block(
+                null,
+                [
+                    this.module.block(
+                        'statements',
+                        this.currentFuncCtx.getBody(),
+                    ),
+                    this.currentFuncCtx.returnOp,
+                ],
                 returnWASMType,
-            );
-        } else {
-            this.module.addFunction(
-                functionScope.mangledName,
-                paramWASMType,
-                returnWASMType,
-                varWASMTypes,
-                this.module.block(
-                    null,
-                    [
-                        this.module.block(
-                            'statements',
-                            this.currentFuncCtx.getBody(),
-                        ),
-                        this.currentFuncCtx.returnOp,
-                    ],
-                    returnWASMType,
-                ),
-            );
-        }
+            ),
+        );
     }
 
     getVariableInitValue(varType: Type): binaryen.ExpressionRef {
@@ -870,28 +826,5 @@ export class WASMGen {
         );
         this.dataSegmentContext!.itableMap.set(shape.typeId, offset);
         return offset;
-    }
-
-    /* add function rely on name in other .wat*/
-    addInterfaceAPIFuncs(module: binaryen.Module, funcName: string) {
-        const func = module.getFunction(funcName);
-        const name = binaryenCAPI._BinaryenFunctionGetName(func);
-        const params = binaryenCAPI._BinaryenFunctionGetParams(func);
-        const results = binaryenCAPI._BinaryenFunctionGetResults(func);
-        const vars = [];
-        const numvars = binaryenCAPI._BinaryenFunctionGetNumVars(func);
-        for (let i = 0; i < numvars; i++) {
-            vars.push(binaryenCAPI._BinaryenFunctionGetVar(func, i));
-        }
-        const body = binaryenCAPI._BinaryenFunctionGetBody(func);
-        binaryenCAPI._BinaryenAddFunction(
-            this.binaryenModule.ptr,
-            name,
-            params,
-            results,
-            arrayToPtr(vars).ptr,
-            vars.length,
-            body,
-        );
     }
 }
