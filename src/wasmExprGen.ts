@@ -140,7 +140,7 @@ class InfcMethodAccess extends AccessBase {
         public infcTypeId: binaryen.ExpressionRef,
         public objTypeId: binaryen.ExpressionRef,
         public objRef: binaryen.ExpressionRef,
-        public objHeapType: binaryenCAPI.HeapTypeRef, // ref.cast objHeapType anyref
+        public objType: binaryenCAPI.TypeRef, // ref.cast objHeapType anyref
         public methodIndex: number,
         public dynMethodIndex: binaryen.ExpressionRef,
         public infcType: TSInterface,
@@ -166,7 +166,7 @@ class InfcGetterAccess extends AccessBase {
         public infcTypeId: binaryen.ExpressionRef,
         public objTypeId: binaryen.ExpressionRef,
         public objRef: binaryen.ExpressionRef,
-        public objHeapType: binaryenCAPI.HeapTypeRef, // ref.cast objHeapType anyref
+        public objType: binaryenCAPI.TypeRef, // ref.cast objHeapType anyref
         public methodIndex: number,
         public dynMethodIndex: binaryen.ExpressionRef,
         public infcType: TSInterface,
@@ -1306,7 +1306,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 infcTypeId,
                 objTypeId,
                 objRef,
-                objHeapType,
+                objType,
                 methodIndex,
                 dynMethodIndex,
                 infcType,
@@ -1319,7 +1319,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const castedObjRef = binaryenCAPI._BinaryenRefCast(
                 this.module.ptr,
                 objRef,
-                objHeapType,
+                objType,
             );
             const callWasmArgs = [refnull, castedObjRef];
             const ifTrue = this._generateClassMethodCallRef(
@@ -1337,7 +1337,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             callWasmArgs[1] = binaryenCAPI._BinaryenRefCast(
                 this.module.ptr,
                 objRef,
-                emptyStructType.heapTypeRef,
+                emptyStructType.typeRef,
             );
             const ifFalse = binaryenCAPI._BinaryenCallRef(
                 this.module.ptr,
@@ -2126,7 +2126,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     infcTypeId,
                     objTypeId,
                     objRef,
-                    objHeapType,
+                    objType,
                     methodIndex,
                     dynMethodIndex,
                     infcType,
@@ -2139,7 +2139,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 const castedObjRef = binaryenCAPI._BinaryenRefCast(
                     this.module.ptr,
                     objRef,
-                    objHeapType,
+                    objType,
                 );
                 callWasmArgs = [refnull, castedObjRef, ...callWasmArgs];
                 const ifTrue = this._generateClassMethodCallRef(
@@ -2157,7 +2157,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 callWasmArgs[1] = binaryenCAPI._BinaryenRefCast(
                     this.module.ptr,
                     objRef,
-                    emptyStructType.heapTypeRef,
+                    emptyStructType.typeRef,
                 );
                 const ifFalse = binaryenCAPI._BinaryenCallRef(
                     this.module.ptr,
@@ -2583,7 +2583,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                                 ifcTypeId,
                                 objTypeId,
                                 objRef,
-                                objHeapType,
+                                objType,
                                 method.index,
                                 dynFieldIndex,
                                 infcType,
@@ -2603,7 +2603,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                                 ifcTypeId,
                                 objTypeId,
                                 objRef,
-                                objHeapType,
+                                objType,
                                 method.index,
                                 dynFieldIndex,
                                 infcType,
