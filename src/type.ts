@@ -577,8 +577,12 @@ export default class TypeCompiler {
 
         const tsFunction = new TSFunction();
         signature.getParameters().map((param) => {
+            const valueDecl = param.valueDeclaration!;
+            if (ts.isParameter(valueDecl) && valueDecl.dotDotDotToken) {
+                tsFunction.setRest();
+            }
             const tsType = this.tsTypeToType(
-                this.typechecker!.getTypeAtLocation(param.valueDeclaration!),
+                this.typechecker!.getTypeAtLocation(valueDecl),
             );
 
             tsFunction.addParamType(tsType);

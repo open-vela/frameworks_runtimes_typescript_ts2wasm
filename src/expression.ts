@@ -3,7 +3,7 @@ import { Compiler } from './compiler.js';
 import { ClosureEnvironment, FunctionScope } from './scope.js';
 import { Variable } from './variable.js';
 import { getCurScope } from './utils.js';
-import { Type, TypeKind } from './type.js';
+import { TSFunction, Type, TypeKind } from './type.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 
 type OperatorKind = ts.SyntaxKind;
@@ -435,7 +435,7 @@ export default class ExpressionCompiler {
                 const binaryExprNode = <ts.BinaryExpression>node;
                 const leftExpr = this.visitNode(binaryExprNode.left);
                 const rightExpr = this.visitNode(binaryExprNode.right);
-                let binaryExpr: Expression = new BinaryExpression(
+                let expr: Expression = new BinaryExpression(
                     binaryExprNode.operatorToken.kind,
                     leftExpr,
                     rightExpr,
@@ -459,17 +459,19 @@ export default class ExpressionCompiler {
                             (
                                 leftExpr as PropertyAccessExpression
                             ).accessSetter = true;
-                            binaryExpr = new CallExpression(leftExpr, [
-                                rightExpr,
-                            ]);
+                            expr = new CallExpression(leftExpr, [rightExpr]);
+                            const type = new TSFunction();
+                            type.addParamType(
+                                this.typeCompiler.generateNodeType(
+                                    binaryExprNode.left.name,
+                                ),
+                            );
+                            leftExpr.setExprType(type);
                         }
                     }
                 }
-
-                binaryExpr.setExprType(
-                    this.typeCompiler.generateNodeType(node),
-                );
-                return binaryExpr;
+                expr.setExprType(this.typeCompiler.generateNodeType(node));
+                return expr;
             }
             case ts.SyntaxKind.PrefixUnaryExpression: {
                 const prefixExprNode = <ts.PrefixUnaryExpression>node;
