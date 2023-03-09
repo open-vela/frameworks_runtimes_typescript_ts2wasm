@@ -267,6 +267,7 @@ export class TSFunction extends Type {
     private hasRestParameter = false;
     private _isMethod = false;
     private _isDeclare = false;
+    private _isStatic = false;
 
     constructor(public funcKind: FunctionKind = FunctionKind.DEFAULT) {
         super();
@@ -310,6 +311,14 @@ export class TSFunction extends Type {
 
     set isDeclare(value: boolean) {
         this._isDeclare = value;
+    }
+
+    get isStatic() {
+        return this._isStatic;
+    }
+
+    set isStatic(value: boolean) {
+        this._isStatic = value;
     }
 }
 
@@ -599,16 +608,27 @@ export default class TypeCompiler {
 
         tsFunction.isDeclare = signature.declaration
             ? this.parseNestDeclare(
-                  <ts.FunctionLikeDeclaration | ts.ModuleDeclaration>(
-                      signature.declaration
-                  ),
+                  <
+                      | ts.FunctionLikeDeclaration
+                      | ts.ModuleDeclaration
+                      | ts.ClassDeclaration
+                  >signature.declaration,
+              )
+            : false;
+
+        tsFunction.isStatic = signature.declaration
+            ? this.parseStatic(
+                  <ts.FunctionLikeDeclaration>signature.declaration,
               )
             : false;
         return tsFunction;
     }
 
     private parseNestDeclare(
-        node: ts.FunctionLikeDeclaration | ts.ModuleDeclaration,
+        node:
+            | ts.FunctionLikeDeclaration
+            | ts.ModuleDeclaration
+            | ts.ClassDeclaration,
     ): boolean {
         let res = false;
         if (node.modifiers) {
@@ -620,9 +640,27 @@ export default class TypeCompiler {
                 return res;
             }
         }
-        return node.parent.kind === ts.SyntaxKind.ModuleBlock
-            ? this.parseNestDeclare(<ts.ModuleDeclaration>node.parent.parent)
-            : false;
+        if (node.parent.kind === ts.SyntaxKind.ModuleBlock) {
+            res = this.parseNestDeclare(
+                <ts.ModuleDeclaration>node.parent.parent,
+            );
+        } else if (node.parent.kind === ts.SyntaxKind.ClassDeclaration) {
+            res = this.parseNestDeclare(<ts.ModuleDeclaration>node.parent);
+        }
+        return res;
+    }
+
+    private parseStatic(node: ts.FunctionLikeDeclaration): boolean {
+        let res = false;
+        if (node.modifiers) {
+            const hasStaticKeyword = node.modifiers.find((modifier) => {
+                return modifier.kind === ts.SyntaxKind.StaticKeyword;
+            });
+            if (hasStaticKeyword) {
+                res = true;
+            }
+        }
+        return res;
     }
 
     private parseClassDecl(node: ts.ClassDeclaration): TSClass {
