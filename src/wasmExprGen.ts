@@ -2988,18 +2988,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
         );
         const finalCallWasmArgs = callWasmArgs;
         switch (exprName) {
-            case BuiltinNames.MATH: {
-                /**unbox any type arg to number*/
-                expr.callArgs.forEach((callArg, argIdx) => {
-                    if (callArg.exprType.kind === TypeKind.ANY) {
-                        finalCallWasmArgs[argIdx] = this.unboxAnyToBase(
-                            callWasmArgs[argIdx],
-                            TypeKind.NUMBER,
-                        );
-                    }
-                });
-                break;
-            }
             case BuiltinNames.ARRAY: {
                 switch (propName) {
                     case BuiltinNames.ISARRAY: {
