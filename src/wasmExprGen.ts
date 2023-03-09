@@ -52,6 +52,7 @@ import { dyntype, structdyn } from '../lib/dyntype/utils.js';
 import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
 import { charArrayTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './wasmGen.js';
+import { Logger } from './log.js';
 
 export interface WasmValue {
     /* binaryen reference */
@@ -2219,10 +2220,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private WASMCallExpr(expr: CallExpression): binaryen.ExpressionRef {
         const callExpr = expr.callExpr;
 
-        let callWasmArgs = expr.callArgs.map((expr) => {
-            return this.WASMExprGen(expr).binaryenRef;
-        });
-
+        if (!(callExpr.exprType instanceof TSFunction)) {
+            Logger.error(`call non-function`);
+        }
+        let callWasmArgs = this.parseArguments(
+            callExpr.exprType as TSFunction,
+            expr.callArgs,
+        );
         /* In call expression, the callee may be a function scope rather than a variable,
             we use WASMExprGenInternal here which may return a FunctionAccess object */
         const accessInfo = this.WASMExprGenInternal(callExpr);
@@ -2266,7 +2270,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 if (funcScope.hasFreeVar) {
                     throw Error(`unimplemented`);
                 }
-
                 return this.module.call(
                     funcScope.mangledName,
                     [context, ...callWasmArgs],
@@ -2443,37 +2446,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private WASMArrayLiteralExpr(
         expr: ArrayLiteralExpression,
     ): binaryen.ExpressionRef {
-        const module = this.module;
         const arrType = expr.exprType;
         const elements = expr.arrayValues;
-        const arrayLen = elements.length;
-        const array = [];
-        for (let i = 0; i < arrayLen; i++) {
-            const elemExpr = elements[i];
-            let elemExprRef: binaryen.ExpressionRef;
-            if (arrType.kind === TypeKind.ANY) {
-                elemExprRef = this.dynValueGen.WASMDynExprGen(expr).binaryenRef;
-            } else if (arrType.kind === TypeKind.ARRAY) {
-                const arrayType = <TSArray>arrType;
-                if (arrayType.elementType.kind === TypeKind.ANY) {
-                    elemExprRef =
-                        this.dynValueGen.WASMDynExprGen(elemExpr).binaryenRef;
-                } else {
-                    elemExprRef = this.WASMExprGen(elemExpr).binaryenRef;
-                }
-            } else {
-                elemExprRef = this.WASMExprGen(elemExpr).binaryenRef;
-            }
-            array.push(elemExprRef);
+        let res: binaryen.ExpressionRef;
+        if (arrType.kind === TypeKind.ANY) {
+            res = this.dynValueGen.WASMDynExprGen(expr).binaryenRef;
+        } else {
+            res = this.initArray(arrType as TSArray, elements);
         }
-        const arrayHeapType = this.wasmType.getWASMHeapType(arrType);
-        const arrayValue = binaryenCAPI._BinaryenArrayInit(
-            module.ptr,
-            arrayHeapType,
-            arrayToPtr(array).ptr,
-            arrayLen,
-        );
-        return arrayValue;
+        return res;
     }
 
     private WASMObjectLiteralExpr(
@@ -3331,6 +3312,74 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
             }
         }
+    }
+
+    private parseArguments(type: TSFunction, args: Expression[]) {
+        const paramType = type.getParamTypes();
+        let restType: Type | undefined;
+        if (type.hasRest()) {
+            restType = paramType[paramType.length - 1];
+        }
+        const res: binaryen.ExpressionRef[] = [];
+        let i = 0;
+        for (let j = 0; i < args.length && j < paramType.length; i++, j++) {
+            if (j === paramType.length - 1 && type.hasRest()) {
+                break;
+            }
+            const value =
+                paramType[i].kind === TypeKind.ANY
+                    ? this.dynValueGen.WASMDynExprGen(args[i])
+                    : this.WASMExprGen(args[i]);
+            res.push(value.binaryenRef);
+        }
+
+        if (restType instanceof TSArray) {
+            res.push(this.initArray(restType, args.slice(i)));
+        } else {
+            Logger.error(`rest type is not array`);
+        }
+        return res;
+    }
+
+    private initArray(arrType: TSArray, elements: Expression[]) {
+        const arrayLen = elements.length;
+        const array = [];
+        if (elements.length === 0) {
+            return binaryenCAPI._BinaryenRefNull(
+                this.module.ptr,
+                binaryenCAPI._BinaryenTypeArrayref(),
+            );
+        }
+        const arrElemType = arrType.elementType;
+        for (let i = 0; i < arrayLen; i++) {
+            const elemExpr = elements[i];
+            let elemExprRef: binaryen.ExpressionRef;
+            if (arrType.elementType.kind === TypeKind.ANY) {
+                elemExprRef =
+                    this.dynValueGen.WASMDynExprGen(elemExpr).binaryenRef;
+            } else {
+                elemExprRef = this.WASMExprGen(elemExpr).binaryenRef;
+                if (
+                    arrElemType instanceof TSClass &&
+                    elemExpr.exprType instanceof TSClass
+                ) {
+                    elemExprRef = this.maybeTypeBoxingAndUnboxing(
+                        elemExpr.exprType,
+                        arrElemType,
+                        elemExprRef,
+                    );
+                }
+            }
+            array.push(elemExprRef);
+        }
+        const arrayHeapType = this.wasmType.getWASMHeapType(arrType);
+        const arrayValue = binaryenCAPI._BinaryenArrayInit(
+            this.module.ptr,
+            arrayHeapType,
+            arrayToPtr(array).ptr,
+            arrayLen,
+        );
+        return arrayValue;
     }
 }
 
