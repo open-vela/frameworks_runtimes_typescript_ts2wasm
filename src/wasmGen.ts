@@ -45,7 +45,10 @@ import {
     initDefaultTable,
 } from './memory.js';
 import { ArgNames, BuiltinNames } from '../lib/builtin/builtinUtil.js';
-import { addBuiltInFunc } from '../lib/builtin/addBuiltIn.js';
+import {
+    addBuiltInNoAnyFunc,
+    addBuiltInAnyFunc,
+} from '../lib/builtin/addBuiltIn.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -247,8 +250,10 @@ export class WASMGen {
         initGlobalOffset(this.module);
         initDefaultTable(this.module);
         if (!this.compilerCtx.compileArgs[ArgNames.disableBuiltIn]) {
-            addBuiltInFunc(this.module);
-            // addBuiltInTSFunc(this.module);
+            addBuiltInNoAnyFunc(this.module);
+            if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
+                addBuiltInAnyFunc(this.module);
+            }
         }
         if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
             importAnyLibAPI(this.module);

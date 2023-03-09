@@ -5,7 +5,7 @@ import { addWatFuncs } from '../../src/utils.js';
 import { getWatFilesDir, getFuncName } from './utils.js';
 import { BuiltinNames } from './builtinUtil.js';
 
-export function addBuiltInFunc(curModule: binaryen.Module) {
+export function addBuiltInNoAnyFunc(curModule: binaryen.Module) {
     const watFileDir = getWatFilesDir();
     const watFiles = fs.readdirSync(watFileDir);
     for (const file of watFiles) {
@@ -20,22 +20,6 @@ export function addBuiltInFunc(curModule: binaryen.Module) {
                     getFuncName(
                         BuiltinNames.bulitIn_module_name,
                         BuiltinNames.MathBuiltInFuncs[key],
-                    ),
-                    curModule,
-                );
-            }
-        }
-        if (fileName.includes('Array')) {
-            for (const key in BuiltinNames.ArrayBuiltInFuncs) {
-                /**currently, only isArray is implemented */
-                if (key !== 'isArray') {
-                    continue;
-                }
-                addWatFuncs(
-                    watModule,
-                    getFuncName(
-                        BuiltinNames.bulitIn_module_name,
-                        BuiltinNames.ArrayBuiltInFuncs[key],
                     ),
                     curModule,
                 );
@@ -64,6 +48,33 @@ export function addBuiltInFunc(curModule: binaryen.Module) {
                     getFuncName(
                         BuiltinNames.bulitIn_module_name,
                         BuiltinNames.arrayBuiltInFuncs[key],
+                    ),
+                    curModule,
+                );
+            }
+        }
+    }
+}
+
+export function addBuiltInAnyFunc(curModule: binaryen.Module) {
+    const watFileDir = getWatFilesDir();
+    const watFiles = fs.readdirSync(watFileDir);
+    for (const file of watFiles) {
+        const filePath = path.join(watFileDir, file);
+        const fileName = file.slice(undefined, -'.wat'.length);
+        const libWat = fs.readFileSync(filePath, 'utf-8');
+        const watModule = binaryen.parseText(libWat);
+        if (fileName.includes('Array')) {
+            for (const key in BuiltinNames.ArrayBuiltInFuncs) {
+                /**currently, only isArray is implemented */
+                if (key !== 'isArray') {
+                    continue;
+                }
+                addWatFuncs(
+                    watModule,
+                    getFuncName(
+                        BuiltinNames.bulitIn_module_name,
+                        BuiltinNames.ArrayBuiltInFuncs[key],
                     ),
                     curModule,
                 );
