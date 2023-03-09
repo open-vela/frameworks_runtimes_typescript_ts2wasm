@@ -11,4 +11,5 @@ class A5 {
 
 export function classTest5() {
     const i: A5 = new A5(1, 'true');
+    return i._a;
 }

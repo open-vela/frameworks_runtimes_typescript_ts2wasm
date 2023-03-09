@@ -28,3 +28,11 @@ class B7 extends A7 {
         return 0;
     }
 }
+
+export function classTest7() {
+    let a: A7 = new B7(10);
+    a.a = 20;
+    let b = new B7(10);
+    b.a = 20;
+    return a.a + b.a;
+}

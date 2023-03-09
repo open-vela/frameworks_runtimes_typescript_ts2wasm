@@ -7,5 +7,8 @@ export function FirstClassFuncClosureCase1() {
     return inner;
 }
 
-let inner = FirstClassFuncClosureCase1();
-let y = inner(11);
+export function firstClassFuncTest() {
+    let inner = FirstClassFuncClosureCase1();
+    let y = inner(11);
+    return y;
+}

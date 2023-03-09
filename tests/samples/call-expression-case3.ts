@@ -1,4 +1,8 @@
 export function callNoReturnTest(a: number, b = 2) {
     const c = a + b;
+    return c;
 }
-callNoReturnTest(2, 3);
+
+export function callExpressionTest() {
+    return callNoReturnTest(2, 3);
+}

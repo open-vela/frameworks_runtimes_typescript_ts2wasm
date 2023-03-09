@@ -22,4 +22,5 @@ class B8 extends A8 {
 
 export function classTest8() {
     let a: A8 = new B8(10, 11);
+    return a.test(10);
 }

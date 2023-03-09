@@ -6,5 +6,5 @@ export function blockTest() {
         a = 2;
         b = 1;
     }
-    a = 8;
+    return a + b;
 }
