@@ -1,7 +1,7 @@
 class A1 {
     // empty constructor
     test() {
-        return 'xyz';
+        return 123;
     }
 
     test2() {
@@ -9,9 +9,8 @@ class A1 {
     }
 }
 
-export function classTest2() {
+export function classTest() {
     let a: A1 = new A1();
     let b = a.test();
-    let test2Func = a.test2;
-    const num = test2Func();
+    return b;
 }

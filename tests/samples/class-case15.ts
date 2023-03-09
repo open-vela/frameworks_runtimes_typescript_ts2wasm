@@ -15,5 +15,5 @@ class B15 extends A15 {
     }
 }
 function classTest15() {
-    B15.test();
+    return B15.test();
 }

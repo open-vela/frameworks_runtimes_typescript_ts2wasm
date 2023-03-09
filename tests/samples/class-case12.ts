@@ -3,3 +3,8 @@ class A12 {
     b = false;
     c = 'c';
 }
+
+export function classCase12() {
+    const a = new A12();
+    return a.b;
+}

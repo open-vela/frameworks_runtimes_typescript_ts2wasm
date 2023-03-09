@@ -6,4 +6,6 @@ export class A16 {
     }
 }
 
-const i = A16.hi();
+export function classTest16() {
+    return A16.hi();
+}

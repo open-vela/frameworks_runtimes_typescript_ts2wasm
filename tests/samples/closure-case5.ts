@@ -1,4 +1,4 @@
-export function ClosureTestCase5(x: number, y: boolean) {
+export function closure(x: number, y: boolean) {
     let z = 1;
     function inner() {
         z++;

@@ -15,3 +15,11 @@ class B6 extends A6 {
         this._c = c;
     }
 }
+
+export function classTest6() {
+    let a: A6 = new B6(10, 20, 30);
+    let res = a._a + a._b;
+    let b = new B6(10, 20, 30);
+    res += b._a + b._b + b._c;
+    return res;
+}
