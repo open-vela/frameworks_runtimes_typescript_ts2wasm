@@ -248,7 +248,6 @@ class BuiltInObjAccess extends AccessBase {
 }
 
 class BuiltInInstAccess extends AccessBase {
-    public isCallExpr = false;
     constructor(
         public value: WasmValue,
         public propName: string,
@@ -1472,6 +1471,18 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     thisObj!,
                 ],
             );
+        } else if (accessInfo instanceof MethodAccess) {
+            const { methodType, methodIndex, classType, thisObj } = accessInfo;
+            const vtable = this.wasmType.getWASMClassVtable(classType);
+            const wasmMethodType = this.wasmType.getWASMType(methodType);
+            const targetFunction = binaryenCAPI._BinaryenStructGet(
+                this.module.ptr,
+                methodIndex,
+                vtable,
+                wasmMethodType,
+                false,
+            );
+            loadRef = targetFunction;
         } else if (accessInfo instanceof InfcGetterAccess) {
             const {
                 infcTypeId,
@@ -1528,15 +1539,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
         } else if (accessInfo instanceof DynArrayAccess) {
             throw Error(`dynamic array not implemented`);
         } else if (accessInfo instanceof BuiltInInstAccess) {
-            if (accessInfo.isCallExpr) {
-                return accessInfo;
-            }
             const exprValue = accessInfo.value;
             const propName = accessInfo.propName;
             const builtInFuncName = getBuiltInFuncName(
                 BuiltinNames.builtInInstInfo[exprValue.tsType.kind][propName],
             );
-            return this.module.call(
+            loadRef = this.module.call(
                 builtInFuncName,
                 [exprValue.binaryenRef],
                 this.wasmType.getWASMType(accessInfo.exprType),
@@ -1632,7 +1640,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
         ) {
             return new ScopeAccess(identifierInfo);
         } else if (identifierInfo instanceof Type) {
-            // maybe can remove
             const tsType = identifierInfo;
             return new TypeAccess(tsType);
         } else {
@@ -1655,7 +1662,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             currentScope,
             true,
         );
-        if (!byRef && !(accessInfo instanceof BuiltInObjAccess)) {
+        if (!byRef) {
             return this._loadFromAccessInfo(accessInfo);
         }
 
@@ -2229,83 +2236,29 @@ export class WASMExpressionGen extends WASMExpressionBase {
         );
         /* In call expression, the callee may be a function scope rather than a variable,
             we use WASMExprGenInternal here which may return a FunctionAccess object */
-        const accessInfo = this.WASMExprGenInternal(callExpr);
+        const accessInfo = this.WASMExprGenInternal(callExpr, true);
+        const context = binaryenCAPI._BinaryenRefNull(
+            this.module.ptr,
+            emptyStructType.typeRef,
+        );
         if (accessInfo instanceof AccessBase) {
-            const context = binaryenCAPI._BinaryenRefNull(
-                this.module.ptr,
-                emptyStructType.typeRef,
-            );
-            if (accessInfo instanceof FunctionAccess) {
-                const { funcScope } = accessInfo;
-
-                if (callWasmArgs.length + 1 < funcScope.paramArray.length) {
-                    for (
-                        let i = callWasmArgs.length + 1;
-                        i < funcScope.paramArray.length;
-                        i++
-                    ) {
-                        callWasmArgs.push(
-                            this.WASMExprGen(
-                                funcScope.paramArray[i].initExpression!,
-                            ).binaryenRef,
-                        );
-                    }
-                }
-
-                for (let i = 0; i < expr.callArgs.length; i++) {
-                    const argType = expr.callArgs[i].exprType,
-                        paramType = funcScope.paramArray[i + 1].varType;
-                    if (
-                        argType instanceof TSClass &&
-                        paramType instanceof TSClass
-                    ) {
-                        callWasmArgs[i] = this.maybeTypeBoxingAndUnboxing(
-                            argType,
-                            paramType,
-                            callWasmArgs[i],
-                        );
-                    }
-                }
-
-                if (funcScope.hasFreeVar) {
-                    throw Error(`unimplemented`);
-                }
-                return this.module.call(
-                    funcScope.mangledName,
-                    [context, ...callWasmArgs],
-                    this.wasmType.getWASMFuncReturnType(funcScope.funcType),
-                );
-            } else if (accessInfo instanceof MethodAccess) {
+            /** TODO: get default parameter information, generate new call args
+             *  default parameter information should be recorded in type information
+             */
+            if (accessInfo instanceof MethodAccess) {
                 const { methodType, methodIndex, classType, thisObj } =
                     accessInfo;
-                // access static method
-                if (!thisObj) {
-                    const vtable = this.wasmType.getWASMClassVtable(classType);
-                    const wasmFuncType = this.wasmType.getWASMType(methodType);
-                    const target = binaryenCAPI._BinaryenStructGet(
-                        this.module.ptr,
-                        methodIndex,
-                        vtable,
-                        wasmFuncType,
-                        false,
-                    );
-                    return binaryenCAPI._BinaryenCallRef(
-                        this.module.ptr,
-                        target,
-                        arrayToPtr([context, ...callWasmArgs]).ptr,
-                        1 + callWasmArgs.length,
-                        wasmFuncType,
-                        false,
-                    );
+                let finalCallWasmArgs = [context];
+                if (thisObj) {
+                    finalCallWasmArgs.push(thisObj);
                 }
-                callWasmArgs = [context, thisObj, ...callWasmArgs];
-
+                finalCallWasmArgs = finalCallWasmArgs.concat(callWasmArgs);
                 return this._generateClassMethodCallRef(
                     thisObj,
                     classType,
                     methodType,
                     methodIndex,
-                    callWasmArgs,
+                    finalCallWasmArgs,
                 );
             } else if (accessInfo instanceof BuiltInObjAccess) {
                 return this._generateBuiltInObjCall(
@@ -2382,64 +2335,20 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     ifFalse,
                 );
             } else {
-                throw Error(`invalid call target`);
+                return this._generateFuncCall(
+                    accessInfo,
+                    context,
+                    callWasmArgs,
+                    expr,
+                );
             }
         } else {
-            const funcType = accessInfo.tsType as TSFunction;
-            const paramTypes = funcType.getParamTypes();
-            for (let i = 0; i < expr.callArgs.length; i++) {
-                const paramType = paramTypes[i];
-                const argType = expr.callArgs[i].exprType;
-                if (
-                    paramType instanceof TSClass &&
-                    argType instanceof TSClass
-                ) {
-                    callWasmArgs[i] = this.maybeTypeBoxingAndUnboxing(
-                        argType,
-                        paramType,
-                        callWasmArgs[i],
-                    );
-                }
-            }
-            /** If function is declared, just call ref */
-            if (funcType.isDeclare) {
-                const funcRef = accessInfo.binaryenRef;
-                return binaryenCAPI._BinaryenCallRef(
-                    this.module.ptr,
-                    funcRef,
-                    arrayToPtr(callWasmArgs).ptr,
-                    callWasmArgs.length,
-                    binaryen.getExpressionType(funcRef),
-                    false,
-                );
-            } else {
-                /* Call a closure */
-                const closureRef = accessInfo.binaryenRef;
-                const closureType =
-                    binaryenCAPI._BinaryenExpressionGetType(closureRef);
-                const context = binaryenCAPI._BinaryenStructGet(
-                    this.module.ptr,
-                    0,
-                    closureRef,
-                    closureType,
-                    false,
-                );
-                const funcref = binaryenCAPI._BinaryenStructGet(
-                    this.module.ptr,
-                    1,
-                    closureRef,
-                    closureType,
-                    false,
-                );
-                return binaryenCAPI._BinaryenCallRef(
-                    this.module.ptr,
-                    funcref,
-                    arrayToPtr([context, ...callWasmArgs]).ptr,
-                    callWasmArgs.length + 1,
-                    binaryenCAPI._BinaryenExpressionGetType(funcref),
-                    false,
-                );
-            }
+            return this._generateFuncCall(
+                accessInfo,
+                context,
+                callWasmArgs,
+                expr,
+            );
         }
     }
 
@@ -2703,13 +2612,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         propName,
                         expr.exprType,
                     );
-                    /** string.slice() and string.length will invoke builtIn func in different place */
-                    if (
-                        expr.parent.expressionKind ===
-                        ts.SyntaxKind.CallExpression
-                    ) {
-                        (<BuiltInInstAccess>curAccessInfo).isCallExpr = true;
-                    }
                     break;
                 }
                 case TypeKind.CLASS: {
@@ -3011,22 +2913,129 @@ export class WASMExpressionGen extends WASMExpressionBase {
         );
     }
 
+    private _generateInfcArgs(
+        paramTypes: Type[],
+        callArgs: Expression[],
+        callWasmArgs: binaryen.ExpressionRef[],
+    ) {
+        for (let i = 0; i < callArgs.length; i++) {
+            const paramType = paramTypes[i];
+            const argType = callArgs[i].exprType;
+            if (paramType instanceof TSClass && argType instanceof TSClass) {
+                callWasmArgs[i] = this.maybeTypeBoxingAndUnboxing(
+                    argType,
+                    paramType,
+                    callWasmArgs[i],
+                );
+            }
+        }
+        return callWasmArgs;
+    }
+
+    private _generateFuncCall(
+        accessInfo: AccessBase | WasmValue,
+        context: binaryen.ExpressionRef,
+        callWasmArgs: binaryen.ExpressionRef[],
+        expr: CallExpression,
+    ) {
+        const funcType = expr.callExpr.exprType as TSFunction;
+        const paramTypes = funcType.getParamTypes();
+
+        let funcRef: binaryen.ExpressionRef;
+        if (accessInfo instanceof AccessBase) {
+            const wasmRef = this._loadFromAccessInfo(accessInfo);
+            if (wasmRef instanceof AccessBase) {
+                throw Error('unexpected error');
+            }
+            funcRef = wasmRef;
+        } else {
+            funcRef = accessInfo.binaryenRef;
+        }
+        if (accessInfo instanceof FunctionAccess) {
+            const { funcScope } = accessInfo;
+            if (callWasmArgs.length + 1 < funcScope.paramArray.length) {
+                for (
+                    let i = callWasmArgs.length + 1;
+                    i < funcScope.paramArray.length;
+                    i++
+                ) {
+                    callWasmArgs.push(
+                        this.WASMExprGen(
+                            funcScope.paramArray[i].initExpression!,
+                        ).binaryenRef,
+                    );
+                }
+            }
+            callWasmArgs = this._generateInfcArgs(
+                paramTypes,
+                expr.callArgs,
+                callWasmArgs,
+            );
+            if (funcScope.hasFreeVar) {
+                throw Error(`unimplemented`);
+            }
+            return this.module.call(
+                funcScope.mangledName,
+                [context, ...callWasmArgs],
+                this.wasmType.getWASMFuncReturnType(funcType),
+            );
+        } else {
+            callWasmArgs = this._generateInfcArgs(
+                paramTypes,
+                expr.callArgs,
+                callWasmArgs,
+            );
+            if (!funcType.isDeclare) {
+                const closureRef = funcRef;
+                const closureType =
+                    binaryenCAPI._BinaryenExpressionGetType(closureRef);
+                context = binaryenCAPI._BinaryenStructGet(
+                    this.module.ptr,
+                    0,
+                    closureRef,
+                    closureType,
+                    false,
+                );
+                funcRef = binaryenCAPI._BinaryenStructGet(
+                    this.module.ptr,
+                    1,
+                    closureRef,
+                    closureType,
+                    false,
+                );
+                callWasmArgs.unshift(context);
+            }
+            return binaryenCAPI._BinaryenCallRef(
+                this.module.ptr,
+                funcRef,
+                arrayToPtr(callWasmArgs).ptr,
+                callWasmArgs.length,
+                binaryen.getExpressionType(funcRef),
+                false,
+            );
+        }
+    }
+
     /* get callref from class struct vtable index */
     private _generateClassMethodCallRef(
-        classRef: binaryen.ExpressionRef,
+        classRef: binaryen.ExpressionRef | null = null,
         classType: TSClass,
         methodType: TSFunction,
         index: number,
         args: Array<binaryen.ExpressionRef>,
+        vtable = this.wasmType.getWASMClassVtable(classType),
     ) {
         const wasmMethodType = this.wasmType.getWASMType(methodType);
-        const vtable = binaryenCAPI._BinaryenStructGet(
-            this.module.ptr,
-            0,
-            classRef,
-            this.wasmType.getWASMClassVtableType(classType),
-            false,
-        );
+        // const vtable = this.wasmType.getWASMClassVtable(classType);
+        if (classRef) {
+            vtable = binaryenCAPI._BinaryenStructGet(
+                this.module.ptr,
+                0,
+                classRef,
+                this.wasmType.getWASMClassVtableType(classType),
+                false,
+            );
+        }
         const targetFunction = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
             index,

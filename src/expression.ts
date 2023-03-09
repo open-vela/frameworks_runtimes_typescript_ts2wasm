@@ -222,7 +222,6 @@ export class SuperCallExpression extends Expression {
 export class PropertyAccessExpression extends Expression {
     private expr: Expression;
     private property: Expression;
-    parent: Expression = new Expression(ts.SyntaxKind.Unknown);
     accessSetter = false;
 
     constructor(expr: Expression, property: Expression) {
@@ -692,7 +691,6 @@ export default class ExpressionCompiler {
             }
         }
         propAccessExpr.setExprType(this.typeCompiler.generateNodeType(node));
-        propAccessExpr.parent = new Expression(node.parent.kind);
         return propAccessExpr;
     }
 }

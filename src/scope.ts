@@ -610,10 +610,12 @@ export class ScopeScanner {
         }
 
         functionScope.setFuncName(methodName);
-        this.setCurrentScope(functionScope);
         this.nodeScopeMap.set(node, functionScope);
-        this.visitNode(node.body!);
-        this.setCurrentScope(parentScope);
+        if (!functionScope.isDeclare) {
+            this.setCurrentScope(functionScope);
+            this.visitNode(node.body!);
+            this.setCurrentScope(parentScope);
+        }
     }
 
     visit(nodes: Array<ts.SourceFile>) {
@@ -722,6 +724,11 @@ export class ScopeScanner {
                     classDeclarationNode.name
                 )).getText();
                 const classScope = new ClassScope(parentScope, className);
+                if (classDeclarationNode.modifiers) {
+                    for (const modifier of classDeclarationNode.modifiers) {
+                        classScope.addModifier(modifier);
+                    }
+                }
                 this.setCurrentScope(classScope);
                 this.nodeScopeMap.set(classDeclarationNode, classScope);
                 for (const member of classDeclarationNode.members) {
