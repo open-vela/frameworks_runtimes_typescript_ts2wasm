@@ -8,6 +8,6 @@ outputPath=$scriptDir/../output/wasmFiles
 for sampleFile in $samples
     do
         sampleName=$(echo $sampleFile | cut -d . -f1)
-        node $ts2wasm $samplePath/$sampleFile --disableAny --output $outputPath/$sampleName.wasm --wat $outputPath/$sampleName.wat
+        node $ts2wasm $samplePath/$sampleFile --disableAny --disableBuiltIn --output $outputPath/$sampleName.wasm --wat $outputPath/$sampleName.wat
         rm -f $outputPath/$sampleName.wasm
     done

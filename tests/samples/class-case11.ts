@@ -7,3 +7,8 @@ class A11 {
     b = false;
     c = 'c';
 }
+
+export function classTest11() {
+    let a: A11 = new A11(18);
+    return a.a;
+}

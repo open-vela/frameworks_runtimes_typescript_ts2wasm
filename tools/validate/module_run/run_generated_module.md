@@ -40,3 +40,27 @@ This document record how to run generated .wasm module
    because `boolean` is represent by `i32` in wasm, so the command below equals to the command above:
 
    `d8 --experimental-wasm-gc load.js -- xxx.wasm foo 1 10 1 0 1 11`
+
+## validate module by V8
+
+   1. add test files that you want to validate into `validate_res.txt`, the format is
+
+   moduleName  validateFlag(0: not validate, 1 validate) result(the format as above) exportFunction functionParameters(the format as above)
+
+   for example:
+
+   ```c++
+   //for module foo.wasm, export function funcFoo, which accept parameter(number, boolean), here passes(1, false), return value is 1(number) but we dont want to validate it(validate flag is 0)
+   foo.wasm 0 1 1 funcFoo 1 1 0 false
+
+   // we want to validate module bar's export function funcBar, which return value is 10, and it doesn't accept parameter
+   bar.wasm 1 1 10 funcBar
+   ```
+
+   then run
+
+   ```bash
+   sh validate.sh
+   ```
+
+   the result will be save in `result.txt`

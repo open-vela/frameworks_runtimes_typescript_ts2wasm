@@ -10,8 +10,6 @@ class A13 {
     constructor() {}
 }
 
-function classTest13() {
-    const func = A13.test1;
-    func();
-    const var2 = A13.test2();
+export function classTest13() {
+    return A13.test1();
 }

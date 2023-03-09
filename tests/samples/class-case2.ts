@@ -14,6 +14,7 @@ class A2 {
     }
 }
 
-export function classTest2() {
+export function classTest() {
     let a: A2 = new A2(10);
+    return a.a;
 }

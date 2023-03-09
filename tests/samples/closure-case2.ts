@@ -1,4 +1,4 @@
-export function ClosureTestCase2(x: number, y: boolean) {
+export function closure(x: number, y: boolean) {
     let z = 1;
     function inner() {
         function inner1(a: number) {
@@ -8,4 +8,11 @@ export function ClosureTestCase2(x: number, y: boolean) {
         return inner1;
     }
     return inner;
+}
+
+export function closureTest() {
+    const f1 = closure(1, false);
+    const f2 = f1();
+    const res = f2(1);
+    return res;
 }

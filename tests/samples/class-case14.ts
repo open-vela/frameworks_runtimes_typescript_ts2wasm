@@ -11,6 +11,6 @@ class B14 extends A14 {
         super();
     }
 }
-function classTest14() {
-    B14.test();
+export function classTest14() {
+    return B14.test();
 }

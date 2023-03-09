@@ -20,4 +20,5 @@ export function classTest9() {
     let i = a._a;
     let j = a.test(5);
     let k = a.a;
+    return i + j + k;
 }

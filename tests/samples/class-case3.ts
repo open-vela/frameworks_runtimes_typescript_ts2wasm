@@ -8,3 +8,11 @@ class A3 {
         let c = this._b;
     }
 }
+
+export function classTest() {
+    let a: A3 = new A3(10, true);
+    if (a._b) {
+        return a._a;
+    }
+    return a._a - 10;
+}
