@@ -132,6 +132,7 @@ export function initStructType(
     fieldMutablesList: Array<boolean>,
     numFields: binaryenCAPI.i32,
     nullable: binaryenCAPI.bool,
+    baseType?: binaryenCAPI.HeapTypeRef,
 ): typeInfo {
     const fieldTypes = arrayToPtr(fieldTypesList).ptr;
     const fieldPackedTypes = allocU32Array(fieldPackedTypesList);
@@ -146,7 +147,8 @@ export function initStructType(
         numFields,
     );
     if (fieldTypesList.length > 0) {
-        binaryenCAPI._TypeBuilderSetSubType(tb, 0, emptyStructType.heapTypeRef);
+        const subType = baseType ? baseType : emptyStructType.heapTypeRef;
+        binaryenCAPI._TypeBuilderSetSubType(tb, 0, subType);
     }
     const builtHeapType: binaryenCAPI.HeapTypeRef[] = new Array(1);
     const builtHeapTypePtr = arrayToPtr(builtHeapType);

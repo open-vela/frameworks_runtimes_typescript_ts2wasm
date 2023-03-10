@@ -14,6 +14,6 @@ class B15 extends A15 {
         return 2;
     }
 }
-function classTest15() {
+export function classTest15() {
     return B15.test();
 }

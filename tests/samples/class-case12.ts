@@ -4,7 +4,7 @@ class A12 {
     c = 'c';
 }
 
-export function classCase12() {
+export function classTest12() {
     const a = new A12();
     return a.b;
 }

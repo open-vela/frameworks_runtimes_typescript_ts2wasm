@@ -43,7 +43,7 @@ This document record how to run generated .wasm module
 
 ## validate module by V8
 
-   1. add test files that you want to validate into `validate_res.txt`, the format is
+   1. add test files that you want to validate into `validate_res.txt` in `tools/validate/module_run`, the format is
 
    moduleName  validateFlag(0: not validate, 1 validate) result(the format as above) exportFunction functionParameters(the format as above)
 
@@ -57,11 +57,11 @@ This document record how to run generated .wasm module
    bar.wasm 1 1 10 funcBar
    ```
 
-   then run
+   then run the command below in `tools/validate/module_run`
 
    ```bash
    bash validate.sh
    ```
-   Note that `sh validate.sh` maybe occurs unexpected results.
+   **Note that** `sh validate.sh` maybe occurs unexpected results.
 
    the result will be save in `result.txt`
