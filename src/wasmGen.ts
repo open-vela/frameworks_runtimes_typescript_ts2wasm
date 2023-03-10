@@ -424,13 +424,6 @@ export class WASMGen {
         );
         const remainVars = scope.varArray.slice(1);
 
-        // if (funcScope.className !== '' && scope === funcScope) {
-        //     /* For class method, the second parameter is "this" pointer */
-        //     const classScope = <ClassScope>funcScope.parent;
-        //     varWasmTypes.push(this.wasmType.getWASMType(classScope.classType));
-        //     remainVars = remainVars.slice(1);
-        // }
-
         /* the first one is context struct, no need to parse */
         for (const variable of remainVars) {
             if (variable.varType.kind !== TypeKind.FUNCTION) {
@@ -534,7 +527,7 @@ export class WASMGen {
                             ),
                         );
                         param.setClosureIndex(closureIndex);
-                        muts.push(param.isReadOnly ? false : true);
+                        muts.push(true);
                         closureIndex++;
                     }
                 }
@@ -551,7 +544,7 @@ export class WASMGen {
                         ),
                     );
                     variable.setClosureIndex(closureIndex);
-                    muts.push(variable.isConst ? false : true);
+                    muts.push(true);
                     closureIndex++;
                 }
             }

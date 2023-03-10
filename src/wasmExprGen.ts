@@ -2383,7 +2383,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const propExprType = propExpr.exprType;
             /* TODO: not parse member function yet */
             if (propExprType.kind === TypeKind.FUNCTION) {
-                vtable.push(this.WASMExprGen(propExpr).binaryenRef);
+                const methodStruct = this.WASMExprGen(propExpr).binaryenRef;
+                const temp = binaryenCAPI._BinaryenStructGet(
+                    module.ptr,
+                    1,
+                    methodStruct,
+                    binaryen.getExpressionType(methodStruct),
+                    false,
+                );
+                vtable.push(temp);
             } else {
                 let propExprRef: binaryen.ExpressionRef;
                 if (propExprType.kind === TypeKind.ANY) {
@@ -2395,18 +2403,14 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 propRefList.push(propExprRef);
             }
         }
-        // const vtableType = new Type(); // TODO: get wasmType based on objType
-        // const vtableHeapType = this.wasmType.getWASMHeapType(vtableType);
+        const vtableHeapType =
+            this.wasmType.getWASMClassVtableHeapType(objType);
         const objHeapType = this.wasmType.getWASMHeapType(objType);
-        // const vptr = binaryenCAPI._BinaryenStructNew(
-        //     module.ptr,
-        //     arrayToPtr(vtable).ptr,
-        //     vtable.length,
-        //     vtableHeapType,
-        // );
-        propRefList[0] = binaryenCAPI._BinaryenRefNull(
+        propRefList[0] = binaryenCAPI._BinaryenStructNew(
             module.ptr,
-            emptyStructType.typeRef,
+            arrayToPtr(vtable).ptr,
+            vtable.length,
+            vtableHeapType,
         );
         const objectLiteralValue = binaryenCAPI._BinaryenStructNew(
             module.ptr,
@@ -2593,7 +2597,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const wasmValue = accessInfo;
             const ref = wasmValue.binaryenRef;
             const tsType = wasmValue.tsType;
-
             switch (tsType.typeKind) {
                 case TypeKind.BOOLEAN:
                 case TypeKind.NUMBER:
@@ -2635,6 +2638,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
                             classMethod = classType.getMethod(
                                 propName,
                                 FunctionKind.SETTER,
+                            );
+                        }
+                        // call object literal method
+                        if (classMethod.index === -1) {
+                            classMethod = classType.getMethod(
+                                propName,
+                                FunctionKind.DEFAULT,
                             );
                         }
                         if (classMethod.index !== -1) {
@@ -2846,11 +2856,24 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const funcStructType = this.wasmType.getWASMFuncStructType(
             funcScope.funcType,
         );
-
-        const context = binaryenCAPI._BinaryenRefNull(
+        let context = binaryenCAPI._BinaryenRefNull(
             this.module.ptr,
             emptyStructType.typeRef,
         );
+        if (
+            this.currentFuncCtx.getCurrentScope() instanceof ClosureEnvironment
+        ) {
+            const curContext =
+                this.currentFuncCtx!.getCurrentScope() as ClosureEnvironment;
+            if (curContext.kind !== ScopeKind.GlobalScope) {
+                const index = curContext.contextVariable!.varIndex;
+                const type = curContext.contextVariable!.varType;
+                context = this.module.local.get(
+                    index,
+                    this.wasmType.getWASMType(type),
+                );
+            }
+        }
 
         const closureVar = new Variable(
             `@closure|${funcScope.mangledName}`,
@@ -2971,9 +2994,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 expr.callArgs,
                 callWasmArgs,
             );
-            if (funcScope.hasFreeVar) {
-                throw Error(`unimplemented`);
-            }
             return this.module.call(
                 funcScope.mangledName,
                 [context, ...callWasmArgs],
@@ -3043,6 +3063,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
             wasmMethodType,
             false,
         );
+        // call object literal method, no @this
+        if (methodType.funcKind === FunctionKind.DEFAULT) {
+            args = args.filter((item, idx) => idx !== 1);
+        }
         return binaryenCAPI._BinaryenCallRef(
             this.module.ptr,
             targetFunction,
@@ -3313,10 +3337,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
     private parseArguments(type: TSFunction, args: Expression[]) {
         const paramType = type.getParamTypes();
-        let restType: Type | undefined;
-        if (type.hasRest()) {
-            restType = paramType[paramType.length - 1];
-        }
         const res: binaryen.ExpressionRef[] = [];
         let i = 0;
         for (let j = 0; i < args.length && j < paramType.length; i++, j++) {
@@ -3329,12 +3349,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     : this.WASMExprGen(args[i]);
             res.push(value.binaryenRef);
         }
-
-        if (restType instanceof TSArray) {
-            res.push(this.initArray(restType, args.slice(i)));
-        } else {
-            Logger.error(`rest type is not array`);
+        if (type.hasRest()) {
+            const restType = paramType[paramType.length - 1];
+            if (restType instanceof TSArray) {
+                res.push(this.initArray(restType, args.slice(i)));
+            } else {
+                Logger.error(`rest type is not array`);
+            }
         }
+
         return res;
     }
 
