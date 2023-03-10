@@ -2429,7 +2429,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const classType = classScope.classType;
         const baseClassType = <TSClass>classType.getBase();
         const wasmBaseTypeRef = this.wasmType.getWASMType(baseClassType);
-        const ref = module.local.get(0, emptyStructType.typeRef);
+        // 0: @context 1: @this
+        const ref = module.local.get(1, emptyStructType.typeRef);
         const cast = binaryenCAPI._BinaryenRefCast(
             module.ptr,
             ref,
