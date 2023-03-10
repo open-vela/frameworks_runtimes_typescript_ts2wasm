@@ -22,7 +22,7 @@ for sampleFile in $samples
             continue
             # exit 1
         fi
-        node $ts2wasm $samplePath/$sampleFile --disableAny --disableInterface --disableBuiltIn --output $sampleName.wasm
+        node $ts2wasm $samplePath/$sampleFile --disableAny --disableInterface --output $sampleName.wasm
 
         rule=$(echo $line | awk -F ' ' '{print $2}')
         # not validate iff 0
