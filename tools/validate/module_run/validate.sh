@@ -10,7 +10,7 @@ result=result.txt
 totalFiles=0
 totalFailed=0
 
-# any type is disabled
+rm $result
 for sampleFile in $samples
     do
         sampleName=$(echo $sampleFile | cut -d . -f1)
@@ -22,7 +22,7 @@ for sampleFile in $samples
             continue
             # exit 1
         fi
-        node $ts2wasm $samplePath/$sampleFile --disableAny --disableInterface --output $sampleName.wasm
+        node $ts2wasm $samplePath/$sampleFile --disableAny --disableInterface --disableBuiltIn --output $sampleName.wasm
 
         rule=$(echo $line | awk -F ' ' '{print $2}')
         # not validate iff 0
@@ -33,7 +33,7 @@ for sampleFile in $samples
             totalFiles=`expr $totalFiles + 1`
             # if you build V8 with snapshot, you can use this command to validate
             # d8 --snapshot_blob="/path/to/snapshot_blob.bin" --experimental-wasm-gc  validate.js -- $outputPath/$line
-            value=$(d8 --experimental-wasm-gc  validate.js -- $line)
+            value=$(d8 --experimental-wasm-gc validate.js -- $line)
             res=$(echo $value | awk 'NR==1')
             if test $res == "true"
             then
