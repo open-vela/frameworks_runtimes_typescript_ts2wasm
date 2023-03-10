@@ -4,7 +4,6 @@ import TypeCompiler from './type.js';
 import { mangling, Stack } from './utils.js';
 import { fileURLToPath } from 'url';
 import {
-    BlockScope,
     FunctionScope,
     GlobalScope,
     Scope,
@@ -19,6 +18,7 @@ import path from 'path';
 import { ArgNames } from '../lib/builtin/builtinUtil.js';
 import { Logger } from './log.js';
 import { SyntaxError } from './error.js';
+import SematicCheck from './sematicCheck.js';
 
 export interface CompileArgs {
     [key: string]: any;
@@ -38,6 +38,7 @@ export const COMPILER_OPTIONS: ts.CompilerOptions = {
 export class Compiler {
     private scopeScanner;
     private typeCompiler;
+    private _sematicChecker;
     private variableScanner;
     private variableInit;
     private exprCompiler;
@@ -61,6 +62,7 @@ export class Compiler {
     constructor() {
         this.scopeScanner = new ScopeScanner(this);
         this.typeCompiler = new TypeCompiler(this);
+        this._sematicChecker = new SematicCheck();
         this.variableScanner = new VariableScanner(this);
         this.variableInit = new VariableInit(this);
         this.exprCompiler = new ExpressionCompiler(this);
@@ -120,6 +122,7 @@ export class Compiler {
         mangling(globalScopeArray);
         /* Step5: Add statements to scopes */
         this.stmtCompiler.visit();
+        this.sematicChecker.checkRes();
 
         this.recordScopes();
         if (process.env['TS2WASM_DUMP_SCOPE']) {
@@ -183,6 +186,10 @@ export class Compiler {
 
     get statementCompiler(): StatementCompiler {
         return this.stmtCompiler;
+    }
+
+    get sematicChecker(): SematicCheck {
+        return this._sematicChecker;
     }
 
     get errorMessage() {

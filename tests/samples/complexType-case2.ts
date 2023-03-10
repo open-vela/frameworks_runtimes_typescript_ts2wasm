@@ -1,7 +1,7 @@
 const cpxCase2Var1 = [1, 2, 3];
 const cpxCase2Var2 = [2, 'hi'];
 const cpxCase2Var5 = [{ a: 1 }, { a: 2 }];
-const cpxCase2Var6 = new Array(2);
+const cpxCase2Var6 = new Array<number>(2);
 // class cpxCase2Class1 {}
 // const cpxCase2Var7 = [new cpxCase2Class1(), new cpxCase2Class1()];
 function cpxCase2Func1(a: number) {

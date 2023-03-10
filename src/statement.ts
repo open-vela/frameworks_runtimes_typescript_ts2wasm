@@ -417,6 +417,15 @@ export default class StatementCompiler {
                           )
                         : null,
                 );
+                const expr = retStmt.returnExpression;
+                if (expr) {
+                    this.compilerCtx.sematicChecker.curScope =
+                        this.compilerCtx.getScopeByNode(node);
+                    this.compilerCtx.sematicChecker.checkReturnType(
+                        expr.exprType,
+                    );
+                }
+
                 return retStmt;
             }
             case ts.SyntaxKind.WhileStatement: {
