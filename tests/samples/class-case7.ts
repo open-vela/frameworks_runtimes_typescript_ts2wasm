@@ -25,7 +25,7 @@ class B7 extends A7 {
         this._a = m;
     }
     get a() {
-        return 0;
+        return this._a;
     }
 }
 

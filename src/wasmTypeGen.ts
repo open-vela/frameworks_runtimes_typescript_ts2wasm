@@ -184,52 +184,34 @@ export class WASMTypeGen {
                 // 1. add vtable
                 /* currently vtable stores all member functions(without constructor) */
                 const wasmFuncTypes = new Array<binaryenCAPI.TypeRef>();
-                const vtableFuncs = new Array<binaryen.ExpressionRef>();
                 for (const method of tsClassType.memberFuncs) {
                     wasmFuncTypes.push(this.getWASMType(method.type));
-                    const nameWithPrefix =
-                        getMethodPrefix(method.type.funcKind) + method.name;
-                    if (tsClassType.overrideOrOwnMethods.has(nameWithPrefix)) {
-                        vtableFuncs.push(
-                            this.WASMCompiler.module.ref.func(
-                                tsClassType.mangledName + '|' + nameWithPrefix,
-                                wasmFuncTypes[wasmFuncTypes.length - 1],
-                            ),
-                        );
-                    } else if (tsClassType.getBase()) {
-                        /* base class must exist in this condition */
-                        const baseClassType = <TSClass>tsClassType.getBase();
-                        vtableFuncs.push(
-                            this.WASMCompiler.module.ref.func(
-                                baseClassType.mangledName +
-                                    '|' +
-                                    nameWithPrefix,
-                                wasmFuncTypes[wasmFuncTypes.length - 1],
-                            ),
-                        );
-                    }
                 }
                 let packed = new Array<binaryenCAPI.PackedType>(
                     wasmFuncTypes.length,
                 ).fill(Pakced.Not);
                 let muts = new Array<boolean>(wasmFuncTypes.length).fill(false);
+                const baseType = tsClassType.getBase();
+                /* in order to avoid duplicate function in binaryen */
+                let isMethodSameShape = false;
+                if (
+                    baseType &&
+                    baseType.memberFuncs.length === wasmFuncTypes.length
+                ) {
+                    isMethodSameShape = true;
+                }
                 const vtableType = initStructType(
                     wasmFuncTypes,
                     packed,
                     muts,
                     wasmFuncTypes.length,
                     true,
-                );
-                const vtableInstance = binaryenCAPI._BinaryenStructNew(
-                    this.WASMCompiler.module.ptr,
-                    arrayToPtr(vtableFuncs).ptr,
-                    vtableFuncs.length,
-                    vtableType.heapTypeRef,
+                    baseType == null || isMethodSameShape
+                        ? undefined
+                        : this.getWASMClassVtableHeapType(baseType),
                 );
                 this.tsClassVtableType.set(type, vtableType.typeRef);
                 this.tsClassVtableHeapType.set(type, vtableType.heapTypeRef);
-                this.classVtables.set(type, vtableInstance);
-
                 // 2. add vtable and fields
                 const wasmFieldTypes = new Array<binaryenCAPI.TypeRef>();
                 /* vtable + fields */
@@ -256,12 +238,53 @@ export class WASMTypeGen {
                     muts,
                     wasmFieldTypes.length,
                     true,
+                    baseType == null ||
+                        (isMethodSameShape &&
+                            wasmFieldTypes.length - 1 ===
+                                baseType.fields.length)
+                        ? undefined
+                        : this.getWASMHeapType(baseType),
                 );
                 this.tsType2WASMTypeMap.set(type, wasmClassType.typeRef);
                 this.tsType2WASMHeapTypeMap.set(
                     type,
                     wasmClassType.heapTypeRef,
                 );
+                if (type.typeKind === TypeKind.INTERFACE) {
+                    break;
+                }
+                const vtableFuncs = new Array<binaryen.ExpressionRef>();
+                for (let i = 0; i < tsClassType.memberFuncs.length; i++) {
+                    const method = tsClassType.memberFuncs[i];
+                    const nameWithPrefix =
+                        getMethodPrefix(method.type.funcKind) + method.name;
+                    if (tsClassType.overrideOrOwnMethods.has(nameWithPrefix)) {
+                        vtableFuncs.push(
+                            this.WASMCompiler.module.ref.func(
+                                tsClassType.mangledName + '|' + nameWithPrefix,
+                                wasmFuncTypes[i],
+                            ),
+                        );
+                    } else if (tsClassType.getBase()) {
+                        /* base class must exist in this condition */
+                        const baseClassType = <TSClass>tsClassType.getBase();
+                        vtableFuncs.push(
+                            this.WASMCompiler.module.ref.func(
+                                baseClassType.mangledName +
+                                    '|' +
+                                    nameWithPrefix,
+                                wasmFuncTypes[i],
+                            ),
+                        );
+                    }
+                }
+                const vtableInstance = binaryenCAPI._BinaryenStructNew(
+                    this.WASMCompiler.module.ptr,
+                    arrayToPtr(vtableFuncs).ptr,
+                    vtableFuncs.length,
+                    vtableType.heapTypeRef,
+                );
+                this.classVtables.set(type, vtableInstance);
                 break;
             }
             default:
