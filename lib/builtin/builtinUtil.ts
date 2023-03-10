@@ -69,12 +69,22 @@ export namespace BuiltinNames {
         from: Array_from_funcName,
     };
 
+    // console builtin function
+    export const console_log_funcName = 'console|log';
+
+    export const consoleBuiltInFuncs: {
+        [key: string]: string;
+    } = {
+        log: console_log_funcName,
+    };
+
     // typescript built_in identifier list
     export const builtInObjInfo: {
         [key: string]: { [key: string]: string };
     } = {
         Math: MathBuiltInFuncs,
         Array: ArrayBuiltInFuncs,
+        console: consoleBuiltInFuncs,
     };
 
     // typescript built_in function names

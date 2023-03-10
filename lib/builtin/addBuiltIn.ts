@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import binaryen from 'binaryen';
-import { addWatFuncs } from '../../src/utils.js';
+import { addWatFuncs, addWatFuncImports } from '../../src/utils.js';
 import { getWatFilesDir, getFuncName } from './utils.js';
 import { BuiltinNames } from './builtinUtil.js';
 
@@ -15,6 +15,10 @@ export function addBuiltInNoAnyFunc(curModule: binaryen.Module) {
         const watModule = binaryen.parseText(libWat);
         if (fileName.includes('Math')) {
             for (const key in BuiltinNames.MathBuiltInFuncs) {
+                /** max and min use array.length */
+                if (key === 'max' || key === 'min') {
+                    break;
+                }
                 addWatFuncs(
                     watModule,
                     getFuncName(
@@ -37,26 +41,27 @@ export function addBuiltInNoAnyFunc(curModule: binaryen.Module) {
                 );
             }
         }
-        if (fileName.includes('array')) {
-            for (const key in BuiltinNames.arrayBuiltInFuncs) {
-                /**currently, only length is implemented */
-                if (key !== 'length') {
-                    continue;
-                }
-                addWatFuncs(
-                    watModule,
-                    getFuncName(
-                        BuiltinNames.bulitIn_module_name,
-                        BuiltinNames.arrayBuiltInFuncs[key],
-                    ),
-                    curModule,
-                );
-            }
-        }
+        // if (fileName.includes('array')) {
+        //     for (const key in BuiltinNames.arrayBuiltInFuncs) {
+        //         /**currently, only length is implemented */
+        //         if (key !== 'length') {
+        //             continue;
+        //         }
+        //         addWatFuncs(
+        //             watModule,
+        //             getFuncName(
+        //                 BuiltinNames.bulitIn_module_name,
+        //                 BuiltinNames.arrayBuiltInFuncs[key],
+        //             ),
+        //             curModule,
+        //         );
+        //     }
+        // }
     }
 }
 
 export function addBuiltInAnyFunc(curModule: binaryen.Module) {
+    addBuiltInAnyFuncImport(curModule);
     const watFileDir = getWatFilesDir();
     const watFiles = fs.readdirSync(watFileDir);
     for (const file of watFiles) {
@@ -80,5 +85,17 @@ export function addBuiltInAnyFunc(curModule: binaryen.Module) {
                 );
             }
         }
+    }
+}
+
+function addBuiltInAnyFuncImport(curModule: binaryen.Module) {
+    for (const key in BuiltinNames.consoleBuiltInFuncs) {
+        addWatFuncImports(
+            getFuncName(
+                BuiltinNames.bulitIn_module_name,
+                BuiltinNames.consoleBuiltInFuncs[key],
+            ),
+            curModule,
+        );
     }
 }
