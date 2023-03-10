@@ -60,7 +60,8 @@ This document record how to run generated .wasm module
    then run
 
    ```bash
-   sh validate.sh
+   bash validate.sh
    ```
+   Note that `sh validate.sh` maybe occurs unexpected results.
 
    the result will be save in `result.txt`

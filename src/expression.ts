@@ -657,9 +657,11 @@ export default class ExpressionCompiler {
             case ts.SyntaxKind.FunctionExpression:
             case ts.SyntaxKind.ArrowFunction: {
                 const funcScope = getCurScope(node, this.nodeScopeMap);
-                return new FunctionExpression(
+                const funcExpr = new FunctionExpression(
                     funcScope!.getNearestFunctionScope()!,
                 );
+                funcExpr.setExprType(this.typeCompiler.generateNodeType(node));
+                return funcExpr;
             }
             case ts.SyntaxKind.ThisKeyword: {
                 const expr = new IdentifierExpression('this');

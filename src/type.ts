@@ -501,6 +501,7 @@ export default class TypeCompiler {
         // iff object literal type
         if (this.isObjectLiteral(type)) {
             const tsClass = new TSClass();
+            tsClass.setClassName('@object_literal');
             const methodTypeStrs: string[] = [];
             const fieldTypeStrs: string[] = [];
             type.getProperties().map((prop) => {
@@ -516,7 +517,7 @@ export default class TypeCompiler {
                 const fieldName = prop.name;
                 const tsType = this.tsTypeToType(propType);
                 if (tsType instanceof TSFunction) {
-                    tsType.funcKind = FunctionKind.METHOD;
+                    tsType.funcKind = FunctionKind.DEFAULT;
                     tsClass.addMethod({
                         name: fieldName,
                         type: tsType,

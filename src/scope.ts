@@ -681,40 +681,19 @@ export class ScopeScanner {
                 this.setCurrentScope(parentScope);
                 break;
             }
-            case ts.SyntaxKind.FunctionDeclaration:
-            case ts.SyntaxKind.FunctionExpression:
+            case ts.SyntaxKind.FunctionDeclaration: {
+                const funcDecl = <ts.FunctionDeclaration>node;
+                this._generateFuncScope(funcDecl);
+                break;
+            }
+            case ts.SyntaxKind.FunctionExpression: {
+                const funcExpr = <ts.FunctionExpression>node;
+                this._generateFuncScope(funcExpr);
+                break;
+            }
             case ts.SyntaxKind.ArrowFunction: {
-                const functionDeclarationNode = <ts.FunctionDeclaration>node;
-                const parentScope = this.currentScope!;
-                const functionScope = new FunctionScope(parentScope);
-                /* function context struct placeholder */
-                functionScope.addParameter(
-                    new Parameter('@context', new Type(), [], 0, false, false),
-                );
-                if (functionDeclarationNode.modifiers !== undefined) {
-                    for (const modifier of functionDeclarationNode.modifiers) {
-                        functionScope.addModifier(modifier);
-                    }
-                }
-                let functionName: string;
-                if (functionDeclarationNode.name !== undefined) {
-                    functionName = functionDeclarationNode.name.getText();
-                } else {
-                    functionName = 'anonymous' + ScopeScanner.anonymousIndex++;
-                }
-
-                functionScope.setFuncName(functionName);
-                this.nodeScopeMap.set(functionDeclarationNode, functionScope);
-
-                if (functionScope.isDefault) {
-                    functionScope.getRootGloablScope()!.defaultNoun =
-                        functionName;
-                }
-                if (!functionScope.isDeclare) {
-                    this.setCurrentScope(functionScope);
-                    this.visitNode(functionDeclarationNode.body!);
-                    this.setCurrentScope(parentScope);
-                }
+                const arrowFunc = <ts.ArrowFunction>node;
+                this._generateFuncScope(arrowFunc);
                 break;
             }
             case ts.SyntaxKind.ClassDeclaration: {
@@ -865,6 +844,40 @@ export class ScopeScanner {
         this.visitNode(node.statement);
 
         this.setCurrentScope(parentScope);
+    }
+
+    private _generateFuncScope(
+        node: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction,
+    ) {
+        const parentScope = this.currentScope!;
+        const functionScope = new FunctionScope(parentScope);
+        /* function context struct placeholder */
+        functionScope.addParameter(
+            new Parameter('@context', new Type(), [], 0, false, false),
+        );
+        if (node.modifiers !== undefined) {
+            for (const modifier of node.modifiers) {
+                functionScope.addModifier(modifier);
+            }
+        }
+        let functionName: string;
+        if (node.name !== undefined) {
+            functionName = node.name.getText();
+        } else {
+            functionName = 'anonymous' + ScopeScanner.anonymousIndex++;
+        }
+
+        functionScope.setFuncName(functionName);
+        this.nodeScopeMap.set(node, functionScope);
+
+        if (functionScope.isDefault) {
+            functionScope.getRootGloablScope()!.defaultNoun = functionName;
+        }
+        if (!functionScope.isDeclare) {
+            this.setCurrentScope(functionScope);
+            this.visitNode(node.body!);
+            this.setCurrentScope(parentScope);
+        }
     }
 
     static getPossibleScopeName(scope: Scope) {
