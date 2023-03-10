@@ -1539,14 +1539,19 @@ export class WASMExpressionGen extends WASMExpressionBase {
         } else if (accessInfo instanceof DynArrayAccess) {
             throw Error(`dynamic array not implemented`);
         } else if (accessInfo instanceof BuiltInInstAccess) {
+            /** string.len && array.len */
             const exprValue = accessInfo.value;
             const propName = accessInfo.propName;
             const builtInFuncName = getBuiltInFuncName(
                 BuiltinNames.builtInInstInfo[exprValue.tsType.kind][propName],
             );
+            const context = binaryenCAPI._BinaryenRefNull(
+                this.module.ptr,
+                emptyStructType.typeRef,
+            );
             loadRef = this.module.call(
                 builtInFuncName,
-                [exprValue.binaryenRef],
+                [context, exprValue.binaryenRef],
                 this.wasmType.getWASMType(accessInfo.exprType),
             );
         } else {
@@ -2261,11 +2266,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     finalCallWasmArgs,
                 );
             } else if (accessInfo instanceof BuiltInObjAccess) {
-                return this._generateBuiltInObjCall(
-                    expr,
-                    accessInfo,
-                    context,
-                    callWasmArgs,
+                const exprName = accessInfo.objName;
+                const propName = accessInfo.propName;
+                const builtInFuncName = getBuiltInFuncName(
+                    BuiltinNames.builtInObjInfo[exprName][propName],
+                );
+                return this.module.call(
+                    builtInFuncName,
+                    [context, ...callWasmArgs],
+                    this.wasmType.getWASMType(expr.exprType),
                 );
             } else if (accessInfo instanceof BuiltInInstAccess) {
                 const exprValue = accessInfo.value;
@@ -2901,42 +2910,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return this.module.local.get(closureVar.varIndex, funcStructType);
     }
 
-    private _generateBuiltInObjCall(
-        expr: CallExpression,
-        accessInfo: BuiltInObjAccess,
-        context: binaryen.ExpressionRef,
-        callWasmArgs: binaryen.ExpressionRef[],
-    ) {
-        const exprName = accessInfo.objName;
-        const propName = accessInfo.propName;
-        const builtInFuncName = getBuiltInFuncName(
-            BuiltinNames.builtInObjInfo[exprName][propName],
-        );
-        const finalCallWasmArgs = callWasmArgs;
-        switch (exprName) {
-            case BuiltinNames.ARRAY: {
-                switch (propName) {
-                    case BuiltinNames.ISARRAY: {
-                        /** box to any */
-                        expr.callArgs.forEach((callArg, argIdx) => {
-                            finalCallWasmArgs[argIdx] =
-                                this.dynValueGen.WASMDynExprGen(
-                                    callArg,
-                                ).binaryenRef;
-                        });
-                        break;
-                    }
-                }
-                break;
-            }
-        }
-        return this.module.call(
-            builtInFuncName,
-            [context, ...finalCallWasmArgs],
-            this.wasmType.getWASMType(expr.exprType),
-        );
-    }
-
     private _generateInfcArgs(
         paramTypes: Type[],
         callArgs: Expression[],
@@ -3044,10 +3017,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
         methodType: TSFunction,
         index: number,
         args: Array<binaryen.ExpressionRef>,
-        vtable = this.wasmType.getWASMClassVtable(classType),
     ) {
         const wasmMethodType = this.wasmType.getWASMType(methodType);
-        // const vtable = this.wasmType.getWASMClassVtable(classType);
+        let vtable: binaryen.ExpressionRef;
         if (classRef) {
             vtable = binaryenCAPI._BinaryenStructGet(
                 this.module.ptr,
@@ -3056,6 +3028,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 this.wasmType.getWASMClassVtableType(classType),
                 false,
             );
+        } else {
+            vtable = this.wasmType.getWASMClassVtable(classType);
         }
         const targetFunction = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,

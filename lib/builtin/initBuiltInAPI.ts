@@ -18,13 +18,13 @@ import {
 } from '../../src/glue/packType.js';
 
 function array_length(module: binaryen.Module) {
-    const arrArray = module.local.get(0, anyArrayTypeInfo.typeRef);
+    const arrArray = module.local.get(1, anyArrayTypeInfo.typeRef);
     const arrArrayLen = binaryenCAPI._BinaryenArrayLen(module.ptr, arrArray);
     return arrArrayLen;
 }
 
 function string_length(module: binaryen.Module) {
-    const strStruct = module.local.get(0, stringTypeInfo.typeRef);
+    const strStruct = module.local.get(1, stringTypeInfo.typeRef);
     const strArray = binaryenCAPI._BinaryenStructGet(
         module.ptr,
         1,
@@ -37,6 +37,7 @@ function string_length(module: binaryen.Module) {
 }
 
 function string_concat(module: binaryen.Module) {
+    const context = module.local.get(0, emptyStructType.typeRef);
     const strStruct1 = module.local.get(1, stringTypeInfo.typeRef);
     const strStruct2 = module.local.get(2, stringTypeInfo.typeRef);
     const strArray1 = binaryenCAPI._BinaryenStructGet(
@@ -58,7 +59,7 @@ function string_concat(module: binaryen.Module) {
             BuiltinNames.bulitIn_module_name,
             BuiltinNames.string_length_funcName,
         ),
-        [strStruct1],
+        [context, strStruct1],
         binaryen.i32,
     );
     const str2Len = module.call(
@@ -66,7 +67,7 @@ function string_concat(module: binaryen.Module) {
             BuiltinNames.bulitIn_module_name,
             BuiltinNames.string_length_funcName,
         ),
-        [strStruct2],
+        [context, strStruct2],
         binaryen.i32,
     );
     const statementArray: binaryen.ExpressionRef[] = [];
@@ -116,6 +117,7 @@ function string_concat(module: binaryen.Module) {
 }
 
 function string_slice(module: binaryen.Module) {
+    const context = module.local.get(0, emptyStructType.typeRef);
     const strStruct = module.local.get(1, stringTypeInfo.typeRef);
     const start = module.local.get(2, binaryen.i32);
     const end = module.local.get(3, binaryen.i32);
@@ -266,7 +268,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
             BuiltinNames.bulitIn_module_name,
             BuiltinNames.string_length_funcName,
         ),
-        binaryen.createType([stringTypeInfo.typeRef]),
+        binaryen.createType([emptyStructType.typeRef, stringTypeInfo.typeRef]),
         binaryen.i32,
         [],
         string_length(module),
@@ -301,16 +303,19 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_slice(module),
     );
     /** array */
-    module.addFunction(
-        getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.array_length_funcName,
-        ),
-        binaryen.createType([anyArrayTypeInfo.typeRef]),
-        binaryen.i32,
-        [],
-        array_length(module),
-    );
+    // module.addFunction(
+    //     getFuncName(
+    //         BuiltinNames.bulitIn_module_name,
+    //         BuiltinNames.array_length_funcName,
+    //     ),
+    //     binaryen.createType([
+    //         emptyStructType.typeRef,
+    //         anyArrayTypeInfo.typeRef,
+    //     ]),
+    //     binaryen.i32,
+    //     [],
+    //     array_length(module),
+    // );
 }
 
 export function initBuiltInAPIs() {
