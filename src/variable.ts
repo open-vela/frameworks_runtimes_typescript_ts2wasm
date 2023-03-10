@@ -405,6 +405,13 @@ export class VariableInit {
                         parameterNode.initializer,
                     );
                     paramObj.setInitExpr(paramInit);
+                    this.compilerCtx.sematicChecker.curScope =
+                        this.compilerCtx.getScopeByNode(node);
+                    this.compilerCtx.sematicChecker.checkBinaryOperate(
+                        paramObj.varType,
+                        paramInit.exprType,
+                    );
+                    this.compilerCtx.sematicChecker.checkDefaultParam();
                 }
                 break;
             }
@@ -425,6 +432,12 @@ export class VariableInit {
                         variableDeclarationNode.initializer,
                     );
                     variableObj.setInitExpr(variableInit);
+                    this.compilerCtx.sematicChecker.curScope =
+                        this.compilerCtx.getScopeByNode(node);
+                    this.compilerCtx.sematicChecker.checkBinaryOperate(
+                        variableObj.varType,
+                        variableInit.exprType,
+                    );
                 }
                 break;
             }

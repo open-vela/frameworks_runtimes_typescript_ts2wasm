@@ -24,6 +24,6 @@ function testInfc(f: I) {
 }
 
 function infc7() {
-    const i: Foo = { y: true, z: 'str', x: 1 };
+    const i: Foo = new Foo();
     const f = testInfc(i);
 }
