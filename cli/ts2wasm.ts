@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Compiler, CompileArgs } from '../src/compiler.js';
 import log4js from 'log4js';
-import { Logger } from '../src/log.js';
+import { Logger, printLogger } from '../src/log.js';
 
 interface HelpMessageCategory {
     General: string[];
@@ -245,6 +245,10 @@ function main() {
             console.log(compiler.binaryenModule.emitText());
         }
     } catch (e) {
+        printLogger.error(
+            (<Error>e).message,
+            "Error details is in '/logs/error.yyyy-mm-dd.log'",
+        );
         Logger.error(e);
         log4js.shutdown(() => process.exit(1));
     }

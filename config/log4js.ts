@@ -38,6 +38,10 @@ const logConfig = {
             appenders: ['file', 'errors'],
             level: 'debug',
         },
+        print: {
+            appenders: ['console'],
+            level: 'error',
+        },
     },
 };
 
