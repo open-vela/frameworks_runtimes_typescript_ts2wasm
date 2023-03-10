@@ -480,7 +480,6 @@ export default class TypeCompiler {
 
         // iff array type
         if (this.isArray(type)) {
-            assert(type.typeArguments !== undefined);
             if (!type.typeArguments) {
                 throw new Error('array type has no type arguments');
             }

@@ -439,7 +439,13 @@ export default class ExpressionCompiler {
                     leftExpr,
                     rightExpr,
                 );
-
+                this.compilerCtx.sematicChecker.curScope =
+                    this.compilerCtx.getScopeByNode(node);
+                this.compilerCtx.sematicChecker.checkBinaryOperate(
+                    (<BinaryExpression>expr).leftOperand.exprType,
+                    (<BinaryExpression>expr).rightOperand.exprType,
+                    (<BinaryExpression>expr).operatorKind,
+                );
                 if (
                     ts.isPropertyAccessExpression(binaryExprNode.left) &&
                     binaryExprNode.operatorToken.kind ===
@@ -529,6 +535,16 @@ export default class ExpressionCompiler {
                 }
                 const callExpr = new CallExpression(expr, args);
                 callExpr.setExprType(this.typeCompiler.generateNodeType(node));
+                this.compilerCtx.sematicChecker.curScope =
+                    this.compilerCtx.getScopeByNode(node);
+                const argTypes = args.map((arg) => arg.exprType);
+                const funcType = expr.exprType as TSFunction;
+                const paramTypes = funcType.getParamTypes();
+                this.compilerCtx.sematicChecker.checkArgTypes(
+                    paramTypes,
+                    argTypes,
+                    funcType.hasRest(),
+                );
                 return callExpr;
             }
             case ts.SyntaxKind.PropertyAccessExpression: {
@@ -555,6 +571,11 @@ export default class ExpressionCompiler {
                     expr.expressionKind === ts.SyntaxKind.Identifier &&
                     (<IdentifierExpression>expr).identifierName === 'Array'
                 ) {
+                    this.compilerCtx.sematicChecker.curScope =
+                        this.compilerCtx.getScopeByNode(node);
+                    this.compilerCtx.sematicChecker.checkArrayType(
+                        !!newExprNode.typeArguments,
+                    );
                     let isLiteral = false;
                     if (newExprNode.arguments) {
                         /* Check if it's created from a literal */
