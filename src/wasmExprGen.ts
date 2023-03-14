@@ -2579,21 +2579,40 @@ export class WASMExpressionGen extends WASMExpressionBase {
             } else if (accessInfo instanceof TypeAccess) {
                 const type = accessInfo.type;
                 if (type instanceof TSClass) {
-                    const methodInfo = type.getMethod(
-                        propName,
-                        FunctionKind.STATIC,
-                    );
-                    if (methodInfo.index === -1) {
-                        throw new Error(
-                            `static method of class '${type.className}' not found`,
+                    const propIndex = type.getStaticFieldIndex(propName);
+                    if (propIndex !== -1) {
+                        // static field
+                        const wasmStaticFieldsType =
+                            this.wasmType.getWASMClassStaticFieldsType(type);
+                        const ref = module.global.get(
+                            `${type.mangledName}_static_fields`,
+                            wasmStaticFieldsType,
+                        );
+                        const propType =
+                            type.getStaticMemberField(propName)!.type;
+                        curAccessInfo = new StructAccess(
+                            ref,
+                            propIndex,
+                            this.wasmType.getWASMType(propType),
+                            propType,
+                        );
+                    } else {
+                        const methodInfo = type.getMethod(
+                            propName,
+                            FunctionKind.STATIC,
+                        );
+                        if (methodInfo.index === -1) {
+                            throw new Error(
+                                `static method of class '${type.className}' not found`,
+                            );
+                        }
+                        curAccessInfo = new MethodAccess(
+                            methodInfo.method!.type,
+                            methodInfo.index,
+                            type,
+                            null,
                         );
                     }
-                    curAccessInfo = new MethodAccess(
-                        methodInfo.method!.type,
-                        methodInfo.index,
-                        type,
-                        null,
-                    );
                 }
             } else if (accessInfo instanceof Type) {
                 throw Error("Access type's builtin method unimplement");

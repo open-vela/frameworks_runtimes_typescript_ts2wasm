@@ -8,8 +8,8 @@ import {
     Scope,
     ScopeKind,
 } from './scope.js';
-import { assert } from 'console';
 import { Parameter, Variable } from './variable.js';
+import { Expression } from './expression.js';
 
 export const enum TypeKind {
     VOID = 'void',
@@ -131,7 +131,8 @@ export class TSClass extends Type {
     private name = '';
     private _mangledName = '';
     private memberFields: Array<TsClassField> = [];
-    private staticFields: Array<TsClassField> = [];
+    private _staticFields: Array<TsClassField> = [];
+    staticFieldsInitValueMap: Map<number, Expression> = new Map();
     private constructorMethod: TSFunction | null = null;
     private methods: Array<TsClassFunc> = [];
     /* override or own methods */
@@ -148,6 +149,10 @@ export class TSClass extends Type {
 
     get fields(): Array<TsClassField> {
         return this.memberFields;
+    }
+
+    get staticFields(): TsClassField[] {
+        return this._staticFields;
     }
 
     get memberFuncs(): Array<TsClassFunc> {
@@ -185,16 +190,21 @@ export class TSClass extends Type {
     }
 
     addStaticMemberField(memberField: TsClassField): void {
-        this.staticFields.push(memberField);
+        this._staticFields.push(memberField);
     }
 
     getStaticMemberField(name: string): TsClassField | null {
-        for (const memberField of this.staticFields) {
-            if (memberField.name === name) {
-                return memberField;
-            }
-        }
-        return null;
+        return (
+            this._staticFields.find((f) => {
+                return f.name === name;
+            }) || null
+        );
+    }
+
+    getStaticFieldIndex(name: string): number {
+        return this._staticFields.findIndex((f) => {
+            return f.name === name;
+        });
     }
 
     addMethod(classMethod: TsClassFunc): void {
@@ -684,6 +694,12 @@ export default class TypeCompiler {
             for (const field of heritageType.fields) {
                 classType.addMemberField(field);
             }
+            for (const pair of heritageType.staticFieldsInitValueMap) {
+                classType.staticFieldsInitValueMap.set(pair[0], pair[1]);
+            }
+            for (const staticField of heritageType.staticFields) {
+                classType.addStaticMemberField(staticField);
+            }
             for (const method of heritageType.memberFuncs) {
                 classType.addMethod(method);
             }
@@ -738,9 +754,6 @@ export default class TypeCompiler {
 
             const typeString = this.typeToString(member);
             if (member.kind === ts.SyntaxKind.PropertyDeclaration) {
-                if (classType.getMemberField(name)) {
-                    continue;
-                }
                 const field = <ts.PropertyDeclaration>member;
                 const type = this.generateNodeType(field);
                 const modifier = field.modifiers?.find((m) => {
@@ -761,17 +774,42 @@ export default class TypeCompiler {
                     static: staticModifier,
                 };
                 if (field.initializer) {
-                    ctorScope.addStatement(
-                        this.compilerCtx.statementCompiler.createFieldAssignStmt(
-                            field.initializer,
-                            classType,
-                            type,
-                            name,
-                        ),
-                    );
+                    let index = classType.getStaticFieldIndex(name);
+                    if (index === -1) {
+                        index = classType.staticFields.length;
+                    }
+                    if (classField.static) {
+                        classType.staticFieldsInitValueMap.set(
+                            index,
+                            this.compilerCtx.expressionCompiler.visitNode(
+                                field.initializer,
+                            ),
+                        );
+                    } else {
+                        ctorScope.addStatement(
+                            this.compilerCtx.statementCompiler.createFieldAssignStmt(
+                                field.initializer,
+                                classType,
+                                type,
+                                name,
+                            ),
+                        );
+                    }
                 }
-                fieldTypeStrs.push(`${name}: ${typeString}`);
-                classType.addMemberField(classField);
+                if (!classField.static) {
+                    fieldTypeStrs.push(`${name}: ${typeString}`);
+                }
+                if (
+                    classType.getMemberField(name) ||
+                    classType.getStaticMemberField(name)
+                ) {
+                    continue;
+                }
+                if (!classField.static) {
+                    classType.addMemberField(classField);
+                } else {
+                    classType.addStaticMemberField(classField);
+                }
             }
             if (member.kind === ts.SyntaxKind.SetAccessor) {
                 const func = <ts.SetAccessorDeclaration>member;

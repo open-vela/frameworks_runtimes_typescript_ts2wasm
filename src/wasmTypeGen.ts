@@ -42,8 +42,10 @@ export class WASMTypeGen {
     */
     private tsFuncOriginalParamType: Map<Type, binaryenCAPI.TypeRef> =
         new Map();
-
     private classVtables: Map<Type, binaryenCAPI.ExpressionRef> = new Map();
+    private classStaticFieldsType: Map<Type, binaryenCAPI.TypeRef> = new Map();
+    private classStaticFieldsHeapType: Map<Type, binaryenCAPI.HeapTypeRef> =
+        new Map();
 
     constructor(private WASMCompiler: WASMGen) {}
 
@@ -230,7 +232,6 @@ export class WASMTypeGen {
                         muts[i + 1] = true;
                     }
                 }
-
                 // 3. generate class wasm type
                 const wasmClassType = initStructType(
                     wasmFieldTypes,
@@ -250,6 +251,39 @@ export class WASMTypeGen {
                     type,
                     wasmClassType.heapTypeRef,
                 );
+                // add static fields type to type map
+                if (tsClassType.staticFields.length > 0) {
+                    packed = new Array<binaryenCAPI.PackedType>(
+                        tsClassType.staticFields.length,
+                    ).fill(Pakced.Not);
+                    muts = new Array<boolean>(
+                        tsClassType.staticFields.length,
+                    ).fill(true);
+                    const typeArray = new Array<binaryenCAPI.TypeRef>();
+                    for (
+                        let i = 0;
+                        i !== tsClassType.staticFields.length;
+                        ++i
+                    ) {
+                        const field = tsClassType.staticFields[i];
+                        typeArray.push(this.getWASMType(field.type));
+                    }
+                    const staticFieldType = initStructType(
+                        typeArray,
+                        packed,
+                        muts,
+                        typeArray.length,
+                        false,
+                    );
+                    this.classStaticFieldsType.set(
+                        type,
+                        staticFieldType.typeRef,
+                    );
+                    this.classStaticFieldsHeapType.set(
+                        type,
+                        staticFieldType.heapTypeRef,
+                    );
+                }
                 if (type.typeKind === TypeKind.INTERFACE) {
                     break;
                 }
@@ -392,6 +426,25 @@ export class WASMTypeGen {
             this.createWASMType(type);
         }
         return this.classVtables.get(type) as binaryen.ExpressionRef;
+    }
+
+    getWASMClassStaticFieldsType(type: Type): binaryenCAPI.TypeRef {
+        if (type.kind !== TypeKind.CLASS) {
+            throw new Error(
+                `type ${type} is not a class, when calling 'getWASMClassStaticFieldsType'`,
+            );
+        }
+        if (!this.classStaticFieldsType.has(type)) {
+            this.createWASMType(type);
+        }
+        return this.classStaticFieldsType.get(type) as binaryenCAPI.TypeRef;
+    }
+
+    getWASMClassStaticFieldsHeapType(type: Type): binaryenCAPI.HeapTypeRef {
+        this.getWASMClassStaticFieldsType(type);
+        return this.classStaticFieldsHeapType.get(
+            type,
+        ) as binaryenCAPI.HeapTypeRef;
     }
 
     getInfcTypeRef(): binaryenCAPI.TypeRef {

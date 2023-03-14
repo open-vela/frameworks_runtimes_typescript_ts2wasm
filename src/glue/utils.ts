@@ -4,6 +4,7 @@ import * as binaryenCAPI from './binaryen.js';
 export const STRING_LENGTH_FUNC = 'lib-string-length';
 export const STRING_CONCAT_FUNC = 'lib-string-concat';
 export const STRING_SLICE_FUNC = 'lib-string-slice';
+export const GLOBAL_INIT_FUNC = 'global_init';
 
 export interface ptrInfo {
     ptr: number;
