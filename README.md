@@ -1,12 +1,10 @@
 # ts2wasm
 
-ts2wasm is a typescript compiler which compile typescript source code directly into WebAssembly bytecode.
+ts2wasm is a compiler which compiles TypeScript source code directly into WebAssembly bytecode. It will leverage WebAssembly's GC proposal. The strategy is to apply static compilation for those with type information, while supporting dynamic type (any) through a builtin runtime library.
 
-## Development Environment
+> **Note: This project is highly experimental and under active development, DO NOT use in production**
 
-Please follow [dev_environment.md](./doc/dev_environment.md) to setup development environment.
-
-## Build
+## Build and run
 
 1. install the dependencies
     ``` bash
@@ -19,8 +17,15 @@ Please follow [dev_environment.md](./doc/dev_environment.md) to setup developmen
     npm run build
     ```
 
+3. run
+
+    ``` bash
+    cd build
+    node cli/ts2wasm.js <source> -o out.wasm
+    ```
+
 ## Test
 
 ``` bash
-npm test
+npm run test
 ```
