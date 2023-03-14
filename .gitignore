@@ -5,3 +5,4 @@ out
 .nyc_output
 coverage
 logs
+lib/builtin/watFile/

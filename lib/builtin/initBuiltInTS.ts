@@ -22,12 +22,6 @@ export function initCompile() {
     try {
         const builtInTSFilesDir = getTSFilesDir();
         const files = fs.readdirSync(builtInTSFilesDir);
-        /** array.ts must ahead of Math.ts */
-        const mathIndex = files.indexOf('Math.ts');
-        if (mathIndex !== -1) {
-            files.splice(mathIndex, 1);
-            files.push('Math.ts');
-        }
         for (const file of files) {
             const filePath = path.join(builtInTSFilesDir, file);
             if (filePath.includes('.ts')) {

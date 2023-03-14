@@ -1542,18 +1542,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
             /** string.len && array.len */
             const exprValue = accessInfo.value;
             const propName = accessInfo.propName;
-            const builtInFuncName = getBuiltInFuncName(
-                BuiltinNames.builtInInstInfo[exprValue.tsType.kind][propName],
-            );
-            const context = binaryenCAPI._BinaryenRefNull(
-                this.module.ptr,
-                emptyStructType.typeRef,
-            );
-            loadRef = this.module.call(
-                builtInFuncName,
-                [context, exprValue.binaryenRef],
-                this.wasmType.getWASMType(accessInfo.exprType),
-            );
+            const libFuncName =
+                BuiltinNames.builtInInstInfo[exprValue.tsType.kind][propName];
+            switch (libFuncName) {
+                case BuiltinNames.array_length_funcName:
+                    loadRef = this._getArrayRefLen(exprValue.binaryenRef);
+                    break;
+                case BuiltinNames.string_length_funcName:
+                    loadRef = this._getStringRefLen(exprValue.binaryenRef);
+                    break;
+            }
         } else {
             return accessInfo;
         }
@@ -3308,6 +3306,41 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
             }
         }
+    }
+
+    private _getArrayRefLen(
+        arrRef: binaryen.ExpressionRef,
+    ): binaryen.ExpressionRef {
+        const arrLenI32 = binaryenCAPI._BinaryenArrayLen(
+            this.module.ptr,
+            arrRef,
+        );
+        const arrLenF64 = this.convertTypeToF64(
+            arrLenI32,
+            binaryen.getExpressionType(arrLenI32),
+        );
+        return arrLenF64;
+    }
+
+    private _getStringRefLen(
+        stringRef: binaryen.ExpressionRef,
+    ): binaryen.ExpressionRef {
+        const strArray = binaryenCAPI._BinaryenStructGet(
+            this.module.ptr,
+            1,
+            stringRef,
+            charArrayTypeInfo.typeRef,
+            false,
+        );
+        const strLenI32 = binaryenCAPI._BinaryenArrayLen(
+            this.module.ptr,
+            strArray,
+        );
+        const strLenF64 = this.convertTypeToF64(
+            strLenI32,
+            binaryen.getExpressionType(strLenI32),
+        );
+        return strLenF64;
     }
 
     private parseArguments(type: TSFunction, args: Expression[]) {

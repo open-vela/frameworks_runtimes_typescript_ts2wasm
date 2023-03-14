@@ -11,33 +11,9 @@ import {
     generateFreeDynContext,
 } from '../envInit.js';
 import { arrayToPtr } from '../../src/glue/transform.js';
-import {
-    charArrayTypeInfo,
-    stringTypeInfo,
-    anyArrayTypeInfo,
-} from '../../src/glue/packType.js';
-
-function array_length(module: binaryen.Module) {
-    const arrArray = module.local.get(1, anyArrayTypeInfo.typeRef);
-    const arrArrayLen = binaryenCAPI._BinaryenArrayLen(module.ptr, arrArray);
-    return arrArrayLen;
-}
-
-function string_length(module: binaryen.Module) {
-    const strStruct = module.local.get(1, stringTypeInfo.typeRef);
-    const strArray = binaryenCAPI._BinaryenStructGet(
-        module.ptr,
-        1,
-        strStruct,
-        charArrayTypeInfo.typeRef,
-        false,
-    );
-    const strArrayLen = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray);
-    return strArrayLen;
-}
+import { charArrayTypeInfo, stringTypeInfo } from '../../src/glue/packType.js';
 
 function string_concat(module: binaryen.Module) {
-    const context = module.local.get(0, emptyStructType.typeRef);
     const strStruct1 = module.local.get(1, stringTypeInfo.typeRef);
     const strStruct2 = module.local.get(2, stringTypeInfo.typeRef);
     const strArray1 = binaryenCAPI._BinaryenStructGet(
@@ -54,22 +30,8 @@ function string_concat(module: binaryen.Module) {
         charArrayTypeInfo.typeRef,
         false,
     );
-    const str1Len = module.call(
-        getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.string_length_funcName,
-        ),
-        [context, strStruct1],
-        binaryen.i32,
-    );
-    const str2Len = module.call(
-        getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.string_length_funcName,
-        ),
-        [context, strStruct2],
-        binaryen.i32,
-    );
+    const str1Len = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray1);
+    const str2Len = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray2);
     const statementArray: binaryen.ExpressionRef[] = [];
     const newStrLen = module.i32.add(str1Len, str2Len);
     const newStrArrayIndex = 3;
@@ -266,16 +228,6 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     module.addFunction(
         getFuncName(
             BuiltinNames.bulitIn_module_name,
-            BuiltinNames.string_length_funcName,
-        ),
-        binaryen.createType([emptyStructType.typeRef, stringTypeInfo.typeRef]),
-        binaryen.i32,
-        [],
-        string_length(module),
-    );
-    module.addFunction(
-        getFuncName(
-            BuiltinNames.bulitIn_module_name,
             BuiltinNames.string_concat_funcName,
         ),
         binaryen.createType([
@@ -302,20 +254,8 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         [charArrayTypeInfo.typeRef],
         string_slice(module),
     );
+    /** TODO: */
     /** array */
-    // module.addFunction(
-    //     getFuncName(
-    //         BuiltinNames.bulitIn_module_name,
-    //         BuiltinNames.array_length_funcName,
-    //     ),
-    //     binaryen.createType([
-    //         emptyStructType.typeRef,
-    //         anyArrayTypeInfo.typeRef,
-    //     ]),
-    //     binaryen.i32,
-    //     [],
-    //     array_length(module),
-    // );
 }
 
 export function initBuiltInAPIs() {
