@@ -475,6 +475,7 @@ export class WASMStatementGen {
         } else {
             // add global variables
             for (const globalVar of varArray) {
+                module.removeGlobal(globalVar.mangledName);
                 const varTypeRef =
                     globalVar.varType.kind === TypeKind.FUNCTION
                         ? wasmType.getWASMFuncStructType(globalVar.varType)
@@ -486,7 +487,7 @@ export class WASMStatementGen {
                         globalVar.mangledName,
                         varTypeRef,
                     );
-                    break;
+                    continue;
                 }
                 const mutable = !globalVar.isConst;
                 if (globalVar.initExpression === null) {
