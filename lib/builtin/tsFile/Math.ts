@@ -10,27 +10,27 @@ export class Math {
         return res;
     }
 
-    // static max(x: number[]): number {
-    //     const arrLen = x.length;
-    //     let res = x[0];
-    //     for (let i = 1; i < arrLen; i++) {
-    //         if (res < x[i]) {
-    //             res = x[i];
-    //         }
-    //     }
-    //     return res;
-    // }
+    static max(x: number[]): number {
+        const arrLen = x.length;
+        let res = x[0];
+        for (let i = 1; i < arrLen; i++) {
+            if (res < x[i]) {
+                res = x[i];
+            }
+        }
+        return res;
+    }
 
-    // static min(x: number[]): number {
-    //     const arrLen = x.length;
-    //     let res = x[0];
-    //     for (let i = 1; i < arrLen; i++) {
-    //         if (res > x[i]) {
-    //             res = x[i];
-    //         }
-    //     }
-    //     return res;
-    // }
+    static min(x: number[]): number {
+        const arrLen = x.length;
+        let res = x[0];
+        for (let i = 1; i < arrLen; i++) {
+            if (res > x[i]) {
+                res = x[i];
+            }
+        }
+        return res;
+    }
 
     @binaryen
     static sqrt(x: number): number {

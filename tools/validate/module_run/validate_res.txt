@@ -28,6 +28,10 @@ boolean-type-case5.wasm 1 1 1 booleanTestCase5
 boolean-type-case6.wasm 1 1 0 booleanTestCase6
 boolean-type-case7.wasm 0 1 0 booleanTestCase7
 boolean-type-case8.wasm 1 1 2 booleanTestCase8
+builtin-array-case1.wasm 1 1 3 arrayTest
+builtin-Math-case1.wasm 1 1 3 mathTest
+builtin-Math-case2.wasm 1 1 9 mathTest
+builtin-string-case3.wasm 1 1 5 strTest
 call-expression-case1.wasm 1 1 6 callExpressionTest
 call-expression-case2.wasm 1 1 6 callExpressionTest
 call-expression-case3.wasm 1 1 5 callExpressionTest

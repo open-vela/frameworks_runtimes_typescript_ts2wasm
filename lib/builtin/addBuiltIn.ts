@@ -15,10 +15,6 @@ export function addBuiltInNoAnyFunc(curModule: binaryen.Module) {
         const watModule = binaryen.parseText(libWat);
         if (fileName.includes('Math')) {
             for (const key in BuiltinNames.MathBuiltInFuncs) {
-                /** max and min use array.length */
-                if (key === 'max' || key === 'min') {
-                    break;
-                }
                 addWatFuncs(
                     watModule,
                     getFuncName(
@@ -31,6 +27,9 @@ export function addBuiltInNoAnyFunc(curModule: binaryen.Module) {
         }
         if (fileName.includes('string')) {
             for (const key in BuiltinNames.stringBuiltInFuncs) {
+                if (key === 'length') {
+                    break;
+                }
                 addWatFuncs(
                     watModule,
                     getFuncName(
@@ -41,22 +40,6 @@ export function addBuiltInNoAnyFunc(curModule: binaryen.Module) {
                 );
             }
         }
-        // if (fileName.includes('array')) {
-        //     for (const key in BuiltinNames.arrayBuiltInFuncs) {
-        //         /**currently, only length is implemented */
-        //         if (key !== 'length') {
-        //             continue;
-        //         }
-        //         addWatFuncs(
-        //             watModule,
-        //             getFuncName(
-        //                 BuiltinNames.bulitIn_module_name,
-        //                 BuiltinNames.arrayBuiltInFuncs[key],
-        //             ),
-        //             curModule,
-        //         );
-        //     }
-        // }
     }
 }
 
