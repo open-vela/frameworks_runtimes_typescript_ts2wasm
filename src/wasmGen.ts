@@ -21,7 +21,7 @@ import {
     NamespaceScope,
 } from './scope.js';
 import { Stack } from './utils.js';
-import { typeInfo } from './glue/utils.js';
+import { GLOBAL_INIT_FUNC, typeInfo } from './glue/utils.js';
 import { Compiler } from './compiler.js';
 import {
     importAnyLibAPI,
@@ -235,6 +235,8 @@ export class WASMGen {
     private wasmStmtCompiler = new WASMStatementGen(this);
     enterModuleScope: GlobalScope | null = null;
     private startBodyArray: Array<binaryen.ExpressionRef> = [];
+    private globalInitArray: Array<binaryen.ExpressionRef> = [];
+    private globalInitFuncName = '';
 
     constructor(private compilerCtx: Compiler) {
         this.binaryenModule = compilerCtx.binaryenModule;
@@ -265,8 +267,10 @@ export class WASMGen {
 
         for (let i = 0; i < this.globalScopeStack.size(); i++) {
             const globalScope = this.globalScopeStack.getItemAtIdx(i);
+            this.globalInitFuncName = `${globalScope.moduleName}|${GLOBAL_INIT_FUNC}`;
             this.WASMGenHelper(globalScope);
             this.WASMStartFunctionGen(globalScope);
+            this.WASMGlobalFuncGen();
         }
 
         if (this.compilerCtx.compileArgs[ArgNames.disableAny]) {
@@ -332,6 +336,9 @@ export class WASMGen {
                 break;
             case ScopeKind.FunctionScope:
                 this.WASMFunctionGen(<FunctionScope>scope);
+                break;
+            case ScopeKind.ClassScope:
+                this.WASMClassGen(<ClassScope>scope);
                 break;
             default:
                 break;
@@ -400,6 +407,9 @@ export class WASMGen {
 
     /* add global variables, and generate start function */
     WASMStartFunctionGen(globalScope: GlobalScope) {
+        this.startBodyArray.unshift(
+            this.module.call(this.globalInitFuncName, [], binaryen.none),
+        );
         const body = this.module.block(null, this.startBodyArray);
 
         const wasmTypes = new Array<binaryen.ExpressionRef>();
@@ -698,7 +708,9 @@ export class WASMGen {
             if (!this.compilerCtx.compileArgs[ArgNames.disableAny]) {
                 functionStmts.push(generateInitDynContext(this.module));
             }
-
+            functionStmts.push(
+                this.module.call(this.globalInitFuncName, [], binaryen.none),
+            );
             // call origin function
             let idx = 0;
             const tempLocGetParams = tsFuncType
@@ -771,6 +783,47 @@ export class WASMGen {
         );
     }
 
+    WASMClassGen(classScope: ClassScope) {
+        const tsType = classScope.classType;
+        if (!tsType.staticFields.length) {
+            return;
+        }
+        const wasmStaticFieldsType =
+            this.wasmType.getWASMClassStaticFieldsType(tsType);
+        const wasmStaticFieldsHeapType =
+            this.wasmType.getWASMClassStaticFieldsHeapType(tsType);
+        // new_default_struct
+        const init = binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr([]).ptr,
+            0,
+            wasmStaticFieldsHeapType,
+        );
+        this.module.addGlobal(
+            `${classScope.mangledName}_static_fields`,
+            wasmStaticFieldsType,
+            false,
+            init,
+        );
+        for (let i = 0; i < tsType.staticFields.length; i++) {
+            if (tsType.staticFieldsInitValueMap.has(i)) {
+                const initValue = this.wasmExprCompiler.WASMExprGen(
+                    tsType.staticFieldsInitValueMap.get(i)!,
+                );
+                const staticFieldValue = binaryenCAPI._BinaryenStructSet(
+                    this.module.ptr,
+                    i,
+                    this.module.global.get(
+                        `${classScope.mangledName}_static_fields`,
+                        wasmStaticFieldsType,
+                    ),
+                    initValue.binaryenRef,
+                );
+                this.globalInitArray.push(staticFieldValue);
+            }
+        }
+    }
+
     getVariableInitValue(varType: Type): binaryen.ExpressionRef {
         const module = this.module;
         if (varType.kind === TypeKind.NUMBER) {
@@ -824,5 +877,16 @@ export class WASMGen {
         );
         this.dataSegmentContext!.itableMap.set(shape.typeId, offset);
         return offset;
+    }
+
+    private WASMGlobalFuncGen() {
+        this.module.addFunction(
+            this.globalInitFuncName,
+            binaryen.none,
+            binaryen.none,
+            [],
+            this.module.block(null, this.globalInitArray),
+        );
+        this.globalInitArray = [];
     }
 }
