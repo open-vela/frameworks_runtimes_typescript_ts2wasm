@@ -83,6 +83,10 @@ export class Variable {
         return this.modifiers.includes(ts.SyntaxKind.DefaultKeyword);
     }
 
+    isBlockScoped(): boolean {
+        return this.modifiers.includes(ModifierKind.var);
+    }
+
     setInitExpr(expr: Expression) {
         this.init = expr;
     }
@@ -345,7 +349,22 @@ export class VariableScanner {
                         variable.varName;
                 }
 
-                currentScope.addVariable(variable);
+                /** Variables defined by var can be defined repeatedly */
+                const funcScope = currentScope.getNearestFunctionScope();
+                let belongScope: Scope;
+                if (funcScope) {
+                    if (variable.isBlockScoped()) {
+                        belongScope = funcScope;
+                    } else {
+                        belongScope = currentScope;
+                    }
+                } else {
+                    belongScope = currentScope;
+                }
+                const existVar = belongScope.findVariable(variableName, false);
+                if (!existVar) {
+                    belongScope.addVariable(variable);
+                }
                 break;
             }
             default: {
@@ -425,7 +444,10 @@ export class VariableInit {
                         "don't find " + variableName + ' in current scope',
                     );
                 }
-                if (variableDeclarationNode.initializer) {
+                if (
+                    !variableObj.isBlockScoped() &&
+                    variableDeclarationNode.initializer
+                ) {
                     this.compilerCtx.currentScope = currentScope;
                     const variableInit = generateNodeExpression(
                         this.compilerCtx.expressionCompiler,

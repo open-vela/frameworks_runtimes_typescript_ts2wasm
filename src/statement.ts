@@ -3,18 +3,11 @@ import { assert } from 'console';
 import { Compiler } from './compiler.js';
 import {
     BinaryExpression,
-    CallExpression,
     Expression,
     IdentifierExpression,
     PropertyAccessExpression,
 } from './expression.js';
-import {
-    FunctionScope,
-    GlobalScope,
-    NamespaceScope,
-    Scope,
-    ScopeKind,
-} from './scope.js';
+import { FunctionScope, Scope, ScopeKind } from './scope.js';
 import {
     parentIsFunctionLike,
     Stack,
@@ -367,7 +360,11 @@ export default class StatementCompiler {
                 const varStatement = new VariableStatement();
                 const varDeclarationList = varStatementNode.declarationList;
                 this.currentScope = this.compilerCtx.getScopeByNode(node)!;
-                this.addVariableInVarStmt(varDeclarationList, varStatement);
+                this.addVariableInVarStmt(
+                    varDeclarationList,
+                    varStatement,
+                    this.currentScope,
+                );
                 return varStatement;
             }
             case ts.SyntaxKind.IfStatement: {
@@ -619,6 +616,7 @@ export default class StatementCompiler {
     addVariableInVarStmt(
         varDeclarationList: ts.VariableDeclarationList,
         varStatement: VariableStatement,
+        currentScope: Scope,
     ) {
         for (const varDeclaration of varDeclarationList.declarations) {
             const varDecNode = <ts.VariableDeclaration>varDeclaration;
@@ -630,6 +628,21 @@ export default class StatementCompiler {
                 );
             }
             varStatement.addVariable(variable);
+            if (variable.isBlockScoped() && varDecNode.initializer) {
+                const identifierExpr = new IdentifierExpression(varName);
+                identifierExpr.setExprType(variable.varType);
+                const initExpr = this.compilerCtx.expressionCompiler.visitNode(
+                    varDecNode.initializer,
+                );
+                const assignExpr = new BinaryExpression(
+                    ts.SyntaxKind.EqualsToken,
+                    identifierExpr,
+                    initExpr,
+                );
+                assignExpr.setExprType(variable.varType);
+                const expressionStmt = new ExpressionStatement(assignExpr);
+                currentScope.addStatement(expressionStmt);
+            }
         }
     }
 

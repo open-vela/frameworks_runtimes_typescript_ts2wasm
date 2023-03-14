@@ -117,6 +117,7 @@ switch-case-case7.wasm 1 1 11 switchCaseCase7
 switch-case-case8.wasm 1 1 11 switchCaseCase8
 switch-case-case9.wasm 1 1 1 switchCaseCase9
 switch-case-case10.wasm 1 1 20 switchCaseCase10
+variable-var-case3.wasm 1 1 10 funcvv3
 while-statement-case1.wasm 1 1 10 whileTest
 while-statement-case2.wasm 1 1 100 whileTest
 while-statement-case3.wasm 1 1 49 whileTest
