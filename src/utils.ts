@@ -350,7 +350,7 @@ export function addWatFuncImports(
     curModule.addFunctionImport(
         funcName,
         BuiltinNames.external_module_name,
-        funcName,
+        getOriginFuncName(funcName),
         getParamTypeByBuiltInFuncName(funcName),
         getReturnTypeByBuiltInFuncName(funcName),
     );
