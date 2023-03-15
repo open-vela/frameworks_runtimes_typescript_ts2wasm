@@ -497,6 +497,7 @@ export default class StatementCompiler {
                         this.addVariableInVarStmt(
                             forInit,
                             initStmt as VariableStatement,
+                            scope,
                         );
                     } else {
                         initStmt = new ExpressionStatement(

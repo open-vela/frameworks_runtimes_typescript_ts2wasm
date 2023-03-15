@@ -17,12 +17,16 @@ ts2wasm is a compiler which compiles TypeScript source code directly into WebAss
     npm run build
     ```
 
-3. run
+3. use the compiler
 
     ``` bash
     cd build
     node cli/ts2wasm.js <source> -o out.wasm
     ```
+
+## Execute the generated module
+
+Refer to [run on v8](./tools/validate/module_run/run_generated_module.md)
 
 ## Test
 
