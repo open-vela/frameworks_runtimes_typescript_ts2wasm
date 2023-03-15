@@ -70,7 +70,7 @@ export namespace BuiltinNames {
     };
 
     // console builtin function
-    export const console_log_funcName = 'console|log';
+    export const console_log_funcName = 'console_log';
 
     export const consoleBuiltInFuncs: {
         [key: string]: string;
