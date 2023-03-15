@@ -262,7 +262,13 @@ export class WASMStatementGen {
             this.WASMCompiler.module.nop();
         let WASMStmts: binaryen.ExpressionRef = this.WASMCompiler.module.nop();
         if (stmt.forLoopInitializer !== null) {
-            this.WASMStmtGen(stmt.forLoopInitializer);
+            const init = this.WASMStmtGen(stmt.forLoopInitializer);
+            if (
+                stmt.forLoopInitializer.statementKind ===
+                ts.SyntaxKind.ExpressionStatement
+            ) {
+                this.currentFuncCtx.insert(init);
+            }
         }
         if (stmt.forLoopCondtion !== null) {
             WASMCond = this.WASMCompiler.wasmExpr.WASMExprGen(

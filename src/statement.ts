@@ -123,6 +123,7 @@ export class ForStatement extends Statement {
         private blockLabel: string,
         private cond: Expression | null,
         private body: Statement,
+        /** VariableStatement or ExpressionStatement */
         private initializer: Statement | null,
         private incrementor: Expression | null,
     ) {
@@ -489,7 +490,22 @@ export default class StatementCompiler {
 
                 let initializer = null;
                 if (forStatementNode.initializer) {
-                    initializer = this.visitNode(forStatementNode.initializer);
+                    const forInit = forStatementNode.initializer;
+                    let initStmt: Statement;
+                    if (ts.isVariableDeclarationList(forInit)) {
+                        initStmt = new VariableStatement();
+                        this.addVariableInVarStmt(
+                            forInit,
+                            initStmt as VariableStatement,
+                        );
+                    } else {
+                        initStmt = new ExpressionStatement(
+                            this.compilerCtx.expressionCompiler.visitNode(
+                                forInit,
+                            ),
+                        );
+                    }
+                    initializer = initStmt;
                 }
 
                 const cond = forStatementNode.condition
@@ -601,12 +617,6 @@ export default class StatementCompiler {
                     this.breakLabelsStack.peek(),
                 );
                 return breakStmt;
-            }
-            case ts.SyntaxKind.BinaryExpression: {
-                const exprStmt = new ExpressionStatement(
-                    this.compilerCtx.expressionCompiler.visitNode(node),
-                );
-                return exprStmt;
             }
         }
 
