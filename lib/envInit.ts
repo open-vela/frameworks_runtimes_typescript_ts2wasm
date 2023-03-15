@@ -4,8 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { addWatFuncs } from '../src/utils.js';
-import { getWatFilesDir, getFuncName } from './builtin/utils.js';
-import { BuiltinNames } from './builtin/builtinUtil.js';
+import { getWatFilesDir } from './builtin/utils.js';
 
 export function importAnyLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
@@ -202,6 +201,49 @@ export function importAnyLibAPI(module: binaryen.Module) {
         ]),
         dyntype.int,
     );
+    module.addFunctionImport(
+        dyntype.dyntype_is_bool,
+        dyntype.module_name,
+        dyntype.dyntype_is_bool,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.bool,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_to_bool,
+        dyntype.module_name,
+        dyntype.dyntype_to_bool,
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.dyn_value_t,
+            dyntype.pointer,
+        ]),
+        dyntype.int,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_is_string,
+        dyntype.module_name,
+        dyntype.dyntype_is_string,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.bool,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_to_cstring,
+        dyntype.module_name,
+        dyntype.dyntype_to_cstring,
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.dyn_value_t,
+            dyntype.pointer,
+        ]),
+        dyntype.int,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_free_cstring,
+        dyntype.module_name,
+        dyntype.dyntype_free_cstring,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.pointer]),
+        dyntype.cvoid,
+    );
 }
 
 export function importInfcLibAPI(module: binaryen.Module) {
@@ -284,73 +326,6 @@ export function importInfcLibAPI(module: binaryen.Module) {
         binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.anyref]),
         binaryen.none,
     );
-}
-
-export function isDynFunc(funcName: string) {
-    switch (funcName) {
-        case dyntype.dyntype_context_init:
-        case dyntype.dyntype_context_destroy:
-        case dyntype.dyntype_new_number:
-        case dyntype.dyntype_new_string:
-        case dyntype.dyntype_new_boolean:
-        case dyntype.dyntype_typeof:
-        case dyntype.dyntype_type_eq:
-        case dyntype.dyntype_is_number:
-        case dyntype.dyntype_to_number:
-        case dyntype.dyntype_new_undefined:
-        case dyntype.dyntype_new_null:
-        case dyntype.dyntype_new_object:
-        case dyntype.dyntype_is_array:
-        case dyntype.dyntype_new_array:
-        case dyntype.dyntype_set_property:
-        case dyntype.dyntype_get_property:
-        case dyntype.dyntype_has_property:
-        case dyntype.dyntype_new_extref:
-        case dyntype.dyntype_is_extref:
-        case dyntype.dyntype_to_extref:
-        case dyntype.dyntype_is_object:
-        case dyntype.dyntype_get_prototype:
-        case dyntype.dyntype_set_prototype:
-            return true;
-        default:
-            return false;
-    }
-}
-
-export function getReturnTypeRef(funcName: string) {
-    switch (funcName) {
-        case dyntype.dyntype_context_init:
-            return dyntype.dyn_ctx_t;
-        case dyntype.dyntype_context_destroy:
-            return dyntype.cvoid;
-        case dyntype.dyntype_typeof:
-            return dyntype.dyn_type_t;
-        case dyntype.dyntype_to_number:
-        case dyntype.dyntype_has_property:
-        case dyntype.dyntype_to_extref:
-        case dyntype.dyntype_set_prototype:
-            return dyntype.int;
-        case dyntype.dyntype_new_number:
-        case dyntype.dyntype_new_string:
-        case dyntype.dyntype_new_boolean:
-        case dyntype.dyntype_new_undefined:
-        case dyntype.dyntype_new_null:
-        case dyntype.dyntype_new_object:
-        case dyntype.dyntype_new_array:
-        case dyntype.dyntype_set_property:
-        case dyntype.dyntype_get_property:
-        case dyntype.dyntype_new_extref:
-        case dyntype.dyntype_get_prototype:
-            return dyntype.dyn_value_t;
-        case dyntype.dyntype_is_extref:
-        case dyntype.dyntype_type_eq:
-        case dyntype.dyntype_is_number:
-        case dyntype.dyntype_is_object:
-        case dyntype.dyntype_is_array:
-            return dyntype.bool;
-        default:
-            return dyntype.cvoid;
-    }
 }
 
 export function generateGlobalContext(module: binaryen.Module) {
