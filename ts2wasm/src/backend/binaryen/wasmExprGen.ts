@@ -501,17 +501,6 @@ export class WASMExpressionBase {
             tmpAddressVar,
             binaryen.i32,
         );
-        // get address which stores extref
-        const toExtref = module.call(
-            dyntype.dyntype_to_extref,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                anyExprRef,
-                extrefPointer,
-            ],
-            dyntype.bool,
-        );
-        this.currentFuncCtx.insert(toExtref);
         const extrefTurnExpression = this.turnDyntypeToExtref(
             anyExprRef,
             extrefPointer,
