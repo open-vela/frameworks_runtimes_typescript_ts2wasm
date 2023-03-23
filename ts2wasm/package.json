@@ -9,6 +9,7 @@
     "test": "test"
   },
   "scripts": {
+    "postinstall": "npm run setup-hooks",
     "compile": "",
     "pretest": "npm run compile",
     "test": "mocha",
@@ -17,8 +18,6 @@
     "test:unit": "mocha 'tests/unit/*.test.ts'",
     "cover": "c8 npm run test:unit",
     "lint": "npx lint-staged",
-    "format": "prettier --config .prettierrc.json --write '**/*.ts'",
-    "eslint": "eslint --fix '**/*.ts'",
     "setup-hooks": "ts-node-esm scripts/link_hooks.ts",
     "build": "rm -rf lib/builtin/watFile/ && ts-node-esm lib/builtin/initBuiltInAPI.ts && ts-node-esm lib/builtin/initBuiltInTS.ts && npx tsc && cp -r lib/builtin/watFile/ build/lib/builtin/ && cp -r ./lib/interface-lib ./build/lib/"
   },
@@ -63,8 +62,8 @@
   },
   "lint-staged": {
     "*.ts": [
-      "eslint --fix '**/*.ts'",
-      "prettier --config .prettierrc.json --write '**/*.ts'"
+      "eslint --ignore-path .eslintignore --config .eslintrc.json --fix '**/*.ts'",
+      "prettier --ignore-path .prettierignore --config .prettierrc.json --write '**/*.ts'"
     ]
   },
   "bugs": {

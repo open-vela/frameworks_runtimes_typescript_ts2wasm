@@ -18,6 +18,7 @@ hooks.forEach(function (hook) {
         const hookInHiddenDirectory = path.resolve(
             __dirname,
             '..',
+            '..',
             '.git',
             'hooks',
             hook,
