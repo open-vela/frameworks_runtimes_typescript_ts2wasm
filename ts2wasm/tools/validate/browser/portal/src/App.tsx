@@ -23,6 +23,7 @@ function App() {
   const [totalFiles, setTotalFiles] = useState(validator.validateData.length);
   const [totalFailed, setTotalFailed] = useState(0);
   const [showRatio, setShowRatio] = useState(false);
+  const [currentModule, setCurrentModule] = useState('');
 
   async function traverseDirectory() {
     setTotalFiles(validator.validateData.length);
@@ -48,6 +49,7 @@ function App() {
         parameters.push(validator.typeConvert(item[i], item[i + 1]));
       }
       try {
+        setCurrentModule(moduleName);
         let { instance } = await WebAssembly.instantiateStreaming(
           fetch(`./wasm_modules/${moduleName}`), validator.importObject
         );
@@ -81,6 +83,7 @@ function App() {
     setPassRatio(Math.round((totalFiles - failed) / totalFiles * 100))
     setErrorsMap(errors);
     setShowRatio(true);
+    setCurrentModule('');
   }
 
   const startValidation = () => {
@@ -124,6 +127,9 @@ function App() {
 
         <Divider />
         <Button onClick={startValidation}>Start validation</Button>
+        {currentModule &&
+          <span className="ml-5 font-mono text-gray-600">Validating: {currentModule}</span>
+        }
         <Progress percent={prog} size={'default'} />
       </Typography>
       {showRatio && <Progress type="circle"
