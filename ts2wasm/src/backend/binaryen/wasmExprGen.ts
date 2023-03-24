@@ -2864,6 +2864,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
     private WASMFuncExpr(expr: FunctionExpression): binaryen.ExpressionRef {
         const funcScope = expr.funcScope;
+        const parentScope = funcScope.parent;
         const wasmFuncType = this.wasmType.getWASMType(funcScope.funcType);
 
         /** if function is declare, we don't need to create context */
@@ -2881,21 +2882,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
             this.module.ptr,
             emptyStructType.typeRef,
         );
-        if (
-            this.currentFuncCtx.getCurrentScope() instanceof ClosureEnvironment
-        ) {
-            const curContext =
-                this.currentFuncCtx!.getCurrentScope() as ClosureEnvironment;
-            if (curContext.kind !== ScopeKind.GlobalScope) {
-                const index = curContext.contextVariable!.varIndex;
-                const type = curContext.contextVariable!.varType;
-                context = this.module.local.get(
-                    index,
-                    this.wasmType.getWASMType(type),
-                );
-            }
+        if (parentScope instanceof ClosureEnvironment) {
+            const ce = parentScope;
+            const index = ce.contextVariable!.varIndex;
+            const type = ce.contextVariable!.varType;
+            context = this.module.local.get(
+                index,
+                this.wasmType.getWASMType(type),
+            );
         }
-
         const closureVar = new Variable(
             `@closure|${funcScope.mangledName}`,
             funcScope.funcType,
@@ -2949,17 +2944,25 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const funcType = expr.callExpr.exprType as TSFunction;
         const paramTypes = funcType.getParamTypes();
 
-        let funcRef: binaryen.ExpressionRef;
+        let funcRef: binaryen.ExpressionRef = -1;
         if (accessInfo instanceof AccessBase) {
             const wasmRef = this._loadFromAccessInfo(accessInfo);
             if (wasmRef instanceof AccessBase) {
                 throw Error('unexpected error');
             }
             funcRef = wasmRef;
+            if (accessInfo instanceof FunctionAccess) {
+                // iff top level function, then using call instead of callref
+                const parentScope = accessInfo.funcScope.parent;
+                if (!(parentScope instanceof ClosureEnvironment)) {
+                    funcRef = -1;
+                }
+            }
         } else {
             funcRef = accessInfo.binaryenRef;
         }
-        if (accessInfo instanceof FunctionAccess) {
+
+        if (accessInfo instanceof FunctionAccess && funcRef === -1) {
             const { funcScope } = accessInfo;
             if (callWasmArgs.length + 1 < funcScope.paramArray.length) {
                 for (

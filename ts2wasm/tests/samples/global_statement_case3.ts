@@ -13,4 +13,3 @@ export function globalTest() {
     }
     return globalStatementCase3_1;
 }
-
