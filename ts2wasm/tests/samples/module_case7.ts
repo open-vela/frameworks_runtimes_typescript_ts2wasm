@@ -13,4 +13,3 @@ export function modTest() {
     return module_case7_var1 + module_case7_func1();
 }
 // 8
-
