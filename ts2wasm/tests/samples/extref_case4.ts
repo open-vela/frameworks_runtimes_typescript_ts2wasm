@@ -8,5 +8,5 @@ export function extrefTest() {
     let a: any = str;
     const num = 1;
     a = num;
-    return a;
+    return a as number;
 }

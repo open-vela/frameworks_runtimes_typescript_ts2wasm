@@ -1109,6 +1109,11 @@ export class WASMExpressionBase {
                 extObjKind = dyntype.ExtObjKind.ExtObj;
                 break;
             }
+            case TypeKind.FUNCTION: {
+                dynFuncName = dyntype.dyntype_new_extref;
+                extObjKind = dyntype.ExtObjKind.ExtFunc;
+                break;
+            }
             case TypeKind.INTERFACE: {
                 dynFuncName = dyntype.dyntype_new_extref;
                 extObjKind = dyntype.ExtObjKind.ExtInfc;
@@ -1117,11 +1122,6 @@ export class WASMExpressionBase {
             case TypeKind.ARRAY: {
                 dynFuncName = dyntype.dyntype_new_extref;
                 extObjKind = dyntype.ExtObjKind.ExtArray;
-                break;
-            }
-            case TypeKind.FUNCTION: {
-                dynFuncName = dyntype.dyntype_new_extref;
-                extObjKind = dyntype.ExtObjKind.ExtFunc;
                 break;
             }
             default: {
@@ -1163,7 +1163,7 @@ export class WASMExpressionBase {
             tmpAddressVar,
             binaryen.i32,
         );
-        if (extObjKind) {
+        if (extObjKind !== undefined) {
             return module.call(
                 dynFuncName,
                 [

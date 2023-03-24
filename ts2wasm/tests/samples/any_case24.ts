@@ -21,4 +21,5 @@ export function anyTest() {
     const var15: any = { b: 2 };
     const var16: any = var14;
     const var17 = var16 as typeof var14;
+    return var17.a;
 }
