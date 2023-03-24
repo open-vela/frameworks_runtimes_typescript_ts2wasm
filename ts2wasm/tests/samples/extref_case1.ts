@@ -10,5 +10,5 @@ export function extrefTest() {
         c: 'hi',
     };
     const objAny: any = obj1;
-    return objAny;
+    return objAny.b as boolean;
 }

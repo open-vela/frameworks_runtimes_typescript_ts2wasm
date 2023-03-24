@@ -14,7 +14,7 @@ const SAMPLES_DIR = path.join(SCRIPT_DIR, '../../../tests/samples');
 const COMPILE_DIR = path.join(SCRIPT_DIR, 'wasm_modules');
 
 if (fs.existsSync(COMPILE_DIR)) {
-    fs.rmdirSync(COMPILE_DIR, { recursive: true })
+    fs.rmSync(COMPILE_DIR, { recursive: true })
 }
 
 fs.mkdirSync(COMPILE_DIR);
@@ -36,8 +36,7 @@ tsFiles.forEach((file) => {
         parserCtx.parse([currentTsFile]);
 
         const backend = new WASMGen(parserCtx);
-        backend.codegen({opt: 3});
-
+        backend.codegen();
         const wasmBuffer = backend.emitBinary();
         fs.writeFileSync(outputFile, wasmBuffer);
     }
