@@ -11,4 +11,3 @@ export function globalVarTest() {
     globalVariable_case2_2 = globalVariable_case2_1;
     return globalVariable_case2_1 == globalVariable_case2_2;
 }
-

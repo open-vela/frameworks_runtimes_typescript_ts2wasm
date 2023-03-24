@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-
 export function varType() {
     vv2 = 3;
     var vv2: number;
