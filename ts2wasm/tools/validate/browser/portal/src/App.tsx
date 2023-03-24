@@ -39,9 +39,6 @@ function App() {
       count++;
       setProg(Math.round(count / validator.validateData.length * 100));
       const item = data.split(' ');
-      if (item[1] == '0') {
-        continue;
-      }
 
       const moduleName = item[0];
       const value = validator.typeConvert(item[2], item[3]);
@@ -50,7 +47,6 @@ function App() {
       for (let i = 5; i < item.length; i += 2) {
         parameters.push(validator.typeConvert(item[i], item[i + 1]));
       }
-
       try {
         let { instance } = await WebAssembly.instantiateStreaming(
           fetch(`./wasm_modules/${moduleName}`), validator.importObject

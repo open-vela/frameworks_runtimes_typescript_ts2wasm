@@ -19,6 +19,7 @@ export function builtInArray() {
     // const e = Array.from(Object.keys(obj))
     // const e2 = Array.from([1, 2])
     // const f = Array.toString();
+    return b;
 }
 
-builtInArray();
+// builtInArray();
