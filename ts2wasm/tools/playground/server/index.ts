@@ -170,7 +170,7 @@ app.post('/compile', (req: Request, res: Response) => {
             const wasmBinary = backend.emitBinary();
 
             backend.dispose();
-            
+
             res.json({
                 content: resultText,
                 wasm: Buffer.from(wasmBinary).toString('base64'),
