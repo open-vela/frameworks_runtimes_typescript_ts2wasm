@@ -11,6 +11,8 @@ import * as monaco from 'monaco-editor';
 import { useEffect, useRef, useState } from "react";
 import TextArea from "antd/es/input/TextArea";
 import { CheckOutlined, CloseOutlined, UserOutlined } from "@ant-design/icons";
+// @ts-ignore
+import { importObject, setWasmMemory } from './libdyntype';
 
 const { Header, Footer, Sider, Content } = Layout;
 
@@ -18,7 +20,11 @@ function App() {
   const editorCountainerRef = useRef(null);
   const editorRef = useRef(null);
   const [result, setResult] = useState<any>();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsModalOpen] = useState(false);
+  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
+  const [currWasmInst, setCurrWasmInst] = useState<WebAssembly.Instance | null>(null);
+  const [selectFunc, setSelectFunc] = useState<string>("");
+  const [params, setParams] = useState<string>("");
 
   const resultCountainerRef = useRef(null);
   const resultRef = useRef(null);
@@ -39,7 +45,7 @@ function App() {
     setIsModalOpen(true);
   };
 
-  const handleOk = async () => {
+  const handleFeedbackOk = async () => {
     if (!userComments) {
       message.error('Please input some content');
       return;
@@ -75,8 +81,12 @@ function App() {
     setIsModalOpen(false);
   };
 
-  const handleCancel = () => {
+  const handleFeedbackCancel = () => {
     setIsModalOpen(false);
+  };
+
+  const handleRunCancel = () => {
+    setIsRunModalOpen(false);
   };
 
   const userInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -87,12 +97,19 @@ function App() {
     setUserComments(e.target.value);
   }
 
+  const handleFuncChange = (value: string) => {
+    setSelectFunc(value);
+  }
+
   const default_ts_code =
     `export function test(x: number, y: number) {
   return x + y;
 }
 `
   const doCompile = async () => {
+    setCurrWasmInst(null);
+    setSelectFunc("");
+    setParams("");
     const payload = JSON.stringify({
       code: (editorRef.current as any).getValue(),
       options: {
@@ -117,6 +134,56 @@ function App() {
 
     message.success(`Successfully built the source code in ${resData.duration / 1000}s`);
     setResult(resData.content);
+
+    const decodedWasmModule = atob(resData.wasm);
+    const wasmBuffer = new Uint8Array([...decodedWasmModule].map((char => char.charCodeAt(0))));
+    console.log(wasmBuffer);
+
+    const wasmModule = await WebAssembly.compile(wasmBuffer);
+    const wasmInstance = await WebAssembly.instantiate(wasmModule, importObject);
+    setCurrWasmInst(wasmInstance);
+    const wasmExports = wasmInstance.exports;
+    Object.keys(wasmExports).forEach((key) => {
+      console.log(key, wasmExports[key]);
+    })
+  }
+
+  const doRun = () => {
+    const wasmExports = currWasmInst!.exports;
+    const func = wasmExports[selectFunc];
+    if (!func) {
+      message.error('Please select a function');
+      return;
+    }
+    setWasmMemory(wasmExports.default);
+
+    const paramsArr = params.split(',')
+      .map((p) => p.trim())
+      .filter((p) => p !== '');
+    if (paramsArr.length !== (func as Function).length) {
+      message.error('Parameter number mismatch');
+      return;
+    }
+
+    const valid = paramsArr.every((p) => {
+      return !isNaN(p as unknown as number)
+    })
+    if (!valid) {
+      message.error('parameter format error');
+      return;
+    }
+
+    try {
+      const result = (func as any)(...paramsArr.map((p) => parseFloat(p)));
+      message.success(`The result is ${result}`);
+    }
+    catch (e) {
+      message.error(`Failed to run the function: ${e}`);
+    }
+  }
+
+  const openRunWindow = () => {
+    setIsRunModalOpen(true);
   }
 
   const toggleOpt = () => {
@@ -125,6 +192,29 @@ function App() {
 
   const handleFormatChange = (value: string) => {
     setResFormat(value);
+  }
+
+  const handleParamChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setParams(e.target.value);
+  }
+
+  const paramPlaceHolder = (wasmInst: WebAssembly.Instance) => {
+    if (!wasmInst) {
+      return "";
+    }
+    const wasmExports = wasmInst.exports;
+    const func = wasmExports[selectFunc] as Function;
+    if (!func) {
+      return "please select a function";
+    }
+
+    let paramStr = `${func.length} args required`;
+
+    if (func.length) {
+      paramStr += `, please separate with ','`
+    }
+
+    return paramStr;
   }
 
   useEffect(() => {
@@ -168,7 +258,7 @@ function App() {
 
   return (
     <div className="container mx-auto h-full">
-      <Modal title="Feedback" open={isModalOpen} onOk={handleOk} onCancel={handleCancel}>
+      <Modal title="Feedback" open={isFeedbackModalOpen} onOk={handleFeedbackOk} onCancel={handleFeedbackCancel}>
         <span>Name:</span>
         <Input
           value={userName}
@@ -186,11 +276,50 @@ function App() {
           rows={4} />
         <br />
       </Modal>
+      <Modal title="Run Wasm Function" open={isRunModalOpen} onCancel={handleRunCancel}
+        footer={[]}>
+        <Row>
+          <Col span={4}>
+            <span className="grow font-mono mt-2">Function:</span>
+          </Col>
+          <Col span={20}>
+            <Select className="ml-5"
+              value={selectFunc}
+              style={{ width: 300 }}
+              onChange={handleFuncChange}
+              options={
+                currWasmInst && Object.keys(currWasmInst!.exports)
+                  .filter((key) => {
+                    /* filter out non-function objects (memory/global/table) */
+                    return typeof currWasmInst!.exports[key] === 'function';
+                  })
+                  .map((f) => {
+                    return { value: f, label: f };
+                  }) || []
+              }
+            />
+          </Col>
+        </Row>
+        <Row className="mt-2">
+          <Col span={4}>
+            <span className="grow font-mono">Parameter:</span>
+          </Col>
+          <Col span={20}>
+            <Input
+              value={params}
+              onChange={handleParamChange}
+              className="ml-5" style={{ width: 300 }}
+              placeholder={paramPlaceHolder(currWasmInst!)}
+            />
+          </Col>
+        </Row>
+        <Button className="mt-2" type="primary" onClick={doRun} disabled={!(currWasmInst && selectFunc)}>Run</Button>
+      </Modal>
       <div className="h-16 bg-sky-500 flex items-center">
         <div className="static flex items-center justify-between">
           <span className="grow font-mono ml-10 h-full text-2xl text-white inline-block align-middle">Ts2wasm Playground</span>
           <div className="absolute mr-10 right-0">
-          <span className="grow font-mono ml-3 h-full text-2 text-white inline-block align-middle">Format: </span>
+            <span className="grow font-mono ml-3 h-full text-2 text-white inline-block align-middle">Format: </span>
             <Select
               className="ml-2"
               defaultValue="S-expression"
@@ -211,6 +340,7 @@ function App() {
               defaultChecked
             />
             <Button className="ml-5" onClick={doCompile}>Compile</Button>
+            <Button className="ml-5 disabled:bg-gray-400" onClick={openRunWindow} disabled={!currWasmInst}>Run</Button>
             <Button className="ml-5 " onClick={showModal}>Feedback</Button>
           </div>
         </div>

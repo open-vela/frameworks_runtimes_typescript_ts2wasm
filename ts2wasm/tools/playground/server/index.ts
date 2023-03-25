@@ -167,8 +167,13 @@ app.post('/compile', (req: Request, res: Response) => {
                 format: payloadJson.options?.format,
             });
 
+            const wasmBinary = backend.emitBinary();
+
+            backend.dispose();
+            
             res.json({
                 content: resultText,
+                wasm: Buffer.from(wasmBinary).toString('base64'),
                 duration: Date.now() - startTime,
             });
         } catch {
