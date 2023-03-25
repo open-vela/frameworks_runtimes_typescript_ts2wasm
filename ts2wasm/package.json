@@ -12,14 +12,15 @@
     "postinstall": "npm run setup-hooks",
     "compile": "",
     "pretest": "npm run compile",
-    "test": "mocha",
+    "test": "npm run build:stdlib && mocha",
     "test:integration": "mocha tests/integration/*.test.ts",
     "test:samples": "mocha tests/samples/*.test.ts",
     "test:unit": "mocha 'tests/unit/*.test.ts'",
     "cover": "c8 npm run test:unit",
     "lint": "npx lint-staged",
     "setup-hooks": "ts-node-esm scripts/link_hooks.ts",
-    "build": "rm -rf lib/builtin/watFile/ && ts-node-esm lib/builtin/initBuiltInAPI.ts && ts-node-esm lib/builtin/initBuiltInTS.ts && npx tsc && cp -r lib/builtin/watFile/ build/lib/builtin/ && cp -r ./lib/interface-lib ./build/lib/"
+    "build": "npm run build:stdlib && npx tsc && cp -r lib/builtin/watFile/ build/lib/builtin/ && cp -r ./lib/interface-lib ./build/lib/",
+    "build:stdlib": "rm -rf lib/builtin/watFile/ && ts-node-esm lib/builtin/initBuiltInAPI.ts && ts-node-esm lib/builtin/initBuiltInTS.ts"
   },
   "repository": {
     "type": "git",
