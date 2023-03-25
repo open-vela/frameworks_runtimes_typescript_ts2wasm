@@ -495,7 +495,7 @@ export class WASMStatementGen {
                     module.addGlobalImport(
                         globalVar.mangledName,
                         BuiltinNames.external_module_name,
-                        globalVar.mangledName,
+                        globalVar.varName,
                         varTypeRef,
                     );
                     continue;

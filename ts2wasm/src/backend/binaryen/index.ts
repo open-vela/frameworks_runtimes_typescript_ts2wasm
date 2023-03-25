@@ -666,11 +666,16 @@ export class WASMGen extends Ts2wasmBackend {
         const returnWASMType =
             this.wasmTypeCompiler.getWASMFuncReturnType(tsFuncType);
 
+        let importName = functionScope.funcName;
+        if (functionScope.className) {
+            importName = `${functionScope.className}_${importName}`;
+        }
+
         if (functionScope.isDeclare()) {
             this.module.addFunctionImport(
                 functionScope.mangledName,
                 BuiltinNames.external_module_name,
-                functionScope.mangledName,
+                importName,
                 originParamWasmType,
                 returnWASMType,
             );
