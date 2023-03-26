@@ -2857,7 +2857,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 }
             }
             default: {
-                throw Error('Not implemented other type cast');
+                throw Error(`Static type doesn't support type assertion`);
             }
         }
     }
