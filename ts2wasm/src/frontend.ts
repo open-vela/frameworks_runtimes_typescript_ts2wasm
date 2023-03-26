@@ -94,9 +94,9 @@ export class ParserContext {
                     },
                 },
             );
-            console.log(formattedError);
+
             this._errorMessage = allDiagnostics as ts.Diagnostic[];
-            throw new SyntaxError('Syntax error in source file.');
+            throw new SyntaxError(formattedError);
         }
 
         const sourceFileList = program
