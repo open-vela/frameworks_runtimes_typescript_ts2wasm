@@ -2746,6 +2746,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
                                 propName,
                                 FunctionKind.GETTER,
                             );
+                            if (method.index === -1) {
+                                throw Error(
+                                    `${propName} property does not exist on interface ${tsType}`,
+                                );
+                            }
                             dynFieldIndex = this.findItableIndex(
                                 ref,
                                 propName,
@@ -2761,11 +2766,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
                                 infcType,
                                 method.method!.type,
                             );
-                            if (method.index === -1) {
-                                throw Error(
-                                    `${propName} property does not exist on ${tsType}`,
-                                );
-                            }
                         }
                     }
                     break;
