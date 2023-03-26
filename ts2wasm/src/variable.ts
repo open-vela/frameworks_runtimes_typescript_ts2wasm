@@ -5,7 +5,7 @@
 
 import ts from 'typescript';
 import { Expression } from './expression.js';
-import { FunctionKind, Type } from './type.js';
+import { FunctionKind, TSFunction, Type } from './type.js';
 import { ParserContext } from './frontend.js';
 import {
     Stack,
@@ -341,7 +341,19 @@ export class VariableScanner {
                 const typeName = this.typechecker!.typeToString(
                     this.typechecker!.getTypeAtLocation(node),
                 );
-                const variableType = currentScope.findType(typeName);
+                let variableType = currentScope.findType(typeName);
+
+                /* Sometimes the variable's type is inferred as a TSFunction with
+                    isDeclare == true, we need to treat it as non declare function
+                    here to keep the same calling convention for closure */
+                if (
+                    variableType instanceof TSFunction &&
+                    variableType.isDeclare
+                ) {
+                    variableType = variableType.clone();
+                    (variableType as TSFunction).isDeclare = false;
+                }
+
                 const variable = new Variable(
                     variableName,
                     variableType!,
