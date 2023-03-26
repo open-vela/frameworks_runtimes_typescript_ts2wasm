@@ -335,6 +335,17 @@ export class TSFunction extends Type {
     set isStatic(value: boolean) {
         this._isStatic = value;
     }
+
+    public clone(): TSFunction {
+        const func = new TSFunction(this.funcKind);
+        func.returnType = this.returnType;
+        func.parameterTypes = this.parameterTypes;
+        func.hasRestParameter = this.hasRestParameter;
+        func.isMethod = this.isMethod;
+        func.isDeclare = this.isDeclare;
+        func.isStatic = this.isStatic;
+        return func;
+    }
 }
 
 export default class TypeResolver {

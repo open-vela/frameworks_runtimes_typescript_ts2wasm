@@ -6,7 +6,7 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
-import { FunctionKind, TSClass } from '../../type.js';
+import { FunctionKind, TSFunction, TSClass } from '../../type.js';
 import { builtinTypes, Type, TypeKind } from '../../type.js';
 import { Variable } from '../../variable.js';
 import {
@@ -948,5 +948,52 @@ export class WASMGen extends Ts2wasmBackend {
             this.module.block(null, this.globalInitArray),
         );
         this.globalInitArray = [];
+    }
+
+    /* Generate a wrapper function for declared (import) function,
+        this is used when creating closure for declared function */
+    public generateImportWrapper(funcScope: FunctionScope) {
+        const importFuncType = funcScope.funcType;
+        const wrappedName = `${funcScope.mangledName}@wrapper`;
+        const wrapperFuncType = importFuncType.clone();
+        wrapperFuncType.isDeclare = false;
+        const paramWASMType =
+            this.wasmType.getWASMFuncParamType(wrapperFuncType);
+        const returnWASMType =
+            this.wasmType.getWASMFuncReturnType(wrapperFuncType);
+
+        if (this.module.getFunction(wrappedName)) {
+            return {
+                wrapperName: wrappedName,
+                wrapperType: wrapperFuncType,
+            };
+        }
+
+        const paramStmts: binaryen.ExpressionRef[] = [];
+        importFuncType.getParamTypes().forEach((p, i) => {
+            paramStmts.push(
+                /* first parameter is context, ignore it */
+                this.module.local.get(i + 1, this.wasmType.getWASMType(p)),
+            );
+        });
+        const targetCall = this.module.call(
+            funcScope.mangledName,
+            paramStmts,
+            returnWASMType,
+        );
+
+        // add export function
+        this.module.addFunction(
+            wrappedName,
+            paramWASMType,
+            returnWASMType,
+            [],
+            targetCall,
+        );
+
+        return {
+            wrapperName: wrappedName,
+            wrapperType: wrapperFuncType,
+        };
     }
 }

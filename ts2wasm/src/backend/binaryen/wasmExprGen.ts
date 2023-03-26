@@ -2865,19 +2865,23 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private WASMFuncExpr(expr: FunctionExpression): binaryen.ExpressionRef {
         const funcScope = expr.funcScope;
         const parentScope = funcScope.parent;
-        const wasmFuncType = this.wasmType.getWASMType(funcScope.funcType);
+        let funcName = funcScope.mangledName;
+        let funcType = funcScope.funcType;
 
-        /** if function is declare, we don't need to create context */
+        /** if function is declare,
+         *  we create a wrapper function to keep the same calling convention */
         if (funcScope.isDeclare()) {
-            return this.module.ref.func(funcScope.mangledName, wasmFuncType);
+            const { wrapperName, wrapperType } =
+                this.wasmCompiler.generateImportWrapper(funcScope);
+            funcName = wrapperName;
+            funcType = wrapperType;
         }
 
-        const funcStructHeapType = this.wasmType.getWASMFuncStructHeapType(
-            funcScope.funcType,
-        );
-        const funcStructType = this.wasmType.getWASMFuncStructType(
-            funcScope.funcType,
-        );
+        const wasmFuncType = this.wasmType.getWASMType(funcType);
+
+        const funcStructHeapType =
+            this.wasmType.getWASMFuncStructHeapType(funcType);
+        const funcStructType = this.wasmType.getWASMFuncStructType(funcType);
         let context = binaryenCAPI._BinaryenRefNull(
             this.module.ptr,
             emptyStructType.typeRef,
@@ -2892,8 +2896,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
             );
         }
         const closureVar = new Variable(
-            `@closure|${funcScope.mangledName}`,
-            funcScope.funcType,
+            `@closure|${funcName}`,
+            funcType,
             [],
             -1,
             true,
@@ -2902,10 +2906,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
         const closureRef = binaryenCAPI._BinaryenStructNew(
             this.module.ptr,
-            arrayToPtr([
-                context,
-                this.module.ref.func(funcScope.mangledName, wasmFuncType),
-            ]).ptr,
+            arrayToPtr([context, this.module.ref.func(funcName, wasmFuncType)])
+                .ptr,
             2,
             funcStructHeapType,
         );
@@ -2982,37 +2984,43 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 expr.callArgs,
                 callWasmArgs,
             );
+            if (!funcScope.isDeclare()) {
+                /* Only add context to non-declare functions */
+                callWasmArgs = [context, ...callWasmArgs];
+            }
             return this.module.call(
                 funcScope.mangledName,
-                [context, ...callWasmArgs],
+                callWasmArgs,
                 this.wasmType.getWASMFuncReturnType(funcType),
             );
         } else {
+            /* Call closure */
             callWasmArgs = this._generateInfcArgs(
                 paramTypes,
                 expr.callArgs,
                 callWasmArgs,
             );
-            if (!funcType.isDeclare) {
-                const closureRef = funcRef;
-                const closureType =
-                    binaryenCAPI._BinaryenExpressionGetType(closureRef);
-                context = binaryenCAPI._BinaryenStructGet(
-                    this.module.ptr,
-                    0,
-                    closureRef,
-                    closureType,
-                    false,
-                );
-                funcRef = binaryenCAPI._BinaryenStructGet(
-                    this.module.ptr,
-                    1,
-                    closureRef,
-                    closureType,
-                    false,
-                );
-                callWasmArgs.unshift(context);
-            }
+
+            /* Extract context and funcref from closure */
+            const closureRef = funcRef;
+            const closureType =
+                binaryenCAPI._BinaryenExpressionGetType(closureRef);
+            context = binaryenCAPI._BinaryenStructGet(
+                this.module.ptr,
+                0,
+                closureRef,
+                closureType,
+                false,
+            );
+            funcRef = binaryenCAPI._BinaryenStructGet(
+                this.module.ptr,
+                1,
+                closureRef,
+                closureType,
+                false,
+            );
+            callWasmArgs.unshift(context);
+
             return binaryenCAPI._BinaryenCallRef(
                 this.module.ptr,
                 funcRef,
