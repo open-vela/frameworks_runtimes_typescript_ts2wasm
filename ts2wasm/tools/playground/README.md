@@ -30,4 +30,4 @@ docker-compose up -d --build
 docker inspect playground_ts2wasm-data
 ```
 
-Get the Mountpoint of the volumn, and use any sqlite3 compatible tool to inspect the database file.
+Get the Mountpoint of the volumn, and use any sqlite3 compatible tool to inspect the database file `feedback.sqlite`.

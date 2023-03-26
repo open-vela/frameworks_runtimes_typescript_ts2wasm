@@ -19,7 +19,8 @@ const { Header, Footer, Sider, Content } = Layout;
 function App() {
   const editorCountainerRef = useRef(null);
   const editorRef = useRef(null);
-  const [result, setResult] = useState<any>();
+  const [wasmText, setWasmText] = useState<any>();
+  const [wasmBuffer, setWasmBuffer] = useState<any>();
   const [isFeedbackModalOpen, setIsModalOpen] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [currWasmInst, setCurrWasmInst] = useState<WebAssembly.Instance | null>(null);
@@ -33,6 +34,17 @@ function App() {
   const [userComments, setUserComments] = useState("");
   const [opt, setOpt] = useState(true);
   const [resFormat, setResFormat] = useState("S-expression");
+  const [sampleList, setSampleList] = useState([]);
+
+  useEffect(() => {
+    fetch(serverUrl + `/samples`)
+      .then((response) => {
+        return response.json()
+      })
+      .then((data: any) => {
+        setSampleList(data);
+      })
+  }, [])
 
   const serverUrl = "http://" + import.meta.env.VITE_SERVER_IP
     + ":" + import.meta.env.VITE_SERVER_PORT;
@@ -127,25 +139,18 @@ function App() {
     });
     const resData = await response.json();
     if (resData.error) {
-      setResult(resData.error);
+      setWasmText(resData.error);
       message.error('Failed to build the source code');
       return;
     }
 
     message.success(`Successfully built the source code in ${resData.duration / 1000}s`);
-    setResult(resData.content);
+    setWasmText(resData.content);
 
     const decodedWasmModule = atob(resData.wasm);
     const wasmBuffer = new Uint8Array([...decodedWasmModule].map((char => char.charCodeAt(0))));
-    console.log(wasmBuffer);
 
-    const wasmModule = await WebAssembly.compile(wasmBuffer);
-    const wasmInstance = await WebAssembly.instantiate(wasmModule, importObject);
-    setCurrWasmInst(wasmInstance);
-    const wasmExports = wasmInstance.exports;
-    Object.keys(wasmExports).forEach((key) => {
-      console.log(key, wasmExports[key]);
-    })
+    setWasmBuffer(wasmBuffer);
   }
 
   const doRun = () => {
@@ -182,7 +187,17 @@ function App() {
     }
   }
 
-  const openRunWindow = () => {
+  const openRunWindow = async () => {
+    try {
+      const wasmModule = await WebAssembly.compile(wasmBuffer);
+      const wasmInstance = await WebAssembly.instantiate(wasmModule, importObject);
+      setCurrWasmInst(wasmInstance);
+    }
+    catch (e) {
+      message.error(`Failed to instantiate wasm module: ${e}`);
+      return;
+    }
+
     setIsRunModalOpen(true);
   }
 
@@ -192,6 +207,13 @@ function App() {
 
   const handleFormatChange = (value: string) => {
     setResFormat(value);
+  }
+
+  const handleSampleChange = async (value: string) => {
+    const resp = await fetch(serverUrl + `/samples/${value}`);
+    const code = await resp.text();
+
+    (editorRef.current as any).setValue(code);
   }
 
   const handleParamChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -251,10 +273,10 @@ function App() {
   }, [resultCountainerRef])
 
   useEffect(() => {
-    if (result && resultRef.current) {
-      (resultRef.current as any).setValue(result);
+    if (wasmText && resultRef.current) {
+      (resultRef.current as any).setValue(wasmText);
     }
-  }, [result])
+  }, [wasmText])
 
   return (
     <div className="container mx-auto h-full">
@@ -319,6 +341,17 @@ function App() {
         <div className="static flex items-center justify-between">
           <span className="grow font-mono ml-10 h-full text-2xl text-white inline-block align-middle">Ts2wasm Playground</span>
           <div className="absolute mr-10 right-0">
+            <span className="grow font-mono ml-3 h-full text-2 text-white inline-block align-middle">Samples: </span>
+            <Select
+              className="ml-2"
+              style={{ width: 200 }}
+              onChange={handleSampleChange}
+              options={
+                sampleList?.map((sample) => {
+                  return { value: sample, label: sample };
+                }) || []
+              }
+            />
             <span className="grow font-mono ml-3 h-full text-2 text-white inline-block align-middle">Format: </span>
             <Select
               className="ml-2"
@@ -340,7 +373,7 @@ function App() {
               defaultChecked
             />
             <Button className="ml-5" onClick={doCompile}>Compile</Button>
-            <Button className="ml-5 disabled:bg-gray-400" onClick={openRunWindow} disabled={!currWasmInst}>Run</Button>
+            <Button className="ml-5 disabled:bg-gray-400" onClick={openRunWindow} disabled={!wasmBuffer}>Run</Button>
             <Button className="ml-5 " onClick={showModal}>Feedback</Button>
           </div>
         </div>
