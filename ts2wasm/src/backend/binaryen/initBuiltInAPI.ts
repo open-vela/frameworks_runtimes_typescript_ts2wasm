@@ -4,84 +4,216 @@
  */
 
 import binaryen from 'binaryen';
-import * as binaryenCAPI from '../../src/backend/binaryen/glue/binaryen.js';
-import { BuiltinNames } from './builtinUtil.js';
-import { generateWatFile, getFuncName } from './utils.js';
-import { emptyStructType } from '../../src/backend/binaryen/glue/transform.js';
-import { dyntype } from '../dyntype/utils.js';
+import ts from 'typescript';
+import * as binaryenCAPI from './glue/binaryen.js';
+import { BuiltinNames } from '../../../lib/builtin/builtInName.js';
+import { generateWatFile, getFuncName } from '../../../lib/builtin/utils.js';
+import { emptyStructType } from './glue/transform.js';
+import { flattenLoopStatement, FlattenLoop } from './utils.js';
+import { dyntype } from '../../../lib/dyntype/utils.js';
 import {
     importAnyLibAPI,
     generateGlobalContext,
     generateInitDynContext,
     generateFreeDynContext,
-} from '../envInit.js';
-import { arrayToPtr } from '../../src/backend/binaryen/glue/transform.js';
+} from '../../../lib/envInit.js';
+import { arrayToPtr } from './glue/transform.js';
 import {
     charArrayTypeInfo,
+    stringArrayTypeInfo,
     stringTypeInfo,
-} from '../../src/backend/binaryen/glue/packType.js';
+} from './glue/packType.js';
 
 function string_concat(module: binaryen.Module) {
-    const strStruct1 = module.local.get(1, stringTypeInfo.typeRef);
-    const strStruct2 = module.local.get(2, stringTypeInfo.typeRef);
-    const strArray1 = binaryenCAPI._BinaryenStructGet(
+    /** Args: context, this, string[] */
+    const thisStrStructIdx = 1;
+    const paramStrArrayIdx = 2;
+    /** Locals: totalLen, for_i(i32), newStrArrayIdx(char_array), copyCurLenIdx(i32) */
+    const totalLenIdx = 3;
+    const for_i_Idx = 4;
+    const newStrArrayIdx = 5;
+    const copyCurLenIdx = 6;
+    /** structure index information */
+    const arrayIdxInStruct = 1;
+    const thisStrStruct = module.local.get(
+        thisStrStructIdx,
+        stringTypeInfo.typeRef,
+    );
+    const paramStrArray = module.local.get(
+        paramStrArrayIdx,
+        stringArrayTypeInfo.typeRef,
+    );
+    const thisStrArray = binaryenCAPI._BinaryenStructGet(
         module.ptr,
-        1,
-        strStruct1,
+        arrayIdxInStruct,
+        thisStrStruct,
         charArrayTypeInfo.typeRef,
         false,
     );
-    const strArray2 = binaryenCAPI._BinaryenStructGet(
+    const thisStrLen = binaryenCAPI._BinaryenArrayLen(module.ptr, thisStrArray);
+    const paramStrArrayLen = binaryenCAPI._BinaryenArrayLen(
         module.ptr,
-        1,
-        strStruct2,
-        charArrayTypeInfo.typeRef,
-        false,
+        paramStrArray,
     );
-    const str1Len = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray1);
-    const str2Len = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray2);
-    const statementArray: binaryen.ExpressionRef[] = [];
-    const newStrLen = module.i32.add(str1Len, str2Len);
-    const newStrArrayIndex = 3;
-    const newStrArrayType = charArrayTypeInfo.typeRef;
-    const newStrArrayStatement = module.local.set(
-        newStrArrayIndex,
-        binaryenCAPI._BinaryenArrayNew(
+
+    const getStringArrayFromRestParams = (module: binaryen.Module) => {
+        return binaryenCAPI._BinaryenStructGet(
             module.ptr,
-            charArrayTypeInfo.heapTypeRef,
-            newStrLen,
-            module.i32.const(0),
+            arrayIdxInStruct,
+            binaryenCAPI._BinaryenArrayGet(
+                module.ptr,
+                module.local.get(paramStrArrayIdx, stringArrayTypeInfo.typeRef),
+                module.local.get(for_i_Idx, binaryen.i32),
+                stringTypeInfo.typeRef,
+                false,
+            ),
+            charArrayTypeInfo.typeRef,
+            false,
+        );
+    };
+
+    const statementArray: binaryen.ExpressionRef[] = [];
+    /** 1. get total str length */
+    statementArray.push(module.local.set(totalLenIdx, thisStrLen));
+    const for_label_1 = 'for_loop_1_block';
+    const for_init_1 = module.local.set(for_i_Idx, module.i32.const(0));
+    const for_condition_1 = module.i32.lt_u(
+        module.local.get(for_i_Idx, binaryen.i32),
+        paramStrArrayLen,
+    );
+    const for_incrementor_1 = module.local.set(
+        for_i_Idx,
+        module.i32.add(
+            module.local.get(for_i_Idx, binaryen.i32),
+            module.i32.const(1),
         ),
     );
-    const arrayCopyStatement1 = binaryenCAPI._BinaryenArrayCopy(
-        module.ptr,
-        module.local.get(newStrArrayIndex, newStrArrayType),
-        module.i32.const(0),
-        strArray1,
-        module.i32.const(0),
-        str1Len,
+    const for_body_1 = module.local.set(
+        totalLenIdx,
+        module.i32.add(
+            module.local.get(totalLenIdx, binaryen.i32),
+            binaryenCAPI._BinaryenArrayLen(
+                module.ptr,
+                getStringArrayFromRestParams(module),
+            ),
+        ),
     );
-    const arrayCopyStatement2 = binaryenCAPI._BinaryenArrayCopy(
-        module.ptr,
-        module.local.get(newStrArrayIndex, newStrArrayType),
-        str1Len,
-        strArray2,
-        module.i32.const(0),
-        str2Len,
+
+    const flattenLoop_1: FlattenLoop = {
+        label: for_label_1,
+        condition: for_condition_1,
+        statements: for_body_1,
+        incrementor: for_incrementor_1,
+    };
+    statementArray.push(for_init_1);
+    statementArray.push(
+        module.loop(
+            for_label_1,
+            flattenLoopStatement(
+                flattenLoop_1,
+                ts.SyntaxKind.ForStatement,
+                module,
+            ),
+        ),
     );
-    const newStrStruct = binaryenCAPI._BinaryenStructNew(
-        module.ptr,
-        arrayToPtr([
+
+    /** 2. generate new string */
+    statementArray.push(
+        module.local.set(
+            newStrArrayIdx,
+            binaryenCAPI._BinaryenArrayNew(
+                module.ptr,
+                charArrayTypeInfo.heapTypeRef,
+                module.local.get(totalLenIdx, binaryen.i32),
+                module.i32.const(0),
+            ),
+        ),
+    );
+
+    /** 3. traverse paramStrArray, do copy */
+    statementArray.push(
+        binaryenCAPI._BinaryenArrayCopy(
+            module.ptr,
+            module.local.get(newStrArrayIdx, charArrayTypeInfo.typeRef),
             module.i32.const(0),
-            module.local.get(newStrArrayIndex, newStrArrayType),
-        ]).ptr,
-        2,
-        stringTypeInfo.heapTypeRef,
+            thisStrArray,
+            module.i32.const(0),
+            thisStrLen,
+        ),
     );
-    statementArray.push(newStrArrayStatement);
-    statementArray.push(arrayCopyStatement1);
-    statementArray.push(arrayCopyStatement2);
-    statementArray.push(module.return(newStrStruct));
+    statementArray.push(module.local.set(copyCurLenIdx, thisStrLen));
+
+    const for_label_2 = 'for_loop_2_block';
+    const for_init_2 = module.local.set(for_i_Idx, module.i32.const(0));
+    const for_condition_2 = module.i32.lt_u(
+        module.local.get(for_i_Idx, binaryen.i32),
+        paramStrArrayLen,
+    );
+    const for_incrementor_2 = module.local.set(
+        for_i_Idx,
+        module.i32.add(
+            module.local.get(for_i_Idx, binaryen.i32),
+            module.i32.const(1),
+        ),
+    );
+    const for_body_2 = module.block(null, [
+        binaryenCAPI._BinaryenArrayCopy(
+            module.ptr,
+            module.local.get(newStrArrayIdx, charArrayTypeInfo.typeRef),
+            module.local.get(copyCurLenIdx, binaryen.i32),
+            getStringArrayFromRestParams(module),
+            module.i32.const(0),
+            binaryenCAPI._BinaryenArrayLen(
+                module.ptr,
+                getStringArrayFromRestParams(module),
+            ),
+        ),
+        module.local.set(
+            copyCurLenIdx,
+            module.i32.add(
+                module.local.get(copyCurLenIdx, binaryen.i32),
+                binaryenCAPI._BinaryenArrayLen(
+                    module.ptr,
+                    getStringArrayFromRestParams(module),
+                ),
+            ),
+        ),
+    ]);
+
+    const flattenLoop_2: FlattenLoop = {
+        label: for_label_2,
+        condition: for_condition_2,
+        statements: for_body_2,
+        incrementor: for_incrementor_2,
+    };
+    statementArray.push(for_init_2);
+    statementArray.push(
+        module.loop(
+            for_label_2,
+            flattenLoopStatement(
+                flattenLoop_2,
+                ts.SyntaxKind.ForStatement,
+                module,
+            ),
+        ),
+    );
+
+    /** 4. generate new string structure */
+    statementArray.push(
+        module.return(
+            binaryenCAPI._BinaryenStructNew(
+                module.ptr,
+                arrayToPtr([
+                    module.i32.const(0),
+                    module.local.get(newStrArrayIdx, charArrayTypeInfo.typeRef),
+                ]).ptr,
+                2,
+                stringTypeInfo.heapTypeRef,
+            ),
+        ),
+    );
+
+    /** 5. generate block, return block */
     const concatBlock = module.block('concat', statementArray);
     return concatBlock;
 }
@@ -241,10 +373,10 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         binaryen.createType([
             emptyStructType.typeRef,
             stringTypeInfo.typeRef,
-            stringTypeInfo.typeRef,
+            stringArrayTypeInfo.typeRef,
         ]),
         stringTypeInfo.typeRef,
-        [charArrayTypeInfo.typeRef],
+        [binaryen.i32, binaryen.i32, charArrayTypeInfo.typeRef, binaryen.i32],
         string_concat(module),
     );
     module.addFunction(

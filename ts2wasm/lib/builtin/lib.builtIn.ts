@@ -3,6 +3,29 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
+export declare class console {
+    static log(...values: any[]): void;
+}
+
+export class Array {
+    @binaryen
+    static isArray(x: any): boolean {
+        return Array.isArray(x);
+    }
+}
+
+export class String {
+    @binaryen
+    concat(...strings: string[]): string {
+        return 'concat';
+    }
+
+    @binaryen
+    slice(start?: number, end?: number): string {
+        return 'slice';
+    }
+}
+
 export class Math {
     static pow(x: number, y: number): number {
         let res = 1;

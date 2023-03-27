@@ -22,7 +22,7 @@ import {
     importFunctionInfo,
 } from './utils.js';
 import { Variable } from './variable.js';
-import { BuiltinNames } from '../lib/builtin/builtinUtil.js';
+import { BuiltinNames } from '../lib/builtin/builtInName.js';
 import { TSClass, Type } from './type.js';
 
 type StatementKind = ts.SyntaxKind;
