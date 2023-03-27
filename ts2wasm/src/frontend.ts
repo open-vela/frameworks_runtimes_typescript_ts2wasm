@@ -21,6 +21,7 @@ import path from 'path';
 import { Logger } from './log.js';
 import { SyntaxError } from './error.js';
 import SematicCheck from './sematicCheck.js';
+import { ArgNames, BuiltinNames } from '../lib/builtin/builtInName.js';
 
 export interface CompileArgs {
     [key: string]: any;
@@ -35,11 +36,12 @@ export const COMPILER_OPTIONS: ts.CompilerOptions = {
     skipDefaultLibCheck: true,
     types: [],
     experimentalDecorators: true,
+    noLib: true,
 };
 
 export class ParserContext {
     private scopeScanner;
-    private typeCompiler;
+    private _typeResolver;
     private _sematicChecker;
     private variableScanner;
     private variableInit;
@@ -58,10 +60,19 @@ export class ParserContext {
 
     // configurations
     compileArgs: CompileArgs = {};
+    builtInPath = path.join(
+        path.dirname(fileURLToPath(import.meta.url)),
+        '..',
+        'lib',
+        'builtin',
+    );
+    builtInFileNames = BuiltinNames.builtInFileNames.map((builtInFileName) => {
+        return path.join(this.builtInPath, builtInFileName);
+    });
 
     constructor() {
         this.scopeScanner = new ScopeScanner(this);
-        this.typeCompiler = new TypeResolver(this);
+        this._typeResolver = new TypeResolver(this);
         this._sematicChecker = new SematicCheck();
         this.variableScanner = new VariableScanner(this);
         this.variableInit = new VariableInit(this);
@@ -70,13 +81,17 @@ export class ParserContext {
     }
 
     parse(fileNames: string[], compileArgs: CompileArgs = {}): void {
+        this.compileArgs = compileArgs;
         const compilerOptions: ts.CompilerOptions = this.getCompilerOptions();
+        let rootNames = [...fileNames];
+        if (!compileArgs[ArgNames.disableBuiltIn]) {
+            rootNames = [...this.builtInFileNames, ...fileNames];
+        }
         const program: ts.Program = ts.createProgram(
-            fileNames,
+            rootNames,
             compilerOptions,
         );
         this.typeChecker = program.getTypeChecker();
-        this.compileArgs = compileArgs;
 
         const allDiagnostics = ts.getPreEmitDiagnostics(program);
         if (allDiagnostics.length > 0) {
@@ -99,17 +114,27 @@ export class ParserContext {
             throw new SyntaxError(formattedError);
         }
 
-        const sourceFileList = program
-            .getSourceFiles()
-            .filter(
-                (sourceFile: ts.SourceFile) =>
-                    !sourceFile.fileName.match(/\.d\.ts$/),
-            );
+        const sourceFileList = Array.from(program.getSourceFiles());
 
         /* Step1: Resolve all scopes */
         this.scopeScanner.visit(sourceFileList);
         /* Step2: Resolve all type declarations */
-        this.typeCompiler.visit();
+        this._typeResolver.visit();
+        /* User scope must import the standard library module manually */
+        if (!compileArgs[ArgNames.disableBuiltIn]) {
+            const builtInScope = this.globalScopeStack.getItemAtIdx(1);
+            for (
+                let i = this.builtInFileNames.length;
+                i < this.globalScopeStack.size();
+                i++
+            ) {
+                for (const builtInIdentifier of BuiltinNames.builtInIdentifierArray) {
+                    this.globalScopeStack
+                        .getItemAtIdx(i)
+                        .addImportIdentifier(builtInIdentifier, builtInScope);
+                }
+            }
+        }
         /* Step3: Add variables to scopes */
         this.variableScanner.visit();
         this.variableInit.visit();
@@ -144,8 +169,8 @@ export class ParserContext {
         return res;
     }
 
-    get typeComp() {
-        return this.typeCompiler;
+    get typeResolver() {
+        return this._typeResolver;
     }
 
     get expressionCompiler(): ExpressionCompiler {

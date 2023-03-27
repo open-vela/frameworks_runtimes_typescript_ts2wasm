@@ -77,11 +77,11 @@ function App() {
           error: `instantiate failed: ${e}`
         })
       }
+      setErrorsMap(errors);
     }
 
     setTotalFailed(failed);
     setPassRatio(Math.round((totalFiles - failed) / totalFiles * 100))
-    setErrorsMap(errors);
     setShowRatio(true);
     setCurrentModule('');
   }

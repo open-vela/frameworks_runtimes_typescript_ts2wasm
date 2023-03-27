@@ -215,6 +215,7 @@ export const importObject = {
             /** TODO: cant log reference type variable */
             console.log(obj);
         },
+        console_constructor: (obj) => {},
         strcmp(a, b) {
             return a == b;
         },
@@ -355,7 +356,7 @@ export const validateData = [
     'closure_case2.wasm 1 1 2 closureTest',
     'closure_case3.wasm 1 1 10 closureTest',
     'closure_case4.wasm 1 1 1 closureTest',
-    'closure_case5.wasm 0 1 1 ClosureTest',
+    'closure_case5.wasm 0 1 1 closureTest',
     'closure_case6.wasm 1 1 3 closureTest',
     'closure_case7.wasm 0 1 3 closureTest',
     'closure_case8.wasm 1 1 21 firstClassFuncTest',
@@ -372,7 +373,7 @@ export const validateData = [
     'do_statement_case4.wasm 1 1 16 doTest',
     'do_statement_case5.wasm 1 1 16 doTest',
     'export_case1.wasm 0 0 0 exportTest',
-    'export_case2.wasm 0 0 0 exportTest',
+    'export_case2.wasm 0 0 0 theDefault',
     'extref_case1.wasm 1 0 1 extrefTest',
     'extref_case2.wasm 1 1 1 extrefTest',
     'extref_case3.wasm 1 2 hi extrefTest',
@@ -389,7 +390,7 @@ export const validateData = [
     'for_statement_case6.wasm 1 1 115 forTest',
     'for_statement_case7.wasm 1 1 4905 forTest',
     'function_declaration_case1.wasm 1 1 10 functionTest 1 2 1 8',
-    'function_declaration_case2.wasm 1 1 3 functionTest',
+    'function_declaration_case2.wasm 1 1 3 functionTest 1 1 1 2',
     'function_declaration_case3.wasm 1 1 1 functionTest',
     'function_declaration_case4.wasm 1 1 106.5 functionTest 1 100 1 6.5',
     'function_declaration_case5.wasm 1 1 5 functionTest',
@@ -415,7 +416,7 @@ export const validateData = [
     'import_case4.wasm 0 0 0 impExpTest',
     'import_case5.wasm 1 1 2 print2',
     'infc_case1.wasm 1 1 1 infc1',
-    'infc_case2.wasm 1 0 0 infc2',
+    'infc_case2.wasm 1 0 1 infc2',
     'infc_case3.wasm 1 1 10 infc3',
     'infc_case4.wasm 1 0 1 infc4',
     'infc_case5.wasm 1 1 10 infc5',
@@ -454,7 +455,7 @@ export const validateData = [
     'primitiveType_case1.wasm 1 1 3 primitiveTest',
     'primitiveType_case2.wasm 1 1 6 primitiveTest',
     'prototype_case1.wasm 0 0 0 protoTest',
-    'prototype_case2.wasm 0 0 0 protoTest',
+    'prototype_case2.wasm 0 0 1 protoTest',
     'rest_parameter_case1.wasm 1 1 47 restParameterTest',
     'rest_parameter_case2.wasm 0 0 0 restParameterTest',
     'return_case1.wasm 1 1 110 returnTest1',

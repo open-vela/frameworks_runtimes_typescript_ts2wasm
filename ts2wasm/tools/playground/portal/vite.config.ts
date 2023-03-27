@@ -18,7 +18,7 @@ export default defineConfig(({ command, mode }) => {
         },
         build: {
             sourcemap: 'inline',
-        }
+        },
     };
 
     if (command !== 'build') {

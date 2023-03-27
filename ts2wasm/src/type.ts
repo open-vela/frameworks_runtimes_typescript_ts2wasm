@@ -518,7 +518,7 @@ export default class TypeResolver {
             const tsType = this.nodeTypeCache.get(decl);
             if (!tsType) {
                 throw new Error(
-                    `class/interface not found, type name <' + ${type.symbol.name} + '>`,
+                    `class/interface not found, type name <${type.symbol.name}>. `,
                 );
             }
             return tsType;
@@ -864,6 +864,13 @@ export default class TypeResolver {
         const fieldTypeStrs: string[] = [];
 
         node.members.map((member) => {
+            /** Currently, we only handle PropertySignature and MethodSignature */
+            if (
+                member.kind !== ts.SyntaxKind.PropertySignature &&
+                member.kind !== ts.SyntaxKind.MethodSignature
+            ) {
+                return;
+            }
             let fieldType = this.generateNodeType(member);
             const typeString = this.typeToString(member);
             let funcKind = FunctionKind.METHOD;

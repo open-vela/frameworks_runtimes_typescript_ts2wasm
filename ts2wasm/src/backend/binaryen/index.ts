@@ -26,7 +26,7 @@ import {
     NamespaceScope,
 } from '../../scope.js';
 import { Stack } from '../../utils.js';
-import { GLOBAL_INIT_FUNC, typeInfo } from './glue/utils.js';
+import { typeInfo } from './glue/utils.js';
 import {
     importAnyLibAPI,
     importInfcLibAPI,
@@ -48,11 +48,7 @@ import {
     initDefaultMemory,
     initDefaultTable,
 } from './memory.js';
-import { ArgNames, BuiltinNames } from '../../../lib/builtin/builtinUtil.js';
-import {
-    addBuiltInNoAnyFunc,
-    addBuiltInAnyFunc,
-} from '../../../lib/builtin/addBuiltIn.js';
+import { ArgNames, BuiltinNames } from '../../../lib/builtin/builtInName.js';
 import { Ts2wasmBackend, ParserContext } from '../index.js';
 import { Logger } from '../../log.js';
 
@@ -306,12 +302,6 @@ export class WASMGen extends Ts2wasmBackend {
         // init wasm environment
         initGlobalOffset(this.module);
         initDefaultTable(this.module);
-        if (!this.parserContext.compileArgs[ArgNames.disableBuiltIn]) {
-            addBuiltInNoAnyFunc(this.module);
-            if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
-                addBuiltInAnyFunc(this.module);
-            }
-        }
         if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
             importAnyLibAPI(this.module);
         }
@@ -322,7 +312,7 @@ export class WASMGen extends Ts2wasmBackend {
 
         for (let i = 0; i < this.globalScopeStack.size(); i++) {
             const globalScope = this.globalScopeStack.getItemAtIdx(i);
-            this.globalInitFuncName = `${globalScope.moduleName}|${GLOBAL_INIT_FUNC}`;
+            this.globalInitFuncName = `${globalScope.moduleName}|${BuiltinNames.global_init_func}`;
             this.WASMGenHelper(globalScope);
             this.WASMStartFunctionGen(globalScope);
             this.WASMGlobalFuncGen();

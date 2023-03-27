@@ -108,14 +108,13 @@ app.get('/samples/:name?', (req: Request, res: Response) => {
         res.setHeader('Content-Type', 'text/plain');
         fs.createReadStream(file_path).pipe(res);
         return;
-    }
-    else {
+    } else {
         /* Request list of samples */
         const files = fs.readdirSync(samples_dir);
         res.json(files);
         return;
     }
-})
+});
 
 app.post('/compile', (req: Request, res: Response) => {
     let buffer = '';
@@ -171,7 +170,7 @@ app.post('/compile', (req: Request, res: Response) => {
                 }
 
                 res.json({
-                    error: `${e.toString()}\n${formattedError}`,
+                    error: `${e.toString()}`,
                 });
                 return;
             }

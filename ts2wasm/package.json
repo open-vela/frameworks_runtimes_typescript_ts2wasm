@@ -19,8 +19,8 @@
     "cover": "c8 npm run test:unit",
     "lint": "npx lint-staged",
     "setup-hooks": "ts-node-esm scripts/link_hooks.ts",
-    "build": "npm run build:stdlib && npx tsc && cp -r lib/builtin/watFile/ build/lib/builtin/ && cp -r ./lib/interface-lib ./build/lib/",
-    "build:stdlib": "rm -rf lib/builtin/watFile/ && ts-node-esm lib/builtin/initBuiltInAPI.ts && ts-node-esm lib/builtin/initBuiltInTS.ts"
+    "build": "npm run build:stdlib && npx tsc && cp -r ./lib/builtin/* ./build/lib/builtin/ && cp -r ./lib/interface-lib ./build/lib/",
+    "build:stdlib": "rm -rf lib/builtin/watFile/ && ts-node-esm src/backend/binaryen/initBuiltInAPI.ts"
   },
   "repository": {
     "type": "git",
