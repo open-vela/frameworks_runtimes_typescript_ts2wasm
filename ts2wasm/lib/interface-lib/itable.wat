@@ -21,7 +21,7 @@
     (local.set $0
      (i32.add
       (local.get $0)
-      (i32.const 12)
+      (i32.const 16)
      )
     )
     (local.set $4
@@ -34,7 +34,7 @@
         (i32.load
          (i32.add
           (local.get $0)
-          (i32.const -4)
+          (i32.const -8)
          )
         )
         (local.get $1)
@@ -43,7 +43,10 @@
       (br_if $label$0
        (i32.eq
         (i32.load
-         (local.get $0)
+         (i32.add
+          (local.get $0)
+          (i32.const -4)
+         )
         )
         (local.get $2)
        )
@@ -72,6 +75,8 @@
     (i32.const -1)
    )
   )
-  (local.get $4)
+  (i32.load
+   (local.get $0)
+  )
  )
 )
