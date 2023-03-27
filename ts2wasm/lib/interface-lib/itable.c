@@ -33,7 +33,7 @@ typedef struct Itable {
 int find_index(Itable *table, char *prop_name, int flag) {
     for (int i = 0; i < table->size; i++) {
         if (strcmp(table->fields[i].name, prop_name) == 0 && table->fields[i].flag == flag) {
-            return i;
+            return table->fields[i].index;
         }
     }
     return -1;

@@ -217,7 +217,7 @@ export const importObject = {
         },
         console_constructor: (obj) => {},
         strcmp(a, b) {
-            return a == b;
+            return !(a == b);
         },
     },
 };
