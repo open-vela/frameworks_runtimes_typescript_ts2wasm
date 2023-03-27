@@ -899,7 +899,7 @@ export class WASMGen extends Ts2wasmBackend {
         const fieldLen = shape.fields.length;
         const dataLength = methodLen + fieldLen;
         const buffer = new Uint32Array(2 + 3 * dataLength);
-        buffer[0] = this.module.i32.const(shape.typeId);
+        buffer[0] = shape.typeId;
         buffer[1] = dataLength;
         for (let i = 0, j = 2; i < methodLen; i++, j += 3) {
             const method = shape.memberFuncs[i];
@@ -913,14 +913,16 @@ export class WASMGen extends Ts2wasmBackend {
                     ? 2
                     : 3;
             buffer[j] = this.generateRawString(method.name);
-            buffer[j + 1] = this.module.i32.const(flag);
-            buffer[j + 2] = this.module.i32.const(i);
+
+            buffer[j + 1] = flag;
+            buffer[j + 2] = i;
         }
         const previousPartLength = 2 + shape.memberFuncs.length * 3;
         for (let i = 0, j = previousPartLength; i < fieldLen; i++, j += 3) {
             buffer[j] = this.generateRawString(shape.fields[i].name);
-            buffer[j + 1] = this.module.i32.const(0);
-            buffer[j + 2] = this.module.i32.const(i + 1);
+
+            buffer[j + 1] = 0;
+            buffer[j + 2] = i + 1;
         }
         const offset = this.dataSegmentContext!.addData(
             new Uint8Array(buffer.buffer),
