@@ -29,11 +29,12 @@ import {
     ScopeKind,
     BlockScope,
 } from '../../scope.js';
-import { FlattenLoop, IfStatementInfo, typeInfo } from './glue/utils.js';
+import { typeInfo } from './glue/utils.js';
+import { flattenLoopStatement, FlattenLoop } from './utils.js';
 import { WASMGen } from './index.js';
 import { TSClass, TSFunction, TypeKind } from '../../type.js';
 import { assert } from 'console';
-import { BuiltinNames } from '../../../lib/builtin/builtinUtil.js';
+import { BuiltinNames } from '../../../lib/builtin/builtInName.js';
 export class WASMStatementGen {
     private currentFuncCtx;
 
@@ -250,7 +251,11 @@ export class WASMStatementGen {
         this.currentFuncCtx.insert(
             this.WASMCompiler.module.loop(
                 stmt.loopLabel,
-                this.flattenLoopStatement(flattenLoop, stmt.statementKind),
+                flattenLoopStatement(
+                    flattenLoop,
+                    stmt.statementKind,
+                    this.WASMCompiler.module,
+                ),
             ),
         );
 
@@ -298,7 +303,11 @@ export class WASMStatementGen {
         this.currentFuncCtx.insert(
             this.WASMCompiler.module.loop(
                 stmt.forLoopLabel,
-                this.flattenLoopStatement(flattenLoop, stmt.statementKind),
+                flattenLoopStatement(
+                    flattenLoop,
+                    stmt.statementKind,
+                    this.WASMCompiler.module,
+                ),
             ),
         );
 
@@ -601,53 +610,5 @@ export class WASMStatementGen {
             );
         }
         return module.unreachable();
-    }
-
-    flattenLoopStatement(
-        loopStatementInfo: FlattenLoop,
-        kind: ts.SyntaxKind,
-    ): binaryen.ExpressionRef {
-        const ifStatementInfo: IfStatementInfo = {
-            condition: loopStatementInfo.condition,
-            ifTrue: binaryen.none,
-            ifFalse: binaryen.none,
-        };
-        if (kind !== ts.SyntaxKind.DoStatement) {
-            const ifTrueBlockArray: binaryen.ExpressionRef[] = [];
-            if (loopStatementInfo.statements !== binaryen.none) {
-                ifTrueBlockArray.push(loopStatementInfo.statements);
-            }
-            if (kind === ts.SyntaxKind.ForStatement) {
-                ifTrueBlockArray.push(
-                    <binaryen.ExpressionRef>loopStatementInfo.incrementor,
-                );
-            }
-            ifTrueBlockArray.push(
-                this.WASMCompiler.module.br(loopStatementInfo.label),
-            );
-            const ifTrueBlock = this.WASMCompiler.module.block(
-                null,
-                ifTrueBlockArray,
-            );
-            ifStatementInfo.ifTrue = ifTrueBlock;
-            return this.WASMCompiler.module.if(
-                ifStatementInfo.condition,
-                ifStatementInfo.ifTrue,
-            );
-        } else {
-            ifStatementInfo.ifTrue = this.WASMCompiler.module.br(
-                loopStatementInfo.label,
-            );
-            const blockArray: binaryen.ExpressionRef[] = [];
-            if (loopStatementInfo.statements !== binaryen.none) {
-                blockArray.push(loopStatementInfo.statements);
-            }
-            const ifExpression = this.WASMCompiler.module.if(
-                ifStatementInfo.condition,
-                ifStatementInfo.ifTrue,
-            );
-            blockArray.push(ifExpression);
-            return this.WASMCompiler.module.block(null, blockArray);
-        }
     }
 }

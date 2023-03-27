@@ -29,7 +29,7 @@ function foo(i: I2) {
     return i.y;
 }
 
-function infc10(i: (i: I2) => boolean) {
+export function infc10(i: (i: I2) => boolean) {
     const f: Foo = new Foo();
     const res = i(f);
     return res;

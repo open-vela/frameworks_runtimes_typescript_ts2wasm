@@ -54,10 +54,11 @@ import {
 } from '../../scope.js';
 import { MatchKind, Stack, getBuiltInFuncName } from '../../utils.js';
 import { dyntype, structdyn } from '../../../lib/dyntype/utils.js';
-import { BuiltinNames } from '../../../lib/builtin/builtinUtil.js';
+import { BuiltinNames } from '../../../lib/builtin/builtInName.js';
 import { charArrayTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './index.js';
 import { Logger } from '../../log.js';
+import { getClassNameByTypeKind } from './utils.js';
 
 export interface WasmValue {
     /* binaryen reference */
@@ -87,8 +88,6 @@ enum AccessType {
     DynArray,
     Type,
     Scope,
-    BuiltInObj,
-    BuiltInInst,
 }
 
 class AccessBase {
@@ -131,13 +130,20 @@ class FunctionAccess extends AccessBase {
 }
 
 class MethodAccess extends AccessBase {
+    public mangledMethodName;
     constructor(
         public methodType: TSFunction,
         public methodIndex: number,
         public classType: TSClass,
         public thisObj: binaryen.ExpressionRef | null = null,
+        public isBuiltInMethod: boolean = false,
+        public methodName: string = '',
     ) {
         super(AccessType.Function);
+        this.mangledMethodName = classType.mangledName.concat(
+            BuiltinNames.module_delimiter,
+            methodName,
+        );
     }
 }
 
@@ -242,23 +248,6 @@ class TypeAccess extends AccessBase {
 class ScopeAccess extends AccessBase {
     constructor(public scope: Scope) {
         super(AccessType.Scope);
-    }
-}
-
-class BuiltInObjAccess extends AccessBase {
-    propName = '';
-    constructor(public objName: string) {
-        super(AccessType.BuiltInObj);
-    }
-}
-
-class BuiltInInstAccess extends AccessBase {
-    constructor(
-        public value: WasmValue,
-        public propName: string,
-        public exprType: Type,
-    ) {
-        super(AccessType.BuiltInInst);
     }
 }
 
@@ -1253,18 +1242,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
         } else if (accessInfo instanceof DynObjectAccess) {
             const { ref, fieldName } = accessInfo;
             if (fieldName === '__proto__') {
-                loadRef = module.drop(
-                    module.call(
-                        dyntype.dyntype_get_prototype,
-                        [
-                            module.global.get(
-                                dyntype.dyntype_context,
-                                dyntype.dyn_ctx_t,
-                            ),
-                            ref,
-                        ],
-                        dyntype.dyn_value_t,
-                    ),
+                loadRef = module.call(
+                    dyntype.dyntype_get_prototype,
+                    [
+                        module.global.get(
+                            dyntype.dyntype_context,
+                            dyntype.dyn_ctx_t,
+                        ),
+                        ref,
+                    ],
+                    dyntype.dyn_value_t,
                 );
             } else {
                 const propNameStr = module.i32.const(
@@ -1306,16 +1293,35 @@ export class WASMExpressionGen extends WASMExpressionBase {
             );
         } else if (accessInfo instanceof MethodAccess) {
             const { methodType, methodIndex, classType, thisObj } = accessInfo;
-            const vtable = this.wasmType.getWASMClassVtable(classType);
-            const wasmMethodType = this.wasmType.getWASMType(methodType);
-            const targetFunction = binaryenCAPI._BinaryenStructGet(
-                this.module.ptr,
-                methodIndex,
-                vtable,
-                wasmMethodType,
-                false,
-            );
-            loadRef = targetFunction;
+            if (accessInfo.isBuiltInMethod) {
+                /** builtIn instance field invoke */
+                const mangledMethodName = accessInfo.mangledMethodName;
+                switch (mangledMethodName) {
+                    case BuiltinNames.bulitIn_module_name.concat(
+                        BuiltinNames.module_delimiter,
+                        BuiltinNames.string_length_funcName,
+                    ):
+                        loadRef = this._getStringRefLen(thisObj!);
+                        break;
+                    case BuiltinNames.bulitIn_module_name.concat(
+                        BuiltinNames.module_delimiter,
+                        BuiltinNames.array_length_funcName,
+                    ):
+                        loadRef = this._getArrayRefLen(thisObj!);
+                        break;
+                }
+            } else {
+                const vtable = this.wasmType.getWASMClassVtable(classType);
+                const wasmMethodType = this.wasmType.getWASMType(methodType);
+                const targetFunction = binaryenCAPI._BinaryenStructGet(
+                    this.module.ptr,
+                    methodIndex,
+                    vtable,
+                    wasmMethodType,
+                    false,
+                );
+                loadRef = targetFunction;
+            }
         } else if (accessInfo instanceof InfcGetterAccess) {
             const {
                 infcTypeId,
@@ -1371,20 +1377,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
             );
         } else if (accessInfo instanceof DynArrayAccess) {
             throw Error(`dynamic array not implemented`);
-        } else if (accessInfo instanceof BuiltInInstAccess) {
-            /** string.len && array.len */
-            const exprValue = accessInfo.value;
-            const propName = accessInfo.propName;
-            const libFuncName =
-                BuiltinNames.builtInInstInfo[exprValue.tsType.kind][propName];
-            switch (libFuncName) {
-                case BuiltinNames.array_length_funcName:
-                    loadRef = this._getArrayRefLen(exprValue.binaryenRef);
-                    break;
-                case BuiltinNames.string_length_funcName:
-                    loadRef = this._getStringRefLen(exprValue.binaryenRef);
-                    break;
-            }
         } else {
             return accessInfo;
         }
@@ -1479,9 +1471,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const tsType = identifierInfo;
             return new TypeAccess(tsType);
         } else {
-            if (BuiltinNames.builtInObjInfo[identifer]) {
-                return new BuiltInObjAccess(identifer);
-            }
             throw new Error(`Can't find identifier <"${identifer}">`);
         }
     }
@@ -2089,38 +2078,21 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     finalCallWasmArgs.push(thisObj);
                 }
                 finalCallWasmArgs = finalCallWasmArgs.concat(callWasmArgs);
-                return this._generateClassMethodCallRef(
-                    thisObj,
-                    classType,
-                    methodType,
-                    methodIndex,
-                    finalCallWasmArgs,
-                );
-            } else if (accessInfo instanceof BuiltInObjAccess) {
-                const exprName = accessInfo.objName;
-                const propName = accessInfo.propName;
-                const builtInFuncName = getBuiltInFuncName(
-                    BuiltinNames.builtInObjInfo[exprName][propName],
-                );
-                return this.module.call(
-                    builtInFuncName,
-                    [context, ...callWasmArgs],
-                    this.wasmType.getWASMType(expr.exprType),
-                );
-            } else if (accessInfo instanceof BuiltInInstAccess) {
-                const exprValue = accessInfo.value;
-                callWasmArgs.unshift(exprValue.binaryenRef);
-                const propName = accessInfo.propName;
-                const builtInFuncName = getBuiltInFuncName(
-                    BuiltinNames.builtInInstInfo[exprValue.tsType.kind][
-                        propName
-                    ],
-                );
-                return this.module.call(
-                    builtInFuncName,
-                    [context, ...callWasmArgs],
-                    this.wasmType.getWASMType(expr.exprType),
-                );
+                if (accessInfo.isBuiltInMethod) {
+                    return this.module.call(
+                        accessInfo.mangledMethodName,
+                        finalCallWasmArgs,
+                        this.wasmType.getWASMFuncReturnType(methodType),
+                    );
+                } else {
+                    return this._generateClassMethodCallRef(
+                        thisObj,
+                        classType,
+                        methodType,
+                        methodIndex,
+                        finalCallWasmArgs,
+                    );
+                }
             } else if (accessInfo instanceof InfcMethodAccess) {
                 const {
                     infcTypeId,
@@ -2449,31 +2421,32 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 }
             } else if (accessInfo instanceof Type) {
                 throw Error("Access type's builtin method unimplement");
-            } else if (accessInfo instanceof BuiltInObjAccess) {
-                accessInfo.propName = propName;
-                curAccessInfo = accessInfo;
             }
         } else {
             const wasmValue = accessInfo;
             const ref = wasmValue.binaryenRef;
             const tsType = wasmValue.tsType;
+            const currentScope = this.currentFuncCtx.getCurrentScope();
             switch (tsType.typeKind) {
                 case TypeKind.BOOLEAN:
                 case TypeKind.NUMBER:
                 case TypeKind.FUNCTION:
                 case TypeKind.STRING:
                 case TypeKind.ARRAY: {
-                    if (
-                        !BuiltinNames.builtInInstInfo[tsType.typeKind][propName]
-                    ) {
-                        throw Error(
-                            `need to add built-in names ${tsType.typeKind}.${propName}`,
-                        );
-                    }
-                    curAccessInfo = new BuiltInInstAccess(
-                        wasmValue,
+                    const className = getClassNameByTypeKind(tsType.typeKind);
+                    const classType = <TSClass>(
+                        currentScope.findIdentifier(className)
+                    );
+                    curAccessInfo = new MethodAccess(
+                        <TSFunction>propExpr.exprType,
+                        classType.getMethod(
+                            propName,
+                            FunctionKind.METHOD,
+                        ).index,
+                        classType,
+                        ref,
+                        true,
                         propName,
-                        expr.exprType,
                     );
                     break;
                 }
