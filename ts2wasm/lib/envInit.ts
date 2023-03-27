@@ -76,39 +76,76 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.dyntype_to_number,
         dyntype.module_name,
         dyntype.dyntype_to_number,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.double,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_new_undefined,
+        dyntype.module_name,
+        dyntype.dyntype_new_undefined,
+        dyntype.dyn_ctx_t,
+        dyntype.dyn_value_t,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_new_null,
+        dyntype.module_name,
+        dyntype.dyntype_new_null,
+        dyntype.dyn_ctx_t,
+        dyntype.dyn_value_t,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_new_object,
+        dyntype.module_name,
+        dyntype.dyntype_new_object,
+        dyntype.dyn_ctx_t,
+        dyntype.dyn_value_t,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_new_array,
+        dyntype.module_name,
+        dyntype.dyntype_new_array,
+        dyntype.dyn_ctx_t,
+        dyntype.dyn_value_t,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_new_array_with_length,
+        dyntype.module_name,
+        dyntype.dyntype_new_array_with_length,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.int]),
+        dyntype.dyn_value_t,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_add_elem,
+        dyntype.module_name,
+        dyntype.dyntype_add_elem,
         binaryen.createType([
             dyntype.dyn_ctx_t,
             dyntype.dyn_value_t,
-            dyntype.pointer,
+            dyntype.dyn_value_t,
         ]),
-        dyntype.int,
+        dyntype.cvoid,
     );
     module.addFunctionImport(
-        dyntype.dyntype_new_undefined,
+        dyntype.dyntype_set_elem,
         dyntype.module_name,
-        dyntype.dyntype_new_undefined,
-        dyntype.dyn_ctx_t,
-        dyntype.dyn_value_t,
+        dyntype.dyntype_set_elem,
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.dyn_value_t,
+            dyntype.int,
+            dyntype.dyn_value_t,
+        ]),
+        dyntype.cvoid,
     );
     module.addFunctionImport(
-        dyntype.dyntype_new_null,
+        dyntype.dyntype_get_elem,
         dyntype.module_name,
-        dyntype.dyntype_new_null,
-        dyntype.dyn_ctx_t,
-        dyntype.dyn_value_t,
-    );
-    module.addFunctionImport(
-        dyntype.dyntype_new_object,
-        dyntype.module_name,
-        dyntype.dyntype_new_object,
-        dyntype.dyn_ctx_t,
-        dyntype.dyn_value_t,
-    );
-    module.addFunctionImport(
-        dyntype.dyntype_new_array,
-        dyntype.module_name,
-        dyntype.dyntype_new_array,
-        dyntype.dyn_ctx_t,
+        dyntype.dyntype_get_elem,
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.dyn_value_t,
+            dyntype.int,
+        ]),
         dyntype.dyn_value_t,
     );
     module.addFunctionImport(
@@ -174,11 +211,7 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.dyntype_to_extref,
         dyntype.module_name,
         dyntype.dyntype_to_extref,
-        binaryen.createType([
-            dyntype.dyn_ctx_t,
-            dyntype.dyn_value_t,
-            dyntype.pointer,
-        ]),
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
         dyntype.int,
     );
     module.addFunctionImport(
@@ -217,12 +250,8 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.dyntype_to_bool,
         dyntype.module_name,
         dyntype.dyntype_to_bool,
-        binaryen.createType([
-            dyntype.dyn_ctx_t,
-            dyntype.dyn_value_t,
-            dyntype.pointer,
-        ]),
-        dyntype.int,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.bool,
     );
     module.addFunctionImport(
         dyntype.dyntype_is_string,
@@ -235,11 +264,7 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.dyntype_to_cstring,
         dyntype.module_name,
         dyntype.dyntype_to_cstring,
-        binaryen.createType([
-            dyntype.dyn_ctx_t,
-            dyntype.dyn_value_t,
-            dyntype.pointer,
-        ]),
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
         dyntype.int,
     );
     module.addFunctionImport(

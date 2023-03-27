@@ -272,6 +272,8 @@ export class WASMExpressionBase {
     staticValueGen;
     dynValueGen;
     enterModuleScope;
+    curExtrefTableIdx = -1;
+    extrefTableSize = 0;
 
     constructor(WASMCompiler: WASMGen) {
         this.wasmCompiler = WASMCompiler;
@@ -422,66 +424,65 @@ export class WASMExpressionBase {
 
     unboxAnyToBase(anyExprRef: binaryen.ExpressionRef, typeKind: TypeKind) {
         const module = this.module;
-        let dynFuncName: string;
-        let bit: number;
+        let condFuncName = '';
+        let cvtFuncName = '';
         let binaryenType: binaryen.Type;
         switch (typeKind) {
             case TypeKind.NUMBER: {
-                dynFuncName = dyntype.dyntype_is_number;
-                bit = 8;
+                condFuncName = dyntype.dyntype_is_number;
+                cvtFuncName = dyntype.dyntype_to_number;
                 binaryenType = binaryen.f64;
                 break;
             }
             case TypeKind.BOOLEAN: {
-                dynFuncName = dyntype.dyntype_is_bool;
-                bit = 4;
+                condFuncName = dyntype.dyntype_is_bool;
+                cvtFuncName = dyntype.dyntype_to_bool;
                 binaryenType = binaryen.i32;
                 break;
             }
+            /** for undefined or null, treat it as anyref in WASM */
+            case TypeKind.ANY: {
+                binaryenType = binaryen.anyref;
+                break;
+            }
             default: {
-                throw Error('unsupport static type: ' + typeKind);
+                throw Error(
+                    `unboxing any type to static type, unsupported static type : ${typeKind}`,
+                );
             }
         }
-        const dynTypeIsStatic = module.call(
-            dynFuncName,
+        if (typeKind === TypeKind.ANY) {
+            return anyExprRef;
+        }
+        const isExternRef = module.call(
+            condFuncName,
             [
                 module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
                 anyExprRef,
             ],
             dyntype.bool,
         );
-
-        const varAndStates = this.generatePointerVar(bit);
-        const tmpAddressVar = <Variable>varAndStates[0];
-        const setTmpAddressExpression = <binaryen.ExpressionRef>varAndStates[1];
-        const setTmpGlobalExpression = <binaryen.ExpressionRef>varAndStates[2];
-        const resetGlobalExpression = <binaryen.ExpressionRef>varAndStates[3];
-
-        const trunExpression = this.turnDyntypeToBase(
-            anyExprRef,
-            tmpAddressVar,
-            typeKind,
+        const condition = module.i32.eq(isExternRef, module.i32.const(1));
+        // iff True
+        const value = module.call(
+            cvtFuncName,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                anyExprRef,
+            ],
+            binaryenType,
         );
-        const tmpStaticVar = <Variable>trunExpression[0];
-        const turnRef = <binaryen.ExpressionRef>trunExpression[1];
+        // iff False
+        const unreachableRef = module.unreachable();
 
-        // put operations into a block
-        const getStaicArray: binaryen.ExpressionRef[] = [];
-        getStaicArray.push(setTmpAddressExpression);
-        getStaicArray.push(setTmpGlobalExpression);
-        getStaicArray.push(turnRef);
-        getStaicArray.push(resetGlobalExpression);
-        const unboxRef = module.if(
-            module.i32.eq(dynTypeIsStatic, dyntype.bool_true),
-            module.block('getSatic', getStaicArray),
-        );
-        this.currentFuncCtx.insert(unboxRef);
-        return this.getVariableValue(tmpStaticVar, binaryenType);
+        const blockStmt = module.if(condition, value, unreachableRef);
+        return module.block(null, [blockStmt], binaryenType);
     }
 
     unboxAnyToExtref(anyExprRef: binaryen.ExpressionRef, targetType: Type) {
         const module = this.module;
-        const isExtref = module.call(
+
+        const isExternRef = module.call(
             dyntype.dyntype_is_extref,
             [
                 module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
@@ -489,38 +490,32 @@ export class WASMExpressionBase {
             ],
             dyntype.bool,
         );
-        // use 4 bits to store i32;
-        const varAndStates = this.generatePointerVar(4);
-        const tmpAddressVar = <Variable>varAndStates[0];
-        const setTmpAddressExpression = <binaryen.ExpressionRef>varAndStates[1];
-        const setTmpGlobalExpression = <binaryen.ExpressionRef>varAndStates[2];
-        const resetGlobalExpression = <binaryen.ExpressionRef>varAndStates[3];
-        this.currentFuncCtx.insert(setTmpAddressExpression);
-        this.currentFuncCtx.insert(setTmpGlobalExpression);
-        const extrefPointer = this.getVariableValue(
-            tmpAddressVar,
-            binaryen.i32,
+        const condition = module.i32.eq(isExternRef, module.i32.const(1));
+        const wasmType = this.wasmType.getWASMType(targetType);
+        // iff True
+        const tableIndex = module.call(
+            dyntype.dyntype_to_extref,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                anyExprRef,
+            ],
+            dyntype.int,
         );
-        const extrefTurnExpression = this.turnDyntypeToExtref(
-            anyExprRef,
-            extrefPointer,
-            targetType,
+        const externalRef = module.table.get(
+            BuiltinNames.extref_table,
+            tableIndex,
+            binaryen.anyref,
         );
-        const tmpObjVarInfo = <Variable>extrefTurnExpression[0];
-        const extrefExpression = <binaryen.ExpressionRef>(
-            extrefTurnExpression[1]
+        const value = binaryenCAPI._BinaryenRefCast(
+            module.ptr,
+            externalRef,
+            wasmType,
         );
+        // iff False
+        const unreachableRef = module.unreachable();
 
-        const turnExtrefToObjExpression = module.if(
-            module.i32.eq(isExtref, module.i32.const(1)),
-            extrefExpression,
-        );
-        this.currentFuncCtx.insert(turnExtrefToObjExpression);
-        this.currentFuncCtx.insert(resetGlobalExpression);
-        return this.getVariableValue(
-            tmpObjVarInfo,
-            this.wasmType.getWASMType(targetType),
-        );
+        const blockStmt = module.if(condition, value, unreachableRef);
+        return module.block(null, [blockStmt], wasmType);
     }
 
     boxBaseTypeToAny(expr: Expression): binaryen.ExpressionRef {
@@ -542,7 +537,9 @@ export class WASMExpressionBase {
                 res = this.generateDynNull();
                 break;
             default:
-                throw Error('Unexpected base type ' + expr.exprType.kind);
+                throw Error(
+                    `unboxing static type to any type, unsupported static type : ${expr.exprType.kind}`,
+                );
         }
         return res;
     }
@@ -571,7 +568,7 @@ export class WASMExpressionBase {
                 case TypeKind.ANY:
                     res = staticRef;
                     break;
-                case TypeKind.STRING:
+                // case TypeKind.STRING:
                 case TypeKind.INTERFACE:
                 case TypeKind.ARRAY:
                 case TypeKind.CLASS:
@@ -579,7 +576,9 @@ export class WASMExpressionBase {
                     res = this.generateDynExtref(staticRef, expr.exprType.kind);
                     break;
                 default:
-                    throw Error('unexpected identifier type');
+                    throw Error(
+                        `boxing static type to any type failed, static type is: ${expr.exprType.kind}`,
+                    );
             }
         }
         return res;
@@ -890,133 +889,6 @@ export class WASMExpressionBase {
         return wasmStringValue;
     }
 
-    generatePointerVar(bit: number) {
-        const module = this.module;
-        const tmpAddressVar = this.generateTmpVar('~address|', 'address');
-        const tmpAddressValue = this.getGlobalValue(
-            BuiltinNames.stack_pointer,
-            binaryen.i32,
-        );
-        const setTmpAddressExpression = this.setVariableToCurrentScope(
-            tmpAddressVar,
-            tmpAddressValue,
-        );
-        const setTmpGlobalExpression = this.setGlobalValue(
-            BuiltinNames.stack_pointer,
-            module.i32.sub(
-                this.getVariableValue(tmpAddressVar, binaryen.i32),
-                module.i32.const(bit),
-            ),
-        );
-        const resetGlobalExpression = this.setGlobalValue(
-            BuiltinNames.stack_pointer,
-            this.getVariableValue(tmpAddressVar, binaryen.i32),
-        );
-        return [
-            tmpAddressVar,
-            setTmpAddressExpression,
-            setTmpGlobalExpression,
-            resetGlobalExpression,
-            tmpAddressValue,
-        ];
-    }
-
-    turnDyntypeToExtref(
-        expression: binaryen.ExpressionRef,
-        pointer: binaryen.ExpressionRef,
-        targetType: Type,
-    ) {
-        const module = this.module;
-        const expressionToExtref = module.call(
-            dyntype.dyntype_to_extref,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                expression,
-                pointer,
-            ],
-            dyntype.int,
-        );
-        const tmpTableIdx = module.i32.load(0, 4, pointer);
-        const objOrigValue = module.table.get(
-            BuiltinNames.extref_table,
-            tmpTableIdx,
-            binaryen.anyref,
-        );
-
-        const tmpObjVarInfo = this.generateTmpVar('~obj|', '', targetType);
-
-        // cast anyref to target type
-        const objTargetValue = binaryenCAPI._BinaryenRefCast(
-            module.ptr,
-            objOrigValue,
-            this.wasmType.getWASMType(targetType),
-        );
-        const setExtrefExpression = this.setVariableToCurrentScope(
-            tmpObjVarInfo,
-            objTargetValue,
-        );
-
-        const extrefExpression = module.if(
-            module.i32.eq(expressionToExtref, dyntype.DYNTYPE_SUCCESS),
-            setExtrefExpression,
-        );
-        return [tmpObjVarInfo, extrefExpression];
-    }
-
-    turnDyntypeToBase(
-        expression: binaryen.ExpressionRef,
-        tmpAddressVar: Variable,
-        typeKind: TypeKind,
-    ) {
-        const module = this.module;
-        const pointer = this.getVariableValue(tmpAddressVar, binaryen.i32);
-        let tmpStaticValue: binaryen.ExpressionRef;
-        let dynFuncName: string;
-        switch (typeKind) {
-            case TypeKind.NUMBER: {
-                dynFuncName = dyntype.dyntype_to_number;
-                tmpStaticValue = module.f64.load(
-                    0,
-                    8,
-                    this.getVariableValue(tmpAddressVar, binaryen.i32),
-                );
-                break;
-            }
-            case TypeKind.BOOLEAN: {
-                dynFuncName = dyntype.dyntype_to_bool;
-                tmpStaticValue = module.i32.load(
-                    0,
-                    4,
-                    this.getVariableValue(tmpAddressVar, binaryen.i32),
-                );
-                break;
-            }
-            default: {
-                throw Error('unsupport base type: ' + typeKind);
-            }
-        }
-        const tmpStaticVar = this.generateTmpVar('~tmpStatic|', typeKind);
-        const dynToStaticRef = module.call(
-            dynFuncName,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                expression,
-                pointer,
-            ],
-            dyntype.int,
-        );
-
-        const setValueRef = this.setVariableToCurrentScope(
-            tmpStaticVar,
-            tmpStaticValue,
-        );
-        const turnRef = module.if(
-            module.i32.eq(dynToStaticRef, dyntype.DYNTYPE_SUCCESS),
-            setValueRef,
-        );
-        return [tmpStaticVar, turnRef];
-    }
-
     generateDynNumber(dynValue: binaryen.ExpressionRef) {
         const module = this.module;
         return module.call(
@@ -1095,15 +967,14 @@ export class WASMExpressionBase {
     ) {
         const module = this.module;
         // table type is anyref, no need to cast
-        const objTarget = dynValue;
         /** we regard string-nonLiteral as extref too */
         let dynFuncName: string;
-        let extObjKind: dyntype.ExtObjKind | undefined = undefined;
+        let extObjKind: dyntype.ExtObjKind = 0;
         switch (extrefTypeKind) {
-            case TypeKind.STRING: {
-                dynFuncName = dyntype.dyntype_new_string;
-                break;
-            }
+            // case TypeKind.STRING: {
+            //     dynFuncName = dyntype.dyntype_new_string;
+            //     break;
+            // }
             case TypeKind.CLASS: {
                 dynFuncName = dyntype.dyntype_new_extref;
                 extObjKind = dyntype.ExtObjKind.ExtObj;
@@ -1125,70 +996,38 @@ export class WASMExpressionBase {
                 break;
             }
             default: {
-                throw Error('unexpected extrefTypeKind: ' + extrefTypeKind);
+                throw Error(
+                    `unexpected type kind when boxing to external reference, type kind is ${extrefTypeKind}`,
+                );
             }
         }
-        // put table index into a local
-        const tmpTableIndexVar = this.generateTmpVar('~tableIdx|', 'boolean');
-        const setTableIdxExpr = this.setVariableToCurrentScope(
-            tmpTableIndexVar,
-            module.table.size(BuiltinNames.extref_table),
-        );
-        this.currentFuncCtx.insert(setTableIdxExpr);
-        const tableCurIndex = this.getVariableValue(
-            tmpTableIndexVar,
-            binaryen.i32,
-        );
-        const tableGrowExpr = module.table.grow(
-            BuiltinNames.extref_table,
-            objTarget,
-            module.i32.const(1),
-        );
-        this.currentFuncCtx.insert(module.drop(tableGrowExpr));
-        const varAndStates = this.generatePointerVar(4);
-        const tmpAddressVar = <Variable>varAndStates[0];
-        const setTmpAddressExpression = <binaryen.ExpressionRef>varAndStates[1];
-        const setTmpGlobalExpression = <binaryen.ExpressionRef>varAndStates[2];
-        const tmpAddressValue = <binaryen.ExpressionRef>varAndStates[4];
-        this.currentFuncCtx.insert(setTmpAddressExpression);
-        this.currentFuncCtx.insert(setTmpGlobalExpression);
-        const storeIdxExpression = module.i32.store(
-            0,
-            4,
-            tmpAddressValue,
-            tableCurIndex,
-        );
-        this.currentFuncCtx.insert(storeIdxExpression);
-        const numberPointer = this.getVariableValue(
-            tmpAddressVar,
-            binaryen.i32,
-        );
-        if (extObjKind !== undefined) {
-            return module.call(
-                dynFuncName,
-                [
-                    module.global.get(
-                        dyntype.dyntype_context,
-                        dyntype.dyn_ctx_t,
-                    ),
-                    numberPointer,
-                    module.i32.const(extObjKind),
-                ],
-                dyntype.dyn_value_t,
+        if (++this.curExtrefTableIdx >= this.extrefTableSize) {
+            const tableGrowExpr = module.table.grow(
+                BuiltinNames.extref_table,
+                binaryenCAPI._BinaryenRefNull(
+                    this.module.ptr,
+                    binaryenCAPI._BinaryenTypeStructref(),
+                ),
+                module.i32.const(BuiltinNames.tableGrowDelta),
             );
-        } else {
-            return module.call(
-                dynFuncName,
-                [
-                    module.global.get(
-                        dyntype.dyntype_context,
-                        dyntype.dyn_ctx_t,
-                    ),
-                    numberPointer,
-                ],
-                dyntype.dyn_value_t,
-            );
+            this.extrefTableSize += BuiltinNames.tableGrowDelta;
+            this.currentFuncCtx.insert(module.drop(tableGrowExpr));
         }
+        const tableSetOp = module.table.set(
+            BuiltinNames.extref_table,
+            module.i32.const(this.curExtrefTableIdx),
+            dynValue,
+        );
+        this.currentFuncCtx.insert(tableSetOp);
+        return module.call(
+            dynFuncName,
+            [
+                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+                module.i32.const(this.curExtrefTableIdx),
+                module.i32.const(extObjKind),
+            ],
+            dyntype.dyn_value_t,
+        );
     }
 
     getArrayInitFromArrayType(arrayType: TSArray): binaryen.ExpressionRef {

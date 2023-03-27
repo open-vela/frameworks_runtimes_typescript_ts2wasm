@@ -51,6 +51,11 @@ export namespace dyntype {
     export const dyntype_new_null = 'dyntype_new_null';
     export const dyntype_new_object = 'dyntype_new_object';
     export const dyntype_new_array = 'dyntype_new_array';
+    export const dyntype_new_array_with_length =
+        'dyntype_new_array_with_length';
+    export const dyntype_add_elem = 'dyntype_add_elem';
+    export const dyntype_set_elem = 'dyntype_set_elem';
+    export const dyntype_get_elem = 'dyntype_get_elem';
     export const dyntype_new_extref = 'dyntype_new_extref';
     export const dyntype_set_property = 'dyntype_set_property';
     export const dyntype_define_property = 'dyntype_define_property';
