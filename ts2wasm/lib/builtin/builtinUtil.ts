@@ -8,7 +8,7 @@ export namespace BuiltinNames {
     export const data_end = '~lib/memory/__data_end';
     export const stack_pointer = '~lib/memory/__stack_pointer';
     export const heap_base = '~lib/memory/__heap_base';
-
+    export const tableGrowDelta = 10;
     // wasm table
     export const extref_table = 'extref_table';
 
