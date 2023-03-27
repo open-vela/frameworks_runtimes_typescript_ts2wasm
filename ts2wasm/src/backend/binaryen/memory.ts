@@ -75,10 +75,5 @@ export function initDefaultMemory(
 }
 
 export function initDefaultTable(module: binaryen.Module): void {
-    module.addTable(
-        BuiltinNames.extref_table,
-        BuiltinNames.table_initialPages,
-        BuiltinNames.table_maximumPages,
-        binaryen.anyref,
-    );
+    module.addTable(BuiltinNames.extref_table, 0, -1, binaryen.anyref);
 }
