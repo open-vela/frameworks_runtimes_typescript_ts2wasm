@@ -20,8 +20,8 @@ import StatementCompiler from './statement.js';
 import path from 'path';
 import { Logger } from './log.js';
 import { SyntaxError } from './error.js';
-import SematicCheck from './sematicCheck.js';
-import { ArgNames, BuiltinNames } from '../lib/builtin/builtInName.js';
+import SematicCheck from './sematic_check.js';
+import { ArgNames, BuiltinNames } from '../lib/builtin/builtin_name.js';
 
 export interface CompileArgs {
     [key: string]: any;
@@ -40,17 +40,17 @@ export const COMPILER_OPTIONS: ts.CompilerOptions = {
 };
 
 export class ParserContext {
-    private scopeScanner;
+    private _scopeScanner;
     private _typeResolver;
+    private _variableScanner;
+    private _variableInit;
+    private _exprProcessor;
+    private _stmtProcessor;
     private _sematicChecker;
-    private variableScanner;
-    private variableInit;
-    private exprCompiler;
-    private stmtCompiler;
     private _errorMessage: ts.Diagnostic[] | null = null;
 
     typeChecker: ts.TypeChecker | undefined;
-    globalScopeStack = new Stack<GlobalScope>();
+    globalScopes = new Array<GlobalScope>();
     nodeScopeMap = new Map<ts.Node, Scope>();
     currentScope: Scope | null = null;
 
@@ -66,18 +66,18 @@ export class ParserContext {
         'lib',
         'builtin',
     );
-    builtInFileNames = BuiltinNames.builtInFileNames.map((builtInFileName) => {
+    builtInFileNames = BuiltinNames.builtinFileNames.map((builtInFileName) => {
         return path.join(this.builtInPath, builtInFileName);
     });
 
     constructor() {
-        this.scopeScanner = new ScopeScanner(this);
+        this._scopeScanner = new ScopeScanner(this);
         this._typeResolver = new TypeResolver(this);
         this._sematicChecker = new SematicCheck();
-        this.variableScanner = new VariableScanner(this);
-        this.variableInit = new VariableInit(this);
-        this.exprCompiler = new ExpressionCompiler(this);
-        this.stmtCompiler = new StatementCompiler(this);
+        this._variableScanner = new VariableScanner(this);
+        this._variableInit = new VariableInit(this);
+        this._exprProcessor = new ExpressionCompiler(this);
+        this._stmtProcessor = new StatementCompiler(this);
     }
 
     parse(fileNames: string[], compileArgs: CompileArgs = {}): void {
@@ -117,35 +117,30 @@ export class ParserContext {
         const sourceFileList = Array.from(program.getSourceFiles());
 
         /* Step1: Resolve all scopes */
-        this.scopeScanner.visit(sourceFileList);
+        this._scopeScanner.visit(sourceFileList);
         /* Step2: Resolve all type declarations */
         this._typeResolver.visit();
         /* User scope must import the standard library module manually */
         if (!compileArgs[ArgNames.disableBuiltIn]) {
-            const builtInScope = this.globalScopeStack.getItemAtIdx(1);
+            const builtInScope = this.globalScopes[1];
             for (
                 let i = this.builtInFileNames.length;
-                i < this.globalScopeStack.size();
+                i < this.globalScopes.length;
                 i++
             ) {
-                for (const builtInIdentifier of BuiltinNames.builtInIdentifierArray) {
-                    this.globalScopeStack
-                        .getItemAtIdx(i)
+                for (const builtInIdentifier of BuiltinNames.builtinIdentifierArray) {
+                    this.globalScopes[i]
                         .addImportIdentifier(builtInIdentifier, builtInScope);
                 }
             }
         }
         /* Step3: Add variables to scopes */
-        this.variableScanner.visit();
-        this.variableInit.visit();
+        this._variableScanner.visit();
+        this._variableInit.visit();
         /* Step4: Mangling function and global variable name */
-        const globalScopeArray = [];
-        for (let i = 0; i < this.globalScopeStack.size(); i++) {
-            globalScopeArray.push(this.globalScopeStack.getItemAtIdx(i));
-        }
-        mangling(globalScopeArray);
+        mangling(this.globalScopes);
         /* Step5: Add statements to scopes */
-        this.stmtCompiler.visit();
+        this._stmtProcessor.visit();
         /* Step6: Additional semantic check */
         this.sematicChecker.checkRes();
 
@@ -174,11 +169,11 @@ export class ParserContext {
     }
 
     get expressionCompiler(): ExpressionCompiler {
-        return this.exprCompiler;
+        return this._exprProcessor;
     }
 
     get statementCompiler(): StatementCompiler {
-        return this.stmtCompiler;
+        return this._stmtProcessor;
     }
 
     get sematicChecker(): SematicCheck {
@@ -232,8 +227,8 @@ export class ParserContext {
         const scopeVarInfos: Array<any> = [];
         const scopeTypeInfos: Array<any> = [];
 
-        for (let i = 0; i < this.globalScopeStack.size(); ++i) {
-            const scope = this.globalScopeStack.getItemAtIdx(i);
+        for (let i = 0; i < this.globalScopes.length; ++i) {
+            const scope = this.globalScopes[i];
             scope.traverseScopTree((scope) => {
                 const scopeName = ScopeScanner.getPossibleScopeName(scope);
                 let paramCount = 0;

@@ -5,24 +5,31 @@
 
 import binaryen from 'binaryen';
 import ts from 'typescript';
-import * as binaryenCAPI from './glue/binaryen.js';
-import { BuiltinNames } from '../../../lib/builtin/builtInName.js';
-import { generateWatFile, getFuncName } from '../../../lib/builtin/utils.js';
-import { emptyStructType } from './glue/transform.js';
-import { flattenLoopStatement, FlattenLoop } from './utils.js';
-import { dyntype } from '../../../lib/dyntype/utils.js';
+import * as binaryenCAPI from '../glue/binaryen.js';
+import { BuiltinNames } from '../../../../lib/builtin/builtin_name.js';
+import { emptyStructType } from '../glue/transform.js';
+import { flattenLoopStatement, FlattenLoop } from '../utils.js';
+import { dyntype } from './dyntype/utils.js';
 import {
     importAnyLibAPI,
     generateGlobalContext,
     generateInitDynContext,
     generateFreeDynContext,
-} from '../../../lib/envInit.js';
-import { arrayToPtr } from './glue/transform.js';
+} from './env_init.js';
+import { arrayToPtr } from '../glue/transform.js';
 import {
     charArrayTypeInfo,
     stringArrayTypeInfo,
     stringTypeInfo,
-} from './glue/packType.js';
+} from '../glue/packType.js';
+
+function getFuncName(
+    moduleName: string,
+    funcName: string,
+    delimiter = '|',
+) {
+    return moduleName.concat(delimiter).concat(funcName);
+}
 
 function string_concat(module: binaryen.Module) {
     /** Args: context, this, string[] */
@@ -285,24 +292,19 @@ function Array_isArray(module: binaryen.Module) {
         setTrue,
     );
 
-    generateGlobalContext(module);
-    statementArray.push(generateInitDynContext(module));
     statementArray.push(setDefault);
     statementArray.push(is_any_array);
-    statementArray.push(generateFreeDynContext(module));
     statementArray.push(returnStmt);
 
     return module.block(null, statementArray);
 }
 
 export function callBuiltInAPIs(module: binaryen.Module) {
-    /** init lib env */
-    importAnyLibAPI(module);
     /** Math.sqrt */
     module.addFunction(
         getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.Math_sqrt_funcName,
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.mathSqrtFuncName,
         ),
         binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
         binaryen.f64,
@@ -312,8 +314,8 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     /** Math.abs */
     module.addFunction(
         getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.Math_abs_funcName,
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.mathAbsFuncName,
         ),
         binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
         binaryen.f64,
@@ -323,8 +325,8 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     /** Math.ceil */
     module.addFunction(
         getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.Math_ceil_funcName,
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.mathCeilFuncName,
         ),
         binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
         binaryen.f64,
@@ -334,8 +336,8 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     /** Math.floor */
     module.addFunction(
         getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.Math_floor_funcName,
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.mathFloorFuncName,
         ),
         binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
         binaryen.f64,
@@ -345,8 +347,8 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     /** Math.trunc */
     module.addFunction(
         getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.Math_trunc_funcName,
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.mathTruncFuncName,
         ),
         binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
         binaryen.f64,
@@ -356,8 +358,8 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     /** Array.isArray */
     module.addFunction(
         getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.Array_isArray_funcName,
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.arrayIsArrayFuncName,
         ),
         binaryen.createType([emptyStructType.typeRef, binaryen.anyref]),
         binaryen.i32,
@@ -367,8 +369,8 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     /** string */
     module.addFunction(
         getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.string_concat_funcName,
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.stringConcatFuncName,
         ),
         binaryen.createType([
             emptyStructType.typeRef,
@@ -381,8 +383,8 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     );
     module.addFunction(
         getFuncName(
-            BuiltinNames.bulitIn_module_name,
-            BuiltinNames.string_slice_funcName,
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.stringSliceFuncName,
         ),
         binaryen.createType([
             emptyStructType.typeRef,
@@ -397,12 +399,3 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     /** TODO: */
     /** array */
 }
-
-export function initBuiltInAPIs() {
-    const module = new binaryen.Module();
-    callBuiltInAPIs(module);
-    generateWatFile(module, 'API.wat');
-    module.dispose();
-}
-
-initBuiltInAPIs();

@@ -17,7 +17,7 @@ import { ParserContext } from './frontend.js';
 import { parentIsFunctionLike, Stack } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
-import { ArgNames, BuiltinNames } from '../lib/builtin/builtInName.js';
+import { ArgNames, BuiltinNames } from '../lib/builtin/builtin_name.js';
 
 export enum ScopeKind {
     Scope,
@@ -571,14 +571,14 @@ export class NamespaceScope extends Scope {
 }
 
 export class ScopeScanner {
-    globalScopeStack: Stack<GlobalScope>;
+    globalScopeArray: Array<GlobalScope>;
     currentScope: Scope | null = null;
     nodeScopeMap: Map<ts.Node, Scope>;
     /* anonymous function index */
     anonymousIndex = 0;
 
     constructor(private parserCtx: ParserContext) {
-        this.globalScopeStack = this.parserCtx.globalScopeStack;
+        this.globalScopeArray = this.parserCtx.globalScopes;
         this.nodeScopeMap = this.parserCtx.nodeScopeMap;
     }
 
@@ -638,10 +638,10 @@ export class ScopeScanner {
                 let moduleName = '';
                 const isBuiltInFile =
                     sourceFileNode.fileName.includes(
-                        BuiltinNames.builtInImplementFileName,
+                        BuiltinNames.builtinImplementFileName,
                     ) || this.parserCtx.compileArgs[ArgNames.isBuiltIn];
                 if (isBuiltInFile) {
-                    moduleName = BuiltinNames.bulitIn_module_name;
+                    moduleName = BuiltinNames.builtinModuleName;
                 } else {
                     const filePath = sourceFileNode.fileName.slice(
                         undefined,
@@ -650,7 +650,7 @@ export class ScopeScanner {
                     moduleName = path.relative(process.cwd(), filePath);
                 }
                 globalScope.moduleName = moduleName;
-                this.globalScopeStack.push(globalScope);
+                this.globalScopeArray.push(globalScope);
                 this.nodeScopeMap.set(sourceFileNode, globalScope);
                 for (let i = 0; i < sourceFileNode.statements.length; i++) {
                     this.visitNode(sourceFileNode.statements[i]);

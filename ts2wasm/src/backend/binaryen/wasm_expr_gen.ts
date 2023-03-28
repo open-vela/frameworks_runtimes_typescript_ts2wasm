@@ -8,7 +8,6 @@ import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
 import {
     builtinTypes,
-    Primitive,
     FunctionKind,
     TSArray,
     TSClass,
@@ -53,8 +52,8 @@ import {
     ClosureEnvironment,
 } from '../../scope.js';
 import { MatchKind, Stack, getBuiltInFuncName } from '../../utils.js';
-import { dyntype, structdyn } from '../../../lib/dyntype/utils.js';
-import { BuiltinNames } from '../../../lib/builtin/builtInName.js';
+import { dyntype, structdyn } from './lib/dyntype/utils.js';
+import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { charArrayTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './index.js';
 import { Logger } from '../../log.js';
@@ -141,7 +140,7 @@ class MethodAccess extends AccessBase {
     ) {
         super(AccessType.Function);
         this.mangledMethodName = classType.mangledName.concat(
-            BuiltinNames.module_delimiter,
+            BuiltinNames.moduleDelimiter,
             methodName,
         );
     }
@@ -491,7 +490,7 @@ export class WASMExpressionBase {
             dyntype.int,
         );
         const externalRef = module.table.get(
-            BuiltinNames.extref_table,
+            BuiltinNames.extrefTable,
             tableIndex,
             binaryen.anyref,
         );
@@ -992,7 +991,7 @@ export class WASMExpressionBase {
         }
         if (++this.curExtrefTableIdx >= this.extrefTableSize) {
             const tableGrowExpr = module.table.grow(
-                BuiltinNames.extref_table,
+                BuiltinNames.extrefTable,
                 binaryenCAPI._BinaryenRefNull(
                     this.module.ptr,
                     binaryenCAPI._BinaryenTypeStructref(),
@@ -1003,7 +1002,7 @@ export class WASMExpressionBase {
             this.currentFuncCtx.insert(module.drop(tableGrowExpr));
         }
         const tableSetOp = module.table.set(
-            BuiltinNames.extref_table,
+            BuiltinNames.extrefTable,
             module.i32.const(this.curExtrefTableIdx),
             dynValue,
         );
@@ -1297,15 +1296,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 /** builtIn instance field invoke */
                 const mangledMethodName = accessInfo.mangledMethodName;
                 switch (mangledMethodName) {
-                    case BuiltinNames.bulitIn_module_name.concat(
-                        BuiltinNames.module_delimiter,
-                        BuiltinNames.string_length_funcName,
+                    case BuiltinNames.builtinModuleName.concat(
+                        BuiltinNames.moduleDelimiter,
+                        BuiltinNames.stringLengthFuncName,
                     ):
                         loadRef = this._getStringRefLen(thisObj!);
                         break;
-                    case BuiltinNames.bulitIn_module_name.concat(
-                        BuiltinNames.module_delimiter,
-                        BuiltinNames.array_length_funcName,
+                    case BuiltinNames.builtinModuleName.concat(
+                        BuiltinNames.moduleDelimiter,
+                        BuiltinNames.arrayLengthFuncName,
                     ):
                         loadRef = this._getArrayRefLen(thisObj!);
                         break;

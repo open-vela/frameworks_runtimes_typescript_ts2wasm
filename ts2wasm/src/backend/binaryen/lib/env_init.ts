@@ -8,8 +8,7 @@ import { dyntype, structdyn } from './dyntype/utils.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addWatFuncs } from '../src/backend/binaryen/utils.js';
-import { getWatFilesDir } from './builtin/utils.js';
+import { addWatFuncs } from '../utils.js';
 
 export function importAnyLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
@@ -398,29 +397,11 @@ export function addItableFunc(module: binaryen.Module) {
     );
     const itableFilePath = path.join(
         path.dirname(fileURLToPath(import.meta.url)),
-        'interface-lib',
+        'interface',
         'itable.wat',
     );
     const itableLib = fs.readFileSync(itableFilePath, 'utf-8');
     const watModule = binaryen.parseText(itableLib);
     addWatFuncs(watModule, 'find_index', module);
     watModule.dispose();
-}
-
-export function addDecoratorFunc(
-    curModule: binaryen.Module,
-    builtInFuncName: string,
-) {
-    const watFileDir = getWatFilesDir();
-    const watFiles = fs.readdirSync(watFileDir);
-    for (const file of watFiles) {
-        const filePath = path.join(watFileDir, file);
-        const libWat = fs.readFileSync(filePath, 'utf-8');
-        const watModule = binaryen.parseText(libWat);
-        const fileName = file.slice(undefined, -'.wat'.length);
-        if (fileName === 'API') {
-            addWatFuncs(watModule, builtInFuncName, curModule);
-        }
-        watModule.dispose();
-    }
 }

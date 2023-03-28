@@ -10,7 +10,7 @@ export declare class console {
 export class Array {
     @binaryen
     static isArray(x: any): boolean {
-        return Array.isArray(x);
+        return false;
     }
 }
 
@@ -62,27 +62,27 @@ export class Math {
 
     @binaryen
     static sqrt(x: number): number {
-        return Math.sqrt(x);
+        return 0;
     }
 
     @binaryen
     static abs(x: number): number {
-        return Math.abs(x);
+        return 0;
     }
 
     @binaryen
     static ceil(x: number): number {
-        return Math.ceil(x);
+        return 0;
     }
 
     @binaryen
     static floor(x: number): number {
-        return Math.floor(x);
+        return 0;
     }
 
     @binaryen
     static trunc(x: number): number {
-        return Math.trunc(x);
+        return 0;
     }
 }
 
