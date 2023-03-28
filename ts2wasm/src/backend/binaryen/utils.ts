@@ -1,6 +1,6 @@
 import binaryen from 'binaryen';
 import ts from 'typescript';
-import { BuiltinNames } from '../../../lib/builtin/builtInName.js';
+import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { UnimplementError } from '../../error.js';
 import { TypeKind } from '../../type.js';
 
@@ -75,13 +75,13 @@ export function addWatFuncs(
 export function getClassNameByTypeKind(typeKind: TypeKind): string {
     switch (typeKind) {
         case TypeKind.BOOLEAN:
-            return BuiltinNames.Boolean;
+            return BuiltinNames.BOOLEAN;
         case TypeKind.NUMBER:
-            return BuiltinNames.Number;
+            return BuiltinNames.NUMBER;
         case TypeKind.FUNCTION:
-            return BuiltinNames.Function;
+            return BuiltinNames.FUNCTION;
         case TypeKind.STRING:
-            return BuiltinNames.String;
+            return BuiltinNames.STRING;
         case TypeKind.ARRAY:
             return BuiltinNames.ARRAY;
         default:

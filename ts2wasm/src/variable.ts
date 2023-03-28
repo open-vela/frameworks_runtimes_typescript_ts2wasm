@@ -163,12 +163,12 @@ export class Parameter extends Variable {
 
 export class VariableScanner {
     typechecker: ts.TypeChecker | undefined = undefined;
-    globalScopeStack = new Stack<GlobalScope>();
+    globalScopes = new Array<GlobalScope>();
     currentScope: Scope | null = null;
     nodeScopeMap = new Map<ts.Node, Scope>();
 
     constructor(private parserCtx: ParserContext) {
-        this.globalScopeStack = this.parserCtx.globalScopeStack;
+        this.globalScopes = this.parserCtx.globalScopes;
         this.nodeScopeMap = this.parserCtx.nodeScopeMap;
     }
 
@@ -189,8 +189,8 @@ export class VariableScanner {
             }
         });
 
-        for (let i = 0; i < this.globalScopeStack.size(); ++i) {
-            const scope = this.globalScopeStack.getItemAtIdx(i);
+        for (let i = 0; i < this.globalScopes.length; ++i) {
+            const scope = this.globalScopes[i];
             scope.traverseScopTree((scope) => {
                 if (
                     scope instanceof FunctionScope ||
@@ -209,14 +209,14 @@ export class VariableScanner {
                 const importDeclaration = <ts.ImportDeclaration>node;
                 const globalScope = this.currentScope!.getRootGloablScope()!;
                 // Get the import module name according to the relative position of enter scope
-                const enterScope = this.globalScopeStack.peek();
+                const enterScope = this.globalScopes[this.globalScopes.length - 1];
                 const importModuleName = getImportModulePath(
                     importDeclaration,
                     enterScope,
                 );
                 const importModuleScope = getGlobalScopeByModuleName(
                     importModuleName,
-                    this.globalScopeStack,
+                    this.globalScopes,
                 );
                 // get import identifier
                 const {
@@ -396,12 +396,12 @@ export class VariableScanner {
 
 export class VariableInit {
     typechecker: ts.TypeChecker | undefined = undefined;
-    globalScopeStack = new Stack<GlobalScope>();
+    globalScopes = new Array<GlobalScope>();
     currentScope: Scope | null = null;
     nodeScopeMap = new Map<ts.Node, Scope>();
 
     constructor(private parserCtx: ParserContext) {
-        this.globalScopeStack = this.parserCtx.globalScopeStack;
+        this.globalScopes = this.parserCtx.globalScopes;
         this.nodeScopeMap = this.parserCtx.nodeScopeMap;
     }
 

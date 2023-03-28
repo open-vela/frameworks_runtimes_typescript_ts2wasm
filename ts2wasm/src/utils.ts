@@ -14,7 +14,7 @@ import {
     Scope,
 } from './scope.js';
 import ExpressionCompiler, { Expression } from './expression.js';
-import { BuiltinNames } from '../lib/builtin/builtInName.js';
+import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 import { Type } from './type.js';
 import { UnimplementError } from './error.js';
 
@@ -175,7 +175,7 @@ export function isScopeNode(node: ts.Node) {
 
 export function mangling(
     scopeArray: Array<Scope>,
-    delimiter = BuiltinNames.module_delimiter,
+    delimiter = BuiltinNames.moduleDelimiter,
     prefixStack: Array<string> = [],
 ) {
     scopeArray.forEach((scope) => {
@@ -232,10 +232,10 @@ export function getImportModulePath(
 
 export function getGlobalScopeByModuleName(
     moduleName: string,
-    globalScopeStack: Stack<GlobalScope>,
+    globalScopes: Array<GlobalScope>,
 ) {
-    for (let i = 0; i < globalScopeStack.size(); i++) {
-        const globalScope = globalScopeStack.getItemAtIdx(i);
+    for (let i = 0; i < globalScopes.length; i++) {
+        const globalScope = globalScopes[i];
         if (globalScope.moduleName === moduleName) {
             return globalScope;
         }
@@ -332,7 +332,7 @@ export function getExportIdentifierName(
 }
 
 export function getBuiltInFuncName(oriFuncName: string) {
-    return BuiltinNames.bulitIn_module_name
-        .concat(BuiltinNames.module_delimiter)
+    return BuiltinNames.builtinModuleName
+        .concat(BuiltinNames.moduleDelimiter)
         .concat(oriFuncName);
 }

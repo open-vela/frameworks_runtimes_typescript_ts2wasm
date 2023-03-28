@@ -27,14 +27,13 @@ import {
     Scope,
     ClosureEnvironment,
     ScopeKind,
-    BlockScope,
 } from '../../scope.js';
 import { typeInfo } from './glue/utils.js';
 import { flattenLoopStatement, FlattenLoop } from './utils.js';
 import { WASMGen } from './index.js';
 import { TSClass, TSFunction, TypeKind } from '../../type.js';
 import { assert } from 'console';
-import { BuiltinNames } from '../../../lib/builtin/builtInName.js';
+import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 export class WASMStatementGen {
     private currentFuncCtx;
 
@@ -503,7 +502,7 @@ export class WASMStatementGen {
                 if (globalVar.isDeclare()) {
                     module.addGlobalImport(
                         globalVar.mangledName,
-                        BuiltinNames.external_module_name,
+                        BuiltinNames.externalModuleName,
                         globalVar.varName,
                         varTypeRef,
                     );
