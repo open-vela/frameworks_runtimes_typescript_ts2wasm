@@ -26,7 +26,7 @@ import {
 import { assert } from 'console';
 import { infcTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './index.js';
-import { dyntype } from '../../../lib/dyntype/utils.js';
+import { dyntype } from './lib/dyntype/utils.js';
 
 export class WASMTypeGen {
     tsType2WASMTypeMap: Map<Type, binaryenCAPI.TypeRef> = new Map();

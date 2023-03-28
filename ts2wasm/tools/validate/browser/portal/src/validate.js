@@ -9,6 +9,8 @@ export function setWasmMemory(value) {
     wasmMemory = value;
 }
 
+const TAG_PROPERTY = '__tag__';
+
 const DynType = {
     DynUnknown: 0,
     DynUndefined: 1,
@@ -35,7 +37,7 @@ const ExtRefTag = {
 
 const getDynTypeTag = (value) => {
     let res;
-    const tag = value['tag'];
+    const tag = value[TAG_PROPERTY];
     if (tag === ExtRefTag.ExtObj) {
         res = DynType.DynExtRefObj;
     } else if (tag === ExtRefTag.ExtFunc) {
@@ -43,7 +45,7 @@ const getDynTypeTag = (value) => {
     } else if (tag === ExtRefTag.ExtInfc) {
         res = DynType.DynExtRefInfc;
     } else if (tag === ExtRefTag.ExtArray) {
-        res = DynType.DynExtRefInfc;
+        res = DynType.DynExtRefArray;
     } else {
         const type = typeof value;
         switch (type) {
@@ -78,6 +80,21 @@ const getDynTypeTag = (value) => {
     }
     return res;
 };
+
+const cstringToJsString = (offset) => {
+    let length = 0;
+    let memory = new Uint8Array(wasmMemory.buffer);
+    while (memory[offset + length] !== 0) {
+        length++;
+    }
+
+    const decoder = new TextDecoder();
+    const string = decoder.decode(
+        memory.slice(offset, offset + length)
+    );
+
+    return string;
+}
 
 export const importObject = {
     libdstructdyn: {
@@ -154,9 +171,7 @@ export const importObject = {
         },
 
         dyntype_type_eq: (ctx, l, r) => {
-            const tagL = getDynTypeTag(l);
-            const tagR = getDynTypeTag(r);
-            return tagL === tagR;
+            return l === r;
         },
 
         dyntype_new_object: (ctx) => new Object(),
@@ -182,12 +197,12 @@ export const importObject = {
             const ref = new Object();
             /** TODO: ensure it's truely a external reference */
             ref['ptr'] = value;
-            ref['tag'] = flag;
+            ref[TAG_PROPERTY] = flag;
             return ref;
         },
         dyntype_is_extref: (ctx, obj) => {
             /** TODO: ensure it's truely a external reference */
-            const tag = obj['tag'];
+            const tag = obj[TAG_PROPERTY];
             if (
                 tag === ExtRefTag.ExtObj ||
                 tag === ExtRefTag.ExtFunc ||
@@ -217,7 +232,9 @@ export const importObject = {
         },
         console_constructor: (obj) => {},
         strcmp(a, b) {
-            return !(a == b);
+            let lhs = cstringToJsString(a);
+            let rhs = cstringToJsString(b);
+            return lhs.localeCompare(rhs);
         },
     },
 };

@@ -34,23 +34,23 @@ import {
     generateInitDynContext,
     generateFreeDynContext,
     addItableFunc,
-    addDecoratorFunc,
-} from '../../../lib/envInit.js';
-import { WASMTypeGen } from './wasmTypeGen.js';
+} from './lib/env_init.js';
+import { WASMTypeGen } from './wasm_type_gen.js';
 import {
     WASMExpressionGen,
     WASMDynExpressionGen,
     WASMExpressionBase,
-} from './wasmExprGen.js';
-import { WASMStatementGen } from './wasmStmtGen.js';
+} from './wasm_expr_gen.js';
+import { WASMStatementGen } from './wasm_stmt_gen.js';
 import {
     initGlobalOffset,
     initDefaultMemory,
     initDefaultTable,
 } from './memory.js';
-import { ArgNames, BuiltinNames } from '../../../lib/builtin/builtInName.js';
+import { ArgNames, BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { Ts2wasmBackend, ParserContext } from '../index.js';
 import { Logger } from '../../log.js';
+import { callBuiltInAPIs } from './lib/init_builtin_api.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -228,7 +228,7 @@ export class WASMGen extends Ts2wasmBackend {
     private currentFuncCtx: WASMFunctionContext | null = null;
     private dataSegmentContext: DataSegmentContext | null = null;
     private binaryenModule: binaryen.Module;
-    private globalScopeStack: Stack<GlobalScope>;
+    private globalScopes: Array<GlobalScope>;
     static contextOfScope: Map<Scope, typeInfo> = new Map<Scope, typeInfo>();
     private wasmTypeCompiler = new WASMTypeGen(this);
     wasmExprCompiler = new WASMExpressionGen(this);
@@ -243,7 +243,7 @@ export class WASMGen extends Ts2wasmBackend {
     constructor(parserContext: ParserContext) {
         super(parserContext);
         this.binaryenModule = new binaryen.Module();
-        this.globalScopeStack = parserContext.globalScopeStack;
+        this.globalScopes = parserContext.globalScopes;
         this.dataSegmentContext = new DataSegmentContext(this);
     }
 
@@ -297,11 +297,12 @@ export class WASMGen extends Ts2wasmBackend {
 
     private WASMGenerate() {
         WASMGen.contextOfScope.clear();
-        this.enterModuleScope = this.globalScopeStack.peek();
+        this.enterModuleScope = this.globalScopes[this.globalScopes.length - 1];
 
         // init wasm environment
         initGlobalOffset(this.module);
         initDefaultTable(this.module);
+        callBuiltInAPIs(this.module);
         if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
             importAnyLibAPI(this.module);
         }
@@ -310,9 +311,9 @@ export class WASMGen extends Ts2wasmBackend {
             addItableFunc(this.module);
         }
 
-        for (let i = 0; i < this.globalScopeStack.size(); i++) {
-            const globalScope = this.globalScopeStack.getItemAtIdx(i);
-            this.globalInitFuncName = `${globalScope.moduleName}|${BuiltinNames.global_init_func}`;
+        for (let i = 0; i < this.globalScopes.length; i++) {
+            const globalScope = this.globalScopes[i];
+            this.globalInitFuncName = `${globalScope.moduleName}|${BuiltinNames.globalInitFunc}`;
             this.WASMGenHelper(globalScope);
             this.WASMStartFunctionGen(globalScope);
             this.WASMGlobalFuncGen();
@@ -664,7 +665,7 @@ export class WASMGen extends Ts2wasmBackend {
         if (functionScope.isDeclare()) {
             this.module.addFunctionImport(
                 functionScope.mangledName,
-                BuiltinNames.external_module_name,
+                BuiltinNames.externalModuleName,
                 importName,
                 originParamWasmType,
                 returnWASMType,
@@ -673,11 +674,11 @@ export class WASMGen extends Ts2wasmBackend {
         }
 
         if (functionScope.hasDecorator(BuiltinNames.decorator)) {
-            const builtInFuncName = functionScope.mangledName.replace(
-                functionScope.getRootGloablScope()!.moduleName,
-                BuiltinNames.bulitIn_module_name,
-            );
-            addDecoratorFunc(this.module, builtInFuncName);
+            // const builtInFuncName = functionScope.mangledName.replace(
+            //     functionScope.getRootGloablScope()!.moduleName,
+            //     BuiltinNames.bulitInModuleName,
+            // );
+            // addDecoratorFunc(this.module, builtInFuncName);
             return;
         }
 

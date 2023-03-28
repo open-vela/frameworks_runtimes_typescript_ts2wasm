@@ -350,7 +350,7 @@ export class TSFunction extends Type {
 
 export default class TypeResolver {
     typechecker: ts.TypeChecker | undefined = undefined;
-    globalScopeStack: Stack<GlobalScope>;
+    globalScopes: Array<GlobalScope>;
     currentScope: Scope | null = null;
     nodeScopeMap: Map<ts.Node, Scope>;
     // cache class shape layout string, <class name, type string>
@@ -361,7 +361,7 @@ export default class TypeResolver {
 
     constructor(private parserCtx: ParserContext) {
         this.nodeScopeMap = this.parserCtx.nodeScopeMap;
-        this.globalScopeStack = this.parserCtx.globalScopeStack;
+        this.globalScopes = this.parserCtx.globalScopes;
     }
 
     visit() {

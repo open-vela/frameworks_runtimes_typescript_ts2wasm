@@ -24,6 +24,10 @@ modify the `SERVER_IP` in `.env` to the ip of server, then execute:
 docker-compose up -d --build
 ```
 
+Open the browser and navigate to http://<SERVER_IP>:3050
+
+> Note: must use `chrome` version 111+ and enable the `WebAssembly Garbage Collection flag` in `chrome://flags/#enable-webassembly-garbage-collection`
+
 ## Inspect database
 
 ``` bash
