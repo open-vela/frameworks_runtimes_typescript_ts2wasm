@@ -85,7 +85,7 @@ boolean_type_case6.wasm 1 1 0 booleanTestCase6
 boolean_type_case7.wasm 1 1 0 booleanTestCase7
 boolean_type_case8.wasm 1 1 2 booleanTestCase8
 builtin_array_case1.wasm 1 1 3 arrayTest
-builtin_Array_case1.wasm 1 1 1 builtInArray
+builtin_array_case2.wasm 1 1 1 builtInArray
 builtin_boolean_case1.wasm 0 0 0 builtInBoolean
 builtin_console_case1.wasm 0 0 0 builtInConsole
 builtin_func_case1.wasm 1 1 1 builtInFunc
