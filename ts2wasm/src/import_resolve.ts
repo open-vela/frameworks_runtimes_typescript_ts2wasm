@@ -12,6 +12,7 @@ import {
     getImportModulePath,
 } from './utils.js';
 import { GlobalScope, Scope } from './scope.js';
+import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 
 export class ImportResolver {
     globalScopes: Array<GlobalScope>;
@@ -24,9 +25,24 @@ export class ImportResolver {
     }
 
     visit() {
+        /* Handle import and export nodes */
         this.nodeScopeMap.forEach((scope, node) => {
             ts.forEachChild(node, this.visitNode.bind(this));
         });
+        /* Auto import the standard library module for every user file */
+        const builtinScope = this.globalScopes[1];
+        for (
+            let i = this.parserCtx.builtinFileNames.length;
+            i < this.globalScopes.length;
+            i++
+        ) {
+            for (const builtinIdentifier of BuiltinNames.builtinIdentifierArray) {
+                this.globalScopes[i].addImportIdentifier(
+                    builtinIdentifier,
+                    builtinScope,
+                );
+            }
+        }
     }
 
     visitNode(node: ts.Node): void {
