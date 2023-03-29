@@ -502,7 +502,7 @@ export class FunctionScope extends ClosureEnvironment {
     private parameterArray: Parameter[] = [];
     private functionType = new TSFunction();
     /* iff the function is a member function, which class it belong to */
-    private _classNmae = '';
+    private _className = '';
 
     constructor(parent: Scope) {
         super(parent);
@@ -540,15 +540,15 @@ export class FunctionScope extends ClosureEnvironment {
     }
 
     setClassName(name: string) {
-        this._classNmae = name;
+        this._className = name;
     }
 
     get className(): string {
-        return this._classNmae;
+        return this._className;
     }
 
     isMethod(): boolean {
-        return this._classNmae !== '';
+        return this._className !== '';
     }
 }
 

@@ -1293,7 +1293,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         } else if (accessInfo instanceof MethodAccess) {
             const { methodType, methodIndex, classType, thisObj } = accessInfo;
             if (accessInfo.isBuiltInMethod) {
-                /** builtIn instance field invoke */
+                /** builtin instance field invoke */
                 const mangledMethodName = accessInfo.mangledMethodName;
                 switch (mangledMethodName) {
                     case BuiltinNames.builtinModuleName.concat(
