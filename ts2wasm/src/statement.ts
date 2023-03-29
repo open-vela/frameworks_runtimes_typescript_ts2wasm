@@ -326,10 +326,10 @@ export default class StatementProcessor {
                     this.parserCtx.globalScopes,
                 );
                 const importStmt = new ImportDeclaration();
-                if (!importModuleScope.isMarkStart) {
+                if (!importModuleScope.isCircularImport) {
                     importStmt.importModuleStartFuncName =
                         importModuleScope.startFuncName;
-                    importModuleScope.isMarkStart = true;
+                    importModuleScope.isCircularImport = true;
                     return importStmt;
                 }
                 const globalScope = this.currentScope!.getRootGloablScope()!;
