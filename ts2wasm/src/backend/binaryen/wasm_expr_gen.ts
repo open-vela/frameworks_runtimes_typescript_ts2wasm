@@ -442,7 +442,7 @@ export class WASMExpressionBase {
         if (typeKind === TypeKind.ANY) {
             return anyExprRef;
         }
-        const isExternRef = module.call(
+        const isBaseTypeRef = module.call(
             condFuncName,
             [
                 module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
@@ -450,7 +450,7 @@ export class WASMExpressionBase {
             ],
             dyntype.bool,
         );
-        const condition = module.i32.eq(isExternRef, module.i32.const(1));
+        const condition = module.i32.eq(isBaseTypeRef, module.i32.const(1));
         // iff True
         const value = module.call(
             cvtFuncName,
