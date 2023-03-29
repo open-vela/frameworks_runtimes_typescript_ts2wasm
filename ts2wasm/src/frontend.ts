@@ -62,14 +62,14 @@ export class ParserContext {
 
     // configurations
     compileArgs: CompileArgs = {};
-    builtInPath = path.join(
+    builtinPath = path.join(
         path.dirname(fileURLToPath(import.meta.url)),
         '..',
         'lib',
         'builtin',
     );
-    builtInFileNames = BuiltinNames.builtinFileNames.map((builtInFileName) => {
-        return path.join(this.builtInPath, builtInFileName);
+    builtinFileNames = BuiltinNames.builtinFileNames.map((builtinFileName) => {
+        return path.join(this.builtinPath, builtinFileName);
     });
 
     constructor() {
@@ -86,12 +86,8 @@ export class ParserContext {
     parse(fileNames: string[], compileArgs: CompileArgs = {}): void {
         this.compileArgs = compileArgs;
         const compilerOptions: ts.CompilerOptions = this.getCompilerOptions();
-        let rootNames = [...fileNames];
-        if (!compileArgs[ArgNames.disableBuiltIn]) {
-            rootNames = [...this.builtInFileNames, ...fileNames];
-        }
         const program: ts.Program = ts.createProgram(
-            rootNames,
+            [...this.builtinFileNames, ...fileNames],
             compilerOptions,
         );
         this.typeChecker = program.getTypeChecker();
@@ -125,22 +121,6 @@ export class ParserContext {
         this._importResolver.visit();
         /* Step3: Resolve all type declarations */
         this._typeResolver.visit();
-        /* Auto import the standard library module for every user file */
-        if (!compileArgs[ArgNames.disableBuiltIn]) {
-            const builtInScope = this.globalScopes[1];
-            for (
-                let i = this.builtInFileNames.length;
-                i < this.globalScopes.length;
-                i++
-            ) {
-                for (const builtInIdentifier of BuiltinNames.builtinIdentifierArray) {
-                    this.globalScopes[i].addImportIdentifier(
-                        builtInIdentifier,
-                        builtInScope,
-                    );
-                }
-            }
-        }
         /* Step4: Add variables to scopes */
         this._variableScanner.visit();
         this._variableInit.visit();
