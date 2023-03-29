@@ -555,6 +555,7 @@ export default class TypeResolver {
             return this.parseSignature(signature);
         }
 
+        Logger.debug(`Encounter un-processed type: ${type.flags}`);
         /* cases have not been considered or covered yet... */
         return new Type();
     }
