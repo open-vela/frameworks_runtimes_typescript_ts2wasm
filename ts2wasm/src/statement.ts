@@ -289,8 +289,15 @@ export default class StatementProcessor {
     visit() {
         this.parserCtx.nodeScopeMap.forEach((scope, node) => {
             this.currentScope = scope;
+            /** arrow function body is a ts.expression */
+            if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+                const expr = this.parserCtx.expressionProcessor.visitNode(
+                    node.body,
+                );
+                scope.addStatement(new ReturnStatement(expr));
+            }
             /* During the traverse, it will enter the inner
-                block scope, so we skip BlockScope here */
+            block scope, so we skip BlockScope here */
             if (
                 scope.kind !== ScopeKind.BlockScope &&
                 scope.kind !== ScopeKind.ClassScope
