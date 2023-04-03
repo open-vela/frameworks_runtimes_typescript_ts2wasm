@@ -130,12 +130,16 @@ export default class SemanticChecker {
     }
     // check if argsType is assignable to paramType
     checkArgTypes(paramType: Type[], argsType: Type[], hasRest: boolean) {
-        let rest = new Type();
         if (hasRest) {
-            rest = (<TSArray>paramType[paramType.length - 1]).elementType;
+            const rest = (<TSArray>paramType[paramType.length - 1]).elementType;
+            const restLen = argsType.length - paramType.length + 1;
+            const restElemArr: Type[] =
+                restLen <= 0 ? [] : new Array<Type>(restLen).fill(rest);
+            paramType = paramType.slice(0, -1).concat(restElemArr);
         }
-        for (let i = 0; i < argsType.length; i++) {
-            const param = i >= paramType.length ? rest : paramType[i];
+        const len = Math.min(argsType.length, paramType.length);
+        for (let i = 0; i < len; i++) {
+            const param = paramType[i];
             const arg = argsType[i];
             this.nominalClassCheck(
                 param,

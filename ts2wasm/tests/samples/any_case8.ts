@@ -4,6 +4,6 @@
  */
 
 export function anyTest() {
-    let a = null;
+    let a: any = null;
     return a;
 }
