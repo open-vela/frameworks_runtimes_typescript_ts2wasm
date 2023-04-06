@@ -379,15 +379,6 @@ export default class StatementProcessor {
                           )
                         : null,
                 );
-                const expr = retStmt.returnExpression;
-                if (expr) {
-                    this.parserCtx.semanticChecker.curScope =
-                        this.parserCtx.getScopeByNode(node);
-                    this.parserCtx.semanticChecker.checkReturnType(
-                        expr.exprType,
-                    );
-                }
-
                 return retStmt;
             }
             case ts.SyntaxKind.WhileStatement: {
