@@ -2084,7 +2084,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
             if (accessInfo instanceof MethodAccess) {
                 const { methodType, methodIndex, classType, thisObj } =
                     accessInfo;
-                let finalCallWasmArgs = [context];
+                let finalCallWasmArgs = [];
+                if (!methodType.isDeclare) {
+                    finalCallWasmArgs.push(context);
+                }
                 if (thisObj) {
                     finalCallWasmArgs.push(thisObj);
                 }

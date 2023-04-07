@@ -4,5 +4,9 @@
  */
 
 export function consoleLog() {
-    console.log(1);
+    let obj: any = {
+        a: 1, 
+        b: 2
+    }
+    console.log(1, true, 123, obj);
 }
