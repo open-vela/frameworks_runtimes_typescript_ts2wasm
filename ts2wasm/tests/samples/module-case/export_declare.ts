@@ -3,8 +3,5 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-import exportDefaultFunc from './module_case8'
-
-export default function testFunc() {
-    return exportDefaultFunc(10);
-}
+export declare function declareAdd(x: number, y: number): number;
+export declare const declareVar: number;
