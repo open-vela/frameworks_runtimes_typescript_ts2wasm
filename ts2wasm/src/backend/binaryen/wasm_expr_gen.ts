@@ -3058,45 +3058,57 @@ export class WASMExpressionGen extends WASMExpressionBase {
         type: Type,
     ) {
         const wasmType = this.wasmType.getWASMType(type);
-        switch (wasmType) {
-            case binaryen.i32:
-                return this.module.call(
-                    structdyn.StructDyn.struct_get_dyn_i32,
-                    [ref, index],
-                    binaryen.i32,
-                );
-            case binaryen.i64:
-                return this.module.call(
-                    structdyn.StructDyn.struct_get_dyn_i64,
-                    [ref, index],
-                    binaryen.i64,
-                );
-            case binaryen.f32:
-                return this.module.call(
-                    structdyn.StructDyn.struct_get_dyn_f32,
-                    [ref, index],
-                    binaryen.f32,
-                );
-            case binaryen.f64:
-                return this.module.call(
-                    structdyn.StructDyn.struct_get_dyn_f64,
-                    [ref, index],
-                    binaryen.f64,
-                );
-            default: {
-                const obj = this.module.call(
-                    structdyn.StructDyn.struct_get_dyn_anyref,
-                    [ref, index],
-                    binaryen.anyref,
-                );
-                const wasmType = this.wasmType.getWASMType(type);
-                return binaryenCAPI._BinaryenRefCast(
-                    this.module.ptr,
-                    obj,
-                    wasmType,
-                );
-            }
+        const typeKind = type.kind;
+        let res: binaryen.ExpressionRef | null = null;
+        if (typeKind === TypeKind.BOOLEAN) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_i32,
+                [ref, index],
+                binaryen.i32,
+            );
+        } else if (typeKind === TypeKind.NUMBER) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_f64,
+                [ref, index],
+                binaryen.f64,
+            );
+        } else if (typeKind === TypeKind.FUNCTION) {
+            /** get vtable firstly */
+            res = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_anyref,
+                [ref, this.module.i32.const(0)],
+                binaryen.anyref,
+            );
+            res = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_funcref,
+                [res, index],
+                binaryen.funcref,
+            );
+            res = binaryenCAPI._BinaryenRefCast(this.module.ptr, res, wasmType);
+        } else if (wasmType === binaryen.i64) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_i64,
+                [ref, index],
+                binaryen.i32,
+            );
+        } else if (wasmType === binaryen.f32) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_f32,
+                [ref, index],
+                binaryen.f32,
+            );
+        } else {
+            const obj = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_anyref,
+                [ref, index],
+                binaryen.anyref,
+            );
+            res = binaryenCAPI._BinaryenRefCast(this.module.ptr, obj, wasmType);
         }
+        if (!res) {
+            throw new Error(`get interface field failed, type: ${type}`);
+        }
+        return res;
     }
 
     private findItableIndex(
@@ -3124,39 +3136,55 @@ export class WASMExpressionGen extends WASMExpressionBase {
         type: Type,
     ) {
         const wasmType = this.wasmType.getWASMType(type);
-        switch (wasmType) {
-            case binaryen.i32:
-                return this.module.call(
-                    structdyn.StructDyn.struct_set_dyn_i32,
-                    [ref, index, value],
-                    binaryen.none,
-                );
-            case binaryen.i64:
-                return this.module.call(
-                    structdyn.StructDyn.struct_set_dyn_i64,
-                    [ref, index, value],
-                    binaryen.none,
-                );
-            case binaryen.f32:
-                return this.module.call(
-                    structdyn.StructDyn.struct_set_dyn_f32,
-                    [ref, index, value],
-                    binaryen.none,
-                );
-            case binaryen.f64:
-                return this.module.call(
-                    structdyn.StructDyn.struct_set_dyn_f64,
-                    [ref, index, value],
-                    binaryen.none,
-                );
-            default: {
-                return this.module.call(
-                    structdyn.StructDyn.struct_set_dyn_anyref,
-                    [ref, index, value],
-                    binaryen.none,
-                );
-            }
+        const typeKind = type.kind;
+        let res: binaryen.ExpressionRef | null = null;
+
+        if (typeKind === TypeKind.BOOLEAN) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_i32,
+                [ref, index, value],
+                binaryen.none,
+            );
+        } else if (typeKind === TypeKind.NUMBER) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_f64,
+                [ref, index, value],
+                binaryen.none,
+            );
+        } else if (typeKind === TypeKind.FUNCTION) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_anyref,
+                [ref, this.module.i32.const(0)],
+                binaryen.anyref,
+            );
+            res = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_funcref,
+                [res, index, value],
+                binaryen.none,
+            );
+        } else if (wasmType === binaryen.i64) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_i64,
+                [ref, index, value],
+                binaryen.none,
+            );
+        } else if (wasmType === binaryen.f32) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_f32,
+                [ref, index, value],
+                binaryen.none,
+            );
+        } else {
+            res = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_anyref,
+                [ref, index, value],
+                binaryen.none,
+            );
         }
+        if (!res) {
+            throw new Error(`set interface field failed, type: ${type}`);
+        }
+        return res;
     }
 
     private _getArrayRefLen(
