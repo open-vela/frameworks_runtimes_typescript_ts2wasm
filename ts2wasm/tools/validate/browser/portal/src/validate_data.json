@@ -5,17 +5,17 @@
             {
                 "name": "addAnyAny",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "addNumberAnyInBinaryExpr",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             },
             {
                 "name": "addNumberAnyInMulExpr",
                 "args": [],
-                "result": "9:f64"
+                "result": 9
             }
         ]
     },
@@ -25,7 +25,7 @@
             {
                 "name": "boxAny",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -35,12 +35,12 @@
             {
                 "name": "boxBooleanWithVarStmt",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             },
             {
                 "name": "boxBooleanWithBinaryExpr",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             }
         ]
     },
@@ -50,7 +50,7 @@
             {
                 "name": "boxInterface",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             }
         ]
     },
@@ -60,7 +60,7 @@
             {
                 "name": "boxNull",
                 "args": [],
-                "result": "ref.struct"
+                "result": null
             }
         ]
     },
@@ -70,12 +70,12 @@
             {
                 "name": "boxNumberWithVarStmt",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "boxNumberWithBinaryExpr",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -85,22 +85,22 @@
             {
                 "name": "boxEmptyObj",
                 "args": [],
-                "result": "ref.struct"
+                "result": {}
             },
             {
                 "name": "boxObjWithNumberProp",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "boxObjWithBooleanProp",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             },
             {
                 "name": "boxNestedObj",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -110,12 +110,12 @@
             {
                 "name": "boxStringWithVarStmt",
                 "args": [],
-                "result": "ref.struct"
+                "result": "hello"
             },
             {
                 "name": "boxStringWithBinaryExpr",
                 "args": [],
-                "result": "ref.struct"
+                "result": "hello"
             }
         ]
     },
@@ -125,7 +125,7 @@
             {
                 "name": "boxUndefined",
                 "args": [],
-                "result": "ref.struct"
+                "result": "undefined"
             }
         ]
     },
@@ -135,7 +135,7 @@
             {
                 "name": "getProp",
                 "args": [],
-                "result": "4:f64"
+                "result": 4
             }
         ]
     },
@@ -145,12 +145,12 @@
             {
                 "name": "setUnExistProp",
                 "args": [],
-                "result": "4:f64"
+                "result": 4
             },
             {
                 "name": "setExistProp",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             }
         ]
     },
@@ -160,7 +160,7 @@
             {
                 "name": "containClosure",
                 "args": [],
-                "result": "11:f64"
+                "result": 11
             }
         ]
     },
@@ -170,7 +170,7 @@
             {
                 "name": "containFunc",
                 "args": [],
-                "result": "20:f64"
+                "result": 20
             }
         ]
     },
@@ -180,7 +180,7 @@
             {
                 "name": "arrayTest6",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -190,7 +190,7 @@
             {
                 "name": "setElem",
                 "args": [],
-                "result": "5:f64"
+                "result": 5
             }
         ]
     },
@@ -210,7 +210,7 @@
             {
                 "name": "nestedLiteral",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             }
         ]
     },
@@ -220,12 +220,22 @@
             {
                 "name": "nestedLiteralArrayInOneLayer",
                 "args": [],
-                "result": "ref.array"
+                "result": [
+                    [
+                        "hello"
+                    ]
+                ]
             },
             {
                 "name": "nestedLiteralArrayInMulLayer",
                 "args": [],
-                "result": "ref.array"
+                "result": [
+                    [
+                        [
+                            "hello"
+                        ]
+                    ]
+                ]
             }
         ]
     },
@@ -239,14 +249,14 @@
             {
                 "name": "newArrayNumber",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "newArrayNumberWithParam",
                 "args": [
-                    1
+                    29
                 ],
-                "result": "1:f64"
+                "result": 29
             }
         ]
     },
@@ -256,7 +266,10 @@
             {
                 "name": "newArrayString",
                 "args": [],
-                "result": "ref.array"
+                "result": [
+                    "hi",
+                    "world"
+                ]
             }
         ]
     },
@@ -266,12 +279,12 @@
             {
                 "name": "newLiteralExplicitAny",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "newLiteralNonExplicitAny",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -281,7 +294,7 @@
             {
                 "name": "newLiteralBoolean",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             }
         ]
     },
@@ -291,17 +304,17 @@
             {
                 "name": "newLiteralNumberWithLiteralType",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "newLiteralNumberWithArrayType",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "newLiteralNumberWithoutInit",
                 "args": [],
-                "result": "ref.array"
+                "result": []
             }
         ]
     },
@@ -311,7 +324,10 @@
             {
                 "name": "newLiteralString",
                 "args": [],
-                "result": "ref.array"
+                "result": [
+                    "hello",
+                    "world"
+                ]
             }
         ]
     },
@@ -321,7 +337,7 @@
             {
                 "name": "innerBlock",
                 "args": [],
-                "result": "11:f64"
+                "result": 11
             }
         ]
     },
@@ -331,12 +347,12 @@
             {
                 "name": "booleanBasicTrue",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             },
             {
                 "name": "booleanBasicFalse",
                 "args": [],
-                "result": "0x0:i32"
+                "result": 0
             }
         ]
     },
@@ -346,17 +362,17 @@
             {
                 "name": "logicOr",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             },
             {
                 "name": "logicAnd",
                 "args": [],
-                "result": "0x0:i32"
+                "result": 0
             },
             {
                 "name": "conditionExpr",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             }
         ]
     },
@@ -366,17 +382,17 @@
             {
                 "name": "notNumber",
                 "args": [],
-                "result": "0x0:i32"
+                "result": 0
             },
             {
                 "name": "notBoolean",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             },
             {
                 "name": "notWithLogicOperator",
                 "args": [],
-                "result": "0:f64"
+                "result": 0
             }
         ]
     },
@@ -386,12 +402,12 @@
             {
                 "name": "length",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "isArray",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             }
         ]
     },
@@ -401,7 +417,7 @@
             {
                 "name": "consoleLog",
                 "args": [],
-                "result": "1 true 123     Object { a: 1, b: 2 }"
+                "result": "undefined"
             }
         ]
     },
@@ -411,52 +427,52 @@
             {
                 "name": "mathSqrt",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "mathMaxWithOneOperation",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "mathMaxWithMultiOperation",
                 "args": [],
-                "result": "9:f64"
+                "result": 9
             },
             {
                 "name": "mathMinWithOneOperation",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             },
             {
                 "name": "mathMinWithMultiOperation",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "mathPowWithZero",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "mathPowWithNegative",
                 "args": [],
-                "result": "0.1111111:f64"
+                "result": 0.1111111111111111
             },
             {
                 "name": "mathPowWithPositive",
                 "args": [],
-                "result": "9:f64"
+                "result": 9
             },
             {
                 "name": "mathAbs",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "mathNested",
                 "args": [],
-                "result": "27:f64"
+                "result": 27
             }
         ]
     },
@@ -466,27 +482,27 @@
             {
                 "name": "stringConcat",
                 "args": [],
-                "result": "ref.struct"
+                "result": "helloworld"
             },
             {
                 "name": "stringLength",
                 "args": [],
-                "result": "5:f64"
+                "result": 5
             },
             {
                 "name": "stringSliceWithTwoNegativeNumber",
                 "args": [],
-                "result": "ref.struct"
+                "result": ""
             },
             {
                 "name": "stringSliceWithTwoPositiveNumber",
                 "args": [],
-                "result": "ref.struct"
+                "result": "el"
             },
             {
                 "name": "stringSliceWithTwoUndefind",
                 "args": [],
-                "result": "ref.struct"
+                "result": "hello"
             }
         ]
     },
@@ -496,7 +512,7 @@
             {
                 "name": "funcHosting",
                 "args": [],
-                "result": "110:f64"
+                "result": 110
             }
         ]
     },
@@ -506,22 +522,22 @@
             {
                 "name": "getValueWithDefaultParam",
                 "args": [],
-                "result": "116:f64"
+                "result": 116
             },
             {
                 "name": "callInnerFunc",
                 "args": [
-                    18,
-                    29
+                    27,
+                    9
                 ],
-                "result": "56:f64"
+                "result": 45
             },
             {
                 "name": "recursive",
                 "args": [
-                    5
+                    4
                 ],
-                "result": "5:f64"
+                "result": 3
             }
         ]
     },
@@ -531,22 +547,22 @@
             {
                 "name": "noDefaultParam",
                 "args": [],
-                "result": "6:f64"
+                "result": 6
             },
             {
                 "name": "allDefaultParam",
                 "args": [],
-                "result": "6:f64"
+                "result": 6
             },
             {
                 "name": "someDefaultParam",
                 "args": [],
-                "result": "5:f64"
+                "result": 5
             },
             {
                 "name": "paramIsAny",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             }
         ]
     },
@@ -556,32 +572,32 @@
             {
                 "name": "castAnyBackToClass",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             },
             {
                 "name": "castAnyBackToString",
                 "args": [],
-                "result": "ref.struct"
+                "result": "hi"
             },
             {
                 "name": "castAnyBackToNumber",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "castAnyBackToNull",
                 "args": [],
-                "result": "ref.struct"
+                "result": null
             },
             {
                 "name": "castAnyBackToBoolean",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             },
             {
                 "name": "castAnyBackToUndefined",
                 "args": [],
-                "result": "ref.struct"
+                "result": "undefined"
             }
         ]
     },
@@ -591,17 +607,17 @@
             {
                 "name": "withoutCtor",
                 "args": [],
-                "result": "123:f64"
+                "result": 123
             },
             {
                 "name": "basic",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             },
             {
                 "name": "getterSetter",
                 "args": [],
-                "result": "25:f64"
+                "result": 25
             }
         ]
     },
@@ -621,12 +637,12 @@
             {
                 "name": "extendWithNewProp",
                 "args": [],
-                "result": "90:f64"
+                "result": 90
             },
             {
                 "name": "methodOverwrite",
                 "args": [],
-                "result": "40:f64"
+                "result": 40
             }
         ]
     },
@@ -636,12 +652,12 @@
             {
                 "name": "withCtor",
                 "args": [],
-                "result": "18:f64"
+                "result": 18
             },
             {
                 "name": "withoutCtor",
                 "args": [],
-                "result": "0x0:i32"
+                "result": 0
             }
         ]
     },
@@ -651,17 +667,17 @@
             {
                 "name": "staticMethodWithOverwrite",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             },
             {
                 "name": "staticMethod",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "staticFields",
                 "args": [],
-                "result": "74:f64"
+                "result": 74
             }
         ]
     },
@@ -671,7 +687,7 @@
             {
                 "name": "uniqueType",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -681,17 +697,16 @@
             {
                 "name": "accessOuterVars",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             },
             {
                 "name": "returnOuterFuncCall",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             },
             {
                 "name": "accesssGlobalVar",
-                "args": [],
-                "result": "ref.struct"
+                "args": []
             }
         ]
     },
@@ -701,12 +716,12 @@
             {
                 "name": "returnAFunction",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "functionAsParam",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             }
         ]
     },
@@ -716,9 +731,9 @@
             {
                 "name": "setCtxValue",
                 "args": [
-                    9
+                    23
                 ],
-                "result": "30:f64"
+                "result": 44
             }
         ]
     },
@@ -728,7 +743,7 @@
             {
                 "name": "complexTypeTest",
                 "args": [],
-                "result": "5:f64"
+                "result": 5
             }
         ]
     },
@@ -738,9 +753,9 @@
             {
                 "name": "cpxCase2Func3",
                 "args": [
-                    0
+                    19
                 ],
-                "result": "ref.struct"
+                "result": 2
             }
         ]
     },
@@ -750,7 +765,7 @@
             {
                 "name": "cpxCase3Func1",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             }
         ]
     },
@@ -760,7 +775,7 @@
             {
                 "name": "cpxCase3Func1",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             }
         ]
     },
@@ -770,7 +785,7 @@
             {
                 "name": "cpxCase3Func1",
                 "args": [],
-                "result": "6:f64"
+                "result": 6
             }
         ]
     },
@@ -806,15 +821,15 @@
             {
                 "name": "add",
                 "args": [
-                    21,
-                    22
+                    39,
+                    7
                 ],
-                "result": "43:f64"
+                "result": 46
             },
             {
                 "name": "theDefault",
                 "args": [],
-                "result": "8:f64"
+                "result": 8
             }
         ]
     },
@@ -824,12 +839,12 @@
             {
                 "name": "beCalledFunc",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             },
             {
                 "name": "exportedFunc",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             }
         ]
     },
@@ -847,82 +862,82 @@
             {
                 "name": "lt",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "gt",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "le",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "ge",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "eq",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "seenAsEq",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "ne",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "seenAsNe",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "add",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "sub",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "mul",
                 "args": [],
-                "result": "4:f64"
+                "result": 4
             },
             {
                 "name": "div",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "subEq",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "addEq",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "mulEq",
                 "args": [],
-                "result": "6:f64"
+                "result": 6
             },
             {
                 "name": "divEq",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             }
         ]
     },
@@ -932,42 +947,42 @@
             {
                 "name": "selectAmpersandTrueTrue",
                 "args": [],
-                "result": "20:f64"
+                "result": 20
             },
             {
                 "name": "selectAmpersandTrueFalse",
                 "args": [],
-                "result": "0:f64"
+                "result": 0
             },
             {
                 "name": "selectAmpersandFalseTrue",
                 "args": [],
-                "result": "0:f64"
+                "result": 0
             },
             {
                 "name": "selectAmpersandFalseFlase",
                 "args": [],
-                "result": "0:f64"
+                "result": 0
             },
             {
                 "name": "selectBarTrueTrue",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             },
             {
                 "name": "selectBarTrueFalse",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "selectBarFalseTrue",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "selectBarFalseFalse",
                 "args": [],
-                "result": "0:f64"
+                "result": 0
             }
         ]
     },
@@ -977,7 +992,7 @@
             {
                 "name": "binaryAsCondition",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -987,42 +1002,42 @@
             {
                 "name": "prefixUnaryPlusPlus",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "prefixUnaryMinusMinus",
                 "args": [],
-                "result": "-1:f64"
+                "result": -1
             },
             {
                 "name": "prefixUnaryExclamation",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "prefixUnaryMinusToLiteralWithBinaryExpr",
                 "args": [],
-                "result": "-1:f64"
+                "result": -1
             },
             {
                 "name": "prefixUnaryMinusToLiteralWithVarStmt",
                 "args": [],
-                "result": "-1:f64"
+                "result": -1
             },
             {
                 "name": "prefixUnaryMinusToVarWithBinaryExpr",
                 "args": [],
-                "result": "-1:f64"
+                "result": -1
             },
             {
                 "name": "prefixUnaryMinusToVarWithVarStmt",
                 "args": [],
-                "result": "-1:f64"
+                "result": -1
             },
             {
                 "name": "prefixUnaryPlus",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -1032,30 +1047,30 @@
             {
                 "name": "simpleFunctionOnlyReturn",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "basicFunction",
                 "args": [
-                    37,
-                    29
+                    19,
+                    15
                 ],
-                "result": "66:f64"
+                "result": 34
             },
             {
                 "name": "defaultParamExport",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "functionWithFuncScopeVariable",
                 "args": [],
-                "result": "5:f64"
+                "result": 5
             },
             {
                 "name": "miltipleVariablesInOneStatement",
                 "args": [],
-                "result": "7:f64"
+                "result": 7
             }
         ]
     },
@@ -1065,17 +1080,17 @@
             {
                 "name": "functionExpression",
                 "args": [],
-                "result": "2004.1:f64"
+                "result": 2004.1
             },
             {
                 "name": "arrowFunction",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             },
             {
                 "name": "arrowFunctionWithoutReturn",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             }
         ]
     },
@@ -1085,17 +1100,17 @@
             {
                 "name": "useBeforeDeclare",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "operateWithConst",
                 "args": [],
-                "result": "16:f64"
+                "result": 16
             },
             {
                 "name": "nestedFunction",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             }
         ]
     },
@@ -1105,24 +1120,24 @@
             {
                 "name": "ifElse",
                 "args": [],
-                "result": "26:f64"
+                "result": 26
             },
             {
                 "name": "nestedIf",
                 "args": [],
-                "result": "36:f64"
+                "result": 36
             },
             {
                 "name": "noElseBranch",
                 "args": [],
-                "result": "17:f64"
+                "result": 17
             },
             {
                 "name": "returnInIf",
                 "args": [
-                    20
+                    37
                 ],
-                "result": "20:f64"
+                "result": 37
             }
         ]
     },
@@ -1147,27 +1162,27 @@
             {
                 "name": "importFuncAdd",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "importFuncSub",
                 "args": [],
-                "result": "-1:f64"
+                "result": -1
             },
             {
                 "name": "importFuncMul",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             },
             {
                 "name": "importDefaultFunc",
                 "args": [],
-                "result": "8:f64"
+                "result": 8
             },
             {
                 "name": "importFuncInvoked",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             }
         ]
     },
@@ -1202,17 +1217,17 @@
             {
                 "name": "importVarA",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "importVarB",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             },
             {
                 "name": "importVarC",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             }
         ]
     },
@@ -1222,7 +1237,7 @@
             {
                 "name": "classAndInfc",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -1232,7 +1247,7 @@
             {
                 "name": "infcAndInfc",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             }
         ]
     },
@@ -1242,7 +1257,7 @@
             {
                 "name": "objLiteralAndInfc",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -1252,12 +1267,12 @@
             {
                 "name": "fieldAssignToOther",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "otherAssignToField",
                 "args": [],
-                "result": "20:f64"
+                "result": 20
             }
         ]
     },
@@ -1267,17 +1282,17 @@
             {
                 "name": "infcSetter",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             },
             {
                 "name": "infcMethod",
                 "args": [],
-                "result": "0x0:i32"
+                "result": 0
             },
             {
                 "name": "infcGetter",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -1287,17 +1302,17 @@
             {
                 "name": "infcToClass",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "classToInfc",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             },
             {
                 "name": "infcAsParameter",
                 "args": [],
-                "result": "0x0:i32"
+                "result": 0
             }
         ]
     },
@@ -1307,12 +1322,12 @@
             {
                 "name": "returnInfc",
                 "args": [],
-                "result": "0x1:i32"
+                "result": 1
             },
             {
                 "name": "returnClass",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             }
         ]
     },
@@ -1322,7 +1337,7 @@
             {
                 "name": "infcWithArray",
                 "args": [],
-                "result": "12:f64"
+                "result": 12
             }
         ]
     },
@@ -1332,27 +1347,27 @@
             {
                 "name": "loopBodyEmpty",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             },
             {
                 "name": "basicDoLoop",
                 "args": [],
-                "result": "100:f64"
+                "result": 100
             },
             {
                 "name": "prefixPlusPlus",
                 "args": [],
-                "result": "21:f64"
+                "result": 21
             },
             {
                 "name": "suffixPlusPlus",
                 "args": [],
-                "result": "22:f64"
+                "result": 22
             },
             {
                 "name": "numberAsCondition",
                 "args": [],
-                "result": "0:f64"
+                "result": 0
             }
         ]
     },
@@ -1362,42 +1377,42 @@
             {
                 "name": "basicCase",
                 "args": [],
-                "result": "106:f64"
+                "result": 106
             },
             {
                 "name": "loopBodySemicolon",
                 "args": [],
-                "result": "100:f64"
+                "result": 100
             },
             {
                 "name": "loopBodyEmpty",
                 "args": [],
-                "result": "100:f64"
+                "result": 100
             },
             {
                 "name": "noInitializer",
                 "args": [],
-                "result": "90:f64"
+                "result": 90
             },
             {
                 "name": "noCondition",
                 "args": [],
-                "result": "88:f64"
+                "result": 88
             },
             {
                 "name": "noIncrement",
                 "args": [],
-                "result": "90:f64"
+                "result": 90
             },
             {
                 "name": "nestedForLoopWithBreak",
                 "args": [],
-                "result": "105:f64"
+                "result": 105
             },
             {
                 "name": "multipleForLoop",
                 "args": [],
-                "result": "115:f64"
+                "result": 115
             }
         ]
     },
@@ -1407,22 +1422,22 @@
             {
                 "name": "basicLoop",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             },
             {
                 "name": "loopBodyEmpty",
                 "args": [],
-                "result": "100:f64"
+                "result": 100
             },
             {
                 "name": "loopBodySemicolon",
                 "args": [],
-                "result": "100:f64"
+                "result": 100
             },
             {
                 "name": "complexLoop",
                 "args": [],
-                "result": "49:f64"
+                "result": 49
             }
         ]
     },
@@ -1432,7 +1447,7 @@
             {
                 "name": "namespaceFunc",
                 "args": [],
-                "result": "2:f64"
+                "result": 2
             }
         ]
     },
@@ -1442,7 +1457,7 @@
             {
                 "name": "namespaceNested",
                 "args": [],
-                "result": "4:f64"
+                "result": 4
             }
         ]
     },
@@ -1452,7 +1467,7 @@
             {
                 "name": "namespaceVar",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             }
         ]
     },
@@ -1462,7 +1477,7 @@
             {
                 "name": "nullTypeTest",
                 "args": [],
-                "result": "20:f64"
+                "result": 20
             }
         ]
     },
@@ -1472,27 +1487,27 @@
             {
                 "name": "simpleObject",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "nestedObject",
                 "args": [],
-                "result": "4:f64"
+                "result": 4
             },
             {
                 "name": "moreNestedObject",
                 "args": [],
-                "result": "0x0:i32"
+                "result": 0
             },
             {
                 "name": "assignObjectLiteralToField",
                 "args": [],
-                "result": "6:f64"
+                "result": 6
             },
             {
                 "name": "withMethodField",
                 "args": [],
-                "result": "117:f64"
+                "result": 117
             }
         ]
     },
@@ -1502,7 +1517,7 @@
             {
                 "name": "parenthesizedTest",
                 "args": [],
-                "result": "5.833333:f64"
+                "result": 5.833333333333333
             }
         ]
     },
@@ -1512,12 +1527,12 @@
             {
                 "name": "constPrimitiveVars",
                 "args": [],
-                "result": "3:f64"
+                "result": 3
             },
             {
                 "name": "letPrimitiveVars",
                 "args": [],
-                "result": "6:f64"
+                "result": 6
             }
         ]
     },
@@ -1527,12 +1542,14 @@
             {
                 "name": "setPrototype",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "returnPrototypeObject",
                 "args": [],
-                "result": "ref.struct"
+                "result": {
+                    "height": 1
+                }
             }
         ]
     },
@@ -1542,7 +1559,10 @@
             {
                 "name": "restParameterTest",
                 "args": [],
-                "result": "ref.struct"
+                "result": {
+                    "x": 10,
+                    "y": "123"
+                }
             }
         ]
     },
@@ -1552,7 +1572,7 @@
             {
                 "name": "restParameterTest",
                 "args": [],
-                "result": "47:f64"
+                "result": 47
             }
         ]
     },
@@ -1562,17 +1582,17 @@
             {
                 "name": "deadCodeAfterReturn",
                 "args": [
-                    11,
-                    9
+                    34,
+                    38
                 ],
-                "result": "2:f64"
+                "result": 34
             },
             {
                 "name": "deadReturnStatement",
                 "args": [
-                    17
+                    11
                 ],
-                "result": "17:f64"
+                "result": 11
             }
         ]
     },
@@ -1582,7 +1602,7 @@
             {
                 "name": "nestedScopes",
                 "args": [],
-                "result": "5:f64"
+                "result": 5
             }
         ]
     },
@@ -1592,27 +1612,27 @@
             {
                 "name": "stringNotReturned",
                 "args": [],
-                "result": "ref.struct"
+                "result": "undefined"
             },
             {
                 "name": "returnString",
                 "args": [],
-                "result": "ref.struct"
+                "result": "hello"
             },
             {
                 "name": "assignStringToVariable",
                 "args": [],
-                "result": "ref.struct"
+                "result": "hello"
             },
             {
                 "name": "noExplicitStringKeyword",
                 "args": [],
-                "result": "ref.struct"
+                "result": ""
             },
             {
                 "name": "unicode",
                 "args": [],
-                "result": "ref.struct"
+                "result": "🀄"
             }
         ]
     },
@@ -1622,42 +1642,42 @@
             {
                 "name": "switchWithDefault",
                 "args": [],
-                "result": "0:f64"
+                "result": 0
             },
             {
                 "name": "nestedSwitchCase",
                 "args": [],
-                "result": "1:f64"
+                "result": 1
             },
             {
                 "name": "emptySwitch",
                 "args": [],
-                "result": "0:f64"
+                "result": 0
             },
             {
                 "name": "switchWithoutDefault",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             },
             {
                 "name": "multipleCasesShareSameBlock",
                 "args": [],
-                "result": "11:f64"
+                "result": 11
             },
             {
                 "name": "caseWithoutBlock",
                 "args": [],
-                "result": "10:f64"
+                "result": 10
             },
             {
                 "name": "caseWithoutBreak",
                 "args": [],
-                "result": "11:f64"
+                "result": 11
             },
             {
                 "name": "varDeclarationInCase",
                 "args": [],
-                "result": "20:f64"
+                "result": 20
             }
         ]
     },

@@ -6,7 +6,7 @@ import { TypeKind } from '../../type.js';
 
 export interface FlattenLoop {
     label: string;
-    condition: binaryen.ExpressionRef;
+    condition?: binaryen.ExpressionRef;
     statements: binaryen.ExpressionRef;
     incrementor?: binaryen.ExpressionRef;
 }
@@ -22,8 +22,9 @@ export function flattenLoopStatement(
     kind: ts.SyntaxKind,
     module: binaryen.Module,
 ): binaryen.ExpressionRef {
+    const condition = loopStatementInfo.condition || module.i32.const(1);
     const ifStatementInfo: IfStatementInfo = {
-        condition: loopStatementInfo.condition,
+        condition: condition,
         ifTrue: binaryen.none,
         ifFalse: binaryen.none,
     };
@@ -32,7 +33,10 @@ export function flattenLoopStatement(
         if (loopStatementInfo.statements !== binaryen.none) {
             ifTrueBlockArray.push(loopStatementInfo.statements);
         }
-        if (kind === ts.SyntaxKind.ForStatement) {
+        if (
+            kind === ts.SyntaxKind.ForStatement &&
+            loopStatementInfo.incrementor
+        ) {
             ifTrueBlockArray.push(
                 <binaryen.ExpressionRef>loopStatementInfo.incrementor,
             );

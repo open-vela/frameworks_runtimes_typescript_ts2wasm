@@ -551,6 +551,7 @@ export class WASMExpressionBase {
             switch (expr.exprType.kind) {
                 case TypeKind.NUMBER:
                 case TypeKind.BOOLEAN:
+                case TypeKind.STRING:
                 case TypeKind.NULL:
                     res = this.boxBaseTypeToAny(expr);
                     break;
@@ -3291,6 +3292,8 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                 break;
             case ts.SyntaxKind.Identifier:
             case ts.SyntaxKind.BinaryExpression:
+            case ts.SyntaxKind.PrefixUnaryExpression:
+            case ts.SyntaxKind.PostfixUnaryExpression:
             case ts.SyntaxKind.CallExpression:
             case ts.SyntaxKind.PropertyAccessExpression:
                 res = this.boxNonLiteralToAny(expr);
