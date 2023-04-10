@@ -3,5 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-export declare function declare1_add(x: number, y: number): number;
-export declare const declare1_a: number;
+export const a = 1;
+
+const b = 2;
+
+export { b };
+
+const c = 3; // not exported as "c"
+
+export { c as renamed_c };
