@@ -3,15 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-namespace NSCase2 {
+namespace NSCaseFunc {
     export function case2() {
         return 2;
     }
     case2();
 }
 
-export function namespaceTest() {
-    const ns2func1 = NSCase2.case2;
-    return ns2func1();
+export function namespaceFunc() {
+    const nsFunc = NSCaseFunc.case2;
+    return nsFunc();
 }
-// 2

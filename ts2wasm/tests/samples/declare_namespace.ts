@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-export default function exportDefaultFunc(x: number) {
-    return x + 1;
+declare namespace DeclaredNS {
+    const a: number;
+    function nsFunc(): void;
 }
