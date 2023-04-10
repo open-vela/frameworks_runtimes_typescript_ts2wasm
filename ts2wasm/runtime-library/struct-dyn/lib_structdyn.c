@@ -47,6 +47,9 @@ int struct_get_dyn_i32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int in
     WASMValue result = { 0 };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_I32);
+    if (!struct_obj) {
+        return 0;
+    }
 
     wasm_struct_obj_get_field(struct_obj, index, false, &result);
 
@@ -57,6 +60,9 @@ long long struct_get_dyn_i64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, 
     WASMValue result = { 0 };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_I64);
+    if (!struct_obj) {
+        return 0;
+    }
 
     wasm_struct_obj_get_field(struct_obj, index, false, &result);
 
@@ -67,6 +73,9 @@ float struct_get_dyn_f32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int 
     WASMValue result = { 0 };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_F32);
+    if (!struct_obj) {
+        return 0;
+    }
 
     wasm_struct_obj_get_field(struct_obj, index, false, &result);
 
@@ -77,6 +86,9 @@ double struct_get_dyn_f64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int
     WASMValue result = { 0 };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_F64);
+    if (!struct_obj) {
+        return 0;
+    }
 
     wasm_struct_obj_get_field(struct_obj, index, false, &result);
 
@@ -87,6 +99,9 @@ void* struct_get_dyn_anyref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, i
     WASMValue result = { 0 };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, REF_TYPE_ANYREF);
+    if (!struct_obj) {
+        return NULL;
+    }
 
     wasm_struct_obj_get_field(struct_obj, index, false, &result);
 
@@ -97,6 +112,9 @@ void struct_set_dyn_i32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     WASMValue val = { .i32 = value };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_I32);
+    if (!struct_obj) {
+        return;
+    }
     
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
@@ -105,6 +123,9 @@ void struct_set_dyn_i64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     WASMValue val = { .i64 = value };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_I64);
+    if (!struct_obj) {
+        return;
+    }
     
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
@@ -113,6 +134,9 @@ void struct_set_dyn_f32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     WASMValue val = { .f32 = value };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_F32);
+    if (!struct_obj) {
+        return;
+    }
     
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
@@ -121,7 +145,10 @@ void struct_set_dyn_f64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     WASMValue val = { .f64 = value };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_F64);
-    
+    if (!struct_obj) {
+        return;
+    }
+
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
@@ -129,7 +156,10 @@ void struct_set_dyn_anyref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, in
     WASMValue val = { .gc_obj = value };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
         exec_env, (WASMObjectRef)obj, index, REF_TYPE_ANYREF);
-    
+    if (!struct_obj) {
+        return;
+    }
+
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
