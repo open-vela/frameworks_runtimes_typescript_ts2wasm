@@ -5,12 +5,12 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ParserContext } from '../../../src/frontend.js';
+import { ParserContext } from '../../../../../src/frontend.js';
 import { fileURLToPath } from 'url';
-import { FunctionScope } from '../../../src/scope.js';
+import { FunctionScope } from '../../../../../src/scope.js';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const SAMPLES_DIR = path.join(SCRIPT_DIR, '../../../tests/samples');
+const SAMPLES_DIR = path.join(SCRIPT_DIR, '../../../../../tests/samples');
 
 const validationData: any = [];
 let tsFiles = fs.readdirSync(SAMPLES_DIR);
@@ -44,25 +44,17 @@ for (const file of tsFiles) {
         };
 
         for (const f of exportFuncs) {
-            let result = '';
+            let result: any = '';
             const args = (f as FunctionScope).paramArray
-                .filter((p) => p.varName !== '@context')
-                .map((p) => Math.floor(Math.random() * 40));
+                .filter((p: any) => p.varName !== '@context')
+                .map((p: any) => Math.floor(Math.random() * 40));
 
             try {
                 result = (await import(currentTsFile))[f.getName()](...args);
-                if (typeof result === 'number') {
-                    let value = `${result}`;
-                    if (!Number.isInteger(result)) {
-                        value = (result as number).toFixed(6);
-                    }
-                    result = `${value}:f64`;
+                if (typeof result === 'undefined') {
+                    result = 'undefined';
                 } else if (typeof result === 'boolean') {
-                    result = `${result ? '0x1' : '0x0'}:i32`;
-                } else if ((result as any) instanceof Array) {
-                    result = `ref.array`;
-                } else {
-                    result = `ref.struct`;
+                    result = result ? 1 : 0;
                 }
             } catch (e) {
                 console.error(
@@ -87,7 +79,7 @@ for (const file of tsFiles) {
 }
 
 fs.writeFileSync(
-    path.join(SCRIPT_DIR, 'validation.json'),
+    path.join(SCRIPT_DIR, 'validate_data.json'),
     JSON.stringify(validationData, null, 4),
 );
 

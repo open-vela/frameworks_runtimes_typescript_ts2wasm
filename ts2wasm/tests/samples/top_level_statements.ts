@@ -3,11 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-export function funcHosting() {
-    const a = foo();
-    return a;
+let i: number;
+
+for (i = 0; i < 10; i++) {
+    console.log(i);
 }
 
-function foo(a = 10, b = 1, c = 99) {
-    return a + b + c;
-}
+console.log('Hello World');
