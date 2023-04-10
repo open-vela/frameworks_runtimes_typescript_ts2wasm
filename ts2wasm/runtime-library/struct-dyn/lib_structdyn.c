@@ -108,6 +108,18 @@ void* struct_get_dyn_anyref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, i
     return result.gc_obj;
 }
 
+void* struct_get_dyn_funcref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index) {
+    WASMValue result = { 0 };
+    WASMStructObjectRef struct_obj = check_struct_obj_type(
+        exec_env, (WASMObjectRef)obj, index, REF_TYPE_ANYREF);
+    if (!struct_obj) {
+        return NULL;
+    }
+    wasm_struct_obj_get_field(struct_obj, index, false, &result);
+
+    return result.gc_obj;
+}
+
 void struct_set_dyn_i32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index, int value) {
     WASMValue val = { .i32 = value };
     WASMStructObjectRef struct_obj = check_struct_obj_type(
@@ -115,7 +127,7 @@ void struct_set_dyn_i32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     if (!struct_obj) {
         return;
     }
-    
+
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
@@ -126,7 +138,7 @@ void struct_set_dyn_i64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     if (!struct_obj) {
         return;
     }
-    
+
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
@@ -137,7 +149,7 @@ void struct_set_dyn_f32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     if (!struct_obj) {
         return;
     }
-    
+
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
@@ -163,6 +175,16 @@ void struct_set_dyn_anyref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, in
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
+void struct_set_dyn_funcref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index, void* value) {
+    WASMValue val = { .gc_obj = value };
+    WASMStructObjectRef struct_obj = check_struct_obj_type(
+        exec_env, (WASMObjectRef)obj, index, REF_TYPE_ANYREF);
+    if (!struct_obj) {
+        return;
+    }
+    wasm_struct_obj_set_field(struct_obj, index, &val);
+}
+
 /* clang-format off */
 #define REG_NATIVE_FUNC(func_name, signature) \
     { #func_name, func_name, signature, NULL }
@@ -173,12 +195,13 @@ static NativeSymbol native_symbols[] = {
     REG_NATIVE_FUNC(struct_get_dyn_f32, "(ri)f"),
     REG_NATIVE_FUNC(struct_get_dyn_f64, "(ri)F"),
     REG_NATIVE_FUNC(struct_get_dyn_anyref, "(ri)r"),
+    REG_NATIVE_FUNC(struct_get_dyn_funcref, "(ri)r"),
     REG_NATIVE_FUNC(struct_set_dyn_i32, "(rii)"),
     REG_NATIVE_FUNC(struct_set_dyn_i64, "(riI)"),
     REG_NATIVE_FUNC(struct_set_dyn_f32, "(rif)"),
     REG_NATIVE_FUNC(struct_set_dyn_f64, "(riF)"),
     REG_NATIVE_FUNC(struct_set_dyn_anyref, "(rir)"),
-    /* TODO */
+    REG_NATIVE_FUNC(struct_set_dyn_funcref, "(rir)"),
 };
 /* clang-format on */
 
