@@ -33,16 +33,17 @@ this message shows that in function `tests/samples/call-expression-case6|callInt
 
 the meaning of error flags as below.
 
-1. binary operation between any type and non-any type without any type casting. For example,
+1. Operation between any and non-primitive object without explicit casting. For example:
 
     ``` typescript
-    let a: any = 10;
-    let b = 11;
+    Foo f;
+    let a: any = f;
+    let b: Foo = {...};
     b = a; // error
-    // b = a as nummber; // correct
+    // b = a as Foo; // correct
     ```
 
-2. binary operation between different types(not contain any type).For example,
+2. binary operation between different types(not contain any type), it aims to handling implicitly type casting. For example:
 
     ``` typescript
     let a = '123'
@@ -50,40 +51,17 @@ the meaning of error flags as below.
     let c = a + b; // error
     ```
 
-3. binary operation, and one of them is any object. For example,
+3. invoke any type(point to an object). For example,
 
     ```typescript
-    let a: any = {x: 1, y: false};
+    Foo f;
+    let a: any = f;
     let b = 1;
     let c = b + a.x; // error
-    // let c = b + a.x as number // correct
+    // let c = b + (a as F).x // correct
     ```
 
-4. function return type and type of return expression are nominal classes. For example,
-
-    ```typescript
-    class A {
-    }
-    class B {
-    }
-    function foo(): A {
-        //xxx
-        return new B(); // error
-    }
-
-    ```
-
-5. function return type is non-any type, type of return expression is any(without type cast). For example,
-
-    ```typescript
-    function foo(): number {
-        const a: any = 10;
-        return a; // error
-        // return a as number // correct
-    }
-    ```
-
-6. closure has default parameters. For example,
+4. inner function has default parameters. For example,
 
     ```typescript
     function callInternalReturnTest(a: number, b = 2) {
@@ -96,7 +74,7 @@ the meaning of error flags as below.
     }
     ```
 
-7. argument type and parameter type are nominal class types. For example,
+5. operation on nominal class types(unless the two types have inheritance relationship). For example,
 
     ```typescript
     class A {
@@ -110,18 +88,7 @@ the meaning of error flags as below.
     foo(b); // error
     ```
 
-8. argument type is any type without type casting. For example,
-
-    ```typescript
-    const a: any = 10;
-    function foo(x: number) {
-        // xxx
-    }
-    foo(a); // error
-    // foo(a as number) // correct
-    ```
-
-9. `new Array` without a explicit type argument. For example,
+6. `new Array` without a explicit type argument. For example,
 
     ```typescript
     const a: number[] = new Array(); // error
