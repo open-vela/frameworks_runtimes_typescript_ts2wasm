@@ -3,6 +3,7 @@ import ts from 'typescript';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { UnimplementError } from '../../error.js';
 import { TypeKind } from '../../type.js';
+import { dyntype } from './lib/dyntype/utils.js';
 
 export interface FlattenLoop {
     label: string;
@@ -91,4 +92,72 @@ export function getClassNameByTypeKind(typeKind: TypeKind): string {
         default:
             throw new UnimplementError('unimplement type class: ${typeKind}');
     }
+}
+
+export function unboxAnyTypeToBaseType(
+    module: binaryen.Module,
+    anyExprRef: binaryen.ExpressionRef,
+    typeKind: TypeKind,
+) {
+    let condFuncName = '';
+    let cvtFuncName = '';
+    let binaryenType: binaryen.Type;
+    switch (typeKind) {
+        case TypeKind.NUMBER: {
+            condFuncName = dyntype.dyntype_is_number;
+            cvtFuncName = dyntype.dyntype_to_number;
+            binaryenType = binaryen.f64;
+            break;
+        }
+        case TypeKind.BOOLEAN: {
+            condFuncName = dyntype.dyntype_is_bool;
+            cvtFuncName = dyntype.dyntype_to_bool;
+            binaryenType = binaryen.i32;
+            break;
+        }
+        /** for undefined or null, treat it as anyref in WASM */
+        case TypeKind.ANY: {
+            binaryenType = binaryen.anyref;
+            break;
+        }
+        default: {
+            throw Error(
+                `unboxing any type to static type, unsupported static type : ${typeKind}`,
+            );
+        }
+    }
+    if (typeKind === TypeKind.ANY) {
+        return anyExprRef;
+    }
+    const isBaseTypeRef = isBaseType(module, anyExprRef, condFuncName);
+    const condition = module.i32.eq(isBaseTypeRef, module.i32.const(1));
+    // iff True
+    const value = module.call(
+        cvtFuncName,
+        [
+            module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+            anyExprRef,
+        ],
+        binaryenType,
+    );
+    // iff False
+    const unreachableRef = module.unreachable();
+
+    const blockStmt = module.if(condition, value, unreachableRef);
+    return module.block(null, [blockStmt], binaryenType);
+}
+
+export function isBaseType(
+    module: binaryen.Module,
+    anyExprRef: binaryen.ExpressionRef,
+    condFuncName: string,
+) {
+    return module.call(
+        condFuncName,
+        [
+            module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+            anyExprRef,
+        ],
+        dyntype.bool,
+    );
 }

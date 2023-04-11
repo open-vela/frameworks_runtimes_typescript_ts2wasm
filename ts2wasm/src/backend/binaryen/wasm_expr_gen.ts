@@ -51,13 +51,13 @@ import {
     NamespaceScope,
     ClosureEnvironment,
 } from '../../scope.js';
-import { MatchKind, Stack, getBuiltInFuncName } from '../../utils.js';
+import { MatchKind, Stack } from '../../utils.js';
 import { dyntype, structdyn } from './lib/dyntype/utils.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { charArrayTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './index.js';
 import { Logger } from '../../log.js';
-import { getClassNameByTypeKind } from './utils.js';
+import { getClassNameByTypeKind, unboxAnyTypeToBaseType } from './utils.js';
 
 export interface WasmValue {
     /* binaryen reference */
@@ -411,61 +411,7 @@ export class WASMExpressionBase {
     }
 
     unboxAnyToBase(anyExprRef: binaryen.ExpressionRef, typeKind: TypeKind) {
-        const module = this.module;
-        let condFuncName = '';
-        let cvtFuncName = '';
-        let binaryenType: binaryen.Type;
-        if (typeKind === TypeKind.ANY) {
-            return anyExprRef;
-        }
-        if (typeKind === TypeKind.NULL) {
-            return binaryenCAPI._BinaryenRefNull(
-                this.module.ptr,
-                binaryenCAPI._BinaryenTypeStructref(),
-            );
-        }
-        switch (typeKind) {
-            case TypeKind.NUMBER: {
-                condFuncName = dyntype.dyntype_is_number;
-                cvtFuncName = dyntype.dyntype_to_number;
-                binaryenType = binaryen.f64;
-                break;
-            }
-            case TypeKind.BOOLEAN: {
-                condFuncName = dyntype.dyntype_is_bool;
-                cvtFuncName = dyntype.dyntype_to_bool;
-                binaryenType = binaryen.i32;
-                break;
-            }
-            default: {
-                throw Error(
-                    `unboxing any type to static type, unsupported static type : ${typeKind}`,
-                );
-            }
-        }
-        const isBaseTypeRef = module.call(
-            condFuncName,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                anyExprRef,
-            ],
-            dyntype.bool,
-        );
-        const condition = module.i32.eq(isBaseTypeRef, module.i32.const(1));
-        // iff True
-        const value = module.call(
-            cvtFuncName,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                anyExprRef,
-            ],
-            binaryenType,
-        );
-        // iff False
-        const unreachableRef = module.unreachable();
-
-        const blockStmt = module.if(condition, value, unreachableRef);
-        return module.block(null, [blockStmt], binaryenType);
+        return unboxAnyTypeToBaseType(this.module, anyExprRef, typeKind);
     }
 
     unboxAnyToExtref(anyExprRef: binaryen.ExpressionRef, targetType: Type) {

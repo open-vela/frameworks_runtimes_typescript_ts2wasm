@@ -79,6 +79,13 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.double,
     );
     module.addFunctionImport(
+        dyntype.dyntype_is_undefined,
+        dyntype.module_name,
+        dyntype.dyntype_is_undefined,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.bool,
+    );
+    module.addFunctionImport(
         dyntype.dyntype_new_undefined,
         dyntype.module_name,
         dyntype.dyntype_new_undefined,

@@ -191,6 +191,9 @@ export const importObject = {
             return typeof obj === 'object';
         },
 
+        dyntype_is_undefined: (ctx, value) => {
+            typeof value === 'undefined';
+        },
         dyntype_new_undefined: (ctx) => undefined,
 
         dyntype_new_null: (ctx) => null,
