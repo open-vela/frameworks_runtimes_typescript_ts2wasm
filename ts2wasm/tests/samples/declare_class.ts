@@ -4,7 +4,13 @@
  */
 
 declare class DeclaredClass {
-    variable: number;
-    constructor(variable: number);
-    getVar(): number;
+    grade: number;
+    constructor(grade: number);
+    sayHello(): void;
+    static whoSayHi(name: string): number;
+}
+
+export function classDecl() {
+    const sayHiFunc = DeclaredClass.whoSayHi('i');
+    return sayHiFunc;
 }
