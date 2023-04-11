@@ -1,4 +1,5 @@
 import binaryen from 'binaryen';
+import * as binaryenCAPI from './glue/binaryen.js';
 import ts from 'typescript';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { UnimplementError } from '../../error.js';
@@ -102,6 +103,15 @@ export function unboxAnyTypeToBaseType(
     let condFuncName = '';
     let cvtFuncName = '';
     let binaryenType: binaryen.Type;
+    if (typeKind === TypeKind.ANY) {
+        return anyExprRef;
+    }
+    if (typeKind === TypeKind.NULL) {
+        return binaryenCAPI._BinaryenRefNull(
+            module.ptr,
+            binaryenCAPI._BinaryenTypeStructref(),
+        );
+    }
     switch (typeKind) {
         case TypeKind.NUMBER: {
             condFuncName = dyntype.dyntype_is_number;
@@ -115,22 +125,21 @@ export function unboxAnyTypeToBaseType(
             binaryenType = binaryen.i32;
             break;
         }
-        /** for undefined or null, treat it as anyref in WASM */
-        case TypeKind.ANY: {
-            binaryenType = binaryen.anyref;
-            break;
-        }
         default: {
             throw Error(
                 `unboxing any type to static type, unsupported static type : ${typeKind}`,
             );
         }
     }
-    if (typeKind === TypeKind.ANY) {
-        return anyExprRef;
-    }
-    const isBaseTypeRef = isBaseType(module, anyExprRef, condFuncName);
-    const condition = module.i32.eq(isBaseTypeRef, module.i32.const(1));
+    const isBaseTypeRef = module.call(
+        condFuncName,
+        [
+            module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
+            anyExprRef,
+        ],
+        dyntype.bool,
+    );
+    const condition = module.i32.ne(isBaseTypeRef, module.i32.const(0));
     // iff True
     const value = module.call(
         cvtFuncName,
