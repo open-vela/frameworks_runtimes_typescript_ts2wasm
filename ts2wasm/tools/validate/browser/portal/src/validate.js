@@ -101,11 +101,13 @@ export const importObject = {
         struct_get_dyn_f32: (obj, index) => {},
         struct_get_dyn_f64: (obj, index) => {},
         struct_get_dyn_anyref: (obj, index) => {},
+        struct_get_dyn_funcref: (obj, index) => {},
         struct_set_dyn_i32: (obj, index, value) => {},
         struct_set_dyn_i64: (obj, index, value) => {},
         struct_set_dyn_f32: (obj, index, value) => {},
         struct_set_dyn_f64: (obj, index, value) => {},
         struct_set_dyn_anyref: (obj, index, value) => {},
+        struct_set_dyn_funcref: (obj, index, value) => {},
     },
     libdyntype: {
         dyntype_context_init: () => BigInt(0),
