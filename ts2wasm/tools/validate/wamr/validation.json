@@ -606,16 +606,6 @@
         ]
     },
     {
-        "module": "class_declare_case1",
-        "entries": [
-            {
-                "name": "classDecl",
-                "args": [],
-                "result": "need_manual_fill"
-            }
-        ]
-    },
-    {
         "module": "class_extend",
         "entries": [
             {
@@ -776,7 +766,13 @@
     },
     {
         "module": "declare_class",
-        "entries": []
+        "entries": [
+            {
+                "name": "classDecl",
+                "args": [],
+                "result": "need_manual_fill"
+            }
+        ]
     },
     {
         "module": "declare_func",
