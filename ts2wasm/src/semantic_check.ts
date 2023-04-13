@@ -135,7 +135,9 @@ export default class SemanticChecker {
             this.exprAccept(stmt.forLoopIncrementor);
         }
         if (stmt instanceof ReturnStatement) {
-            this.returnTypeCheck(expr!);
+            if (stmt.returnExpression) {
+                this.returnTypeCheck(stmt.returnExpression);
+            }
         }
     }
 
