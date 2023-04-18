@@ -72,6 +72,7 @@ export namespace BuiltinNames {
     export const arrayIsArrayFuncName = 'Array|isArray';
     export const stringConcatFuncName = 'String|concat';
     export const stringSliceFuncName = 'String|slice';
+    export const stringEQFuncName = 'string_eq';
 
     // builtin instance function name
     export const stringLengthFuncName = 'String|length';

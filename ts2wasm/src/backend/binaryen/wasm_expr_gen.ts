@@ -57,7 +57,11 @@ import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { charArrayTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './index.js';
 import { Logger } from '../../log.js';
-import { getClassNameByTypeKind, unboxAnyTypeToBaseType } from './utils.js';
+import {
+    getClassNameByTypeKind,
+    unboxAnyTypeToBaseType,
+    getFuncName,
+} from './utils.js';
 
 export interface WasmValue {
     /* binaryen reference */
@@ -600,6 +604,29 @@ export class WASMExpressionBase {
                         this.convertTypeToI64(rightExprRef, binaryen.f64),
                     ),
                     binaryen.i64,
+                );
+            }
+            default:
+                return module.unreachable();
+        }
+    }
+
+    operateStringString(
+        leftExprRef: binaryen.ExpressionRef,
+        rightExprRef: binaryen.ExpressionRef,
+        operatorKind: ts.SyntaxKind,
+    ) {
+        const module = this.module;
+        switch (operatorKind) {
+            case ts.SyntaxKind.EqualsEqualsToken:
+            case ts.SyntaxKind.EqualsEqualsEqualsToken: {
+                return module.call(
+                    getFuncName(
+                        BuiltinNames.builtinModuleName,
+                        BuiltinNames.stringEQFuncName,
+                    ),
+                    [leftExprRef, rightExprRef],
+                    dyntype.bool,
                 );
             }
             default:
@@ -1695,6 +1722,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
             return this.operateAnyNumber(
                 rightExprRef,
                 leftExprRef,
+                operatorKind,
+            );
+        }
+        if (
+            leftExprType.kind === TypeKind.STRING &&
+            rightExprType.kind === TypeKind.STRING
+        ) {
+            return this.operateStringString(
+                leftExprRef,
+                rightExprRef,
                 operatorKind,
             );
         }
