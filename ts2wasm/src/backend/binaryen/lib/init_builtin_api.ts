@@ -13,6 +13,7 @@ import {
     FlattenLoop,
     isBaseType,
     unboxAnyTypeToBaseType,
+    getFuncName,
 } from '../utils.js';
 import { dyntype } from './dyntype/utils.js';
 import { arrayToPtr } from '../glue/transform.js';
@@ -22,10 +23,6 @@ import {
     stringTypeInfo,
 } from '../glue/packType.js';
 import { TypeKind } from '../../../type.js';
-
-function getFuncName(moduleName: string, funcName: string, delimiter = '|') {
-    return moduleName.concat(delimiter).concat(funcName);
-}
 
 function string_concat(module: binaryen.Module) {
     /** Args: context, this, string[] */
@@ -219,6 +216,101 @@ function string_concat(module: binaryen.Module) {
     /** 5. generate block, return block */
     const concatBlock = module.block('concat', statementArray);
     return concatBlock;
+}
+
+function string_eq(module: binaryen.Module) {
+    const statementArray: binaryen.ExpressionRef[] = [];
+
+    const leftstrIdx = 0;
+    const rightstrIdx = 1;
+    const for_i_Idx = 2;
+
+    const leftstr = module.local.get(leftstrIdx, stringTypeInfo.typeRef);
+    const rightstr = module.local.get(rightstrIdx, stringTypeInfo.typeRef);
+
+    const leftstrArray = binaryenCAPI._BinaryenStructGet(
+        module.ptr,
+        1,
+        leftstr,
+        charArrayTypeInfo.typeRef,
+        false,
+    );
+    const leftstrLen = binaryenCAPI._BinaryenArrayLen(module.ptr, leftstrArray);
+    const rightstrArray = binaryenCAPI._BinaryenStructGet(
+        module.ptr,
+        1,
+        rightstr,
+        charArrayTypeInfo.typeRef,
+        false,
+    );
+    const rightstrLen = binaryenCAPI._BinaryenArrayLen(
+        module.ptr,
+        rightstrArray,
+    );
+
+    const retfalseLenNoEq = module.if(
+        module.i32.ne(leftstrLen, rightstrLen),
+        module.return(module.i32.const(0)),
+    );
+
+    statementArray.push(retfalseLenNoEq);
+
+    const for_label_1 = 'for_loop_1_block';
+    const for_init_1 = module.local.set(for_i_Idx, module.i32.const(0));
+    const for_condition_1 = module.i32.lt_u(
+        module.local.get(for_i_Idx, binaryen.i32),
+        leftstrLen,
+    );
+    const for_incrementor_1 = module.local.set(
+        for_i_Idx,
+        module.i32.add(
+            module.local.get(for_i_Idx, binaryen.i32),
+            module.i32.const(1),
+        ),
+    );
+
+    const for_body_1 = module.if(
+        module.i32.ne(
+            binaryenCAPI._BinaryenArrayGet(
+                module.ptr,
+                leftstrArray,
+                module.local.get(for_i_Idx, binaryen.i32),
+                charArrayTypeInfo.typeRef,
+                false,
+            ),
+            binaryenCAPI._BinaryenArrayGet(
+                module.ptr,
+                rightstrArray,
+                module.local.get(for_i_Idx, binaryen.i32),
+                charArrayTypeInfo.typeRef,
+                false,
+            ),
+        ),
+        module.return(module.i32.const(0)),
+    );
+
+    const flattenLoop_1: FlattenLoop = {
+        label: for_label_1,
+        condition: for_condition_1,
+        statements: for_body_1,
+        incrementor: for_incrementor_1,
+    };
+    statementArray.push(for_init_1);
+    statementArray.push(
+        module.loop(
+            for_label_1,
+            flattenLoopStatement(
+                flattenLoop_1,
+                ts.SyntaxKind.ForStatement,
+                module,
+            ),
+        ),
+    );
+
+    statementArray.push(module.return(module.i32.const(1)));
+
+    const stringeqBlock = module.block(null, statementArray);
+    return stringeqBlock;
 }
 
 function string_slice(module: binaryen.Module) {
@@ -482,6 +574,16 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         stringTypeInfo.typeRef,
         [binaryen.i32, binaryen.i32, charArrayTypeInfo.typeRef],
         string_slice(module),
+    );
+    module.addFunction(
+        getFuncName(
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.stringEQFuncName,
+        ),
+        binaryen.createType([stringTypeInfo.typeRef, stringTypeInfo.typeRef]),
+        binaryen.i32,
+        [binaryen.i32],
+        string_eq(module),
     );
     /** TODO: */
     /** array */

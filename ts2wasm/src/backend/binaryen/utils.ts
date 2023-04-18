@@ -170,3 +170,11 @@ export function isBaseType(
         dyntype.bool,
     );
 }
+
+export function getFuncName(
+    moduleName: string,
+    funcName: string,
+    delimiter = '|',
+) {
+    return moduleName.concat(delimiter).concat(funcName);
+}
