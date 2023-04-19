@@ -16,7 +16,7 @@ import { FunctionScope, Scope, ScopeKind } from './scope.js';
 import {
     parentIsFunctionLike,
     Stack,
-    getImportModulePath,
+    getModulePath,
     getGlobalScopeByModuleName,
     importGlobalInfo,
     importFunctionInfo,
@@ -299,12 +299,12 @@ export default class StatementProcessor {
             case ts.SyntaxKind.ImportDeclaration: {
                 const importDeclaration = <ts.ImportDeclaration>node;
                 // Get the import module name according to the relative position of current scope
-                const importModuleName = getImportModulePath(
+                const importModuleName = getModulePath(
                     importDeclaration,
                     this.currentScope!.getRootGloablScope()!,
                 );
                 const importModuleScope = getGlobalScopeByModuleName(
-                    importModuleName,
+                    importModuleName!,
                     this.parserCtx.globalScopes,
                 );
                 const importStmt = new ImportDeclaration();

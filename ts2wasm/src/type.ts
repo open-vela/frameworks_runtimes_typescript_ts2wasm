@@ -709,11 +709,17 @@ export default class TypeResolver {
         ) {
             /* base class node, iff it really has the one */
             const heritageName = heritage[0].types[0].getText();
-            methodTypeStrs = this.methodShapeStr.get(heritageName)!.split(', ');
-            fieldTypeStrs = this.fieldShapeStr.get(heritageName)!.split(', ');
+
             const scope = this.currentScope!;
             const heritageType = <TSClass>scope.findType(heritageName);
             classType.setBase(heritageType);
+            methodTypeStrs = this.methodShapeStr
+                .get(heritageType.className)!
+                .split(', ');
+            fieldTypeStrs = this.fieldShapeStr
+                .get(heritageType.className)!
+                .split(', ');
+
             baseType = heritageType;
             for (const field of heritageType.fields) {
                 classType.addMemberField(field);

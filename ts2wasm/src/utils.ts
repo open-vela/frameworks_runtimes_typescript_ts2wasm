@@ -209,20 +209,21 @@ export function mangling(
     });
 }
 
-export function getImportModulePath(
-    importDeclaration: ts.ImportDeclaration,
+export function getModulePath(
+    declaration: ts.ImportDeclaration | ts.ExportDeclaration,
     currentGlobalScope: GlobalScope,
 ) {
     /* moduleSpecifier contains quotation marks, so we must slice them to get real module name */
-    const moduleSpecifier = importDeclaration.moduleSpecifier
-        .getText()
+    if (declaration.moduleSpecifier === undefined) return undefined;
+    const moduleSpecifier = declaration
+        .moduleSpecifier!.getText()
         .slice("'".length, -"'".length);
     const currentModuleName = currentGlobalScope.moduleName;
-    const importModuleName = path.relative(
+    const moduleName = path.relative(
         process.cwd(),
         path.resolve(path.dirname(currentModuleName), moduleSpecifier),
     );
-    return importModuleName;
+    return moduleName;
 }
 
 export function getGlobalScopeByModuleName(
@@ -238,29 +239,39 @@ export function getGlobalScopeByModuleName(
 }
 
 export function getImportIdentifierName(
-    importDeclaration: ts.ImportDeclaration,
+    importDeclaration: ts.ImportDeclaration | ts.ExportDeclaration,
 ) {
     const importIdentifierArray: string[] = [];
     const nameAliasImportMap = new Map<string, string>();
     let nameScopeImportName: string | null = null;
     let defaultImportName: string | null = null;
-    const importClause = importDeclaration.importClause;
-    if (!importClause) {
-        /** import "otherModule" */
-        throw new UnimplementError('TODO: importing modules with side effects');
-    }
-    const namedBindings = importClause.namedBindings;
-    const importElement = importClause.name;
-    if (importElement) {
-        /**
-         * import default export from other module
-         * import module_case4_var1 from './module-case4';
-         */
-        const importElementName = importElement.getText();
-        defaultImportName = importElementName;
-    }
+    let importClause = undefined;
+    let namedBindings = undefined;
+    if (ts.isImportDeclaration(importDeclaration)) {
+        importClause = importDeclaration.importClause;
+        if (!importClause) {
+            /** import "otherModule" */
+            throw new UnimplementError(
+                'TODO: importing modules with side effects',
+            );
+        }
+        namedBindings = importClause.namedBindings;
+        const importElement = importClause.name;
+        if (importElement) {
+            /**
+             * import default export from other module
+             * import module_case4_var1 from './module-case4';
+             */
+            const importElementName = importElement.getText();
+            defaultImportName = importElementName;
+        }
+    } else namedBindings = importDeclaration.exportClause;
+
     if (namedBindings) {
-        if (ts.isNamedImports(namedBindings)) {
+        if (
+            ts.isNamedImports(namedBindings) ||
+            ts.isNamedExports(namedBindings)
+        ) {
             /** import regular exports from other module */
             for (const importSpecifier of namedBindings.elements) {
                 const specificIdentifier = <ts.Identifier>importSpecifier.name;
@@ -278,7 +289,10 @@ export function getImportIdentifierName(
                     importIdentifierArray.push(specificName);
                 }
             }
-        } else if (ts.isNamespaceImport(namedBindings)) {
+        } else if (
+            ts.isNamespaceImport(namedBindings) ||
+            ts.isNamespaceExport(namedBindings)
+        ) {
             /**
              * import entire module into a variable
              * import * as xx from './yy'
