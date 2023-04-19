@@ -9,7 +9,7 @@ import {
     getExportIdentifierName,
     getGlobalScopeByModuleName,
     getImportIdentifierName,
-    getImportModulePath,
+    getModulePath,
 } from './utils.js';
 import { GlobalScope, Scope } from './scope.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
@@ -52,12 +52,12 @@ export class ImportResolver {
                 const importDeclaration = <ts.ImportDeclaration>node;
                 const globalScope = this.currentScope!.getRootGloablScope()!;
                 // Get the import module name according to the relative position of current scope
-                const importModuleName = getImportModulePath(
+                const importModuleName = getModulePath(
                     importDeclaration,
                     this.currentScope!.getRootGloablScope()!,
                 );
                 const importModuleScope = getGlobalScopeByModuleName(
-                    importModuleName,
+                    importModuleName!,
                     this.globalScopes,
                 );
                 // get import identifier
@@ -94,6 +94,36 @@ export class ImportResolver {
                 const nameAliasExportMap =
                     getExportIdentifierName(exportDeclaration);
                 globalScope.setExportNameAlias(nameAliasExportMap);
+                const exportModuleName = getModulePath(
+                    exportDeclaration,
+                    this.currentScope!.getRootGloablScope()!,
+                );
+                if (exportModuleName) {
+                    const importModuleScope = getGlobalScopeByModuleName(
+                        exportModuleName,
+                        this.globalScopes,
+                    );
+
+                    const {
+                        importIdentifierArray,
+                        nameScopeImportName,
+                        nameAliasImportMap,
+                    } = getImportIdentifierName(exportDeclaration);
+
+                    for (const importIdentifier of importIdentifierArray) {
+                        globalScope.addImportIdentifier(
+                            importIdentifier,
+                            importModuleScope,
+                        );
+                    }
+                    globalScope.setImportNameAlias(nameAliasImportMap);
+                    if (nameScopeImportName) {
+                        globalScope.addImportNameScope(
+                            nameScopeImportName,
+                            importModuleScope,
+                        );
+                    }
+                }
                 break;
             }
             case ts.SyntaxKind.ExportAssignment: {
