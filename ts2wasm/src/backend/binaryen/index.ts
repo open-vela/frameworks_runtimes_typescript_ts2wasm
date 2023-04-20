@@ -840,6 +840,16 @@ export class WASMGen extends Ts2wasmBackend {
             this.wasmType.getWASMClassStaticFieldsType(tsType);
         const wasmStaticFieldsHeapType =
             this.wasmType.getWASMClassStaticFieldsHeapType(tsType);
+        const staticFieldsStructName = `${classScope.mangledName}_static_fields`;
+        this.module.addGlobal(
+            staticFieldsStructName,
+            wasmStaticFieldsType,
+            true,
+            binaryenCAPI._BinaryenRefNull(
+                this.module.ptr,
+                binaryenCAPI._BinaryenTypeStructref(),
+            ),
+        );
         // new_default_struct
         const init = binaryenCAPI._BinaryenStructNew(
             this.module.ptr,
@@ -847,11 +857,8 @@ export class WASMGen extends Ts2wasmBackend {
             0,
             wasmStaticFieldsHeapType,
         );
-        this.module.addGlobal(
-            `${classScope.mangledName}_static_fields`,
-            wasmStaticFieldsType,
-            false,
-            init,
+        this.globalInitArray.push(
+            this.module.global.set(staticFieldsStructName, init),
         );
         for (let i = 0; i < tsType.staticFields.length; i++) {
             if (tsType.staticFieldsInitValueMap.has(i)) {
@@ -862,7 +869,7 @@ export class WASMGen extends Ts2wasmBackend {
                     this.module.ptr,
                     i,
                     this.module.global.get(
-                        `${classScope.mangledName}_static_fields`,
+                        staticFieldsStructName,
                         wasmStaticFieldsType,
                     ),
                     initValue.binaryenRef,
