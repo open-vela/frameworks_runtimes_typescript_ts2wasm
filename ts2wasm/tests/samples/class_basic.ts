@@ -66,3 +66,25 @@ export function getterSetter() {
     let k = a.a;
     return i + j + k;
 }
+
+// class with any type fields
+class A3 {
+    public _a: any;
+    constructor(a: any) {
+        this._a = a;
+    }
+    public testFunc() {
+        this._a = 10;
+    }
+    get a() {
+        return this._a;
+    }
+    set a(m: any) {
+        this._a = m;
+    }
+}
+
+export function anyType() {
+    const a: A3 = new A3(10);
+    return a.a;
+}
