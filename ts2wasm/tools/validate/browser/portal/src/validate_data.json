@@ -1438,6 +1438,51 @@
         ]
     },
     {
+        "module": "module_start_A",
+        "entries": [
+            {
+                "name": "getAVar",
+                "args": [],
+                "result": 1140
+            },
+            {
+                "name": "getBVar",
+                "args": [],
+                "result": 120
+            },
+            {
+                "name": "getCVar",
+                "args": [],
+                "result": 20
+            }
+        ]
+    },
+    {
+        "module": "module_start_B",
+        "entries": [
+            {
+                "name": "getBVar",
+                "args": [],
+                "result": 120
+            },
+            {
+                "name": "getCVar",
+                "args": [],
+                "result": 20
+            }
+        ]
+    },
+    {
+        "module": "module_start_C",
+        "entries": [
+            {
+                "name": "getCVar",
+                "args": [],
+                "result": 20
+            }
+        ]
+    },
+    {
         "module": "namespace_func",
         "entries": [
             {
