@@ -313,6 +313,8 @@ export class WASMGen extends Ts2wasmBackend {
 
         for (let i = 0; i < this.globalScopes.length; i++) {
             const globalScope = this.globalScopes[i];
+            /* Clear cache before handling each globalScope */
+            this.startBodyArray = [];
             this.globalInitFuncName = `${globalScope.moduleName}|${BuiltinNames.globalInitFunc}`;
             this.WASMGenHelper(globalScope);
             this.WASMStartFunctionGen(globalScope);
