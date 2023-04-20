@@ -277,7 +277,7 @@ export class WASMTypeGen {
                         packed,
                         muts,
                         typeArray.length,
-                        false,
+                        true,
                     );
                     this.classStaticFieldsType.set(
                         type,
