@@ -814,14 +814,11 @@ export class WASMExpressionBase {
                 return this.module.i32.const(0);
             case TypeKind.NUMBER:
                 return this.module.f64.const(0);
-            case TypeKind.STRING:
+            default:
                 return binaryenCAPI._BinaryenRefNull(
                     this.module.ptr,
                     binaryenCAPI._BinaryenTypeStructref(),
                 );
-            default:
-                // TODO
-                return binaryen.none;
         }
     }
 
