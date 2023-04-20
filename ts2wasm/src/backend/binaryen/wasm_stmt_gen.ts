@@ -576,6 +576,8 @@ export class WASMStatementGen {
                 binaryen.none,
             );
         }
-        return module.unreachable();
+
+        /* Already imported */
+        return module.nop();
     }
 }
