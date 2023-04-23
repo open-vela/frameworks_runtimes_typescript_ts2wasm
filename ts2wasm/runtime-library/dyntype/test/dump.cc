@@ -22,7 +22,7 @@ class DumpValueTest : public testing::Test {
 };
 
 TEST_F(DumpValueTest, dump_value) {
-    char const *str_values[] = { "2147483649.1", "false", "1\"123456\"" };
+    char const *str_values[] = { "2147483649.1", "false", "1\"123456\"", "123456" };
     char *buffer = new char[10 * 1024];
 
     // number
@@ -50,7 +50,7 @@ TEST_F(DumpValueTest, dump_value) {
     dyn_value_t str = dyntype_new_string(ctx, "123456");
     dyntype_dump_value(ctx, str);
     const std::string output3 = testing::internal::GetCapturedStdout();
-    EXPECT_STREQ(output3.c_str(), str_values[2]);
+    EXPECT_STREQ(output3.c_str(), str_values[3]);
     dyntype_dump_value_buffer(ctx, str, buffer, 10 * 1024);
     EXPECT_STREQ(buffer, str_values[2]);
 
