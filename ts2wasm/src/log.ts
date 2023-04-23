@@ -9,65 +9,49 @@ import stackTrace from 'stacktrace-js';
 import config from '../config/log4js.js';
 
 export enum LoggerLevel {
-    ALL = 'ALL',
-    MARK = 'MARK',
     TRACE = 'TRACE',
     DEBUG = 'DEBUG',
     INFO = 'INFO',
     WARN = 'WARN',
     ERROR = 'ERROR',
-    FATAL = 'FATAL',
-    OFF = 'OFF',
 }
 
 log4js.configure(config);
 
-const logger = log4js.getLogger();
-logger.level = LoggerLevel.TRACE;
+const fileLogger = log4js.getLogger();
+fileLogger.level = LoggerLevel.TRACE;
 
 export const consoleLogger = log4js.getLogger('console');
-logger.level = LoggerLevel.ERROR;
+consoleLogger.level = LoggerLevel.ERROR;
 
 export class Logger {
-    static log(...args: any[]) {
-        logger.info(args);
-    }
-
     static info(...args: any[]) {
-        logger.info(args);
+        fileLogger.info(args);
     }
 
     static trace(...args: any[]) {
-        logger.trace(Logger.getStackTrace(), ...args);
+        fileLogger.trace(Logger.getStackTrace(), ...args);
     }
 
     static debug(...args: any[]) {
-        logger.debug(Logger.getStackTrace(), ...args);
+        fileLogger.debug(Logger.getStackTrace(), ...args);
     }
 
     static warn(...args: any[]) {
-        logger.warn(Logger.getStackTrace(), ...args);
-    }
-
-    static warning(...args: any[]) {
-        logger.warn(Logger.getStackTrace(), ...args);
+        fileLogger.warn(Logger.getStackTrace(), ...args);
     }
 
     static error(...args: any[]) {
-        logger.error(Logger.getStackTrace(), ...args);
+        fileLogger.error(Logger.getStackTrace(), ...args);
     }
 
-    static fatal(...args: any[]) {
-        logger.fatal(Logger.getStackTrace(), ...args);
-    }
-
-    static getStackTrace(deep = 2): string {
-        const stackList: stackTrace.StackFrame[] = stackTrace.getSync();
-        const stackInfo: stackTrace.StackFrame = stackList[deep];
-        const lineNumber: number = stackInfo.lineNumber!;
-        const columnNumber: number = stackInfo.columnNumber!;
-        const fileName: string = stackInfo.fileName!;
-        const basename: string = path.basename(fileName);
-        return `${basename} (line: ${lineNumber}, column: ${columnNumber}): \n`;
+    static getStackTrace(depth = 2): string {
+        const stackFrames = stackTrace.getSync();
+        const stackFrame = stackFrames[depth];
+        const lineNumber = stackFrame.lineNumber!;
+        const columnNumber = stackFrame.columnNumber!;
+        const fileName = stackFrame.fileName!;
+        const pathBaseName = path.basename(fileName);
+        return `${pathBaseName} (line: ${lineNumber}, column: ${columnNumber}): \n`;
     }
 }

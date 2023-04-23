@@ -8,32 +8,24 @@ import { assert } from 'console';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import Long from 'long';
 
-function i64_new(low: number, high: number) {
-    return Long.fromBits(low, high);
+function i64New(lowBits: number, highBits: number) {
+    return Long.fromBits(lowBits, highBits);
 }
 
-function i64_add(left: Long, right: Long) {
-    return left.add(right);
+function i64Add(leftI64: Long, rightI64: Long) {
+    return leftI64.add(rightI64);
 }
 
-function i64_align(value: Long, alignment: number) {
-    assert(alignment && (alignment & (alignment - 1)) == 0);
-    const mask = Long.fromInt(alignment - 1);
-    return value.add(mask).and(mask.not());
-}
-
-function getByteSize(size: number) {
-    return (size + 7) >>> 3;
-}
-
-function initMemoryOffset() {
-    const memoryOffset = Long.fromBits(BuiltinNames.memoryOffset, 0);
-    return memoryOffset;
+function i64Align(i64Value: Long, alignment: number) {
+    const maskNumber = alignment - 1;
+    assert(alignment && (alignment & maskNumber) == 0);
+    const i64Mask = Long.fromInt(maskNumber);
+    return i64Value.add(i64Mask).and(i64Mask.not());
 }
 
 export function initGlobalOffset(module: binaryen.Module) {
-    let memoryOffset = initMemoryOffset();
-    // finalize data
+    let memoryOffset = i64New(BuiltinNames.memoryOffset, 0);
+    // add global dataEnd
     module.addGlobal(
         BuiltinNames.dataEnd,
         binaryen.i32,
@@ -41,11 +33,11 @@ export function initGlobalOffset(module: binaryen.Module) {
         module.i32.const(memoryOffset.low),
     );
 
-    // finalize stack
-    memoryOffset = i64_align(
-        i64_add(memoryOffset, i64_new(BuiltinNames.stackSize, 0)),
-        getByteSize(BuiltinNames.byteSize),
+    memoryOffset = i64Align(
+        i64Add(memoryOffset, i64New(BuiltinNames.stackSize, 0)),
+        Math.ceil(BuiltinNames.byteSize / 8),
     );
+    // add global stackPointer
     module.addGlobal(
         BuiltinNames.stackPointer,
         binaryen.i32,
@@ -53,7 +45,7 @@ export function initGlobalOffset(module: binaryen.Module) {
         module.i32.const(memoryOffset.low),
     );
 
-    // finalize heap
+    // add global heapBase
     module.addGlobal(
         BuiltinNames.heapBase,
         binaryen.i32,

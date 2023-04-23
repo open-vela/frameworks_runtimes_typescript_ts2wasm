@@ -34,70 +34,55 @@ export namespace Pakced {
     export const I16: binaryenCAPI.PackedType = 2;
 }
 
-export function arrayToPtr(array: number[]): ptrInfo {
-    const ptrInfo: ptrInfo = {
-        ptr: 0,
-        len: 0,
-    };
-    if (!array) ptrInfo;
-    const len = array.length;
-    const ptrAddress = binaryenCAPI._malloc(len << 2);
-    let idx = ptrAddress;
-    for (let i = 0; i < len; ++i) {
-        const val = array[i];
-        binaryenCAPI.__i32_store(idx, <number>val);
-        idx += 4;
+export function arrayToPtr(array: binaryen.ExpressionRef[]): ptrInfo {
+    const arrLen = array.length;
+    const ptrAddress = binaryenCAPI._malloc(arrLen << 2);
+    let curElemAddress = ptrAddress;
+    for (let i = 0; i < arrLen; i++) {
+        const curArrayElem = array[i];
+        binaryenCAPI.__i32_store(curElemAddress, curArrayElem);
+        curElemAddress += 4;
     }
-    ptrInfo.ptr = ptrAddress;
-    ptrInfo.len = len;
+    const ptrInfo: ptrInfo = {
+        ptr: ptrAddress,
+        len: arrLen,
+    };
     return ptrInfo;
 }
 
-function allocU32Array(u32s: binaryenCAPI.u32[] | null): binaryenCAPI.usize {
-    if (!u32s) return 0;
-    const len = u32s.length;
-    const ptr = binaryenCAPI._malloc(len << 2);
-    let idx = ptr;
-    for (let i = 0; i < len; ++i) {
-        binaryenCAPI.__i32_store(idx, u32s[i]);
-        idx += 4;
+export function ptrToArray(ptrInfo: ptrInfo): binaryen.ExpressionRef[] {
+    const ptrAddress = ptrInfo.ptr;
+    const arrLen = ptrInfo.len;
+    const array: binaryen.ExpressionRef[] = [];
+    let curElemAddress = ptrAddress;
+    for (let i = 0; i < arrLen; i++) {
+        const curArrayElem = binaryenCAPI.__i32_load(curElemAddress);
+        array.push(curArrayElem);
+        curElemAddress += 4;
     }
-    return ptr;
-}
-
-function allocU8Array(u8s: boolean[] | null): binaryenCAPI.usize {
-    if (!u8s) return 0;
-    const len = u8s.length;
-    const ptr = binaryenCAPI._malloc(len);
-    for (let i = 0; i < len; ++i) {
-        const value = u8s[i] ? 1 : 0;
-        binaryenCAPI.__i32_store8(ptr + i, value);
-    }
-    return ptr;
-}
-
-export function ptrToArray(ptrInfo: ptrInfo): number[] {
-    if (!ptrInfo) return [];
-    const ptr = ptrInfo.ptr;
-    const len = ptrInfo.len;
-    const array = [];
-    let idx = ptr;
-    for (let i = 0; i < len; ++i) {
-        const val = binaryenCAPI.__i32_load(idx);
-        array.push(val);
-        idx += 4;
-    }
-    binaryenCAPI._free(ptr);
+    binaryenCAPI._free(ptrAddress);
     return array;
 }
 
-export function i32(
-    module: binaryen.Module,
-    alloc: binaryenCAPI.usize,
-    value: binaryenCAPI.i32,
-): binaryen.ExpressionRef {
-    binaryenCAPI._BinaryenLiteralInt32(alloc, value);
-    return binaryenCAPI._BinaryenConst(module.ptr, alloc);
+function allocU32Array(u32Array: binaryenCAPI.u32[]): binaryenCAPI.usize {
+    const arrLen = u32Array.length;
+    const ptrAddress = binaryenCAPI._malloc(arrLen << 2);
+    let curElemAddress = ptrAddress;
+    for (let i = 0; i < arrLen; i++) {
+        binaryenCAPI.__i32_store(curElemAddress, u32Array[i]);
+        curElemAddress += 4;
+    }
+    return ptrAddress;
+}
+
+function allocU8Array(u8Array: boolean[]): binaryenCAPI.usize {
+    const arrLen = u8Array.length;
+    const ptrAddress = binaryenCAPI._malloc(arrLen);
+    for (let i = 0; i < arrLen; i++) {
+        const curArrayElem = u8Array[i] ? 1 : 0;
+        binaryenCAPI.__i32_store8(ptrAddress + i, curArrayElem);
+    }
+    return ptrAddress;
 }
 
 export function initArrayType(

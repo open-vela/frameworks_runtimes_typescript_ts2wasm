@@ -39,8 +39,8 @@ function showVersion(packagePath: string) {
 
 function showHelp(helpConfig: any) {
     const printOption = {
-        indent: 2,
-        padding: 24,
+        indent: 4,
+        padding: 28,
         eol: '\n',
     };
     const categories: HelpMessageCategory = {
@@ -54,28 +54,19 @@ function showHelp(helpConfig: any) {
     Object.keys(helpConfig).forEach((commandKey) => {
         const helpMessage: string[] = [];
         const option = helpConfig[commandKey];
-        if (option.description == null) return;
-        let text = '';
-        while (text.length < printOption.indent) text += ' ';
-        text += '--' + commandKey;
-        if (option.alias) text += ', -' + option.alias;
-        while (text.length < printOption.padding) text += ' ';
-
-        if (Array.isArray(option.description)) {
-            helpMessage.push(
-                text +
-                    option.description[0] +
-                    option.description
-                        .slice(1)
-                        .map((line: string) => {
-                            for (let i = 0; i < printOption.padding; ++i)
-                                line = ' ' + line;
-                            return printOption.eol + line;
-                        })
-                        .join(''),
-            );
-        } else helpMessage.push(text + option.description);
-
+        let comment = '';
+        while (comment.length < printOption.indent) {
+            comment += ' ';
+        }
+        comment += '--' + commandKey;
+        if (option.alias) {
+            comment += ', -' + option.alias;
+        }
+        while (comment.length < printOption.padding) {
+            comment += ' ';
+        }
+        comment += option.description;
+        helpMessage.push(comment);
         if (option.category) {
             const categoryKey = <keyof HelpMessageCategory>option.category;
             categories[categoryKey].push(helpMessage[0]);
@@ -212,7 +203,7 @@ function main() {
         backend.codegen(compileArgs);
 
         /* Step3: output */
-        // Set up base directory
+        /* Set up specified base directory */
         const baseDir = path.normalize(args.baseDir || '.');
         let generatedWasmFile = '';
         if (args.output || args.o) {
