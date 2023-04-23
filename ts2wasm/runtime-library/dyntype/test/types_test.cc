@@ -113,8 +113,6 @@ TEST_F(TypesTest, create_undefined) {
     EXPECT_EQ(dyntype_to_bool(ctx, undefined, &temp), -DYNTYPE_TYPEERR);
     EXPECT_EQ(dyntype_to_number(ctx, undefined, &temp1), -DYNTYPE_TYPEERR);
     EXPECT_EQ(dyntype_to_cstring(ctx, undefined, &temp2), -DYNTYPE_TYPEERR);
-
-    dyntype_release(ctx, undefined);
 }
 
 TEST_F(TypesTest, create_null) {
@@ -133,8 +131,6 @@ TEST_F(TypesTest, create_null) {
     EXPECT_EQ(dyntype_set_prototype(ctx, null, dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
     EXPECT_EQ(dyntype_get_prototype(ctx, null), nullptr);
     EXPECT_EQ(dyntype_get_own_property(ctx, null, "has not property"), nullptr);
-
-    dyntype_release(ctx, null);
 }
 
 TEST_F(TypesTest, create_string) {
@@ -203,52 +199,62 @@ TEST_F(TypesTest, create_array) {
 }
 
 TEST_F(TypesTest, create_extern_ref) {
-    void *obj = malloc(sizeof(uint32_t) * 10);
-    void *func = malloc(sizeof(uint32_t) * 6);
+    int data = 123;
+    int data2 = 42;
 
-    dyn_value_t extobj = dyntype_new_extref(ctx, obj, ExtObj);
+    dyn_value_t extobj =
+        dyntype_new_extref(ctx, (void *)(uintptr_t)data, ExtObj);
     EXPECT_NE(extobj, nullptr);
 
-    EXPECT_EQ(dyntype_set_property(ctx, extobj, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
-    EXPECT_EQ(dyntype_define_property(ctx, extobj, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
-    EXPECT_EQ(dyntype_get_property(ctx, extobj, "not_a_object"), nullptr);
-    EXPECT_EQ(dyntype_has_property(ctx, extobj, "not_a_object"), -DYNTYPE_TYPEERR);
-    EXPECT_EQ(dyntype_delete_property(ctx, extobj, "not_a_object"), -DYNTYPE_FALSE);
+    EXPECT_EQ(dyntype_set_property(ctx, extobj, "prop",
+                                   dyntype_new_boolean(ctx, false)),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, extobj, "prop1",
+                                      dyntype_new_boolean(ctx, false)),
+              -DYNTYPE_TYPEERR);
+    EXPECT_NE(dyntype_get_property(ctx, extobj, "prop"), nullptr);
+    EXPECT_EQ(dyntype_has_property(ctx, extobj, "prop"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_delete_property(ctx, extobj, "prop"), DYNTYPE_TRUE);
 
-    dyn_value_t extobj1 = dyntype_new_extref(ctx, obj, (external_ref_tag)(ExtArray + 1));
+    EXPECT_TRUE(dyntype_has_property(ctx, extobj, "@tag"));
+    EXPECT_TRUE(dyntype_has_property(ctx, extobj, "@ref"));
+
+    dyn_value_t extobj1 = dyntype_new_extref(ctx, (void *)(uintptr_t)data,
+                                             (external_ref_tag)(ExtArray + 1));
     EXPECT_EQ(extobj1, nullptr);
 
     EXPECT_FALSE(dyntype_is_number(ctx, extobj));
     EXPECT_FALSE(dyntype_is_bool(ctx, extobj));
-    EXPECT_FALSE(dyntype_is_object(ctx, extobj));
     EXPECT_FALSE(dyntype_is_undefined(ctx, extobj));
     EXPECT_FALSE(dyntype_is_null(ctx, extobj));
     EXPECT_FALSE(dyntype_is_string(ctx, extobj));
     EXPECT_FALSE(dyntype_is_array(ctx, extobj));
+    EXPECT_TRUE(dyntype_is_object(ctx, extobj));
     EXPECT_TRUE(dyntype_is_extref(ctx, extobj));
 
-    dyn_value_t extfunc = dyntype_new_extref(ctx, func, ExtFunc);
+    dyn_value_t extfunc =
+        dyntype_new_extref(ctx, (void *)(uintptr_t)data2, ExtFunc);
     EXPECT_NE(extfunc, nullptr);
 
     EXPECT_FALSE(dyntype_is_number(ctx, extfunc));
     EXPECT_FALSE(dyntype_is_bool(ctx, extfunc));
-    EXPECT_FALSE(dyntype_is_object(ctx, extfunc));
     EXPECT_FALSE(dyntype_is_undefined(ctx, extfunc));
     EXPECT_FALSE(dyntype_is_null(ctx, extfunc));
     EXPECT_FALSE(dyntype_is_string(ctx, extfunc));
     EXPECT_FALSE(dyntype_is_array(ctx, extfunc));
+    EXPECT_TRUE(dyntype_is_object(ctx, extfunc));
     EXPECT_TRUE(dyntype_is_extref(ctx, extfunc));
     void *temp_obj;
     EXPECT_NE(dyntype_to_extref(ctx, extobj, &temp_obj), -DYNTYPE_TYPEERR);
     EXPECT_NE(dyntype_to_extref(ctx, extfunc, &temp_obj), -DYNTYPE_TYPEERR);
 
     void *extref_obj = nullptr;
-    EXPECT_EQ(dyntype_to_extref(ctx, extobj, &extref_obj), DYNTYPE_SUCCESS);
-    free(extref_obj);
+    EXPECT_EQ(dyntype_to_extref(ctx, extobj, &extref_obj), ExtObj);
+    EXPECT_EQ((int)(uintptr_t)extref_obj, 123);
 
     void *extref_fun = nullptr;
-    EXPECT_EQ(dyntype_to_extref(ctx, extfunc, &extref_fun), DYNTYPE_SUCCESS);
-    free(extref_fun);
+    EXPECT_EQ(dyntype_to_extref(ctx, extfunc, &extref_fun), ExtFunc);
+    EXPECT_EQ((int)(uintptr_t)extref_fun, 42);
 
     dyntype_release(ctx, extobj);
     dyntype_release(ctx, extfunc);

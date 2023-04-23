@@ -22,7 +22,7 @@ class ObjectPropertyTest : public testing::Test {
 TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property) {
     dyn_value_t obj = dyntype_new_object(ctx);
 
-    void *extobj = malloc(sizeof(uint32_t) * 10);
+    int ext_data = 1000;
 
     dyn_value_t num = dyntype_new_number(ctx, 2147483649);
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
@@ -30,7 +30,8 @@ TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property) {
     dyn_value_t null = dyntype_new_null(ctx);
     dyn_value_t str = dyntype_new_string(ctx, "string");
     dyn_value_t array = dyntype_new_array(ctx);
-    dyn_value_t extref = dyntype_new_extref(ctx, extobj, external_ref_tag::ExtObj);
+    dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
+                                            external_ref_tag::ExtObj);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop1", num), DYNTYPE_SUCCESS);
@@ -103,21 +104,21 @@ TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property) {
     dyntype_dump_value_buffer(ctx, obj, buffer, 1024 * 10);
     printf("%s\n", buffer);
 
-    delete buffer;
+    delete[] buffer;
 
     void *extref_prop = nullptr;
-    EXPECT_EQ(dyntype_to_extref(ctx, extref, &extref_prop), DYNTYPE_SUCCESS);
-    free(extref_prop);
+    EXPECT_EQ(dyntype_to_extref(ctx, extref, &extref_prop), ExtObj);
+    EXPECT_EQ((int)(uintptr_t)extref_prop, 1000);
+    EXPECT_EQ(dyntype_delete_property(ctx, obj, "prop7"), 1);
+    dyntype_release(ctx, extref);
     dyntype_release(ctx, obj);
     dyntype_release(ctx, num);
     dyntype_release(ctx, boolean);
-    dyntype_release(ctx, undefined);
-    dyntype_release(ctx, null);
 }
 
 TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property) {
     dyn_value_t obj = dyntype_new_object(ctx);
-    void *extobj = malloc(sizeof(uint32_t) * 10);
+    int ext_data = 1000;
 
     dyn_value_t num = dyntype_new_number(ctx, -10.1);
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
@@ -125,7 +126,8 @@ TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property) {
     dyn_value_t null = dyntype_new_null(ctx);
     dyn_value_t str = dyntype_new_string(ctx, "  ");
     dyn_value_t array = dyntype_new_array(ctx);
-    dyn_value_t extref = dyntype_new_extref(ctx, extobj, external_ref_tag::ExtObj);
+    dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
+                                            external_ref_tag::ExtObj);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     dyn_value_t desc1 = dyntype_new_object(ctx);
@@ -227,13 +229,12 @@ TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property) {
 
     void *extref_prop = nullptr;
     EXPECT_EQ(dyntype_to_extref(ctx, extref, &extref_prop), DYNTYPE_SUCCESS);
-    free(extref_prop);
+    EXPECT_EQ((int)(uintptr_t)extref_prop, 1000);
 
+    dyntype_release(ctx, extref);
     dyntype_release(ctx, obj);
     dyntype_release(ctx, num);
     dyntype_release(ctx, boolean);
-    dyntype_release(ctx, undefined);
-    dyntype_release(ctx, null);
 
     dyntype_release(ctx, desc1);
     dyntype_release(ctx, desc2);
@@ -248,7 +249,7 @@ TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property) {
 TEST_F(ObjectPropertyTest, object_set_and_delete_property) {
    dyn_value_t obj = dyntype_new_object(ctx);
 
-    void *extobj = malloc(sizeof(uint32_t) * 10);
+    int ext_data = 1000;
 
     dyn_value_t num = dyntype_new_number(ctx, 2147483649);
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
@@ -257,7 +258,8 @@ TEST_F(ObjectPropertyTest, object_set_and_delete_property) {
     dyn_value_t str = dyntype_new_string(ctx, "string");
     dyn_value_t array = dyntype_new_array(ctx);
     EXPECT_TRUE(dyntype_is_array(ctx, array));
-    dyn_value_t extref = dyntype_new_extref(ctx, extobj, external_ref_tag::ExtObj);
+    dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
+                                            external_ref_tag::ExtObj);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop1", num), DYNTYPE_SUCCESS);
@@ -289,20 +291,14 @@ TEST_F(ObjectPropertyTest, object_set_and_delete_property) {
     EXPECT_EQ(dyntype_has_property(ctx, obj, "prop8"), DYNTYPE_FALSE);
     EXPECT_EQ(dyntype_has_property(ctx, obj, "prop9"), DYNTYPE_FALSE);
 
-    void *extref_prop = nullptr;
-    EXPECT_EQ(dyntype_to_extref(ctx, extref, &extref_prop), DYNTYPE_SUCCESS);
-    free(extref_prop);
-
     dyntype_release(ctx, obj);
     dyntype_release(ctx, num);
     dyntype_release(ctx, boolean);
-    dyntype_release(ctx, undefined);
-    dyntype_release(ctx, null);
 }
 
 TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
     dyn_value_t obj = dyntype_new_object(ctx);
-    void *extobj = malloc(sizeof(uint32_t) * 10);
+    int ext_data = 1000;
 
     dyn_value_t num = dyntype_new_number(ctx, -10.1);
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
@@ -310,7 +306,8 @@ TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
     dyn_value_t null = dyntype_new_null(ctx);
     dyn_value_t str = dyntype_new_string(ctx, "  ");
     dyn_value_t array = dyntype_new_array(ctx);
-    dyn_value_t extref = dyntype_new_extref(ctx, extobj, external_ref_tag::ExtObj);
+    dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
+                                            external_ref_tag::ExtObj);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     dyn_value_t desc1 = dyntype_new_object(ctx);
@@ -382,13 +379,12 @@ TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
 
     void *extref_prop = nullptr;
     EXPECT_EQ(dyntype_to_extref(ctx, extref, &extref_prop), DYNTYPE_SUCCESS);
-    free(extref_prop);
+    EXPECT_EQ((int)(uintptr_t)extref_prop, 1000);
+
 
     dyntype_release(ctx, obj);
     dyntype_release(ctx, num);
     dyntype_release(ctx, boolean);
-    dyntype_release(ctx, undefined);
-    dyntype_release(ctx, null);
 
     dyntype_release(ctx, desc1);
     dyntype_release(ctx, desc2);
