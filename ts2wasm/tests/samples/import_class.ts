@@ -23,6 +23,6 @@ class TestClass extends DefaultExportClass {
 
 let testClass = new TestClass();
 
-export function test() {
+export function importClassAsBaseClass() {
     return TestClass.foo(1) + testClass.bar(2) + defaultExportClass.bar(2);
 }

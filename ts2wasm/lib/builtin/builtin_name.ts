@@ -5,9 +5,9 @@
 
 export namespace BuiltinNames {
     // wasm global variable
-    export const dataEnd = '~lib/memory/__data_end';
-    export const stackPointer = '~lib/memory/__stack_pointer';
-    export const heapBase = '~lib/memory/__heap_base';
+    export const dataEnd = '~memory|data_end';
+    export const stackPointer = '~memory|stack_pointer';
+    export const heapBase = '~memory|heap_base';
 
     // wasm table
     export const extrefTable = 'extref_table';

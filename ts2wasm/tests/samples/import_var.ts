@@ -3,16 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-import { a, b as b1, renamed_c as c1 } from './export_var';
+import * as vars from './export_var';
 
 export function importVarA() {
-    return a;
+    return vars.aVar;
 }
 
 export function importVarB() {
-    return b1;
+    return vars.bVar;
 }
 
 export function importVarC() {
-    return c1;
+    return vars.c;
 }
