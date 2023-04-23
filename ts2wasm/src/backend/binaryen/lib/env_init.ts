@@ -396,7 +396,7 @@ export function generateGlobalContext(module: binaryen.Module) {
         dyntype.dyntype_context,
         dyntype.dyn_ctx_t,
         true,
-        module.i64.const(0, 0),
+        module.ref.null(dyntype.dyn_ctx_t),
     );
 }
 

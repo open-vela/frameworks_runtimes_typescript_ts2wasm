@@ -27,7 +27,7 @@ class OperatorTest : public testing::Test {
 };
 
 TEST_F(OperatorTest, typeof) {
-    void *extobj = malloc(sizeof(uint32_t) * 10);
+    int ext_data = 1000;
 
     dyn_value_t num = dyntype_new_number(ctx, 2147483649);
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
@@ -36,8 +36,10 @@ TEST_F(OperatorTest, typeof) {
     dyn_value_t obj = dyntype_new_object(ctx);
     dyn_value_t str = dyntype_new_string(ctx, "string");
     dyn_value_t array = dyntype_new_array(ctx);
-    dyn_value_t extref_obj = dyntype_new_extref(ctx, extobj, external_ref_tag::ExtObj);
-    dyn_value_t extref_func = dyntype_new_extref(ctx, extobj, external_ref_tag::ExtFunc);
+    dyn_value_t extref_obj = dyntype_new_extref(
+        ctx, (void *)(uintptr_t)ext_data, external_ref_tag::ExtObj);
+    dyn_value_t extref_func = dyntype_new_extref(
+        ctx, (void *)(uintptr_t)ext_data, external_ref_tag::ExtFunc);
 
     EXPECT_EQ(dyntype_typeof(ctx, num), DynNumber);
     EXPECT_EQ(dyntype_typeof(ctx, boolean), DynBoolean);
@@ -49,25 +51,40 @@ TEST_F(OperatorTest, typeof) {
     EXPECT_EQ(dyntype_typeof(ctx, extref_obj), DynExtRefObj);
     EXPECT_EQ(dyntype_typeof(ctx, extref_func), DynExtRefFunc);
 
-
-    free(extobj);
     dyntype_release(ctx, obj);
     dyntype_release(ctx, str);
     dyntype_release(ctx, array);
+    dyntype_release(ctx, extref_obj);
+    dyntype_release(ctx, extref_func);
 }
 
 TEST_F(OperatorTest, type_eq) {
-    void *extobj = malloc(sizeof(uint32_t) * 10);
-    dyn_value_t value1[] = {dyntype_new_number(ctx, 2147483649), dyntype_new_boolean(ctx, true),
-                            dyntype_new_undefined(ctx), dyntype_new_string(ctx, "string"),
-                            dyntype_new_extref(ctx, extobj, external_ref_tag::ExtObj),
-                            dyntype_new_extref(ctx, extobj, external_ref_tag::ExtFunc)};
+    int ext_data = 1000;
 
-    dyn_value_t value2[] = {dyntype_new_number(ctx, -10.00), dyntype_new_boolean(ctx, false),
-                            dyntype_new_undefined(ctx), dyntype_new_string(ctx, "test"),
-                            dyntype_new_extref(ctx, extobj, external_ref_tag::ExtObj),
-                            dyntype_new_extref(ctx, extobj, external_ref_tag::ExtFunc),
-                            dyntype_new_null(ctx), dyntype_new_object(ctx), dyntype_new_array(ctx)};
+    dyn_value_t value1[] = {
+        dyntype_new_number(ctx, 2147483649),
+        dyntype_new_boolean(ctx, true),
+        dyntype_new_undefined(ctx),
+        dyntype_new_string(ctx, "string"),
+        dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
+                           external_ref_tag::ExtObj),
+        dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
+                           external_ref_tag::ExtFunc)
+    };
+
+    dyn_value_t value2[] = {
+        dyntype_new_number(ctx, -10.00),
+        dyntype_new_boolean(ctx, false),
+        dyntype_new_undefined(ctx),
+        dyntype_new_string(ctx, "test"),
+        dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
+                           external_ref_tag::ExtObj),
+        dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
+                           external_ref_tag::ExtFunc),
+        dyntype_new_null(ctx),
+        dyntype_new_object(ctx),
+        dyntype_new_array(ctx)
+    };
 
     // they are all object type
     dyn_value_t value3[] = {dyntype_new_null(ctx), dyntype_new_object(ctx), dyntype_new_array(ctx)};
@@ -91,14 +108,25 @@ TEST_F(OperatorTest, type_eq) {
         }
     }
 
-    free(extobj);
     for (uint32_t i = 0; i < len1; i++) {
+        if (value1[i] == dyntype_new_undefined(ctx)
+            || value1[i] == dyntype_new_null(ctx)) {
+                continue;
+        }
         dyntype_release(ctx, value1[i]);
     }
     for (uint32_t i = 0; i < len2; i++) {
+        if (value2[i] == dyntype_new_undefined(ctx)
+            || value2[i] == dyntype_new_null(ctx)) {
+                continue;
+        }
         dyntype_release(ctx, value2[i]);
     }
     for (uint32_t i = 0; i < len3; i++) {
+        if (value3[i] == dyntype_new_undefined(ctx)
+            || value3[i] == dyntype_new_null(ctx)) {
+                continue;
+        }
         dyntype_release(ctx, value3[i]);
     }
 }

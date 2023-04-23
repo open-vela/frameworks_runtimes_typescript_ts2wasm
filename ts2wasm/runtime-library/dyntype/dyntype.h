@@ -45,7 +45,8 @@ typedef enum dyn_type_t {
   DynBigInt,
   DynExtRefObj,
   DynExtRefFunc,
-  DynExtRefInfc
+  DynExtRefInfc,
+  DynExtRefArray,
 } dyn_type_t;
 
 /******************* Initialization and destroy *******************/

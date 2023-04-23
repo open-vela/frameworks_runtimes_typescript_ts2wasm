@@ -6,13 +6,14 @@
 #include "dyntype.h"
 #include "cutils.h"
 #include "quickjs.h"
-#include <stdbool.h>
 
 static dyn_ctx_t g_dynamic_context = NULL;
 
 typedef struct DynTypeContext {
   JSRuntime *js_rt;
   JSContext *js_ctx;
+  JSValue *js_undefined;
+  JSValue *js_null;
 } DynTypeContext;
 
 static inline JSValue* dyntype_dup_value(JSContext *ctx, JSValue value) {
@@ -61,8 +62,19 @@ dyn_ctx_t dyntype_context_init() {
         goto fail;
     }
 
+    ctx->js_undefined = dyntype_dup_value(ctx->js_ctx, JS_UNDEFINED);
+    if (!ctx->js_undefined) {
+        goto fail;
+    }
+
+    ctx->js_null = dyntype_dup_value(ctx->js_ctx, JS_NULL);
+    if (!ctx->js_null) {
+        goto fail;
+    }
+
     g_dynamic_context = ctx;
     return ctx;
+
 fail:
     dyntype_context_destroy(ctx);
     return NULL;
@@ -76,6 +88,12 @@ dyn_ctx_t dyntype_context_init_with_opt(dyn_options_t *options) {
 // TODO: there is exist wild pointer
 void dyntype_context_destroy(dyn_ctx_t ctx) {
     if (ctx) {
+        if (ctx->js_undefined) {
+            js_free(ctx->js_ctx, ctx->js_undefined);
+        }
+        if (ctx->js_null) {
+            js_free(ctx->js_ctx, ctx->js_null);
+        }
         if (ctx->js_ctx) {
             JS_FreeContext(ctx->js_ctx);
         }
@@ -111,13 +129,11 @@ dyn_value_t dyntype_new_string(dyn_ctx_t ctx, const char *str) {
 }
 
 dyn_value_t dyntype_new_undefined(dyn_ctx_t ctx) {
-    JSValue v = JS_UNDEFINED;
-    return dyntype_dup_value(ctx->js_ctx, v);
+    return ctx->js_undefined;
 }
 
 dyn_value_t dyntype_new_null(dyn_ctx_t ctx) {
-    JSValue v = JS_NULL;
-    return dyntype_dup_value(ctx->js_ctx, v);
+    return ctx->js_null;
 }
 
 dyn_value_t dyntype_new_object(dyn_ctx_t ctx) {
@@ -146,24 +162,36 @@ dyn_value_t dyntype_new_array(dyn_ctx_t ctx) {
     return dyntype_new_array_with_length(ctx, 0);
 }
 
-dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag) {
-    if (tag != ExtObj && tag != ExtFunc && tag != ExtInfc) {
+dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag)
+{
+    JSValue tag_v, ref_v, v;
+
+    if (tag != ExtObj && tag != ExtFunc && tag != ExtInfc && tag != ExtArray) {
         return NULL;
     }
-    JSValue *v = dyntype_dup_value(ctx->js_ctx, JS_NewInt32(ctx->js_ctx, 0));
-    v->u.ptr = ptr;
-    v->tag = (tag == ExtObj ? JS_TAG_EXT_OBJ : (tag == ExtFunc ? JS_TAG_EXT_FUNC : JS_TAG_EXT_INFC));
-    return v;
+
+    v = JS_NewObject(ctx->js_ctx);
+    if (JS_IsException(v)) {
+        return NULL;
+    }
+
+    tag_v = JS_NewInt32(ctx->js_ctx, (int)tag);
+    ref_v = JS_NewInt32(ctx->js_ctx, (int32_t)(uintptr_t)ptr);
+    JS_SetPropertyStr(ctx->js_ctx, v, "@tag", tag_v);
+    JS_SetPropertyStr(ctx->js_ctx, v, "@ref", ref_v);
+    return dyntype_dup_value(ctx->js_ctx, v);
 }
 
 int dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
                          dyn_value_t value) {
-    JSValue* obj_ptr = (JSValue *)obj;
+    JSValue *obj_ptr = (JSValue *)obj;
     if (!JS_IsObject(*obj_ptr)) {
         return -DYNTYPE_TYPEERR;
     }
     JSValue *val = (JSValue *)value;
-    return JS_SetPropertyStr(ctx->js_ctx, *obj_ptr, prop, *val) ? DYNTYPE_SUCCESS : -DYNTYPE_EXCEPTION;
+    return JS_SetPropertyStr(ctx->js_ctx, *obj_ptr, prop, *val)
+               ? DYNTYPE_SUCCESS
+               : -DYNTYPE_EXCEPTION;
 }
 
 int dyntype_define_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
@@ -203,12 +231,14 @@ dyn_value_t dyntype_get_property(dyn_ctx_t ctx, dyn_value_t obj,
 }
 
 int dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop) {
+    int res;
+    JSAtom atom;
     JSValue *obj_ptr = (JSValue *)obj;
+
     if (!JS_IsObject(*obj_ptr)) {
         return -DYNTYPE_TYPEERR;
     }
-    int res;
-    JSAtom atom;
+
     atom = JS_NewAtom(ctx->js_ctx, prop);
     if (atom == JS_ATOM_NULL) {
         return -DYNTYPE_EXCEPTION;
@@ -222,16 +252,18 @@ int dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop) {
 }
 
 int dyntype_delete_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop) {
+    JSValue *obj_ptr = (JSValue *)obj;
+    JSAtom atom;
+
     if (dyntype_has_property(ctx, obj, prop) != DYNTYPE_TRUE) {
         return -DYNTYPE_FALSE;
     }
-    JSValue *obj_ptr = (JSValue *)obj;
-    JSAtom atom;
+
     atom = JS_NewAtom(ctx->js_ctx, prop);
     if (atom == JS_ATOM_NULL) {
         return -DYNTYPE_EXCEPTION;
     }
-    // it returns EXCEPTION, FALSE or TRUE.
+
     int res = JS_DeleteProperty(ctx->js_ctx, *obj_ptr, atom, 0);
     JS_FreeAtom(ctx->js_ctx, atom);
     if (res == -1) {
@@ -307,36 +339,51 @@ bool dyntype_is_array(dyn_ctx_t ctx, dyn_value_t obj) {
     return (bool)JS_IsArray(ctx->js_ctx, *ptr);
 }
 
-bool dyntype_is_extref(dyn_ctx_t ctx, dyn_value_t obj) {
-    JSValue *ptr = (JSValue *)obj;
-    if (JS_VALUE_GET_TAG(*ptr) == JS_TAG_EXT_OBJ ||
-        JS_VALUE_GET_TAG(*ptr) == JS_TAG_EXT_FUNC ||
-        JS_VALUE_GET_TAG(*ptr) == JS_TAG_EXT_INFC) {
-        return DYNTYPE_TRUE;
+bool dyntype_is_extref(dyn_ctx_t ctx, dyn_value_t obj)
+{
+    if (!dyntype_is_object(ctx, obj)) {
+        return false;
     }
-    return DYNTYPE_FALSE;
+    return dyntype_has_property(ctx, obj, "@tag") == DYNTYPE_TRUE ? true
+                                                                  : false;
 }
 
 int dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres) {
+    JSValue *ref_v;
+    JSValue *tag_v;
+
     if (dyntype_is_extref(ctx, obj) == DYNTYPE_FALSE) {
         return -DYNTYPE_TYPEERR;
     }
-    JSValue *ptr = (JSValue *)obj;
-    *pres = JS_VALUE_GET_PTR(*ptr);
-    return DYNTYPE_SUCCESS;
+
+    tag_v = dyntype_get_property(ctx, obj, "@tag");
+    ref_v = dyntype_get_property(ctx, obj, "@ref");
+    *pres = (void *)(uintptr_t)JS_VALUE_GET_INT(*ref_v);
+
+    return JS_VALUE_GET_INT(*tag_v);
 }
 
 dyn_type_t dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj) {
     JSValueConst *ptr = (JSValueConst *)obj;
-    if (JS_VALUE_GET_TAG(*ptr) == JS_TAG_EXT_OBJ) {
-        return DynExtRefObj;
+
+    if (dyntype_is_extref(ctx, obj)) {
+        int tag;
+        void *ref;
+        tag = dyntype_to_extref(ctx, obj, &ref);
+        if (tag == ExtObj) {
+            return DynExtRefObj;
+        }
+        else if (tag == ExtFunc) {
+            return DynExtRefFunc;
+        }
+        else if (tag == ExtInfc) {
+            return DynExtRefInfc;
+        }
+        else if (tag == ExtArray) {
+            return DynExtRefArray;
+        }
     }
-    if (JS_VALUE_GET_TAG(*ptr) == JS_TAG_EXT_FUNC) {
-        return DynExtRefFunc;
-    }
-    if (JS_VALUE_GET_TAG(*ptr) == JS_TAG_EXT_INFC) {
-        return DynExtRefInfc;
-    }
+
     int q_atom_tag = js_operator_typeof1(ctx->js_ctx, *ptr);
     dyn_type_t tag = quickjs_type_to_dyn_type(q_atom_tag);
     return tag;
@@ -362,13 +409,13 @@ dyn_value_t dyntype_new_object_with_proto(dyn_ctx_t ctx,
 int dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
                           const dyn_value_t proto_obj) {
     JSValue *obj_ptr = (JSValue *)obj;
-    if (JS_VALUE_GET_TAG(*obj_ptr) == JS_TAG_NULL ||
-        JS_VALUE_GET_TAG(*obj_ptr) == JS_TAG_UNDEFINED) {
+    if (JS_VALUE_GET_TAG(*obj_ptr) == JS_TAG_NULL
+        || JS_VALUE_GET_TAG(*obj_ptr) == JS_TAG_UNDEFINED) {
         return -DYNTYPE_TYPEERR;
     }
     JSValue *proto_obj_ptr = (JSValue *)proto_obj;
-    if (JS_VALUE_GET_TAG(*proto_obj_ptr) != JS_TAG_NULL &&
-        JS_VALUE_GET_TAG(*proto_obj_ptr) != JS_TAG_OBJECT) {
+    if (JS_VALUE_GET_TAG(*proto_obj_ptr) != JS_TAG_NULL
+        && JS_VALUE_GET_TAG(*proto_obj_ptr) != JS_TAG_OBJECT) {
         return -DYNTYPE_TYPEERR;
     }
     int res = JS_SetPrototype(ctx->js_ctx, *obj_ptr, *proto_obj_ptr);
@@ -377,15 +424,15 @@ int dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
 
 const dyn_value_t dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj) {
     JSValue *obj_ptr = (JSValue *)obj;
-    if (JS_VALUE_GET_TAG(*obj_ptr) == JS_TAG_NULL ||
-        JS_VALUE_GET_TAG(*obj_ptr) == JS_TAG_UNDEFINED) {
+    if (JS_VALUE_GET_TAG(*obj_ptr) == JS_TAG_NULL
+        || JS_VALUE_GET_TAG(*obj_ptr) == JS_TAG_UNDEFINED) {
         return NULL;
     }
     JSValue proto = JS_GetPrototype(ctx->js_ctx, *obj_ptr);
     if (JS_IsException(proto)) {
         return NULL;
     }
-    JSValue* proto1 = dyntype_dup_value(ctx->js_ctx, proto);
+    JSValue *proto1 = dyntype_dup_value(ctx->js_ctx, proto);
     return proto1;
 }
 
@@ -413,16 +460,24 @@ bool dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
                         const dyn_value_t dst_obj) {
     JSValue *src = (JSValue *)src_obj;
     JSValue *dst = (JSValue *)dst_obj;
+
     int ret = JS_OrdinaryIsInstanceOf1(ctx->js_ctx, *src, *dst);
     if (ret == -1) {
         return -DYNTYPE_EXCEPTION;
     }
+
     return ret == 1 ? DYNTYPE_TRUE : DYNTYPE_FALSE;
 }
 
 void dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj) {
     JSValue *v = (JSValue *)obj;
-    JS_Dump1(ctx->js_rt, v);
+    const char *str;
+    size_t len;
+
+    str = JS_ToCStringLen(ctx->js_ctx, &len, *v);
+    if (str)
+        fwrite(str, 1, len, stdout);
+    JS_FreeCString(ctx->js_ctx, str);
 }
 
 int dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer,

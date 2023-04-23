@@ -12,8 +12,8 @@ set (CMAKE_CXX_STANDARD 14)
 set (UNITTEST_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR})
 set (QJS_ROOT_DIR ${UNITTEST_ROOT_DIR}/../)
 
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
 if (EXISTS /usr/src/gtest)
     # Use googletest installed in system

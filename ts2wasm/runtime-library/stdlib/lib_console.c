@@ -27,9 +27,7 @@ void console_log(wasm_exec_env_t exec_env, void *obj)
         void *addr = wasm_array_obj_elem_addr(arr_ref, i);
         WASMAnyrefObjectRef anyref = *((WASMAnyrefObjectRef *)addr);
         JSValue *js_value = (JSValue *)wasm_anyref_obj_get_value(anyref);
-        if ((JS_VALUE_GET_TAG(*js_value) == JS_TAG_EXT_OBJ)
-            || (JS_VALUE_GET_TAG(*js_value) == JS_TAG_EXT_FUNC)
-            || (JS_VALUE_GET_TAG(*js_value) == JS_TAG_EXT_INFC)) {
+        if (dyntype_is_extref(dyntype_get_context(), js_value)) {
             printf("[wasm object]");
         }
         else {
