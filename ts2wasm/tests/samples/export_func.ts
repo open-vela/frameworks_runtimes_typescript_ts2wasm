@@ -3,22 +3,26 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-export function add(a: number, b: number): number {
+export { mulFunc };
+export { subFunc as sub, divFunc as divFunc };
+export default defaultFunc;
+
+function defaultFunc(): number {
+    return 100;
+}
+
+export function addFunc(a: number, b: number) {
     return a + b;
 }
 
-function sub(a: number, b: number): number {
+function subFunc(a: number, b: number) {
     return a - b;
 }
 
-export { sub };
-
-function mul(a: number, b: number): number {
+function mulFunc(a: number, b: number) {
     return a * b;
 }
 
-export { mul as renamed_mul };
-
-export default function theDefault(): number {
-    return 8;
+function divFunc(a: number, b: number) {
+    return a / b;
 }

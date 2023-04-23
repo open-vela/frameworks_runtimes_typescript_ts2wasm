@@ -800,7 +800,12 @@
         "module": "export_func",
         "entries": [
             {
-                "name": "add",
+                "name": "defaultFunc",
+                "args": [],
+                "result": "100:f64"
+            },
+            {
+                "name": "addFunc",
                 "args": [
                     21,
                     22
@@ -808,9 +813,28 @@
                 "result": "43:f64"
             },
             {
-                "name": "theDefault",
-                "args": [],
-                "result": "8:f64"
+                "name": "subFunc",
+                "args": [
+                    21,
+                    22
+                ],
+                "result": "-1:f64"
+            },
+            {
+                "name": "mulFunc",
+                "args": [
+                    2,
+                    3
+                ],
+                "result": "6:f64"
+            },
+            {
+                "name": "divFunc",
+                "args": [
+                    20,
+                    10
+                ],
+                "result": "2:f64"
             }
         ]
     },
@@ -831,7 +855,13 @@
     },
     {
         "module": "export_namespace",
-        "entries": []
+        "entries": [
+            {
+                "name": "aFunc",
+                "args": [],
+                "result": "10:f64"
+            }
+        ]
     },
     {
         "module": "export_var",
@@ -1128,12 +1158,12 @@
             {
                 "name": "importClass",
                 "args": [],
-                "result": "need_manual_fill"
+                "result": "10:f64"
             },
             {
-                "name": "test",
+                "name": "importClassAsBaseClass",
                 "args": [],
-                "result": "need_manual_fill"
+                "result": "8:f64"
             }
         ]
     },
@@ -1156,9 +1186,14 @@
                 "result": "2:f64"
             },
             {
+                "name": "importFuncDiv",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
                 "name": "importDefaultFunc",
                 "args": [],
-                "result": "8:f64"
+                "result": "100:f64"
             },
             {
                 "name": "importFuncInvoked",
@@ -1173,12 +1208,12 @@
             {
                 "name": "importNamespaceFunc",
                 "args": [],
-                "result": "need_manual_fill"
+                "result": "10:f64"
             },
             {
                 "name": "importNamespaceVar",
                 "args": [],
-                "result": "need_manual_fill"
+                "result": "8:f64"
             },
             {
                 "name": "importNestedNamespaceFunc",
@@ -1198,17 +1233,17 @@
             {
                 "name": "importVarA",
                 "args": [],
-                "result": "1:f64"
+                "result": "10:f64"
             },
             {
                 "name": "importVarB",
                 "args": [],
-                "result": "2:f64"
+                "result": "110:f64"
             },
             {
                 "name": "importVarC",
                 "args": [],
-                "result": "3:f64"
+                "result": "1000:f64"
             }
         ]
     },

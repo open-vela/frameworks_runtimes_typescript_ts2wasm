@@ -1,17 +1,17 @@
 {
     "version": {
         "category": "General",
-        "description": "Prints the compiler's version and exits.",
+        "description": "Print the compiler's version.",
         "alias": "v"
     },
     "help": {
         "category": "General",
-        "description": "Prints this help message and exits.",
+        "description": "Print the help information of this compiler.",
         "alias": "h"
     },
     "output": {
         "category": "Output",
-        "description": "Specifies the WebAssembly output file (.wasm).",
+        "description": "Generate the WebAssembly binary output file (.wasm).",
         "alias": "o"
     },
     "wat": {
@@ -25,7 +25,7 @@
     },
     "baseDir": {
         "category": "Output",
-        "description": "Specifies the base directory of output files.",
+        "description": "Specify base directory for storing output files.",
         "default": "."
     },
     "opt": {
@@ -35,22 +35,22 @@
     },
     "disableAny": {
         "category": "Compile",
-        "description": "disable any feature",
+        "description": "Disable any feature",
         "default": true
     },
     "disableBuiltIn": {
         "category": "Compile",
-        "description": "disable builtin functions",
+        "description": "Disable builtin functions",
         "default": true
     },
     "disableInterface": {
         "category": "Compile",
-        "description": "disable interface feature",
+        "description": "Disable interface feature",
         "default": true
     },
     "isBuiltIn": {
         "category": "Compile",
-        "description": "decide whether to compile the built-in ts files",
+        "description": "Decide whether to compile the built-in ts files",
         "default": true
     }
 }

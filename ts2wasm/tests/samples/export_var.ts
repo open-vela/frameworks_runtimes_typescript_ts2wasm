@@ -3,12 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-export const a = 1;
+export const aVar = 10;
+export { bVar, cVar as c };
 
-const b = 2;
-
-export { b };
-
-const c = 3; // not exported as "c"
-
-export { c as renamed_c };
+let bVar = aVar;
+bVar += 100;
+const cVar = 1000;

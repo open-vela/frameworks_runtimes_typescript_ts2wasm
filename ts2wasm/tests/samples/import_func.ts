@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-import theDefault, {
-    add,
-    sub as sub1,
-    renamed_mul as mul1,
+import defaultFunction, {
+    addFunc as add,
+    sub,
+    mulFunc as mul,
+    divFunc as divFunc,
 } from './export_func';
 
 import { exportedFunc } from './export_func_invoked';
@@ -17,17 +18,22 @@ export function importFuncAdd() {
 }
 
 export function importFuncSub() {
-    const a = sub1(1, 2);
+    const a = sub(1, 2);
     return a;
 }
 
 export function importFuncMul() {
-    const a = mul1(1, 2);
+    const a = mul(1, 2);
+    return a;
+}
+
+export function importFuncDiv() {
+    const a = divFunc(4, 2);
     return a;
 }
 
 export function importDefaultFunc() {
-    return theDefault();
+    return defaultFunction();
 }
 
 export function importFuncInvoked() {

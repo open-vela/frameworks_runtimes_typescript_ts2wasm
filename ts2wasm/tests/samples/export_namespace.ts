@@ -3,20 +3,28 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-export namespace ns {
-    function one(): void {}
-    export function two(): void {}
+export namespace namespaceA {
+    function aFunc() {
+        return 10;
+    }
+    export function bFunc() {
+        return aFunc();
+    }
 }
 
-export default ns;
+namespace namespaceB {
+    export const aVar = 8;
+}
 
-export declare namespace ns2 {
-    function one(): number;
-    const v1: string;
-    export function two(): void;
+export default namespaceB;
 
-    export namespace ns3 {
-        const v2: number;
-        function three(): boolean;
+export declare namespace namespaceC {
+    function aFunc(): number;
+    const aVar: number;
+    export function bFunc(): void;
+
+    export namespace innerNamespaceC {
+        const innerAVar: number;
+        function innerAFunc(): boolean;
     }
 }
