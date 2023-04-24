@@ -91,9 +91,10 @@ export class ImportResolver {
             case ts.SyntaxKind.ExportDeclaration: {
                 const exportDeclaration = <ts.ExportDeclaration>node;
                 const globalScope = this.currentScope!.getRootGloablScope()!;
-                const nameAliasExportMap =
+                const { nameAliasExportMap, exportIdentifierList } =
                     getExportIdentifierName(exportDeclaration);
                 globalScope.setExportNameAlias(nameAliasExportMap);
+                globalScope.setExportIdentifierList(exportIdentifierList);
                 const exportModuleName = getModulePath(
                     exportDeclaration,
                     this.currentScope!.getRootGloablScope()!,
@@ -134,6 +135,7 @@ export class ImportResolver {
                 );
                 const defaultName = defaultIdentifier.getText()!;
                 globalScope.defaultNoun = defaultName;
+                globalScope.exportIdentifierList.push(defaultName);
                 break;
             }
             case ts.SyntaxKind.FunctionDeclaration:

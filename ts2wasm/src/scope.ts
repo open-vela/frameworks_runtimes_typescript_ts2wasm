@@ -374,9 +374,12 @@ export class Scope {
     }
 
     public isExport(): boolean {
-        return !!this.modifiers.find((modifier) => {
-            return modifier.kind === ts.SyntaxKind.ExportKeyword;
-        });
+        return (
+            !!this.modifiers.find((modifier) => {
+                return modifier.kind === ts.SyntaxKind.ExportKeyword;
+            }) ||
+            this.getRootGloablScope()!.exportIdentifierList.includes(this.name)
+        );
     }
 
     public isStatic(): boolean {
@@ -437,6 +440,7 @@ export class GlobalScope extends Scope {
     nameAliasImportMap = new Map<string, string>();
     // export alias, export { c as renamed_c }; store <renamed_c, c>
     nameAliasExportMap = new Map<string, string>();
+    exportIdentifierList: string[] = [];
     // default identifier map: import theDefault from "./export-case1"; import theOtherDefault from "./export-case2";
     defaultModuleImportMap = new Map<string, GlobalScope>();
     defaultNoun = '';
@@ -494,6 +498,10 @@ export class GlobalScope extends Scope {
         for (const [key, value] of nameAliasExportMap) {
             this.nameAliasExportMap.set(key, value);
         }
+    }
+
+    setExportIdentifierList(exportIdentifierList: string[]) {
+        this.exportIdentifierList.push(...exportIdentifierList);
     }
 }
 
