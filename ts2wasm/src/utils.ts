@@ -316,6 +316,7 @@ export function getExportIdentifierName(
     exportDeclaration: ts.ExportDeclaration,
 ) {
     const nameAliasExportMap = new Map<string, string>();
+    const exportIdentifierList: string[] = [];
     // only need to record export alias
     const exportClause = exportDeclaration.exportClause;
     if (!exportClause) {
@@ -331,12 +332,15 @@ export function getExportIdentifierName(
                 const propertyName = (<ts.Identifier>(
                     propertyIdentifier
                 )).getText()!;
+                exportIdentifierList.push(propertyName);
                 nameAliasExportMap.set(specificName, propertyName);
+            } else {
+                exportIdentifierList.push(specificName);
             }
         }
     }
 
-    return nameAliasExportMap;
+    return { nameAliasExportMap, exportIdentifierList };
 }
 
 export function getBuiltInFuncName(oriFuncName: string) {
