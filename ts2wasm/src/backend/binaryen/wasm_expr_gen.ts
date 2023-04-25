@@ -3214,10 +3214,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             let value: binaryen.ExpressionRef | null = null;
             const fromType = args[i].exprType;
             const toType = paramType[i];
-            if (
-                toType.kind === TypeKind.ANY &&
-                fromType.kind !== TypeKind.ANY
-            ) {
+            if (toType.kind === TypeKind.ANY) {
                 value = this.dynValueGen.WASMDynExprGen(args[i]).binaryenRef;
             } else {
                 value = this.WASMExprGen(args[i]).binaryenRef;
