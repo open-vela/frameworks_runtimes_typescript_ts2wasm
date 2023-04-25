@@ -134,6 +134,7 @@ export class TSClass extends Type {
     private _staticFields: Array<TsClassField> = [];
     private _methods: Array<TsClassFunc> = [];
     private _baseClass: TSClass | null = null;
+    private _ctor: TSFunction | null = null;
 
     public staticFieldsInitValueMap: Map<number, Expression> = new Map();
     /* override or own methods */
@@ -153,6 +154,14 @@ export class TSClass extends Type {
 
     get memberFuncs(): Array<TsClassFunc> {
         return this._methods;
+    }
+
+    set ctorType(ctor: TSFunction) {
+        this._ctor = ctor;
+    }
+
+    get ctorType(): TSFunction {
+        return this._ctor!;
     }
 
     setBase(base: TSClass): void {
@@ -773,6 +782,7 @@ export default class TypeResolver {
         ctorType.returnType = classType;
         ctorType.funcKind = FunctionKind.CONSTRUCTOR;
         ctorScope.setFuncType(ctorType);
+        classType.ctorType = ctorType;
 
         // 2. parse other fields
         for (const member of node.members) {

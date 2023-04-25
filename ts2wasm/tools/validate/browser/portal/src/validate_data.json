@@ -618,6 +618,11 @@
                 "name": "getterSetter",
                 "args": [],
                 "result": 25
+            },
+            {
+                "name": "anyType",
+                "args": [],
+                "result": 10
             }
         ]
     },
