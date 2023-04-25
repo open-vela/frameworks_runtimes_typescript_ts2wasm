@@ -487,6 +487,21 @@
                 "name": "stringSliceWithTwoUndefind",
                 "args": [],
                 "result": "ref.struct"
+            },
+            {
+                "name": "stringIndexOf",
+                "args": [],
+                "result": "9 \n-1 \n-1:f64"
+            },
+            {
+                "name": "stringSplit",
+                "args": [],
+                "result": "h \ne \nl \nl \no \n\u0004 \nllo \n\u0004 \nref.array"
+            },
+            {
+                "name": "stringReplace",
+                "args": [],
+                "result": "hellokhello \nhellokhello \nhello-hello \n-hellokhello \nhellohello"
             }
         ]
     },

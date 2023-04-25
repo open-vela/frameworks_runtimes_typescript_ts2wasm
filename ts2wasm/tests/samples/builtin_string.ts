@@ -32,3 +32,48 @@ export function stringSliceWithTwoUndefind() {
     const b: string = a.slice(undefined, undefined);
     return b;
 }
+
+export function stringIndexOf() {
+    const a: string = 'helloxxxxkasdfhello';
+    let x: number = a.indexOf('kasd');   // 9
+    console.log(x)
+    x = a.indexOf('kh'); // -1
+    console.log(x)
+    return x;
+}
+
+function outputStrArr(arr: string[]) {
+    for (let i = 0; i < arr.length; i++) {
+        let str = arr[i];
+        console.log(str)
+    }
+}
+
+export function stringSplit() {
+    let a: string = 'h-e-l-l-o';
+    let arr: string[] = a.split('-'); // ['h', 'e', 'l', 'l', 'o']
+    outputStrArr(arr);
+    a = 'hellohe';
+    arr = a.split('he'); // ['', 'llo', '']
+    outputStrArr(arr)
+    return arr;
+}
+
+export function stringReplace() {
+    const a: string = 'hellokhello';
+    // replace longer string  ->   hellokhello
+    let na: string = a.replace("hellokhelloo", '-');
+    console.log(na);
+    // replace unmatched string -> hellokhello
+    na = a.replace("pqr", "-");
+    console.log(na);
+    // replace string hello-hello
+    na = a.replace("k", '-');
+    console.log(na);
+    // match empty -> -hellokhello
+    na = a.replace("", "-");
+    console.log(na);
+    // replace with nothing -> hellohello
+    na = a.replace("k", "");
+    console.log(na);
+}

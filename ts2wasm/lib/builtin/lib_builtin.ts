@@ -24,6 +24,21 @@ export class String {
     slice(start?: number, end?: number): string {
         return 'slice';
     }
+
+    @binaryen
+    split(sep: string): string[] {
+        return [];
+    }
+
+    @binaryen
+    replace(from: string, to: string): string {
+        return 'replace';
+    }
+
+    @binaryen
+    indexOf(str: string): number {
+        return -1;
+    }
 }
 
 export class Math {
