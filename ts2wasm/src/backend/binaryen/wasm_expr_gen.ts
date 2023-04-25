@@ -2320,6 +2320,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         }
         if (type.kind === TypeKind.CLASS) {
             const classType = <TSClass>type;
+            const ctorType = classType.ctorType;
             const classMangledName = classType.mangledName;
             const initStructFields = new Array<binaryen.ExpressionRef>();
             initStructFields.push(this.wasmType.getWASMClassVtable(type));
@@ -2334,7 +2335,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 this.wasmType.getWASMHeapType(type),
             );
 
-            const args = new Array<binaryen.ExpressionRef>();
+            let args = new Array<binaryen.ExpressionRef>();
             // TODO: here just set @context to null
             args.push(
                 binaryenCAPI._BinaryenRefNull(
@@ -2343,11 +2344,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 ),
             );
             args.push(newStruct);
-            if (expr.newArgs) {
-                for (const arg of expr.newArgs) {
-                    args.push(this.WASMExprGen(arg).binaryenRef);
-                }
-            }
+            const newArgs = expr.newArgs ? expr.newArgs : [];
+            args = args.concat(this.parseArguments(ctorType, newArgs));
             return this.module.call(
                 classMangledName + '|constructor',
                 args,
@@ -3210,11 +3208,25 @@ export class WASMExpressionGen extends WASMExpressionBase {
             if (j === paramType.length - 1 && type.hasRest()) {
                 break;
             }
-            const value =
-                paramType[i].kind === TypeKind.ANY
-                    ? this.dynValueGen.WASMDynExprGen(args[i])
-                    : this.WASMExprGen(args[i]);
-            res.push(value.binaryenRef);
+            let value: binaryen.ExpressionRef | null = null;
+            const fromType = args[i].exprType;
+            const toType = paramType[i];
+            if (
+                toType.kind === TypeKind.ANY &&
+                fromType.kind !== TypeKind.ANY
+            ) {
+                value = this.dynValueGen.WASMDynExprGen(args[i]).binaryenRef;
+            } else {
+                value = this.WASMExprGen(args[i]).binaryenRef;
+            }
+            if (fromType instanceof TSClass && toType instanceof TSClass) {
+                value = this.maybeTypeBoxingAndUnboxing(
+                    fromType,
+                    toType,
+                    value,
+                );
+            }
+            res.push(value);
         }
         if (type.hasRest()) {
             const restType = paramType[paramType.length - 1];
