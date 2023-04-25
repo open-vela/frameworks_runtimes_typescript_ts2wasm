@@ -1131,7 +1131,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 res = this.WASMFuncExpr(<FunctionExpression>expr);
                 break;
             default:
-                throw new Error('unexpected expr kind ' + expr.expressionKind);
+                throw new Error(
+                    'unexpected expr kind ' +
+                        ts.SyntaxKind[expr.expressionKind],
+                );
         }
 
         if (res instanceof AccessBase) {
@@ -3319,7 +3322,10 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                 res = this.boxNonLiteralToAny(expr);
                 break;
             default:
-                throw new Error('unexpected expr kind ' + expr.expressionKind);
+                throw new Error(
+                    'unexpected expr kind ' +
+                        ts.SyntaxKind[expr.expressionKind],
+                );
         }
 
         return {
