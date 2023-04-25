@@ -56,6 +56,9 @@ interface String {
     concat(...strings: string[]): string;
     slice(start?: number, end?: number): string;
     readonly [index: number]: string;
+    replace(from: string, to: string): string;
+    split(sep: string): string[];
+    indexOf(str: string): number;
 }
 
 interface StringConstructor {

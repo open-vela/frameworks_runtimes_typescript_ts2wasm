@@ -73,6 +73,10 @@ export namespace BuiltinNames {
     export const stringConcatFuncName = 'String|concat';
     export const stringSliceFuncName = 'String|slice';
     export const stringEQFuncName = 'string_eq';
+    export const stringReplaceFuncName = 'String|replace';
+    export const stringSplitFuncName = 'String|split';
+    export const stringIndexOfFuncName = 'String|indexOf';
+    export const stringIndexOfInternalFuncName = 'String|indexOfInternal';
 
     // builtin instance function name
     export const stringLengthFuncName = 'String|length';
