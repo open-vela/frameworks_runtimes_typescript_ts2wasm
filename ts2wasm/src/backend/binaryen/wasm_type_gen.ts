@@ -26,6 +26,7 @@ import {
 import { assert } from 'console';
 import { infcTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './index.js';
+import { Logger } from '../../log.js';
 
 export class WASMTypeGen {
     tsType2WASMTypeMap: Map<Type, binaryenCAPI.TypeRef> = new Map();
@@ -305,15 +306,31 @@ export class WASMTypeGen {
                         );
                     } else if (tsClassType.getBase()) {
                         /* base class must exist in this condition */
-                        const baseClassType = <TSClass>tsClassType.getBase();
-                        vtableFuncs.push(
-                            this.WASMCompiler.module.ref.func(
-                                baseClassType.mangledName +
-                                    '|' +
+                        let baseClassType = tsClassType.getBase();
+                        while (baseClassType) {
+                            // found qualified baseClassType
+                            if (
+                                baseClassType.overrideOrOwnMethods.has(
                                     nameWithPrefix,
-                                wasmFuncTypes[i],
-                            ),
-                        );
+                                )
+                            ) {
+                                vtableFuncs.push(
+                                    this.WASMCompiler.module.ref.func(
+                                        baseClassType.mangledName +
+                                            '|' +
+                                            nameWithPrefix,
+                                        wasmFuncTypes[i],
+                                    ),
+                                );
+                                break;
+                            }
+                            baseClassType = baseClassType.getBase();
+                        }
+                        if (!baseClassType) {
+                            const msg = `Failed to resolve method for derived class ${tsClassType.mangledName}`;
+                            Logger.error(msg);
+                            throw new Error(msg);
+                        }
                     }
                 }
                 const vtableInstance = binaryenCAPI._BinaryenStructNew(
