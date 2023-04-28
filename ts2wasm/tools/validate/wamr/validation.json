@@ -622,6 +622,11 @@
                 "name": "anyType",
                 "args": [],
                 "result": "10:f64"
+            },
+            {
+                "name": "defaultCtor",
+                "args": [],
+                "result": "3:f64"
             }
         ]
     },

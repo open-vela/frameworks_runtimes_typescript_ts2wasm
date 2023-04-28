@@ -519,6 +519,8 @@ export class FunctionScope extends ClosureEnvironment {
     private functionType = new TSFunction();
     /* iff the function is a member function, which class it belong to */
     private _className = '';
+    /** iff it explicitly declares constructor */
+    hasDeclCtor = true;
 
     constructor(parent: Scope) {
         super(parent);

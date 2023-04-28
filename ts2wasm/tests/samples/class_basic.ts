@@ -88,3 +88,26 @@ export function anyType() {
     const a: A3 = new A3(10);
     return a.a;
 }
+
+class Base {
+    _arg: number;
+    _arg1: number;
+
+    constructor(arg: number, arg1: number) {
+        this._arg = arg;
+        this._arg1 = arg1;
+    }
+
+    test() {
+        return this._arg + this._arg1;
+    }
+}
+
+class Derived extends Base {
+    //
+}
+
+export function defaultCtor() {
+    const a = new Derived(1, 2);
+    return a.test();
+}

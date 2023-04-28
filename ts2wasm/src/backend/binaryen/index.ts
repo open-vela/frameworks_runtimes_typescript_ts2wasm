@@ -719,6 +719,45 @@ export class WASMGen extends Ts2wasmBackend {
             this.currentFuncCtx!.returnIdx = returnVarIdx;
             functionScope.addTempVar(returnVar);
         }
+        if (
+            functionScope.funcType.funcKind === FunctionKind.CONSTRUCTOR &&
+            !functionScope.hasDeclCtor
+        ) {
+            const classScope = <ClassScope>functionScope.parent;
+            const classType = classScope.classType;
+            if (classType.getBase()) {
+                const baseClassType = classType.getBase()!;
+                const ref = this.module.local.get(1, emptyStructType.typeRef);
+                const wasmArgs = new Array<binaryen.ExpressionRef>();
+                wasmArgs.push(
+                    binaryenCAPI._BinaryenRefNull(
+                        this.module.ptr,
+                        emptyStructType.typeRef,
+                    ),
+                );
+                wasmArgs.push(ref);
+                /** super() arguments must come from constructor's arguments */
+                for (let i = 2; i < functionScope.paramArray.length; i++) {
+                    wasmArgs.push(
+                        this.module.local.get(
+                            i,
+                            this.wasmType.getWASMType(
+                                functionScope.paramArray[i].varType,
+                            ),
+                        ),
+                    );
+                }
+                this.currentFuncCtx!.insert(
+                    this.module.drop(
+                        this.module.call(
+                            baseClassType.mangledName + '|constructor',
+                            wasmArgs,
+                            binaryen.none,
+                        ),
+                    ),
+                );
+            }
+        }
 
         // generate wasm statements
         for (const stmt of functionScope.statements) {

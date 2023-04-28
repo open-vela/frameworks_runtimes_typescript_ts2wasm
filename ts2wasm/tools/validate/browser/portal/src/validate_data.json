@@ -638,6 +638,11 @@
                 "name": "anyType",
                 "args": [],
                 "result": 10
+            },
+            {
+                "name": "defaultCtor",
+                "args": [],
+                "result": 3
             }
         ]
     },

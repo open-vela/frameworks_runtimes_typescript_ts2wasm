@@ -772,6 +772,24 @@ export default class TypeResolver {
                 );
                 ctorScope.addVariable(new Variable('this', classType, [], -1));
                 ctorType = new TSFunction(FunctionKind.CONSTRUCTOR);
+                ctorScope.hasDeclCtor = false;
+                if (baseType) {
+                    const baseCtorType = baseType.ctorType;
+                    const paramTypes = baseCtorType.getParamTypes();
+                    for (let i = 0; i < paramTypes.length; i++) {
+                        ctorType.addParamType(paramTypes[i]);
+                        ctorScope.addParameter(
+                            new Parameter(
+                                `@anonymous${i}`,
+                                paramTypes[i],
+                                [],
+                                i + 2,
+                                false,
+                                false,
+                            ),
+                        );
+                    }
+                }
             }
         } else {
             const func = <ts.ConstructorDeclaration>constructor;

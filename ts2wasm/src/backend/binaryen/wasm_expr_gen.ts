@@ -3223,7 +3223,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return strLenF64;
     }
 
-    private parseArguments(type: TSFunction, args: Expression[]) {
+    parseArguments(type: TSFunction, args: Expression[]) {
         const paramType = type.getParamTypes();
         const res: binaryen.ExpressionRef[] = [];
         let i = 0;
