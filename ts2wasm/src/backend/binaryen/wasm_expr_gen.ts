@@ -50,6 +50,7 @@ import {
     Scope,
     NamespaceScope,
     ClosureEnvironment,
+    importSearchTypes,
 } from '../../scope.js';
 import { MatchKind, Stack } from '../../utils.js';
 import { dyntype, structdyn } from './lib/dyntype/utils.js';
@@ -91,6 +92,7 @@ enum AccessType {
     DynArray,
     Type,
     Scope,
+    ImportScope,
 }
 
 class AccessBase {
@@ -251,6 +253,12 @@ class TypeAccess extends AccessBase {
 class ScopeAccess extends AccessBase {
     constructor(public scope: Scope) {
         super(AccessType.Scope);
+    }
+}
+
+class ImportScopeAccess extends AccessBase {
+    constructor(public scope: GlobalScope) {
+        super(AccessType.ImportScope);
     }
 }
 
@@ -1385,9 +1393,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
         identifer: string,
         scope: Scope,
         nested = true,
+        convertName = false,
     ): AccessBase {
         /* Step1: Find item according to identifier */
-        const identifierInfo = scope.findIdentifier(identifer, nested);
+        const identifierInfo = scope.findIdentifier(
+            identifer,
+            nested,
+            importSearchTypes.All,
+            convertName,
+        );
         if (identifierInfo instanceof Variable) {
             const variable = identifierInfo;
             let varType = this.wasmType.getWASMType(variable.varType);
@@ -1455,11 +1469,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
             }
         } else if (identifierInfo instanceof FunctionScope) {
             return new FunctionAccess(identifierInfo);
-        } else if (
-            identifierInfo instanceof NamespaceScope ||
-            identifierInfo instanceof GlobalScope
-        ) {
+        } else if (identifierInfo instanceof NamespaceScope) {
             return new ScopeAccess(identifierInfo);
+        } else if (identifierInfo instanceof GlobalScope) {
+            return new ImportScopeAccess(identifierInfo);
         } else if (identifierInfo instanceof Type) {
             const tsType = identifierInfo;
             return new TypeAccess(tsType);
@@ -2376,6 +2389,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     propName,
                     accessInfo.scope,
                     false,
+                );
+            } else if (accessInfo instanceof ImportScopeAccess) {
+                curAccessInfo = this._createAccessInfo(
+                    propName,
+                    accessInfo.scope,
+                    false,
+                    true,
                 );
             } else if (accessInfo instanceof TypeAccess) {
                 const type = accessInfo.type;

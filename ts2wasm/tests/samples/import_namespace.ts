@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-import defaultNS, { namespaceA as nsA, namespaceC } from './export_namespace';
+import defaultNS, { namespaceA as nsA } from './export_namespace';
 
 export function importNamespaceFunc() {
     const nsAResult = nsA.bFunc();
@@ -12,15 +12,5 @@ export function importNamespaceFunc() {
 
 export function importNamespaceVar() {
     const nsVar = defaultNS.aVar;
-    return nsVar;
-}
-
-export function importNestedNamespaceFunc() {
-    const nsFunc = namespaceC.innerNamespaceC.innerAFunc;
-    return nsFunc();
-}
-
-export function importNestedNamespaceVar() {
-    const nsVar = namespaceC.innerNamespaceC.innerAVar;
     return nsVar;
 }
