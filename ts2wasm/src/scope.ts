@@ -28,7 +28,7 @@ export enum ScopeKind {
     NamespaceScope = 'Namespace',
 }
 
-enum importSearchTypes {
+export enum importSearchTypes {
     Variable = 'variable',
     Type = 'type',
     Function = 'function',
@@ -295,6 +295,7 @@ export class Scope {
         name: string,
         nested = true,
         searchType: importSearchTypes = importSearchTypes.All,
+        convertName = false,
     ): Variable | Scope | Type | undefined {
         return this._nestFindScopeItem(
             name,
@@ -308,19 +309,26 @@ export class Scope {
                     );
                 };
 
+                const oriName =
+                    (convertName &&
+                        scope
+                            .getRootGloablScope()!
+                            .nameAliasExportMap.get(name)) ||
+                    name;
+
                 res =
                     /* Step1: Find variable in current scope */
                     (matchStep(importSearchTypes.Variable) &&
-                        scope.findVariable(name, false)) ||
+                        scope.findVariable(oriName, false)) ||
                     /* Step2: Find function in current scope */
                     (matchStep(importSearchTypes.Function) &&
-                        scope.findFunctionScope(name, false)) ||
+                        scope.findFunctionScope(oriName, false)) ||
                     /* Step3: Find type in current scope */
                     (matchStep(importSearchTypes.Type) &&
-                        scope.findType(name, false)) ||
+                        scope.findType(oriName, false)) ||
                     /* Step4: Find namespace */
                     (matchStep(importSearchTypes.Namespace) &&
-                        scope.findNamespaceScope(name, false)) ||
+                        scope.findNamespaceScope(oriName, false)) ||
                     undefined;
                 if (res) {
                     return res;
@@ -328,7 +336,7 @@ export class Scope {
 
                 /* Step5: Find in other module*/
                 if (scope instanceof GlobalScope) {
-                    res = this._findInImportScope(scope, name, searchType);
+                    res = this._findInImportScope(scope, oriName, searchType);
                 }
 
                 return res;

@@ -892,7 +892,7 @@
         "module": "export_namespace",
         "entries": [
             {
-                "name": "aFunc",
+                "name": "bFunc",
                 "args": [],
                 "result": 10
             }
@@ -1188,6 +1188,81 @@
         ]
     },
     {
+        "module": "import_alias_identifier",
+        "entries": [
+            {
+                "name": "getAliasFunc",
+                "args": [],
+                "result": 10
+            },
+            {
+                "name": "getAliasVar",
+                "args": [],
+                "result": 100
+            },
+            {
+                "name": "getAliasClass",
+                "args": [],
+                "result": 50
+            },
+            {
+                "name": "getAliasNS",
+                "args": [],
+                "result": 88
+            }
+        ]
+    },
+    {
+        "module": "import_alias_reexport_identifier",
+        "entries": [
+            {
+                "name": "getAliasFunc",
+                "args": [],
+                "result": 10
+            },
+            {
+                "name": "getAliasVar",
+                "args": [],
+                "result": 100
+            },
+            {
+                "name": "getAliasClass",
+                "args": [],
+                "result": 50
+            },
+            {
+                "name": "getAliasNS",
+                "args": [],
+                "result": 88
+            }
+        ]
+    },
+    {
+        "module": "import_alias_scope_identifier",
+        "entries": [
+            {
+                "name": "getAliasFunc",
+                "args": [],
+                "result": 10
+            },
+            {
+                "name": "getAliasVar",
+                "args": [],
+                "result": 100
+            },
+            {
+                "name": "getAliasClass",
+                "args": [],
+                "result": 50
+            },
+            {
+                "name": "getAliasNS",
+                "args": [],
+                "result": 88
+            }
+        ]
+    },
+    {
         "module": "import_class",
         "entries": [
             {
@@ -1249,16 +1324,6 @@
                 "name": "importNamespaceVar",
                 "args": [],
                 "result": 8
-            },
-            {
-                "name": "importNestedNamespaceFunc",
-                "args": [],
-                "result": "need_manual_fill"
-            },
-            {
-                "name": "importNestedNamespaceVar",
-                "args": [],
-                "result": "need_manual_fill"
             }
         ]
     },

@@ -17,14 +17,3 @@ namespace namespaceB {
 }
 
 export default namespaceB;
-
-export declare namespace namespaceC {
-    function aFunc(): number;
-    const aVar: number;
-    export function bFunc(): void;
-
-    export namespace innerNamespaceC {
-        const innerAVar: number;
-        function innerAFunc(): boolean;
-    }
-}
