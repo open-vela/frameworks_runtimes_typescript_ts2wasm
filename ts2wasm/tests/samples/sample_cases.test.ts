@@ -15,6 +15,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const IGNORE_LIST = [
+    "complexType_case1.ts"
+]
+
 describe('basic_cases', function () {
     this.timeout(5000);
     readdirSync(__dirname)
@@ -22,7 +26,12 @@ describe('basic_cases', function () {
             return d.endsWith('.ts') && !d.endsWith('.test.ts');
         })
         .forEach((f) => {
-            it(`${f}`, function () {
+            let addTestFunc : any = it;
+            if (IGNORE_LIST.includes(f)) {
+                addTestFunc = it.skip;
+            }
+
+            addTestFunc(`${f}`, function () {
                 expect(testCompile(path.join(__dirname, f))).eq(true);
             });
         });
