@@ -3232,19 +3232,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 break;
             }
             let value: binaryen.ExpressionRef | null = null;
-            const fromType = args[i].exprType;
             const toType = paramType[i];
             if (toType.kind === TypeKind.ANY) {
                 value = this.dynValueGen.WASMDynExprGen(args[i]).binaryenRef;
             } else {
                 value = this.WASMExprGen(args[i]).binaryenRef;
-            }
-            if (fromType instanceof TSClass && toType instanceof TSClass) {
-                value = this.maybeTypeBoxingAndUnboxing(
-                    fromType,
-                    toType,
-                    value,
-                );
             }
             res.push(value);
         }
