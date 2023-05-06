@@ -77,7 +77,8 @@ export namespace BuiltinNames {
     export const stringSplitFuncName = 'String|split';
     export const stringIndexOfFuncName = 'String|indexOf';
     export const stringIndexOfInternalFuncName = 'String|indexOfInternal';
-
+    export const stringMatchFuncName = 'String|match';
+    export const stringSearchFuncName = 'String|search';
     // builtin instance function name
     export const stringLengthFuncName = 'String|length';
     export const arrayLengthFuncName = 'Array|length';
