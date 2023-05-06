@@ -220,12 +220,12 @@
             {
                 "name": "nestedLiteralArrayInOneLayer",
                 "args": [],
-                "result": "ref.array"
+                "result": "ref.struct"
             },
             {
                 "name": "nestedLiteralArrayInMulLayer",
                 "args": [],
-                "result": "ref.array"
+                "result": "ref.struct"
             }
         ]
     },
@@ -256,7 +256,7 @@
             {
                 "name": "newArrayString",
                 "args": [],
-                "result": "ref.array"
+                "result": "ref.struct"
             }
         ]
     },
@@ -311,7 +311,7 @@
             {
                 "name": "newLiteralNumberWithoutInit",
                 "args": [],
-                "result": "ref.array"
+                "result": "ref.struct"
             }
         ]
     },
@@ -321,7 +321,192 @@
             {
                 "name": "newLiteralString",
                 "args": [],
-                "result": "ref.array"
+                "result": "ref.struct"
+            }
+        ]
+    },
+    {
+        "module": "array_push",
+        "entries": [
+            {
+                "name": "array_push_number",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_push_boolean",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_push_string",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_push_class",
+                "args": [],
+                "result": "5:f64"
+            },
+            {
+                "name": "array_push_interface",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_push_number_array",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_push_string_array",
+                "args": [],
+                "result": "123 \n3:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_filter",
+        "entries": [
+            {
+                "name": "array_filter_number",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_filter_boolean",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_filter_string",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_filter_class",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_filter_interface",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_filter_number_array",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_filter_string_array",
+                "args": [],
+                "result": "h \n1:f64"
+            },
+            {
+                "name": "push_in_callback",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "modify_in_callback",
+                "args": [],
+                "result": "0:f64"
+            },
+            {
+                "name": "nested_filter",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "callback_use_closure_var",
+                "args": [],
+                "result": "4:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_pop",
+        "entries": [
+            {
+                "name": "array_pop_number",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_pop_boolean",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_pop_string",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_pop_class",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_pop_interface",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_pop_number_array",
+                "args": [],
+                "result": "5:f64"
+            },
+            {
+                "name": "array_pop_string_array",
+                "args": [],
+                "result": "123 \n2:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_map",
+        "entries": [
+            {
+                "name": "array_map_number",
+                "args": [],
+                "result": "223:f64"
+            },
+            {
+                "name": "array_map_boolean",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_map_string",
+                "args": [],
+                "result": "hello! \n6:f64"
+            },
+            {
+                "name": "array_map_class",
+                "args": [],
+                "result": "xxx! \nhello! \n6:f64"
+            },
+            {
+                "name": "array_map_interface",
+                "args": [],
+                "result": "! \nxxx!! \n3:f64"
+            },
+            {
+                "name": "array_map_number_array",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_map_string_array",
+                "args": [],
+                "result": "world^ \n3:f64"
+            },
+            {
+                "name": "array_map_func",
+                "args": [],
+                "result": "454:f64"
             }
         ]
     },
@@ -411,7 +596,7 @@
             {
                 "name": "consoleLog",
                 "args": [],
-                "result": "1 true 123     Object { a: 1, b: 2 }"
+                "result": "1 true 123 [object Object]"
             }
         ]
     },
@@ -506,7 +691,7 @@
             {
                 "name": "stringSplit",
                 "args": [],
-                "result": "h \ne \nl \nl \no \n\u0004 \nllo \n\u0004 \nref.array"
+                "result": "h \ne \nl \nl \no \n\u0004 \nllo \n\u0004 \nref.struct"
             },
             {
                 "name": "stringReplace",
@@ -516,7 +701,7 @@
             {
                 "name": "stringMatch",
                 "args": [],
-                "result": "hello \norld \n\u0004 \nref.array"
+                "result": "hello \norld \n\u0004 \nref.struct"
             },
             {
                 "name": "stringSearch",

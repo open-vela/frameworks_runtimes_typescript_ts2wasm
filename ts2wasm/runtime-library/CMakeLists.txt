@@ -46,6 +46,8 @@ include_directories(${STDLIB_DIR})
 
 set(STDLIB_SOURCE
     ${STDLIB_DIR}/lib_console.c
+    ${STDLIB_DIR}/lib_array.c
+    ${STDLIB_DIR}/utils.c
 )
 
 ## struct-dyn
@@ -59,10 +61,10 @@ set(STRUCT_DYN_SOURCE
 
 include (${SHARED_DIR}/utils/uncommon/shared_uncommon.cmake)
 
-add_executable(iwasm_gc main.c 
-    ${UNCOMMON_SHARED_SOURCE} 
+add_executable(iwasm_gc main.c
+    ${UNCOMMON_SHARED_SOURCE}
     ${QUICKJS_SOURCE}
-    ${LIBDYNTYPE_SOURCE} 
+    ${LIBDYNTYPE_SOURCE}
     ${STDLIB_SOURCE}
     ${STRUCT_DYN_SOURCE}
 )

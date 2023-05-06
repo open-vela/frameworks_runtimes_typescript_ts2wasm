@@ -3,20 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "bh_assert.h"
 #include "gc_type.h"
-#include "wasm.h"
-#include "wasm_export.h"
-#include "gc_object.h"
+#include "gc_export.h"
+#include "bh_platform.h"
 
-static WASMStructObjectRef
-check_struct_obj_type(wasm_exec_env_t exec_env, WASMObjectRef obj, int index,
+static wasm_struct_obj_t
+check_struct_obj_type(wasm_exec_env_t exec_env, wasm_obj_t obj, int index,
                       uint8_t type)
 {
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
-    WASMStructType *struct_type;
-    WASMRttTypeRef rtt_type;
-    uint8_t field_type;
+    wasm_struct_type_t struct_type;
+    wasm_ref_type_t field_ref_type;
+    uint8 field_type;
+    bool is_mutable;
 
     if (!wasm_obj_is_struct_obj(obj)) {
         wasm_runtime_set_exception(
@@ -24,29 +23,31 @@ check_struct_obj_type(wasm_exec_env_t exec_env, WASMObjectRef obj, int index,
         return NULL;
     }
 
-    rtt_type = (WASMRttTypeRef)wasm_object_header((WASMObjectRef)obj);
-    struct_type = (WASMStructType *)rtt_type->defined_type;
-
-    if (index < 0 || index >= struct_type->field_count) {
+    struct_type = (wasm_struct_type_t)wasm_obj_get_defined_type(obj);
+    if (index < 0 || index >= wasm_struct_type_get_field_count(struct_type)) {
         wasm_runtime_set_exception(module_inst,
                                    "struct field index out of bounds");
         return NULL;
     }
 
-    field_type = struct_type->fields[index].field_type;
+    field_ref_type =
+        wasm_struct_type_get_field_type(struct_type, index, &is_mutable);
+    field_type = field_ref_type.value_type;
     if (!((field_type == type)
-          || (type == REF_TYPE_ANYREF && wasm_is_type_reftype(field_type)))) {
+          || (type == VALUE_TYPE_ANYREF && wasm_is_type_reftype(field_type)))) {
         wasm_runtime_set_exception(module_inst, "struct field type mismatch");
         return NULL;
     }
 
-    return (WASMStructObjectRef)obj;
+    return (wasm_struct_obj_t)obj;
 }
 
-int struct_get_dyn_i32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index) {
-    WASMValue result = { 0 };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_I32);
+int
+struct_get_dyn_i32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
+{
+    wasm_value_t result = { 0 };
+    wasm_struct_obj_t struct_obj =
+        check_struct_obj_type(exec_env, (wasm_obj_t)obj, index, VALUE_TYPE_I32);
     if (!struct_obj) {
         return 0;
     }
@@ -56,10 +57,12 @@ int struct_get_dyn_i32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int in
     return result.i32;
 }
 
-long long struct_get_dyn_i64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index) {
-    WASMValue result = { 0 };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_I64);
+long long
+struct_get_dyn_i64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
+{
+    wasm_value_t result = { 0 };
+    wasm_struct_obj_t struct_obj =
+        check_struct_obj_type(exec_env, (wasm_obj_t)obj, index, VALUE_TYPE_I64);
     if (!struct_obj) {
         return 0;
     }
@@ -69,10 +72,12 @@ long long struct_get_dyn_i64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, 
     return result.i64;
 }
 
-float struct_get_dyn_f32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index) {
-    WASMValue result = { 0 };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_F32);
+float
+struct_get_dyn_f32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
+{
+    wasm_value_t result = { 0 };
+    wasm_struct_obj_t struct_obj =
+        check_struct_obj_type(exec_env, (wasm_obj_t)obj, index, VALUE_TYPE_F32);
     if (!struct_obj) {
         return 0;
     }
@@ -82,10 +87,12 @@ float struct_get_dyn_f32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int 
     return result.f32;
 }
 
-double struct_get_dyn_f64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index) {
-    WASMValue result = { 0 };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_F64);
+double
+struct_get_dyn_f64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
+{
+    wasm_value_t result = { 0 };
+    wasm_struct_obj_t struct_obj =
+        check_struct_obj_type(exec_env, (wasm_obj_t)obj, index, VALUE_TYPE_F64);
     if (!struct_obj) {
         return 0;
     }
@@ -95,10 +102,13 @@ double struct_get_dyn_f64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int
     return result.f64;
 }
 
-void* struct_get_dyn_anyref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index) {
-    WASMValue result = { 0 };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, REF_TYPE_ANYREF);
+void *
+struct_get_dyn_anyref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
+                      int index)
+{
+    wasm_value_t result = { 0 };
+    wasm_struct_obj_t struct_obj = check_struct_obj_type(
+        exec_env, (wasm_obj_t)obj, index, REF_TYPE_ANYREF);
     if (!struct_obj) {
         return NULL;
     }
@@ -108,10 +118,13 @@ void* struct_get_dyn_anyref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, i
     return result.gc_obj;
 }
 
-void* struct_get_dyn_funcref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index) {
-    WASMValue result = { 0 };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, REF_TYPE_ANYREF);
+void *
+struct_get_dyn_funcref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
+                       int index)
+{
+    wasm_value_t result = { 0 };
+    wasm_struct_obj_t struct_obj = check_struct_obj_type(
+        exec_env, (wasm_obj_t)obj, index, REF_TYPE_ANYREF);
     if (!struct_obj) {
         return NULL;
     }
@@ -120,10 +133,13 @@ void* struct_get_dyn_funcref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, 
     return result.gc_obj;
 }
 
-void struct_set_dyn_i32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index, int value) {
-    WASMValue val = { .i32 = value };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_I32);
+void
+struct_set_dyn_i32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
+                   int value)
+{
+    wasm_value_t val = { .i32 = value };
+    wasm_struct_obj_t struct_obj =
+        check_struct_obj_type(exec_env, (wasm_obj_t)obj, index, VALUE_TYPE_I32);
     if (!struct_obj) {
         return;
     }
@@ -131,10 +147,13 @@ void struct_set_dyn_i32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
-void struct_set_dyn_i64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index, long long value) {
-    WASMValue val = { .i64 = value };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_I64);
+void
+struct_set_dyn_i64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
+                   long long value)
+{
+    wasm_value_t val = { .i64 = value };
+    wasm_struct_obj_t struct_obj =
+        check_struct_obj_type(exec_env, (wasm_obj_t)obj, index, VALUE_TYPE_I64);
     if (!struct_obj) {
         return;
     }
@@ -142,10 +161,13 @@ void struct_set_dyn_i64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
-void struct_set_dyn_f32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index, float value) {
-    WASMValue val = { .f32 = value };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_F32);
+void
+struct_set_dyn_f32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
+                   float value)
+{
+    wasm_value_t val = { .f32 = value };
+    wasm_struct_obj_t struct_obj =
+        check_struct_obj_type(exec_env, (wasm_obj_t)obj, index, VALUE_TYPE_F32);
     if (!struct_obj) {
         return;
     }
@@ -153,10 +175,13 @@ void struct_set_dyn_f32(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
-void struct_set_dyn_f64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index, double value) {
-    WASMValue val = { .f64 = value };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, VALUE_TYPE_F64);
+void
+struct_set_dyn_f64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
+                   double value)
+{
+    wasm_value_t val = { .f64 = value };
+    wasm_struct_obj_t struct_obj =
+        check_struct_obj_type(exec_env, (wasm_obj_t)obj, index, VALUE_TYPE_F64);
     if (!struct_obj) {
         return;
     }
@@ -164,10 +189,13 @@ void struct_set_dyn_f64(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int i
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
-void struct_set_dyn_anyref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index, void* value) {
-    WASMValue val = { .gc_obj = value };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, REF_TYPE_ANYREF);
+void
+struct_set_dyn_anyref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
+                      int index, void *value)
+{
+    wasm_value_t val = { .gc_obj = value };
+    wasm_struct_obj_t struct_obj = check_struct_obj_type(
+        exec_env, (wasm_obj_t)obj, index, REF_TYPE_ANYREF);
     if (!struct_obj) {
         return;
     }
@@ -175,10 +203,13 @@ void struct_set_dyn_anyref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, in
     wasm_struct_obj_set_field(struct_obj, index, &val);
 }
 
-void struct_set_dyn_funcref(wasm_exec_env_t exec_env, WASMAnyrefObjectRef obj, int index, void* value) {
-    WASMValue val = { .gc_obj = value };
-    WASMStructObjectRef struct_obj = check_struct_obj_type(
-        exec_env, (WASMObjectRef)obj, index, REF_TYPE_ANYREF);
+void
+struct_set_dyn_funcref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
+                       int index, void *value)
+{
+    wasm_value_t val = { .gc_obj = value };
+    wasm_struct_obj_t struct_obj = check_struct_obj_type(
+        exec_env, (wasm_obj_t)obj, index, REF_TYPE_ANYREF);
     if (!struct_obj) {
         return;
     }

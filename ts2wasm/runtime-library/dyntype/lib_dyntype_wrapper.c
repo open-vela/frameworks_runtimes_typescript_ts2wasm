@@ -4,19 +4,17 @@
  */
 
 #include "dyntype.h"
-#include "wasm_export.h"
-#include "wasm_runtime.h"
-#include "gc_object.h"
+#include "gc_export.h"
 
 /* Convert host pointer to anyref */
-#define BOX_ANYREF(ptr) do {                                                        \
-    wasm_module_inst_t module_inst = get_module_inst(exec_env);                     \
-    void *gc_heap_handle = ((WASMModuleInstance *)module_inst)->e->gc_heap_handle;  \
-    return wasm_anyref_obj_new(exec_env, gc_heap_handle, ptr);                      \
-} while (0)
+#define BOX_ANYREF(ptr)                            \
+    do {                                           \
+        return wasm_anyref_obj_new(exec_env, ptr); \
+    } while (0)
 
 /* Convert anyref to host pointer */
-#define UNBOX_ANYREF(anyref) wasm_anyref_obj_get_value(anyref)
+#define UNBOX_ANYREF(anyref) \
+    (dyn_value_t) wasm_anyref_obj_get_value((wasm_anyref_obj_t)anyref)
 
 /******************* Initialization and destroy *******************/
 dyn_ctx_t
@@ -54,11 +52,12 @@ dyntype_new_boolean_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, bool value)
 
 dyn_value_t
 dyntype_new_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
-                           WASMStructObjectRef str_obj)
+                           wasm_struct_obj_t str_obj)
 {
     WASMValue arr_obj = { 0 };
     wasm_struct_obj_get_field(str_obj, 1, false, &arr_obj);
-    const char *str = (char *)wasm_array_obj_first_elem_addr(arr_obj.gc_obj);
+    const char *str = (char *)wasm_array_obj_first_elem_addr(
+        (wasm_array_obj_t)arr_obj.gc_obj);
     BOX_ANYREF(dyntype_new_string(ctx, str));
 }
 
@@ -81,7 +80,8 @@ dyntype_new_object_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 }
 
 dyn_value_t
-dyntype_new_array_with_length_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, int len)
+dyntype_new_array_with_length_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
+                                      int len)
 {
     BOX_ANYREF(dyntype_new_array_with_length(ctx, len));
 }
@@ -96,14 +96,12 @@ void
 dyntype_add_elem_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                          dyn_value_t obj, dyn_value_t elem)
 {
-
 }
 
 void
 dyntype_set_elem_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                          dyn_value_t obj, int index, dyn_value_t elem)
 {
-
 }
 
 dyn_value_t
@@ -125,7 +123,8 @@ dyntype_set_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                              dyn_value_t obj, const char *prop,
                              dyn_value_t value)
 {
-    return dyntype_set_property(ctx, UNBOX_ANYREF(obj), prop, UNBOX_ANYREF(value));
+    return dyntype_set_property(ctx, UNBOX_ANYREF(obj), prop,
+                                UNBOX_ANYREF(value));
 }
 
 int
@@ -133,7 +132,8 @@ dyntype_define_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                 dyn_value_t obj, const char *prop,
                                 dyn_value_t desc)
 {
-    return dyntype_define_property(ctx, UNBOX_ANYREF(obj), prop, UNBOX_ANYREF(desc));
+    return dyntype_define_property(ctx, UNBOX_ANYREF(obj), prop,
+                                   UNBOX_ANYREF(desc));
 }
 
 dyn_value_t
@@ -324,7 +324,8 @@ bool
 dyntype_instanceof_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            const dyn_value_t src_obj, const dyn_value_t dst_obj)
 {
-    return dyntype_instanceof(ctx, UNBOX_ANYREF(src_obj), UNBOX_ANYREF(dst_obj));
+    return dyntype_instanceof(ctx, UNBOX_ANYREF(src_obj),
+                              UNBOX_ANYREF(dst_obj));
 }
 
 /******************* Dumping *******************/

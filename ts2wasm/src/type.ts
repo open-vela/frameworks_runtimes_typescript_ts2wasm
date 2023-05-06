@@ -27,15 +27,75 @@ export const enum TypeKind {
     CLASS = 'class',
     NULL = 'null',
     INTERFACE = 'interface',
+
+    WASM_I32 = 'i32',
+    WASM_I64 = 'i64',
+    WASM_F32 = 'f32',
+    WASM_F64 = 'f64',
+    WASM_ANYREF = 'anyref',
+
+    GENERIC = 'generic',
+
     UNKNOWN = 'unknown',
 }
 
 export class Type {
     typeKind = TypeKind.UNKNOWN;
     isPrimitive = false;
+    isWasmType = false;
 
     get kind(): TypeKind {
         return this.typeKind;
+    }
+}
+
+export class WasmType extends Type {
+    typeKind: TypeKind;
+    name: string;
+
+    constructor(private type: string) {
+        super();
+        this.name = type;
+        this.isWasmType = true;
+        switch (type) {
+            case 'i32': {
+                this.typeKind = TypeKind.WASM_I32;
+                break;
+            }
+            case 'i64': {
+                this.typeKind = TypeKind.WASM_I64;
+                break;
+            }
+            case 'f32': {
+                this.typeKind = TypeKind.WASM_F32;
+                break;
+            }
+            case 'f64': {
+                this.typeKind = TypeKind.WASM_F64;
+                break;
+            }
+            case 'anyref': {
+                this.typeKind = TypeKind.WASM_ANYREF;
+                break;
+            }
+            default: {
+                this.typeKind = TypeKind.UNKNOWN;
+                break;
+            }
+        }
+    }
+
+    public getName(): string {
+        return this.name;
+    }
+}
+
+export class GenericType extends Type {
+    typeKind: TypeKind;
+
+    constructor() {
+        super();
+        this.typeKind = TypeKind.GENERIC;
     }
 }
 
@@ -83,6 +143,15 @@ export const builtinTypes = new Map<string, Type>([
     ['any', new Primitive('any')],
     ['void', new Primitive('void')],
     ['null', new Primitive('null')],
+    ['generic', new GenericType()],
+]);
+
+export const builtinWasmTypes = new Map<string, WasmType>([
+    ['i32', new WasmType('i32')],
+    ['f32', new WasmType('f32')],
+    ['i64', new WasmType('i64')],
+    ['f64', new WasmType('f64')],
+    ['anyref', new WasmType('anyref')],
 ]);
 
 export interface TsClassField {
@@ -279,6 +348,7 @@ export class TSFunction extends Type {
     private _isMethod = false;
     private _isDeclare = false;
     private _isStatic = false;
+    private _isBinaryenImpl = false;
 
     constructor(public funcKind: FunctionKind = FunctionKind.DEFAULT) {
         super();
@@ -322,6 +392,14 @@ export class TSFunction extends Type {
 
     set isDeclare(value: boolean) {
         this._isDeclare = value;
+    }
+
+    get isBinaryenImpl() {
+        return this._isBinaryenImpl;
+    }
+
+    set isBinaryenImpl(value: boolean) {
+        this._isBinaryenImpl = value;
     }
 
     get isStatic() {
@@ -398,9 +476,14 @@ export default class TypeResolver {
     }
 
     private addTypeToTypeMap(type: Type, node: ts.Node) {
-        const tsTypeString = this.typechecker!.typeToString(
+        let tsTypeString = this.typechecker!.typeToString(
             this.typechecker!.getTypeAtLocation(node),
         );
+
+        const maybeWasmType = TypeResolver.maybeBuiltinWasmType(node);
+        if (maybeWasmType) {
+            tsTypeString = maybeWasmType.getName();
+        }
 
         if (
             this.currentScope!.kind === ScopeKind.FunctionScope &&
@@ -426,6 +509,12 @@ export default class TypeResolver {
                 this.typechecker!.getSignatureFromDeclaration(node)!,
             );
         }
+        /* Resolve wasm specific type */
+        const maybeWasmType = TypeResolver.maybeBuiltinWasmType(node);
+        if (maybeWasmType) {
+            return maybeWasmType;
+        }
+
         let tsType = this.typechecker!.getTypeAtLocation(node);
         if ('isThisType' in tsType && (tsType as any).isThisType) {
             /* For "this" keyword, tsc will inference the actual type */
@@ -481,6 +570,9 @@ export default class TypeResolver {
         }
         if (typeFlag & ts.TypeFlags.Null) {
             return builtinTypes.get('null')!;
+        }
+        if (typeFlag & ts.TypeFlags.TypeParameter) {
+            return builtinTypes.get('generic')!;
         }
         // union type ==> type of first elem, iff all types are same, otherwise, any
         if (type.isUnion()) {
@@ -631,9 +723,15 @@ export default class TypeResolver {
             if (ts.isParameter(valueDecl) && valueDecl.dotDotDotToken) {
                 tsFunction.setRest();
             }
-            const tsType = this.tsTypeToType(
+            let tsType = this.tsTypeToType(
                 this.typechecker!.getTypeAtLocation(valueDecl),
             );
+
+            /* builtin wasm types */
+            const maybeWasmType = TypeResolver.maybeBuiltinWasmType(valueDecl);
+            if (maybeWasmType) {
+                tsType = maybeWasmType;
+            }
 
             tsFunction.addParamType(tsType);
         });
@@ -662,6 +760,13 @@ export default class TypeResolver {
                   <ts.FunctionLikeDeclaration>signature.declaration,
               )
             : false;
+
+        tsFunction.isBinaryenImpl = !!signature.declaration?.modifiers?.find(
+            (modifier) =>
+                modifier.kind === ts.SyntaxKind.Decorator &&
+                (<ts.Decorator>modifier).expression.getText() === 'binaryen',
+        );
+
         return tsFunction;
     }
 
@@ -974,6 +1079,12 @@ export default class TypeResolver {
     private typeToString(node: ts.Node) {
         const type = this.typechecker!.getTypeAtLocation(node);
         let typeString = this.typechecker!.typeToString(type);
+
+        const maybeWasmType = TypeResolver.maybeBuiltinWasmType(node);
+        if (maybeWasmType) {
+            typeString = maybeWasmType.getName();
+        }
+
         // setter : T ==> (x: T) => void
         if (ts.isSetAccessor(node)) {
             const paramName = node.parameters[0].getText();
@@ -1029,6 +1140,148 @@ export default class TypeResolver {
             funcDef.setFuncType(tsFuncType);
         }
         classType.overrideOrOwnMethods.add(nameWithPrefix);
+    }
+
+    public static maybeBuiltinWasmType(node: ts.Node) {
+        const definedTypeName = (node as any).type?.typeName?.escapedText;
+        if (definedTypeName) {
+            if (builtinWasmTypes.has(definedTypeName)) {
+                return builtinWasmTypes.get(definedTypeName)!;
+            }
+        }
+    }
+
+    /* Check if the type, and all of its children contains generic type */
+    public static isTypeGeneric(type: Type): boolean {
+        switch (type.typeKind) {
+            case TypeKind.VOID:
+            case TypeKind.BOOLEAN:
+            case TypeKind.NUMBER:
+            case TypeKind.ANY:
+            case TypeKind.STRING:
+            case TypeKind.UNKNOWN:
+            case TypeKind.NULL:
+            case TypeKind.WASM_I32:
+            case TypeKind.WASM_I64:
+            case TypeKind.WASM_F32:
+            case TypeKind.WASM_F64:
+            case TypeKind.WASM_ANYREF: {
+                return false;
+            }
+            case TypeKind.ARRAY: {
+                return this.isTypeGeneric((type as TSArray).elementType);
+            }
+            case TypeKind.FUNCTION: {
+                const funcType = type as TSFunction;
+                return (
+                    funcType.getParamTypes().some((paramType) => {
+                        return this.isTypeGeneric(paramType);
+                    }) || this.isTypeGeneric(funcType.returnType)
+                );
+            }
+            case TypeKind.CLASS:
+            case TypeKind.INTERFACE: {
+                const classType = type as TSClass;
+                return (
+                    classType.fields.some((field) => {
+                        return this.isTypeGeneric(field.type);
+                    }) ||
+                    classType.memberFuncs.some((func) => {
+                        return this.isTypeGeneric(func.type);
+                    }) ||
+                    classType.staticFields.some((field) => {
+                        return this.isTypeGeneric(field.type);
+                    })
+                );
+            }
+            case TypeKind.GENERIC: {
+                return true;
+            }
+        }
+    }
+
+    public static createSpecializedType(type: Type, typeArg: Type): Type {
+        if (!this.isTypeGeneric(type)) {
+            return type;
+        }
+
+        switch (type.typeKind) {
+            case TypeKind.VOID:
+            case TypeKind.BOOLEAN:
+            case TypeKind.NUMBER:
+            case TypeKind.ANY:
+            case TypeKind.STRING:
+            case TypeKind.UNKNOWN:
+            case TypeKind.NULL:
+            case TypeKind.WASM_I32:
+            case TypeKind.WASM_I64:
+            case TypeKind.WASM_F32:
+            case TypeKind.WASM_F64:
+            case TypeKind.WASM_ANYREF: {
+                return type;
+            }
+            case TypeKind.ARRAY: {
+                return new TSArray(
+                    this.createSpecializedType(
+                        (type as TSArray).elementType,
+                        typeArg,
+                    ),
+                );
+            }
+            case TypeKind.FUNCTION: {
+                const funcType = type as TSFunction;
+                const newFuncType = new TSFunction(funcType.funcKind);
+                funcType.getParamTypes().forEach((paramType) => {
+                    newFuncType.addParamType(
+                        this.createSpecializedType(paramType, typeArg),
+                    );
+                });
+                newFuncType.returnType = this.createSpecializedType(
+                    funcType.returnType,
+                    typeArg,
+                );
+                return newFuncType;
+            }
+            case TypeKind.CLASS:
+            case TypeKind.INTERFACE: {
+                const classType = type as TSClass;
+                let newType: TSClass;
+                if (type.typeKind === TypeKind.CLASS) {
+                    newType = new TSClass();
+                } else {
+                    newType = new TSInterface();
+                }
+                classType.fields.forEach((field) => {
+                    newType.addMemberField({
+                        name: field.name,
+                        type: this.createSpecializedType(field.type, typeArg),
+                    });
+                });
+                classType.memberFuncs.forEach((func) => {
+                    newType.addMethod({
+                        name: func.name,
+                        type: this.createSpecializedType(
+                            func.type,
+                            typeArg,
+                        ) as TSFunction,
+                    });
+                });
+                classType.staticFields.forEach((field) => {
+                    newType.addStaticMemberField({
+                        name: field.name,
+                        type: this.createSpecializedType(field.type, typeArg),
+                    });
+                });
+                return newType;
+            }
+            case TypeKind.GENERIC: {
+                if (typeArg) {
+                    return typeArg;
+                }
+
+                return builtinTypes.get('any')!;
+            }
+        }
     }
 
     public arrayTypeCheck(node: ts.Node): boolean {

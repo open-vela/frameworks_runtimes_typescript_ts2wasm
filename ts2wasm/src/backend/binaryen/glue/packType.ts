@@ -12,6 +12,7 @@ import {
     anyArrayTypeInformation,
     objectStructTypeInformation,
     infcTypeInformation,
+    stringArrayStructTypeInformation,
 } from './transform.js';
 import { typeInfo } from './utils.js';
 
@@ -19,6 +20,7 @@ export const charArrayTypeInfo: typeInfo = charArrayTypeInformation;
 export const stringTypeInfo: typeInfo = stringTypeInformation;
 export const numberArrayTypeInfo = numberArrayTypeInformation;
 export const stringArrayTypeInfo = stringArrayTypeInformation;
+export const stringArrayStructTypeInfo = stringArrayStructTypeInformation;
 export const boolArrayTypeInfo = boolArrayTypeInformation;
 export const anyArrayTypeInfo = anyArrayTypeInformation;
 export const objectStructTypeInfo = objectStructTypeInformation;

@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
+import { Type, TypeKind } from '../../src/type';
+
 export namespace BuiltinNames {
     // wasm global variable
     export const dataEnd = '~memory|data_end';
@@ -79,9 +81,143 @@ export namespace BuiltinNames {
     export const stringIndexOfInternalFuncName = 'String|indexOfInternal';
     export const stringMatchFuncName = 'String|match';
     export const stringSearchFuncName = 'String|search';
+
+    export interface GenericFuncName {
+        generic: string;
+        f64: string;
+        i64: string;
+        f32: string;
+        i32: string;
+        anyref: string;
+    }
+
+    const createGenericFuncNames = (
+        class_name: string,
+        method_name: string,
+    ) => {
+        return {
+            generic: `${class_name}|${method_name}`,
+            f64: `${class_name}|${method_name}_f64`,
+            i64: `${class_name}|${method_name}_i64`,
+            f32: `${class_name}|${method_name}_f32`,
+            i32: `${class_name}|${method_name}_i32`,
+            anyref: `${class_name}|${method_name}_anyref`,
+        };
+    };
+
     // builtin instance function name
     export const stringLengthFuncName = 'String|length';
     export const arrayLengthFuncName = 'Array|length';
+    export const arrayPushFuncNames = createGenericFuncNames('Array', 'push');
+    export const arrayPopFuncNames = createGenericFuncNames('Array', 'pop');
+    export const arrayConcatFuncNames = createGenericFuncNames(
+        'Array',
+        'concat',
+    );
+    export const arrayReverseFuncNames = createGenericFuncNames(
+        'Array',
+        'reverse',
+    );
+    export const arrayShiftFuncNames = createGenericFuncNames('Array', 'shift');
+    export const arraySliceFuncNames = createGenericFuncNames('Array', 'slice');
+    export const arraySortFuncNames = createGenericFuncNames('Array', 'sort');
+    export const arraySpliceFuncNames = createGenericFuncNames(
+        'Array',
+        'splice',
+    );
+    export const arrayUnshiftFuncNames = createGenericFuncNames(
+        'Array',
+        'unshift',
+    );
+    export const arrayIndexOfFuncNames = createGenericFuncNames(
+        'Array',
+        'indexOf',
+    );
+    export const arrayLastIndexOfFuncNames = createGenericFuncNames(
+        'Array',
+        'lastIndexOf',
+    );
+    export const arrayEveryFuncNames = createGenericFuncNames('Array', 'every');
+    export const arraySomeFuncNames = createGenericFuncNames('Array', 'some');
+    export const arrayForEachFuncNames = createGenericFuncNames(
+        'Array',
+        'forEach',
+    );
+    export const arrayMapFuncNames = createGenericFuncNames('Array', 'map');
+    export const arrayFilterFuncNames = createGenericFuncNames(
+        'Array',
+        'filter',
+    );
+    export const arrayReduceFuncNames = createGenericFuncNames(
+        'Array',
+        'reduce',
+    );
+    export const arrayReduceRightFuncNames = createGenericFuncNames(
+        'Array',
+        'reduceRight',
+    );
+    export const arrayFindFuncNames = createGenericFuncNames('Array', 'find');
+    export const arrayFindIndexFuncNames = createGenericFuncNames(
+        'Array',
+        'findIndex',
+    );
+    export const arrayFillFuncNames = createGenericFuncNames('Array', 'fill');
+    export const arrayCopyWithinFuncNames = createGenericFuncNames(
+        'Array',
+        'copyWithin',
+    );
+    export const arrayIncludesFuncNames = createGenericFuncNames(
+        'Array',
+        'includes',
+    );
+
+    // export let genericBuiltinMethods : string[] = [];
+
+    export const genericBuiltinMethods = [
+        `${builtinModuleName}|Array|push`,
+        `${builtinModuleName}|Array|pop`,
+        `${builtinModuleName}|Array|concat`,
+        `${builtinModuleName}|Array|reverse`,
+        `${builtinModuleName}|Array|shift`,
+        `${builtinModuleName}|Array|slice`,
+        `${builtinModuleName}|Array|sort`,
+        `${builtinModuleName}|Array|splice`,
+        `${builtinModuleName}|Array|unshift`,
+        `${builtinModuleName}|Array|indexOf`,
+        `${builtinModuleName}|Array|lastIndexOf`,
+        `${builtinModuleName}|Array|every`,
+        `${builtinModuleName}|Array|some`,
+        `${builtinModuleName}|Array|forEach`,
+        `${builtinModuleName}|Array|map`,
+        `${builtinModuleName}|Array|filter`,
+        `${builtinModuleName}|Array|reduce`,
+        `${builtinModuleName}|Array|reduceRight`,
+        `${builtinModuleName}|Array|find`,
+        `${builtinModuleName}|Array|findIndex`,
+        `${builtinModuleName}|Array|fill`,
+        `${builtinModuleName}|Array|copyWithin`,
+        `${builtinModuleName}|Array|includes`,
+    ];
+
+    export function getSpecializedFuncName(
+        mangledName: string,
+        type: Type,
+    ): string {
+        switch (type.kind) {
+            case TypeKind.NUMBER:
+            case TypeKind.WASM_F64:
+                return mangledName + '_f64';
+            case TypeKind.WASM_F32:
+                return mangledName + '_f32';
+            case TypeKind.BOOLEAN:
+            case TypeKind.WASM_I32:
+                return mangledName + '_i32';
+            case TypeKind.WASM_I64:
+                return mangledName + '_i64';
+            default:
+                return mangledName + '_anyref';
+        }
+    }
 }
 
 export namespace ArgNames {

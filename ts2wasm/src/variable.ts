@@ -5,7 +5,7 @@
 
 import ts from 'typescript';
 import { Expression } from './expression.js';
-import { FunctionKind, TSFunction, Type } from './type.js';
+import TypeResolver, { FunctionKind, TSFunction, Type } from './type.js';
 import { ParserContext } from './frontend.js';
 import { generateNodeExpression, isScopeNode } from './utils.js';
 import { ClassScope, FunctionScope, GlobalScope, Scope } from './scope.js';
@@ -227,9 +227,16 @@ export class VariableScanner {
                         paramModifiers.push(modifier.kind);
                     }
                 }
-                const typeString = this.typechecker!.typeToString(
+                let typeString = this.typechecker!.typeToString(
                     this.typechecker!.getTypeAtLocation(node),
                 );
+
+                /* builtin wasm types */
+                const maybeWasmType = TypeResolver.maybeBuiltinWasmType(node);
+                if (maybeWasmType) {
+                    typeString = maybeWasmType.getName();
+                }
+
                 const paramType = functionScope.findType(typeString);
                 const paramIndex = functionScope.paramArray.length;
                 const paramObj = new Parameter(
@@ -267,9 +274,16 @@ export class VariableScanner {
                 }
 
                 const variableName = variableDeclarationNode.name.getText();
-                const typeName = this.typechecker!.typeToString(
+                let typeName = this.typechecker!.typeToString(
                     this.typechecker!.getTypeAtLocation(node),
                 );
+
+                /* builtin wasm types */
+                const maybeWasmType = TypeResolver.maybeBuiltinWasmType(node);
+                if (maybeWasmType) {
+                    typeName = maybeWasmType.getName();
+                }
+
                 let variableType = currentScope.findType(typeName);
 
                 /* Sometimes the variable's type is inferred as a TSFunction with

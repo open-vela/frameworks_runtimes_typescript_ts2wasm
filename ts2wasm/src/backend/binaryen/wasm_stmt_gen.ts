@@ -152,7 +152,10 @@ export class WASMStatementGen {
             return brReturn;
         }
         const curNearestFuncScope = this.currentFuncCtx.getFuncScope();
-        assert(curNearestFuncScope instanceof FunctionScope);
+        assert(
+            curNearestFuncScope instanceof FunctionScope,
+            'not a function scope',
+        );
         const nearestFuncScope = <FunctionScope>curNearestFuncScope;
         let returnExprRef: binaryen.ExpressionRef;
         const type = nearestFuncScope.funcType;
@@ -466,10 +469,16 @@ export class WASMStatementGen {
             // add global variables
             for (const globalVar of varArray) {
                 module.removeGlobal(globalVar.mangledName);
-                const varTypeRef =
-                    globalVar.varType.kind === TypeKind.FUNCTION
-                        ? wasmType.getWASMFuncStructType(globalVar.varType)
-                        : wasmType.getWASMType(globalVar.varType);
+                let varTypeRef = wasmType.getWASMType(globalVar.varType);
+                if (globalVar.varType.kind === TypeKind.FUNCTION) {
+                    varTypeRef = wasmType.getWASMFuncStructType(
+                        globalVar.varType,
+                    );
+                } else if (globalVar.varType.kind === TypeKind.ARRAY) {
+                    varTypeRef = wasmType.getWasmArrayStructType(
+                        globalVar.varType,
+                    );
+                }
                 if (globalVar.isDeclare()) {
                     module.addGlobalImport(
                         globalVar.mangledName,
@@ -493,7 +502,10 @@ export class WASMStatementGen {
                     const varInitExprRef = wasmExpr.WASMExprGen(
                         globalVar.initExpression,
                     ).binaryenRef;
-                    if (globalVar.varType.kind === TypeKind.NUMBER) {
+                    if (
+                        globalVar.varType.kind === TypeKind.NUMBER ||
+                        globalVar.varType.isWasmType
+                    ) {
                         if (
                             globalVar.initExpression.expressionKind ===
                             ts.SyntaxKind.NumericLiteral
@@ -509,9 +521,9 @@ export class WASMStatementGen {
                                 globalVar.mangledName,
                                 varTypeRef,
                                 true,
-                                globalVar.varType.kind === TypeKind.NUMBER
-                                    ? module.f64.const(0)
-                                    : module.i64.const(0, 0),
+                                this.WASMCompiler.getVariableInitValue(
+                                    globalVar.varType,
+                                ),
                             );
                             this.currentFuncCtx!.insert(
                                 module.global.set(

@@ -24,6 +24,7 @@ class Foo {
         this.z = 'str';
     }
 }
+
 function testInfc(f: Foo) {
     return f;
 }

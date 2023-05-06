@@ -3,9 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "wasm_export.h"
+#include "gc_export.h"
 #include "bh_platform.h"
-#include "gc_object.h"
 #include "quickjs.h"
 #include "dyntype.h"
 
@@ -18,14 +17,21 @@ console_constructor(wasm_exec_env_t exec_env, void *obj)
 void console_log(wasm_exec_env_t exec_env, void *obj)
 {
     uint32 i, len;
-    WASMObjectRef obj_ref = (WASMObjectRef)obj;
-    assert(wasm_obj_is_array_obj(obj_ref));
+    wasm_value_t wasm_array_data = { 0 }, wasm_array_len = { 0 };
+    wasm_struct_obj_t arr_struct_ref;
+    wasm_array_obj_t arr_ref;
+    wasm_obj_t obj_ref = (wasm_obj_t)obj;
 
-    WASMArrayObjectRef arr_ref = (WASMArrayObjectRef)obj_ref;
-    len = wasm_array_obj_length(arr_ref);
+    assert(wasm_obj_is_struct_obj(obj_ref));
+    arr_struct_ref = (wasm_struct_obj_t)obj_ref;
+    wasm_struct_obj_get_field(arr_struct_ref, 0, false, &wasm_array_data);
+    wasm_struct_obj_get_field(arr_struct_ref, 1, false, &wasm_array_len);
+
+    arr_ref = (wasm_array_obj_t)(wasm_array_data.gc_obj);
+    len = wasm_array_len.i32;
     for (i = 0; i < len; i++) {
         void *addr = wasm_array_obj_elem_addr(arr_ref, i);
-        WASMAnyrefObjectRef anyref = *((WASMAnyrefObjectRef *)addr);
+        wasm_anyref_obj_t anyref = *((wasm_anyref_obj_t *)addr);
         JSValue *js_value = (JSValue *)wasm_anyref_obj_get_value(anyref);
         if (dyntype_is_extref(dyntype_get_context(), js_value)) {
             printf("[wasm object]");
