@@ -261,6 +261,16 @@
         ]
     },
     {
+        "module": "array_new_array",
+        "entries": [
+            {
+                "name": "implElemType",
+                "args": [],
+                "result": "12:f64"
+            }
+        ]
+    },
+    {
         "module": "array_new_literal_any",
         "entries": [
             {

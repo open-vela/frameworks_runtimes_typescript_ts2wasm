@@ -568,9 +568,11 @@ export default class ExpressionProcessor {
                     (<IdentifierExpression>expr).identifierName === 'Array'
                 ) {
                     if (!newExprNode.typeArguments) {
-                        throw new Error(
-                            'new Array without declare element type',
-                        );
+                        if (!this.typeResolver.arrayTypeCheck(node)) {
+                            throw new Error(
+                                'new Array without declare element type',
+                            );
+                        }
                     }
                     let isLiteral = false;
                     if (newExprNode.arguments) {
