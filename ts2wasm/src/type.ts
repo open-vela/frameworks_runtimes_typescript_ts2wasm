@@ -1030,4 +1030,19 @@ export default class TypeResolver {
         }
         classType.overrideOrOwnMethods.add(nameWithPrefix);
     }
+
+    public arrayTypeCheck(node: ts.Node): boolean {
+        const parentNode = node.parent;
+        if (
+            ts.isVariableDeclaration(parentNode) ||
+            (ts.isBinaryExpression(parentNode) &&
+                parentNode.operatorToken.kind === ts.SyntaxKind.EqualsToken)
+        ) {
+            const type = this.typechecker!.getTypeAtLocation(parentNode);
+            if (this.isArray(type) && type.typeArguments) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
