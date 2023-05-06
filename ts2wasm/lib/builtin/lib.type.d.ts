@@ -59,6 +59,8 @@ interface String {
     replace(from: string, to: string): string;
     split(sep: string): string[];
     indexOf(str: string): number;
+    match(pattern: string): string[];
+    search(pattern: string): number;
 }
 
 interface StringConstructor {

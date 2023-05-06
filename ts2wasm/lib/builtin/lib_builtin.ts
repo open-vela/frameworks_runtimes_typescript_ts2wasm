@@ -39,6 +39,14 @@ export class String {
     indexOf(str: string): number {
         return -1;
     }
+    @binaryen
+    match(pattern: string): string[] {
+        return [];
+    }
+    @binaryen
+    search(pattern: string): string {
+        return 'search';
+    }
 }
 
 export class Math {

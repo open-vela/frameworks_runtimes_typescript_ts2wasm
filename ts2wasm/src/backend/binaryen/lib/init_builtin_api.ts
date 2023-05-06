@@ -1083,6 +1083,210 @@ function string_indexOf(module: binaryen.Module) {
     const Block = module.block('indexOf', statementArray);
     return Block;
 }
+function string_match(module: binaryen.Module) {
+    /**Args: context, this, targetStr */
+    const thisStrStructIdx = 1;
+    const targetStrStructIdx = 2;
+    /**Locals */
+    // current matched index in source string
+    const matchedPosIdx = 3;
+    // the string array of result
+    const resStrArrayIdx = 4;
+    // current begining index for search in source string
+    const searchBegIdx = 5;
+    // current index where a matched word will be placed in the string array
+    // currently, the string array contains no more than one element
+    const curStrArrayIndexIdx = 6;
+    // the string that stores matched word
+    const tempCharArrayIdx = 7;
+    // the length of matched word
+    const curStrLenIdx = 8;
+    // the length of pattern to be matched
+    const targetStrLenIdx = 9;
+
+    /**1. get targetStr */
+    const arrayIdxInStruct = 1;
+    const targetStrStruct = module.local.get(
+        targetStrStructIdx,
+        stringTypeInfo.typeRef,
+    );
+    const targetStrArray = binaryenCAPI._BinaryenStructGet(
+        module.ptr,
+        arrayIdxInStruct,
+        targetStrStruct,
+        charArrayTypeInfo.typeRef,
+        false,
+    );
+    const statementArray: binaryen.ExpressionRef[] = [];
+    /**2. get length of target string */
+    const targetStrLen = binaryenCAPI._BinaryenArrayLen(
+        module.ptr,
+        targetStrArray,
+    );
+    statementArray.push(module.local.set(targetStrLenIdx, targetStrLen));
+
+    /**3. create a  string array and copy matched string to it*/
+
+    /**3.1 create a string array */
+    statementArray.push(
+        module.local.set(
+            resStrArrayIdx,
+            binaryenCAPI._BinaryenArrayNew(
+                module.ptr,
+                stringArrayTypeInfo.heapTypeRef,
+                module.i32.const(1),
+                module.ref.null(stringTypeInfo.typeRef),
+            ),
+        ),
+    );
+    /**3.2 find a matched string and copy it to resStrArr. Currently, only a single
+     * matched string will be copied.
+     */
+    const createNewCharArray = (module: binaryen.Module) => {
+        return binaryenCAPI._BinaryenArrayNew(
+            module.ptr,
+            charArrayTypeInfo.heapTypeRef,
+            module.local.get(curStrLenIdx, binaryen.i32),
+            module.i32.const(0),
+        );
+    };
+    const block_label_1 = 'block_label_1';
+    const loop_label_1 = 'loop_block_1';
+    const loop_init_1 = module.block(null, [
+        module.local.set(searchBegIdx, module.i32.const(0)),
+        module.local.set(curStrArrayIndexIdx, module.i32.const(0)),
+    ]);
+
+    const loop_stmts_1 = module.block(null, [
+        module.local.set(
+            matchedPosIdx,
+            module.call(
+                getFuncName(
+                    BuiltinNames.builtinModuleName,
+                    BuiltinNames.stringIndexOfInternalFuncName,
+                ),
+                [
+                    module.local.get(0, emptyStructType.typeRef),
+                    module.local.get(thisStrStructIdx, stringTypeInfo.typeRef),
+                    module.local.get(
+                        targetStrStructIdx,
+                        stringTypeInfo.typeRef,
+                    ),
+                    module.local.get(searchBegIdx, binaryen.i32),
+                ],
+                binaryen.i32,
+            ),
+        ),
+        module.if(
+            module.i32.eq(
+                module.local.get(matchedPosIdx, binaryen.i32),
+                module.i32.const(-1),
+            ),
+            module.return(module.ref.null(stringArrayTypeInfo.typeRef)),
+            module.local.set(
+                curStrLenIdx,
+                module.local.get(targetStrLenIdx, binaryen.i32),
+            ),
+        ),
+        /** 3.2.1 create a char array */
+        module.local.set(tempCharArrayIdx, createNewCharArray(module)),
+        /** 3.2.2 copy matched sub-string to char array */
+        binaryenCAPI._BinaryenArrayCopy(
+            module.ptr,
+            module.local.get(tempCharArrayIdx, charArrayTypeInfo.typeRef),
+            module.i32.const(0),
+            targetStrArray,
+            module.i32.const(0),
+            module.local.get(targetStrLenIdx, binaryen.i32),
+        ),
+
+        /** 3.2.3 place char array into string array */
+        binaryenCAPI._BinaryenArraySet(
+            module.ptr,
+            module.local.get(resStrArrayIdx, stringArrayTypeInfo.typeRef),
+            module.local.get(curStrArrayIndexIdx, binaryen.i32),
+            binaryenCAPI._BinaryenStructNew(
+                module.ptr,
+                arrayToPtr([
+                    module.i32.const(0),
+                    module.local.get(
+                        tempCharArrayIdx,
+                        charArrayTypeInfo.typeRef,
+                    ),
+                ]).ptr,
+                2,
+                stringTypeInfo.heapTypeRef,
+            ),
+        ),
+        /**3.3 inc the idx */
+        module.local.set(
+            curStrArrayIndexIdx,
+            module.i32.add(
+                module.local.get(curStrArrayIndexIdx, binaryen.i32),
+                module.i32.const(1),
+            ),
+        ),
+        /**jump out the loop */
+        module.br(
+            block_label_1,
+            module.i32.eq(module.i32.const(1), module.i32.const(1)),
+        ),
+        /**jump to loop */
+        module.local.set(
+            searchBegIdx,
+            module.i32.add(
+                module.local.get(matchedPosIdx, binaryen.i32),
+                module.local.get(targetStrLenIdx, binaryen.i32),
+            ),
+        ),
+        module.br(loop_label_1),
+    ]);
+    const loop_1 = module.loop(loop_label_1, loop_stmts_1);
+    const stmts_block_1 = module.block(block_label_1, [loop_init_1, loop_1]);
+    statementArray.push(stmts_block_1);
+    statementArray.push(
+        module.local.get(resStrArrayIdx, stringArrayTypeInfo.typeRef),
+    );
+    return module.block('match', statementArray);
+}
+
+function string_search(module: binaryen.Module) {
+    /**Args: context, this, pattern */
+    const thisStrStructIdx = 1;
+    const targetStrStructIdx = 2;
+    /**Locals */
+    // 1.index of matched position
+    const matchedPosIdx = 3;
+    const statementArray: binaryen.ExpressionRef[] = [];
+    const findPattern = module.block(null, [
+        module.local.set(
+            matchedPosIdx,
+            module.call(
+                getFuncName(
+                    BuiltinNames.builtinModuleName,
+                    BuiltinNames.stringIndexOfInternalFuncName,
+                ),
+                [
+                    module.local.get(0, emptyStructType.typeRef),
+                    module.local.get(thisStrStructIdx, stringTypeInfo.typeRef),
+                    module.local.get(
+                        targetStrStructIdx,
+                        stringTypeInfo.typeRef,
+                    ),
+                    module.i32.const(0),
+                ],
+                binaryen.i32,
+            ),
+        ),
+        module.return(
+            module.f64.convert_s.i32(
+                module.local.get(matchedPosIdx, binaryen.i32),
+            ),
+        ),
+    ]);
+    statementArray.push(findPattern);
+    return module.block('search', statementArray);
+}
 
 function Array_isArray(module: binaryen.Module) {
     const param = module.local.get(1, binaryen.anyref);
@@ -1285,6 +1489,42 @@ export function callBuiltInAPIs(module: binaryen.Module) {
             binaryen.i32,
         ],
         string_split(module),
+    );
+    module.addFunction(
+        getFuncName(
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.stringMatchFuncName,
+        ),
+        binaryen.createType([
+            emptyStructType.typeRef,
+            stringTypeInfo.typeRef,
+            stringTypeInfo.typeRef,
+        ]),
+        stringArrayTypeInfo.typeRef,
+        [
+            binaryen.i32,
+            stringArrayTypeInfo.typeRef,
+            binaryen.i32,
+            binaryen.i32,
+            charArrayTypeInfo.typeRef,
+            binaryen.i32,
+            binaryen.i32,
+        ],
+        string_match(module),
+    );
+    module.addFunction(
+        getFuncName(
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.stringSearchFuncName,
+        ),
+        binaryen.createType([
+            emptyStructType.typeRef,
+            stringTypeInfo.typeRef,
+            stringTypeInfo.typeRef,
+        ]),
+        binaryen.f64,
+        [binaryen.i32, binaryen.f64],
+        string_search(module),
     );
     /** TODO: */
     /** array */

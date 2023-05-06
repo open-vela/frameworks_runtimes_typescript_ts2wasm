@@ -77,3 +77,27 @@ export function stringReplace() {
     na = a.replace("k", "");
     console.log(na);
 }
+
+export function stringMatch(){
+    const str: string = "hello world hello world";
+    let arr: string[] = str.match("hello");
+    outputStrArr(arr);          // ["hello"]
+    arr = str.match("orld");
+    outputStrArr(arr);          // ["orld"]
+    arr = str.match("");        
+    outputStrArr(arr);          // [""]
+    return arr;
+}
+
+export function stringSearch(){
+    const str: string = "hello world hello world";
+    let idx: number = str.search("hello");
+    console.log(idx);               // 0
+    idx = str.search("orld");       
+    console.log(idx);               // 7
+    idx = str.search("helloworld");
+    console.log(idx);               // -1 
+    idx = str.search("");
+    console.log(idx);               // 0
+    return idx;
+}

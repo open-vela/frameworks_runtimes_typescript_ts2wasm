@@ -512,6 +512,16 @@
                 "name": "stringReplace",
                 "args": [],
                 "result": "hellokhello \nhellokhello \nhello-hello \n-hellokhello \nhellohello"
+            },
+            {
+                "name": "stringMatch",
+                "args": [],
+                "result": "hello \norld \n\u0004 \nref.array"
+            },
+            {
+                "name": "stringSearch",
+                "args": [],
+                "result": "0 \n7 \n-1 \n0 \n0:f64"
             }
         ]
     },
