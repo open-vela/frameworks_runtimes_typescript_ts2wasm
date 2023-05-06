@@ -22,11 +22,16 @@ import {
     initStructType,
     createSignatureTypeRefAndHeapTypeRef,
     Pakced,
+    BinaryenType,
+    generateArrayStructTypeInfo,
 } from './glue/transform.js';
 import { assert } from 'console';
 import { infcTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './index.js';
 import { Logger } from '../../log.js';
+import { typeInfo } from './glue/utils.js';
+import { getFuncName } from './utils.js';
+import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 
 export class WASMTypeGen {
     tsType2WASMTypeMap: Map<Type, binaryenCAPI.TypeRef> = new Map();
@@ -35,6 +40,7 @@ export class WASMTypeGen {
     // the format is : {context: struct{}, funcref: ref $func}
     private tsFuncType2WASMStructType: Map<Type, binaryenCAPI.TypeRef> =
         new Map();
+    private tsArrayType2WASMTypeInfo: Map<Type, typeInfo> = new Map();
     private tsFuncType2WASMStructHeapType: Map<Type, binaryenCAPI.HeapTypeRef> =
         new Map();
     private tsFuncParamType: Map<Type, binaryenCAPI.TypeRef> = new Map();
@@ -54,11 +60,26 @@ export class WASMTypeGen {
 
     constructor(private WASMCompiler: WASMGen) {}
 
-    createWASMType(type: Type): void {
-        if (this.tsType2WASMTypeMap.has(type)) {
+    createWASMType(type: Type, typeArg: Type | null = null): void {
+        if (typeArg === null && this.tsType2WASMTypeMap.has(type)) {
             return;
         }
         switch (type.typeKind) {
+            case TypeKind.WASM_ANYREF:
+                this.tsType2WASMTypeMap.set(type, binaryen.anyref);
+                break;
+            case TypeKind.WASM_I32:
+                this.tsType2WASMTypeMap.set(type, binaryen.i32);
+                break;
+            case TypeKind.WASM_I64:
+                this.tsType2WASMTypeMap.set(type, binaryen.i64);
+                break;
+            case TypeKind.WASM_F32:
+                this.tsType2WASMTypeMap.set(type, binaryen.f32);
+                break;
+            case TypeKind.WASM_F64:
+                this.tsType2WASMTypeMap.set(type, binaryen.f64);
+                break;
             case TypeKind.VOID:
                 this.tsType2WASMTypeMap.set(type, binaryen.none);
                 break;
@@ -88,9 +109,11 @@ export class WASMTypeGen {
             case TypeKind.ARRAY: {
                 const arrayType = <TSArray>type;
                 const elemType = arrayType.elementType;
-                let elemTypeRef = this.getWASMType(elemType);
+                let elemTypeRef = this.getWASMType(elemType, false, typeArg);
                 if (elemType.kind === TypeKind.FUNCTION) {
                     elemTypeRef = this.getWASMFuncStructType(elemType);
+                } else if (elemType.kind === TypeKind.ARRAY) {
+                    elemTypeRef = this.getWasmArrayStructType(elemType);
                 }
                 const arrayTypeInfo = initArrayType(
                     elemTypeRef,
@@ -128,6 +151,10 @@ export class WASMTypeGen {
                         paramWASMTypes.push(
                             this.getWASMFuncStructType(paramTypes[i]),
                         );
+                    } else if (paramTypes[i].typeKind === TypeKind.ARRAY) {
+                        paramWASMTypes.push(
+                            this.getWasmArrayStructType(paramTypes[i]),
+                        );
                     } else {
                         paramWASMTypes.push(this.getWASMType(paramTypes[i]));
                     }
@@ -150,6 +177,10 @@ export class WASMTypeGen {
                 let resultWASMType = this.getWASMType(funcType.returnType);
                 if (funcType.returnType.typeKind === TypeKind.FUNCTION) {
                     resultWASMType = this.getWASMFuncStructType(
+                        funcType.returnType,
+                    );
+                } else if (funcType.returnType.typeKind === TypeKind.ARRAY) {
+                    resultWASMType = this.getWasmArrayStructType(
                         funcType.returnType,
                     );
                 }
@@ -192,6 +223,17 @@ export class WASMTypeGen {
                 /* currently vtable stores all member functions(without constructor) */
                 const wasmFuncTypes = new Array<binaryenCAPI.TypeRef>();
                 for (const method of tsClassType.memberFuncs) {
+                    const methodMangledName = getFuncName(
+                        tsClassType.mangledName,
+                        method.name,
+                    );
+                    if (
+                        BuiltinNames.genericBuiltinMethods.includes(
+                            methodMangledName,
+                        )
+                    ) {
+                        continue;
+                    }
                     wasmFuncTypes.push(this.getWASMType(method.type));
                 }
                 let packed = new Array<binaryenCAPI.PackedType>(
@@ -293,15 +335,26 @@ export class WASMTypeGen {
                     break;
                 }
                 const vtableFuncs = new Array<binaryen.ExpressionRef>();
-                for (let i = 0; i < tsClassType.memberFuncs.length; i++) {
-                    const method = tsClassType.memberFuncs[i];
+                let index = 0;
+                for (const method of tsClassType.memberFuncs) {
+                    const methodMangledName = getFuncName(
+                        tsClassType.mangledName,
+                        method.name,
+                    );
+                    if (
+                        BuiltinNames.genericBuiltinMethods.includes(
+                            methodMangledName,
+                        )
+                    ) {
+                        continue;
+                    }
                     const nameWithPrefix =
                         getMethodPrefix(method.type.funcKind) + method.name;
                     if (tsClassType.overrideOrOwnMethods.has(nameWithPrefix)) {
                         vtableFuncs.push(
                             this.WASMCompiler.module.ref.func(
                                 tsClassType.mangledName + '|' + nameWithPrefix,
-                                wasmFuncTypes[i],
+                                wasmFuncTypes[index],
                             ),
                         );
                     } else if (tsClassType.getBase()) {
@@ -319,7 +372,7 @@ export class WASMTypeGen {
                                         baseClassType.mangledName +
                                             '|' +
                                             nameWithPrefix,
-                                        wasmFuncTypes[i],
+                                        wasmFuncTypes[index],
                                     ),
                                 );
                                 break;
@@ -332,6 +385,8 @@ export class WASMTypeGen {
                             throw new Error(msg);
                         }
                     }
+
+                    index++;
                 }
                 const vtableInstance = binaryenCAPI._BinaryenStructNew(
                     this.WASMCompiler.module.ptr,
@@ -342,6 +397,24 @@ export class WASMTypeGen {
                 this.classVtables.set(type, vtableInstance);
                 break;
             }
+            case TypeKind.GENERIC:
+                /* We treat generic as any for most cases, but for some builtin
+                    methods (e.g. Array.push), we want the generic type to be
+                    specialized for better performance */
+                if (typeArg) {
+                    let result: binaryenCAPI.TypeRef;
+                    if (typeArg.typeKind === TypeKind.FUNCTION) {
+                        result = this.getWASMFuncStructType(typeArg);
+                    } else if (typeArg.typeKind === TypeKind.ARRAY) {
+                        result = this.getWasmArrayStructType(typeArg);
+                    } else {
+                        result = this.getWASMType(typeArg);
+                    }
+                    this.tsType2WASMTypeMap.set(type, result);
+                } else {
+                    this.tsType2WASMTypeMap.set(type, binaryen.anyref);
+                }
+                break;
             default:
                 break;
         }
@@ -360,23 +433,31 @@ export class WASMTypeGen {
         return true;
     }
 
-    getWASMType(type: Type, infcType = false): binaryenCAPI.TypeRef {
+    getWASMType(
+        type: Type,
+        infcType = false,
+        typeArg: Type | null = null,
+    ): binaryenCAPI.TypeRef {
         if (type instanceof TSInterface && !infcType) {
             return this.getInfcTypeRef();
         }
-        if (!this.tsType2WASMTypeMap.has(type)) {
-            this.createWASMType(type);
+        if (typeArg || !this.tsType2WASMTypeMap.has(type)) {
+            this.createWASMType(type, typeArg);
         }
         return this.tsType2WASMTypeMap.get(type) as binaryenCAPI.TypeRef;
     }
 
-    getWASMHeapType(type: Type, infcType = false): binaryenCAPI.HeapTypeRef {
+    getWASMHeapType(
+        type: Type,
+        infcType = false,
+        typeArg: Type | null = null,
+    ): binaryenCAPI.HeapTypeRef {
         assert(this.hasHeapType(type));
         if (type instanceof TSInterface && !infcType) {
             return this.getInfcHeapTypeRef();
         }
-        if (!this.tsType2WASMHeapTypeMap.has(type)) {
-            this.createWASMType(type);
+        if (typeArg || !this.tsType2WASMHeapTypeMap.has(type)) {
+            this.createWASMType(type, typeArg);
         }
         return this.tsType2WASMHeapTypeMap.get(
             type,
@@ -399,6 +480,33 @@ export class WASMTypeGen {
         return this.tsFuncType2WASMStructHeapType.get(
             type,
         ) as binaryenCAPI.HeapTypeRef;
+    }
+
+    private _getWasmArrayStructTypeInfo(type: Type): typeInfo {
+        assert(type.typeKind === TypeKind.ARRAY);
+
+        if (this.tsArrayType2WASMTypeInfo.has(type)) {
+            return this.tsArrayType2WASMTypeInfo.get(type)!;
+        }
+
+        const wasmType = this.getWASMType(type);
+        const wasmHeapType = this.getWASMHeapType(type);
+        const arrayStructTypeInfo = generateArrayStructTypeInfo({
+            typeRef: wasmType,
+            heapTypeRef: wasmHeapType,
+        });
+
+        this.tsArrayType2WASMTypeInfo.set(type, arrayStructTypeInfo);
+
+        return arrayStructTypeInfo;
+    }
+
+    getWasmArrayStructType(type: Type): binaryenCAPI.TypeRef {
+        return this._getWasmArrayStructTypeInfo(type).typeRef;
+    }
+
+    getWasmArrayStructHeapType(type: Type): binaryenCAPI.TypeRef {
+        return this._getWasmArrayStructTypeInfo(type).heapTypeRef;
     }
 
     getWASMFuncParamType(type: Type): binaryenCAPI.TypeRef {

@@ -6,9 +6,10 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
-import {
+import TypeResolver, {
     builtinTypes,
     FunctionKind,
+    GenericType,
     TSArray,
     TSClass,
     TSFunction,
@@ -40,6 +41,7 @@ import {
     arrayToPtr,
     createCondBlock,
     emptyStructType,
+    generateArrayStructTypeInfo,
 } from './glue/transform.js';
 import { assert } from 'console';
 import {
@@ -143,6 +145,8 @@ class MethodAccess extends AccessBase {
         public thisObj: binaryen.ExpressionRef | null = null,
         public isBuiltInMethod: boolean = false,
         public methodName: string = '',
+        /* Currently only support one type parameter */
+        public typeParameter: Type | null = null,
     ) {
         super(AccessType.Function);
         this.mangledMethodName = classType.mangledName.concat(
@@ -1232,10 +1236,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
             );
         } else if (accessInfo instanceof ArrayAccess) {
             const { ref, index, wasmType } = accessInfo;
-
+            const arrayRef = binaryenCAPI._BinaryenStructGet(
+                module.ptr,
+                0,
+                ref,
+                binaryen.getExpressionType(ref),
+                false,
+            );
             loadRef = binaryenCAPI._BinaryenArrayGet(
                 module.ptr,
-                ref,
+                arrayRef,
                 index,
                 wasmType,
                 false,
@@ -1407,6 +1417,15 @@ export class WASMExpressionGen extends WASMExpressionBase {
             let varType = this.wasmType.getWASMType(variable.varType);
             if (variable.varType instanceof TSFunction) {
                 varType = this.wasmType.getWASMFuncStructType(variable.varType);
+            }
+            if (variable.varType instanceof TSArray) {
+                const wasmHeapType = this.wasmType.getWASMHeapType(
+                    variable.varType,
+                );
+                varType = generateArrayStructTypeInfo({
+                    typeRef: varType,
+                    heapTypeRef: wasmHeapType,
+                }).typeRef;
             }
 
             if (!variable.isLocalVar()) {
@@ -1839,9 +1858,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
         } else if (accessInfo instanceof ArrayAccess) {
             const { ref, index } = accessInfo;
             /** TODO: arrays get from `Array.of` may grow dynamiclly*/
+            const arrayRef = binaryenCAPI._BinaryenStructGet(
+                module.ptr,
+                0,
+                ref,
+                binaryen.getExpressionType(ref),
+                false,
+            );
             return binaryenCAPI._BinaryenArraySet(
                 module.ptr,
-                ref,
+                arrayRef,
                 index,
                 assignValue,
             );
@@ -2088,14 +2114,70 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 if (thisObj) {
                     finalCallWasmArgs.push(thisObj);
                 }
-                finalCallWasmArgs = finalCallWasmArgs.concat(callWasmArgs);
+
                 if (accessInfo.isBuiltInMethod) {
-                    return this.module.call(
-                        accessInfo.mangledMethodName,
+                    let typeArgument: Type | null = null;
+                    let callFuncName = accessInfo.mangledMethodName;
+                    if (
+                        BuiltinNames.genericBuiltinMethods.includes(
+                            callFuncName,
+                        )
+                    ) {
+                        typeArgument = accessInfo.typeParameter;
+                        if (!typeArgument) {
+                            const errMsg = `no specialized type for ${callFuncName}`;
+                            Logger.error(errMsg);
+                            throw Error(errMsg);
+                        }
+                        callFuncName = BuiltinNames.getSpecializedFuncName(
+                            callFuncName,
+                            typeArgument,
+                        );
+                    }
+                    callWasmArgs = this.parseArguments(
+                        callExpr.exprType as TSFunction,
+                        expr.callArgs,
+                        typeArgument,
+                    );
+                    finalCallWasmArgs = finalCallWasmArgs.concat(callWasmArgs);
+                    let callResult = this.module.call(
+                        callFuncName,
                         finalCallWasmArgs,
                         this.wasmType.getWASMFuncReturnType(methodType),
                     );
+
+                    if (TypeResolver.isTypeGeneric(methodType.returnType)) {
+                        const concreteReturnType = expr.exprType;
+                        let specializedWasmType: binaryenCAPI.TypeRef;
+                        if (concreteReturnType instanceof TSArray) {
+                            specializedWasmType =
+                                this.wasmType.getWasmArrayStructType(
+                                    concreteReturnType,
+                                );
+                        } else if (concreteReturnType instanceof TSFunction) {
+                            specializedWasmType =
+                                this.wasmType.getWASMFuncStructType(
+                                    concreteReturnType,
+                                );
+                        } else {
+                            specializedWasmType =
+                                this.wasmType.getWASMType(concreteReturnType);
+                        }
+
+                        if (this.wasmType.hasHeapType(concreteReturnType)) {
+                            /* For ref type, the native API may return anyref,
+                                we need to cast it back to concrete type */
+                            callResult = binaryenCAPI._BinaryenRefCast(
+                                this.module.ptr,
+                                callResult,
+                                specializedWasmType,
+                            );
+                        }
+                    }
+
+                    return callResult;
                 } else {
+                    finalCallWasmArgs = finalCallWasmArgs.concat(callWasmArgs);
                     return this._generateClassMethodCallRef(
                         thisObj,
                         classType,
@@ -2280,36 +2362,41 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const type = expr.exprType;
         const module = this.module;
         if (type.kind === TypeKind.ARRAY) {
+            let arrayRef: binaryen.ExpressionRef;
+            let arraySizeRef: binaryen.ExpressionRef;
             const arrayHeapType = this.wasmType.getWASMHeapType(type);
+            const arrayStructHeapType =
+                this.wasmType.getWasmArrayStructHeapType(type);
             if (expr.lenExpr) {
-                const arraySize = this.convertTypeToI32(
+                arraySizeRef = this.convertTypeToI32(
                     this.WASMExprGen(expr.lenExpr).binaryenRef,
                     binaryen.f64,
                 );
                 const arrayInit = this.getArrayInitFromArrayType(<TSArray>type);
-                return binaryenCAPI._BinaryenArrayNew(
+                arrayRef = binaryenCAPI._BinaryenArrayNew(
                     module.ptr,
                     arrayHeapType,
-                    arraySize,
+                    arraySizeRef,
                     arrayInit,
                     /* Note: We should use binaryen.none here, but currently
                         the corresponding opcode is not supported by runtime */
                 );
             } else if (!expr.newArgs) {
-                const arraySize = this.convertTypeToI32(
+                arraySizeRef = this.convertTypeToI32(
                     module.f64.const(expr.arrayLen),
                     binaryen.f64,
                 );
                 const arrayInit = this.getArrayInitFromArrayType(<TSArray>type);
-                return binaryenCAPI._BinaryenArrayNew(
+                arrayRef = binaryenCAPI._BinaryenArrayNew(
                     module.ptr,
                     arrayHeapType,
-                    arraySize,
+                    arraySizeRef,
                     arrayInit,
                 );
             } else {
                 const arrayType = <TSArray>type;
                 const arrayLen = expr.arrayLen;
+                arraySizeRef = module.i32.const(arrayLen);
                 const array = [];
                 for (let i = 0; i < expr.arrayLen; i++) {
                     const elemExpr = expr.newArgs[i];
@@ -2325,14 +2412,20 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
                     array.push(elemExprRef);
                 }
-                const arrayValue = binaryenCAPI._BinaryenArrayInit(
+                arrayRef = binaryenCAPI._BinaryenArrayInit(
                     module.ptr,
                     arrayHeapType,
                     arrayToPtr(array).ptr,
                     arrayLen,
                 );
-                return arrayValue;
             }
+            const arrayStructRef = binaryenCAPI._BinaryenStructNew(
+                module.ptr,
+                arrayToPtr([arrayRef, arraySizeRef]).ptr,
+                2,
+                arrayStructHeapType,
+            );
+            return arrayStructRef;
         }
         if (type.kind === TypeKind.CLASS) {
             const classType = <TSClass>type;
@@ -2463,6 +2556,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         ref,
                         true,
                         propName,
+                        tsType instanceof TSArray ? tsType.elementType : null,
                     );
                     break;
                 }
@@ -2629,7 +2723,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const accessExpr = expr.accessExpr;
         const argExpr = expr.argExpr;
         const wasmValue = this.WASMExprGen(accessExpr);
-        const arrayRef = wasmValue.binaryenRef;
+        const arrayStructRef = wasmValue.binaryenRef;
         const arrayType = wasmValue.tsType;
         const index = this.convertTypeToI32(
             this.WASMExprGen(argExpr).binaryenRef,
@@ -2639,8 +2733,21 @@ export class WASMExpressionGen extends WASMExpressionBase {
         if (arrayType instanceof TSArray) {
             const elementType = arrayType.elementType;
             const elemWasmType = this.wasmType.getWASMType(elementType);
+            const arrayWasmType = this.wasmType.getWASMType(arrayType);
+            const arrayHeapType = this.wasmType.getWASMHeapType(arrayType);
+            const arrayStructHeapType = generateArrayStructTypeInfo({
+                typeRef: arrayWasmType,
+                heapTypeRef: arrayHeapType,
+            }).heapTypeRef;
 
             if (!byRef) {
+                const arrayRef = binaryenCAPI._BinaryenStructGet(
+                    module.ptr,
+                    0,
+                    arrayStructRef,
+                    arrayStructHeapType,
+                    false,
+                );
                 return binaryenCAPI._BinaryenArrayGet(
                     module.ptr,
                     arrayRef,
@@ -2650,7 +2757,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 );
             } else {
                 return new ArrayAccess(
-                    arrayRef,
+                    arrayStructRef,
                     index,
                     elemWasmType,
                     elementType,
@@ -2661,7 +2768,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             if (!byRef) {
                 throw Error(`Dynamic array not implemented`);
             } else {
-                return new DynArrayAccess(arrayRef, index);
+                return new DynArrayAccess(arrayStructRef, index);
             }
         }
     }
@@ -2968,6 +3075,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private getInfcItable(ref: binaryenCAPI.ExpressionRef) {
         assert(
             binaryen.getExpressionType(ref) === this.wasmType.getInfcTypeRef(),
+            'interface type error',
         );
         const infcItable = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
@@ -2982,6 +3090,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private getInfcTypeId(ref: binaryenCAPI.ExpressionRef) {
         assert(
             binaryen.getExpressionType(ref) === this.wasmType.getInfcTypeRef(),
+            'interface type error',
         );
         const infcTypeId = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
@@ -2996,6 +3105,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private getInfcObj(ref: binaryenCAPI.ExpressionRef) {
         assert(
             binaryen.getExpressionType(ref) === this.wasmType.getInfcTypeRef(),
+            'interface type error',
         );
         const infcObj = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
@@ -3021,7 +3131,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
     }
 
     private infcTypeUnboxing(ref: binaryen.ExpressionRef, type: Type) {
-        assert(type instanceof TSClass);
+        assert(type instanceof TSClass, 'unbox interface to non-class type');
         const obj = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
             2,
@@ -3191,9 +3301,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private _getArrayRefLen(
         arrRef: binaryen.ExpressionRef,
     ): binaryen.ExpressionRef {
-        const arrLenI32 = binaryenCAPI._BinaryenArrayLen(
+        const arrLenI32 = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
+            1,
             arrRef,
+            binaryen.getExpressionType(arrRef),
+            false,
         );
         const arrLenF64 = this.convertTypeToF64(
             arrLenI32,
@@ -3223,7 +3336,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return strLenF64;
     }
 
-    parseArguments(type: TSFunction, args: Expression[]) {
+    parseArguments(
+        type: TSFunction,
+        args: Expression[],
+        typeArg: Type | null = null,
+    ) {
         const paramType = type.getParamTypes();
         const res: binaryen.ExpressionRef[] = [];
         let i = 0;
@@ -3243,7 +3360,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         if (type.hasRest()) {
             const restType = paramType[paramType.length - 1];
             if (restType instanceof TSArray) {
-                res.push(this.initArray(restType, args.slice(i)));
+                res.push(this.initArray(restType, args.slice(i), typeArg));
             } else {
                 Logger.error(`rest type is not array`);
             }
@@ -3252,7 +3369,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return res;
     }
 
-    private initArray(arrType: TSArray, elements: Expression[]) {
+    private initArray(
+        arrType: TSArray,
+        elements: Expression[],
+        typeArg: Type | null = null,
+    ) {
         const arrayLen = elements.length;
         const array = [];
         if (elements.length === 0) {
@@ -3283,14 +3404,34 @@ export class WASMExpressionGen extends WASMExpressionBase {
             }
             array.push(elemExprRef);
         }
-        const arrayHeapType = this.wasmType.getWASMHeapType(arrType);
+        const arrayWasmType = this.wasmType.getWASMType(
+            arrType,
+            false,
+            typeArg,
+        );
+        const arrayHeapType = this.wasmType.getWASMHeapType(
+            arrType,
+            false,
+            typeArg,
+        );
+        const arrayStructTypeInfo = generateArrayStructTypeInfo({
+            typeRef: arrayWasmType,
+            heapTypeRef: arrayHeapType,
+        });
         const arrayValue = binaryenCAPI._BinaryenArrayInit(
             this.module.ptr,
             arrayHeapType,
             arrayToPtr(array).ptr,
             arrayLen,
         );
-        return arrayValue;
+        const arrayStructValue = binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr([arrayValue, this.module.i32.const(array.length)]).ptr,
+            2,
+            arrayStructTypeInfo.heapTypeRef,
+        );
+
+        return arrayStructValue;
     }
 }
 
@@ -3328,6 +3469,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
             case ts.SyntaxKind.PostfixUnaryExpression:
             case ts.SyntaxKind.CallExpression:
             case ts.SyntaxKind.PropertyAccessExpression:
+            case ts.SyntaxKind.ElementAccessExpression:
                 res = this.boxNonLiteralToAny(expr);
                 break;
             default:

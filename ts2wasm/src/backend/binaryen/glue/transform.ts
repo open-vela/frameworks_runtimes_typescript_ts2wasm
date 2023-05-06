@@ -158,11 +158,30 @@ export function initStructType(
 export const charArrayTypeInformation = genarateCharArrayTypeInfo();
 export const stringTypeInformation = generateStringTypeInfo();
 export const numberArrayTypeInformation = genarateNumberArrayTypeInfo();
-export const stringArrayTypeInformation = genarateStringArrayTypeInfo();
+export const stringArrayTypeInformation = genarateStringArrayTypeInfo(false);
+export const stringArrayStructTypeInformation =
+    genarateStringArrayTypeInfo(true);
 export const boolArrayTypeInformation = genarateBoolArrayTypeInfo();
 export const anyArrayTypeInformation = genarateAnyArrayTypeInfo();
 export const objectStructTypeInformation = emptyStructType;
 export const infcTypeInformation = generateInfcTypeInfo();
+
+export function generateArrayStructTypeInfo(arrayTypeInfo: typeInfo): typeInfo {
+    const arrayStructTypeInfo = initStructType(
+        [
+            binaryenCAPI._BinaryenTypeFromHeapType(
+                arrayTypeInfo.heapTypeRef,
+                true,
+            ),
+            BinaryenType.I32,
+        ],
+        [Pakced.Not, Pakced.Not],
+        [true, true],
+        2,
+        true,
+    );
+    return arrayStructTypeInfo;
+}
 
 // generate array type to store character context
 function genarateCharArrayTypeInfo(): typeInfo {
@@ -206,7 +225,7 @@ function genarateNumberArrayTypeInfo(): typeInfo {
 }
 
 // generate string array type
-function genarateStringArrayTypeInfo(): typeInfo {
+function genarateStringArrayTypeInfo(struct_wrap: boolean): typeInfo {
     const stringTypeInfo = stringTypeInformation;
     const stringArrayTypeInfo = initArrayType(
         stringTypeInfo.typeRef,
@@ -214,6 +233,11 @@ function genarateStringArrayTypeInfo(): typeInfo {
         true,
         true,
     );
+
+    if (struct_wrap) {
+        return generateArrayStructTypeInfo(stringArrayTypeInfo);
+    }
+
     return stringArrayTypeInfo;
 }
 
