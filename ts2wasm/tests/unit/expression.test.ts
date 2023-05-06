@@ -7,7 +7,6 @@ import ts from 'typescript';
 import 'mocha';
 import { expect } from 'chai';
 import {
-    Expression,
     BinaryExpression,
     IdentifierExpression,
     NumberLiteralExpression,

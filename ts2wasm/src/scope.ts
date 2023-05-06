@@ -84,6 +84,13 @@ export class Scope {
     addType(name: string, type: Type) {
         if (!this.namedTypeMap.has(name)) {
             this.namedTypeMap.set(name, type);
+
+            /* For generic types, also add an entry
+                for type without type parameter
+               e.g. Array<T>, we may want to search it by Array */
+            if (name.indexOf('<') != -1) {
+                this.namedTypeMap.set(name.split('<')[0], type);
+            }
         }
     }
 

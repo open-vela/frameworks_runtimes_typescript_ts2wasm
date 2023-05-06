@@ -7,6 +7,12 @@
 /* eslint-disable @typescript-eslint/ban-types */
 /* eslint-disable no-var */
 
+type i32 = any;
+type i64 = any;
+type f32 = any;
+type f64 = any;
+type anyref = any;
+
 interface ConcatArray<T> {
     readonly length: number;
     readonly [n: number]: T;
@@ -27,9 +33,64 @@ var Array: ArrayConstructor;
 
 interface Array<T> {
     length: number;
+    push(...items: T[]): number;
+    pop(): T;
+    concat(...items: T[]): T[];
+
+    // join(separator?: string): string;
+
+    reverse(): T[];
+    shift(): T;
     slice(start?: number, end?: number): T[];
-    concat(...items: ConcatArray<T>[]): T[];
-    concat(...items: (T | ConcatArray<T>)[]): T[];
+    sort(compareFn?: (a: T, b: T) => number): T[];
+    splice(start: number, deleteCount?: number, ...items: T[]): T[];
+    unshift(...items: T[]): number;
+    indexOf(searchElement: T, fromIndex?: number): number;
+    lastIndexOf(searchElement: T, fromIndex?: number): number;
+
+    every(predicate: (value: T, index: number, array: T[]) => boolean): boolean;
+    some(predicate: (value: T, index: number, array: T[]) => boolean): boolean;
+
+    forEach(callbackfn: (value: T, index: number, array: T[]) => void): void;
+
+    map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[];
+
+    filter(predicate: (value: T, index: number, array: T[]) => boolean): T[];
+
+    reduce(
+        callbackfn: (
+            previousValue: T,
+            currentValue: T,
+            currentIndex: number,
+            array: T[],
+        ) => T,
+        initialValue: T,
+    ): T;
+
+    reduceRight(
+        callbackfn: (
+            previousValue: T,
+            currentValue: T,
+            currentIndex: number,
+            array: T[],
+        ) => T,
+        initialValue: T,
+    ): T;
+
+    find(
+        predicate: (value: T, index: number, obj: T[]) => boolean,
+    ): T | undefined;
+
+    findIndex(
+        predicate: (value: T, index: number, obj: T[]) => boolean,
+    ): number;
+
+    fill(value: T, start?: number, end?: number): T[];
+
+    copyWithin(target: number, start: number, end?: number): T[];
+
+    includes(searchElement: T, fromIndex?: number): boolean;
+
     [n: number]: T;
 }
 

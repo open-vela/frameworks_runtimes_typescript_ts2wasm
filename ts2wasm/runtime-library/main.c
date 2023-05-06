@@ -21,6 +21,9 @@ extern uint32_t
 get_lib_console_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
 
 extern uint32_t
+get_lib_array_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
+
+extern uint32_t
 get_struct_dyn_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
 
 #if BH_HAS_DLFCN
@@ -695,6 +698,13 @@ main(int argc, char *argv[])
     }
 
     symbol_count = get_lib_console_symbols(&module_name, &native_symbols);
+    if (!wasm_runtime_register_natives(module_name, native_symbols,
+                                       symbol_count)) {
+        printf("Register stdlib APIs failed.\n");
+        goto fail1;
+    }
+
+    symbol_count = get_lib_array_symbols(&module_name, &native_symbols);
     if (!wasm_runtime_register_natives(module_name, native_symbols,
                                        symbol_count)) {
         printf("Register stdlib APIs failed.\n");

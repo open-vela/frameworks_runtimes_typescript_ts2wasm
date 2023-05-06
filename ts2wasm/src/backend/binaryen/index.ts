@@ -12,6 +12,7 @@ import { Variable } from '../../variable.js';
 import {
     arrayToPtr,
     emptyStructType,
+    generateArrayStructTypeInfo,
     initStructType,
     Pakced,
 } from './glue/transform.js';
@@ -420,13 +421,17 @@ export class WASMGen extends Ts2wasmBackend {
         /* Don't process global vars */
         if (scope !== globalScope) {
             for (const variable of scope.varArray) {
-                if (variable.varType.kind !== TypeKind.FUNCTION) {
+                if (variable.varType.kind === TypeKind.FUNCTION) {
                     varWasmTypes.push(
-                        this.wasmType.getWASMType(variable.varType),
+                        this.wasmType.getWASMFuncStructType(variable.varType),
+                    );
+                } else if (variable.varType.kind === TypeKind.ARRAY) {
+                    varWasmTypes.push(
+                        this.wasmType.getWasmArrayStructType(variable.varType),
                     );
                 } else {
                     varWasmTypes.push(
-                        this.wasmType.getWASMFuncStructType(variable.varType),
+                        this.wasmType.getWASMType(variable.varType),
                     );
                 }
             }
@@ -442,12 +447,16 @@ export class WASMGen extends Ts2wasmBackend {
         if (scope === globalScope) {
             /* Append temp vars */
             (scope as FunctionScope).getTempVars().forEach((v) => {
-                if (v.varType.kind !== TypeKind.FUNCTION) {
-                    varWasmTypes.push(this.wasmType.getWASMType(v.varType));
-                } else {
+                if (v.varType.kind === TypeKind.FUNCTION) {
                     varWasmTypes.push(
                         this.wasmType.getWASMFuncStructType(v.varType),
                     );
+                } else if (v.varType.kind === TypeKind.ARRAY) {
+                    varWasmTypes.push(
+                        this.wasmType.getWasmArrayStructType(v.varType),
+                    );
+                } else {
+                    varWasmTypes.push(this.wasmType.getWASMType(v.varType));
                 }
             });
         }
@@ -484,12 +493,16 @@ export class WASMGen extends Ts2wasmBackend {
 
         /* the first one is context struct, no need to parse */
         for (const variable of remainVars) {
-            if (variable.varType.kind !== TypeKind.FUNCTION) {
-                varWasmTypes.push(this.wasmType.getWASMType(variable.varType));
-            } else {
+            if (variable.varType.kind === TypeKind.FUNCTION) {
                 varWasmTypes.push(
                     this.wasmType.getWASMFuncStructType(variable.varType),
                 );
+            } else if (variable.varType.kind === TypeKind.ARRAY) {
+                varWasmTypes.push(
+                    this.wasmType.getWasmArrayStructType(variable.varType),
+                );
+            } else {
+                varWasmTypes.push(this.wasmType.getWASMType(variable.varType));
             }
         }
 
@@ -503,12 +516,16 @@ export class WASMGen extends Ts2wasmBackend {
         if (scope === funcScope) {
             /* Append temp vars */
             (scope as FunctionScope).getTempVars().forEach((v) => {
-                if (v.varType.kind !== TypeKind.FUNCTION) {
-                    varWasmTypes.push(this.wasmType.getWASMType(v.varType));
-                } else {
+                if (v.varType.kind === TypeKind.FUNCTION) {
                     varWasmTypes.push(
                         this.wasmType.getWASMFuncStructType(v.varType),
                     );
+                } else if (v.varType.kind === TypeKind.ARRAY) {
+                    varWasmTypes.push(
+                        this.wasmType.getWasmArrayStructType(v.varType),
+                    );
+                } else {
+                    varWasmTypes.push(this.wasmType.getWASMType(v.varType));
                 }
             });
         }
@@ -651,6 +668,12 @@ export class WASMGen extends Ts2wasmBackend {
 
     /* parse function scope */
     WASMFunctionGen(functionScope: FunctionScope) {
+        if (functionScope.hasDecorator(BuiltinNames.decorator)) {
+            /* Function with @binaryen decorator is implemented directly
+                using binaryen API, don't generate code for them */
+            return;
+        }
+
         const tsFuncType = functionScope.funcType;
         const paramWASMType =
             this.wasmTypeCompiler.getWASMFuncParamType(tsFuncType);
@@ -672,12 +695,6 @@ export class WASMGen extends Ts2wasmBackend {
                 originParamWasmType,
                 returnWASMType,
             );
-            return;
-        }
-
-        if (functionScope.hasDecorator(BuiltinNames.decorator)) {
-            /* Function with @binaryen decorator is implemented directly
-                using binaryen API, don't generate code for them */
             return;
         }
 
@@ -922,12 +939,24 @@ export class WASMGen extends Ts2wasmBackend {
 
     getVariableInitValue(varType: Type): binaryen.ExpressionRef {
         const module = this.module;
-        if (varType.kind === TypeKind.NUMBER) {
-            return module.f64.const(0);
-        } else if (varType.kind === TypeKind.BOOLEAN) {
-            return module.i32.const(0);
+
+        switch (varType.kind) {
+            case TypeKind.NUMBER:
+            case TypeKind.WASM_F64:
+                return module.f64.const(0);
+            case TypeKind.BOOLEAN:
+            case TypeKind.WASM_I32:
+                return module.i32.const(0);
+            case TypeKind.WASM_F32:
+                return module.f32.const(0);
+            case TypeKind.WASM_I64:
+                return module.i64.const(0, 0);
+            default:
+                return binaryenCAPI._BinaryenRefNull(
+                    module.ptr,
+                    binaryen.anyref,
+                );
         }
-        return binaryenCAPI._BinaryenRefNull(module.ptr, binaryen.anyref);
     }
 
     generateRawString(str: string): number {

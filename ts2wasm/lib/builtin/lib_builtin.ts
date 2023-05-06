@@ -7,11 +7,14 @@ export declare class console {
     static log(...values: any[]): void;
 }
 
-export class Array {
+export class Array<T> {
     @binaryen
     static isArray(x: any): boolean {
         return false;
     }
+
+    /* builtin methods are detected by the compiler,
+        don't need to write signature here */
 }
 
 export class String {

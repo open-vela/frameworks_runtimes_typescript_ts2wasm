@@ -20,9 +20,11 @@ import { arrayToPtr } from '../glue/transform.js';
 import {
     charArrayTypeInfo,
     stringArrayTypeInfo,
+    stringArrayStructTypeInfo,
     stringTypeInfo,
 } from '../glue/packType.js';
 import { TypeKind } from '../../../type.js';
+import { array_get_data, array_get_length_i32 } from './array_utils.js';
 
 function string_concat(module: binaryen.Module) {
     /** Args: context, this, string[] */
@@ -41,7 +43,7 @@ function string_concat(module: binaryen.Module) {
     );
     const paramStrArray = module.local.get(
         paramStrArrayIdx,
-        stringArrayTypeInfo.typeRef,
+        stringArrayStructTypeInfo.typeRef,
     );
     const thisStrArray = binaryenCAPI._BinaryenStructGet(
         module.ptr,
@@ -51,10 +53,7 @@ function string_concat(module: binaryen.Module) {
         false,
     );
     const thisStrLen = binaryenCAPI._BinaryenArrayLen(module.ptr, thisStrArray);
-    const paramStrArrayLen = binaryenCAPI._BinaryenArrayLen(
-        module.ptr,
-        paramStrArray,
-    );
+    const paramStrArrayLen = array_get_length_i32(module, paramStrArray);
 
     const getStringArrayFromRestParams = (module: binaryen.Module) => {
         return binaryenCAPI._BinaryenStructGet(
@@ -62,7 +61,7 @@ function string_concat(module: binaryen.Module) {
             arrayIdxInStruct,
             binaryenCAPI._BinaryenArrayGet(
                 module.ptr,
-                module.local.get(paramStrArrayIdx, stringArrayTypeInfo.typeRef),
+                array_get_data(module, paramStrArray),
                 module.local.get(for_i_Idx, binaryen.i32),
                 stringTypeInfo.typeRef,
                 false,
@@ -869,10 +868,19 @@ function string_split(module: binaryen.Module) {
     const stmts_block_2 = module.block(block_label_2, [loop_init_2, loop_2]);
     statementArray.push(stmts_block_2);
 
-    // return the array len for debug now
-    statementArray.push(
-        module.local.get(resStrArrayIdx, stringArrayTypeInfo.typeRef),
+    /**4. wrap the array with struct */
+    const arrayStructRef = binaryenCAPI._BinaryenStructNew(
+        module.ptr,
+        arrayToPtr([
+            module.local.get(resStrArrayIdx, stringArrayTypeInfo.typeRef),
+            module.local.get(resArrLenIdx, binaryen.i32),
+        ]).ptr,
+        2,
+        stringArrayStructTypeInfo.heapTypeRef,
     );
+
+    statementArray.push(module.return(arrayStructRef));
+
     const sliceBlock = module.block('split', statementArray);
     return sliceBlock;
 }
@@ -1244,9 +1252,18 @@ function string_match(module: binaryen.Module) {
     const loop_1 = module.loop(loop_label_1, loop_stmts_1);
     const stmts_block_1 = module.block(block_label_1, [loop_init_1, loop_1]);
     statementArray.push(stmts_block_1);
-    statementArray.push(
-        module.local.get(resStrArrayIdx, stringArrayTypeInfo.typeRef),
+
+    const arrayStructRef = binaryenCAPI._BinaryenStructNew(
+        module.ptr,
+        arrayToPtr([
+            module.local.get(resStrArrayIdx, stringArrayTypeInfo.typeRef),
+            module.i32.const(1),
+        ]).ptr,
+        2,
+        stringArrayStructTypeInfo.heapTypeRef,
     );
+
+    statementArray.push(module.return(arrayStructRef));
     return module.block('match', statementArray);
 }
 
@@ -1389,7 +1406,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         binaryen.createType([
             emptyStructType.typeRef,
             stringTypeInfo.typeRef,
-            stringArrayTypeInfo.typeRef,
+            stringArrayStructTypeInfo.typeRef,
         ]),
         stringTypeInfo.typeRef,
         [binaryen.i32, binaryen.i32, charArrayTypeInfo.typeRef, binaryen.i32],
@@ -1476,7 +1493,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
             stringTypeInfo.typeRef,
             stringTypeInfo.typeRef,
         ]),
-        stringArrayTypeInfo.typeRef,
+        stringArrayStructTypeInfo.typeRef,
         [
             binaryen.i32,
             binaryen.i32,
@@ -1500,7 +1517,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
             stringTypeInfo.typeRef,
             stringTypeInfo.typeRef,
         ]),
-        stringArrayTypeInfo.typeRef,
+        stringArrayStructTypeInfo.typeRef,
         [
             binaryen.i32,
             stringArrayTypeInfo.typeRef,
@@ -1527,5 +1544,237 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_search(module),
     );
     /** TODO: */
+
     /** array */
+
+    /* e.g. array.push can be implemented by a single native API,
+        since the native API doesn't directly receive or return element of
+        the array, there is no need to do specialization for function type */
+    addArrayMethod(
+        module,
+        'push',
+        BuiltinNames.arrayPushFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.f64,
+    );
+    /* e.g. array.pop's return type is T, must be implemented through multiple
+        native APIs to handle value types (i32, i64, ...) and ref type (anyref) */
+    addArrayMethod(
+        module,
+        'pop',
+        BuiltinNames.arrayPopFuncNames,
+        false,
+        [binaryen.anyref],
+        null,
+    );
+    addArrayMethod(
+        module,
+        'concat',
+        BuiltinNames.arrayConcatFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'reverse',
+        BuiltinNames.arrayReverseFuncNames,
+        true,
+        [binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'shift',
+        BuiltinNames.arrayShiftFuncNames,
+        false,
+        [binaryen.anyref],
+        null,
+    );
+    addArrayMethod(
+        module,
+        'slice',
+        BuiltinNames.arraySliceFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref, binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'sort',
+        BuiltinNames.arraySortFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'splice',
+        BuiltinNames.arraySpliceFuncNames,
+        true,
+        [binaryen.anyref, binaryen.f64, binaryen.anyref, binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'unshift',
+        BuiltinNames.arrayUnshiftFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.f64,
+    );
+    addArrayMethod(
+        module,
+        'indexOf',
+        BuiltinNames.arrayIndexOfFuncNames,
+        false,
+        [binaryen.anyref, null, binaryen.anyref],
+        binaryen.f64,
+    );
+    addArrayMethod(
+        module,
+        'lastIndexOf',
+        BuiltinNames.arrayLastIndexOfFuncNames,
+        false,
+        [binaryen.anyref, null, binaryen.anyref],
+        binaryen.f64,
+    );
+    addArrayMethod(
+        module,
+        'every',
+        BuiltinNames.arrayEveryFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.i32,
+    );
+    addArrayMethod(
+        module,
+        'some',
+        BuiltinNames.arraySomeFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.i32,
+    );
+    addArrayMethod(
+        module,
+        'forEach',
+        BuiltinNames.arrayForEachFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.none,
+    );
+    addArrayMethod(
+        module,
+        'map',
+        BuiltinNames.arrayMapFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'filter',
+        BuiltinNames.arrayFilterFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'reduce',
+        BuiltinNames.arrayReduceFuncNames,
+        false,
+        [binaryen.anyref, binaryen.anyref, null],
+        null,
+    );
+    addArrayMethod(
+        module,
+        'reduceRight',
+        BuiltinNames.arrayReduceRightFuncNames,
+        false,
+        [binaryen.anyref, binaryen.anyref, null],
+        null,
+    );
+    addArrayMethod(
+        module,
+        'find',
+        BuiltinNames.arrayFindFuncNames,
+        false,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'findIndex',
+        BuiltinNames.arrayFindIndexFuncNames,
+        true,
+        [binaryen.anyref, binaryen.anyref],
+        binaryen.f64,
+    );
+    addArrayMethod(
+        module,
+        'fill',
+        BuiltinNames.arrayFillFuncNames,
+        false,
+        [binaryen.anyref, null, binaryen.anyref, binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'copyWithin',
+        BuiltinNames.arrayCopyWithinFuncNames,
+        true,
+        [binaryen.anyref, binaryen.f64, binaryen.f64, binaryen.anyref],
+        binaryen.anyref,
+    );
+    addArrayMethod(
+        module,
+        'includes',
+        BuiltinNames.arrayIncludesFuncNames,
+        false,
+        [binaryen.anyref, null, binaryen.anyref],
+        binaryen.i32,
+    );
+}
+
+function addArrayMethod(
+    module: binaryen.Module,
+    method: string,
+    nameMap: BuiltinNames.GenericFuncName,
+    commonGenericApi: boolean,
+    /* use null to represent generic type */
+    paramTypes: (binaryen.Type | null)[],
+    returnType: binaryen.Type | null,
+) {
+    const wasmTypeMap: any = {
+        i32: binaryen.i32,
+        i64: binaryen.i64,
+        f32: binaryen.f32,
+        f64: binaryen.f64,
+        anyref: binaryen.anyref,
+    };
+
+    for (const [key, value] of Object.entries(nameMap)) {
+        if (key === 'generic') {
+            continue;
+        }
+        module.addFunctionImport(
+            getFuncName(BuiltinNames.builtinModuleName, value),
+            'env',
+            commonGenericApi
+                ? `array_${method}_generic`
+                : `array_${method}_${key}`,
+            binaryen.createType([
+                emptyStructType.typeRef,
+                ...paramTypes.map((p) => {
+                    if (p === null) {
+                        return wasmTypeMap[key];
+                    }
+                    return p;
+                }),
+            ]),
+            returnType !== null ? returnType : wasmTypeMap[key],
+        );
+    }
 }

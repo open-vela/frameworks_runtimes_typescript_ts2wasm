@@ -12,17 +12,14 @@ import {
     IdentifierExpression,
     PropertyAccessExpression,
 } from './expression.js';
-import { FunctionScope, Scope, ScopeKind } from './scope.js';
+import { Scope, ScopeKind } from './scope.js';
 import {
     parentIsFunctionLike,
     Stack,
     getModulePath,
     getGlobalScopeByModuleName,
-    importGlobalInfo,
-    importFunctionInfo,
 } from './utils.js';
 import { Variable } from './variable.js';
-import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 import { TSClass, Type } from './type.js';
 import { Logger } from './log.js';
 
