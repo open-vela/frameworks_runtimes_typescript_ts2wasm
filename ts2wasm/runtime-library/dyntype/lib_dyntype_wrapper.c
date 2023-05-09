@@ -303,7 +303,7 @@ int
 dyntype_set_prototype_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                               dyn_value_t obj, const dyn_value_t proto_obj)
 {
-    return dyntype_set_prototype(ctx, obj, UNBOX_ANYREF(proto_obj));
+    return dyntype_set_prototype(ctx, UNBOX_ANYREF(obj), UNBOX_ANYREF(proto_obj));
 }
 
 const dyn_value_t
