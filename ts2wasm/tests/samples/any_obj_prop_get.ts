@@ -8,5 +8,5 @@ export function getProp() {
     obj.a = 1;
     obj.length = 4;
     const b = obj.length;
-    return b;
+    return b as number;
 }

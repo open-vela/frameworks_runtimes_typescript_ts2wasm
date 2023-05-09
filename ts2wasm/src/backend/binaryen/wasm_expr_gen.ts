@@ -2142,6 +2142,43 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return this.module.select(condWASMExpr, trueWASMExpr, falseWASMExpr);
     }
 
+    private _generateFinalArgs(
+        envArgs: number[],
+        callWasmArgs: binaryen.ExpressionRef[],
+        funcScope?: FunctionScope,
+    ) {
+        /* callWasmArgs.length is funcType.getParamTypes().length */
+        const finalCallWasmArgs = new Array(
+            callWasmArgs.length + envArgs.length,
+        );
+        for (let i = 0; i < envArgs.length; i++) {
+            finalCallWasmArgs[i] = envArgs[i];
+        }
+        for (let i = 0; i < callWasmArgs.length; i++) {
+            finalCallWasmArgs[i + envArgs.length] = callWasmArgs[i];
+        }
+        /* parse default parameters, now only work when passing function scope */
+        if (funcScope) {
+            for (
+                let i = envArgs.length;
+                i < callWasmArgs.length + envArgs.length;
+                i++
+            ) {
+                /* funcScope.paramArray have already insert envParams  */
+                if (
+                    funcScope.paramArray[i].initExpression &&
+                    !callWasmArgs[i - envArgs.length]
+                ) {
+                    finalCallWasmArgs[i] = this.getWasmValueByExpr(
+                        funcScope.paramArray[i].initExpression!,
+                        funcScope.funcType.getParamTypes()[i - envArgs.length],
+                    ).binaryenRef;
+                }
+            }
+        }
+        return finalCallWasmArgs;
+    }
+
     private WASMCallExpr(expr: CallExpression): binaryen.ExpressionRef {
         const callExpr = expr.callExpr;
 
@@ -2166,13 +2203,17 @@ export class WASMExpressionGen extends WASMExpressionBase {
             if (accessInfo instanceof MethodAccess) {
                 const { methodType, methodIndex, classType, thisObj } =
                     accessInfo;
-                let finalCallWasmArgs = [];
+                const envArgs: binaryen.ExpressionRef[] = [];
                 if (!methodType.isDeclare) {
-                    finalCallWasmArgs.push(context);
+                    envArgs.push(context);
                 }
                 if (thisObj) {
-                    finalCallWasmArgs.push(thisObj);
+                    envArgs.push(thisObj);
                 }
+                const finalCallWasmArgs = this._generateFinalArgs(
+                    envArgs,
+                    callWasmArgs,
+                );
 
                 if (accessInfo.isBuiltInMethod) {
                     let typeArgument: Type | null = null;
@@ -2194,11 +2235,14 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         );
                     }
                     callWasmArgs = this.parseArguments(
-                        callExpr.exprType as TSFunction,
+                        methodType,
                         expr.callArgs,
                         typeArgument,
                     );
-                    finalCallWasmArgs = finalCallWasmArgs.concat(callWasmArgs);
+                    const finalCallWasmArgs = this._generateFinalArgs(
+                        envArgs,
+                        callWasmArgs,
+                    );
                     let callResult = this.module.call(
                         callFuncName,
                         finalCallWasmArgs,
@@ -2236,7 +2280,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
                     return callResult;
                 } else {
-                    finalCallWasmArgs = finalCallWasmArgs.concat(callWasmArgs);
                     return this._generateClassMethodCallRef(
                         thisObj,
                         classType,
@@ -2958,42 +3001,25 @@ export class WASMExpressionGen extends WASMExpressionBase {
             funcRef = accessInfo.binaryenRef;
         }
 
+        const envArgs: binaryen.ExpressionRef[] = [];
         if (accessInfo instanceof FunctionAccess && funcRef === -1) {
             const { funcScope } = accessInfo;
-            if (callWasmArgs.length + 1 < funcScope.paramArray.length) {
-                for (
-                    let i = callWasmArgs.length + 1;
-                    i < funcScope.paramArray.length;
-                    i++
-                ) {
-                    callWasmArgs.push(
-                        this.WASMExprGen(
-                            funcScope.paramArray[i].initExpression!,
-                        ).binaryenRef,
-                    );
-                }
-            }
-            callWasmArgs = this._generateInfcArgs(
-                paramTypes,
-                expr.callArgs,
-                callWasmArgs,
-            );
             if (!funcScope.isDeclare()) {
                 /* Only add context to non-declare functions */
-                callWasmArgs = [context, ...callWasmArgs];
+                envArgs.push(context);
             }
+            const finalCallWasmArgs = this._generateFinalArgs(
+                envArgs,
+                callWasmArgs,
+                funcScope,
+            );
             return this.module.call(
                 funcScope.mangledName,
-                callWasmArgs,
+                finalCallWasmArgs,
                 this.wasmType.getWASMFuncReturnType(funcType),
             );
         } else {
             /* Call closure */
-            callWasmArgs = this._generateInfcArgs(
-                paramTypes,
-                expr.callArgs,
-                callWasmArgs,
-            );
 
             /* Extract context and funcref from closure */
             const closureRef = funcRef;
@@ -3013,13 +3039,17 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 closureType,
                 false,
             );
-            callWasmArgs.unshift(context);
+            envArgs.push(context);
+            const finalCallWasmArgs = this._generateFinalArgs(
+                envArgs,
+                callWasmArgs,
+            );
 
             return binaryenCAPI._BinaryenCallRef(
                 this.module.ptr,
                 funcRef,
-                arrayToPtr(callWasmArgs).ptr,
-                callWasmArgs.length,
+                arrayToPtr(finalCallWasmArgs).ptr,
+                finalCallWasmArgs.length,
                 binaryen.getExpressionType(funcRef),
                 false,
             );
@@ -3395,37 +3425,71 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return strLenF64;
     }
 
+    getWasmValueByExpr(expr: Expression, targetType: Type): WasmValue {
+        if (targetType.kind === TypeKind.ANY) {
+            return this.dynValueGen.WASMDynExprGen(expr);
+        } else {
+            return this.WASMExprGen(expr);
+        }
+    }
+
     parseArguments(
-        type: TSFunction,
+        funcType: TSFunction,
         args: Expression[],
         typeArg: Type | null = null,
     ) {
-        const paramType = type.getParamTypes();
-        const res: binaryen.ExpressionRef[] = [];
-        let i = 0;
-        for (let j = 0; i < args.length && j < paramType.length; i++, j++) {
-            if (j === paramType.length - 1 && type.hasRest()) {
+        const paramTypes = funcType.getParamTypes();
+        const callerArgs: binaryen.ExpressionRef[] = new Array(
+            paramTypes.length,
+        );
+
+        /* parse regular args */
+        for (let i = 0; i < args.length; i++) {
+            if (funcType.restParamIdx === i) {
                 break;
             }
-            let value: binaryen.ExpressionRef | null = null;
-            const toType = paramType[i];
-            if (toType.kind === TypeKind.ANY) {
-                value = this.dynValueGen.WASMDynExprGen(args[i]).binaryenRef;
-            } else {
-                value = this.WASMExprGen(args[i]).binaryenRef;
-            }
-            res.push(value);
+            callerArgs[i] = this.getWasmValueByExpr(
+                args[i],
+                paramTypes[i],
+            ).binaryenRef;
         }
-        if (type.hasRest()) {
-            const restType = paramType[paramType.length - 1];
+
+        /* parse optional param as undifined */
+        for (let i = 0; i < paramTypes.length; i++) {
+            if (!callerArgs[i] && funcType.isOptionalParams[i]) {
+                callerArgs[i] = this.generateDynUndefined();
+            }
+        }
+
+        /* parse rest params */
+        if (funcType.hasRest()) {
+            const restType = paramTypes[funcType.restParamIdx];
             if (restType instanceof TSArray) {
-                res.push(this.initArray(restType, args.slice(i), typeArg));
+                if (args.length > funcType.restParamIdx) {
+                    callerArgs[funcType.restParamIdx] = this.initArray(
+                        restType,
+                        args.slice(funcType.restParamIdx),
+                        typeArg,
+                    );
+                } else {
+                    callerArgs[funcType.restParamIdx] = this.initArray(
+                        restType,
+                        [],
+                        typeArg,
+                    );
+                }
             } else {
                 Logger.error(`rest type is not array`);
             }
         }
 
-        return res;
+        /* parse interface types */
+        const callWasmArgs = this._generateInfcArgs(
+            paramTypes,
+            args,
+            callerArgs,
+        );
+        return callWasmArgs;
     }
 
     private initArray(

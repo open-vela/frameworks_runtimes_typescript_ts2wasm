@@ -16,6 +16,10 @@ function callReturnTest3(a: number, b: number, c: number) {
     return a + b + c;
 }
 
+function callReturnTest4(a: number = 5, b: any = 8) {
+    return (a + b) as number;
+}
+
 export function noDefaultParam() {
     return callReturnTest3(1, 2, 3);
 }
@@ -27,6 +31,10 @@ export function allDefaultParam() {
 
 export function someDefaultParam() {
     return callReturnTest2(2, 3);
+}
+
+export function someDefaultParamWithAny() {
+    return callReturnTest4(9);
 }
 
 function outer(a: any) {

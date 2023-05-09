@@ -12,7 +12,7 @@ export function boxObjWithNumberProp() {
     let obj: any = {
         a: 1,
     };
-    return obj.a;
+    return obj.a as number;
 }
 
 export function boxObjWithBooleanProp() {
@@ -20,7 +20,7 @@ export function boxObjWithBooleanProp() {
     obj = {
         c: true,
     };
-    return obj.c;
+    return obj.c as boolean;
 }
 
 export function boxNestedObj() {

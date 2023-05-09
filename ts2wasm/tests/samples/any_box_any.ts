@@ -7,5 +7,5 @@ export function boxAny() {
     let a: any = 1;
     let c: any;
     c = a;
-    return c;
+    return c as number;
 }
