@@ -71,3 +71,21 @@ export function withMethodField() {
     return obj.z.j(8, 9) + obj.x(10);
 }
 // 117
+
+class A {
+    x = 'xxx';
+}
+
+class B extends A {
+    y = 1;
+}
+
+export function structWithSameLayout() {
+    const val = new A();
+
+    const res = {
+        xx: val.x,
+        y: 1,
+    };
+    return res.y;
+}

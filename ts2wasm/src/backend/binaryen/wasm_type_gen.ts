@@ -22,7 +22,6 @@ import {
     initStructType,
     createSignatureTypeRefAndHeapTypeRef,
     Pakced,
-    BinaryenType,
     generateArrayStructTypeInfo,
 } from './glue/transform.js';
 import { assert } from 'console';
@@ -57,6 +56,9 @@ export class WASMTypeGen {
     private classStaticFieldsType: Map<Type, binaryenCAPI.TypeRef> = new Map();
     private classStaticFieldsHeapType: Map<Type, binaryenCAPI.HeapTypeRef> =
         new Map();
+    private structHeapTypeCnt = 0;
+    private arrayHeapTypeCnt = 0;
+    private funcHeapTypeCnt = 0;
 
     constructor(private WASMCompiler: WASMGen) {}
 
@@ -95,6 +97,10 @@ export class WASMTypeGen {
                     type,
                     stringTypeInfo.heapTypeRef,
                 );
+                this.createCustomTypeName(
+                    'string_type',
+                    stringTypeInfo.heapTypeRef,
+                );
                 break;
             }
             /** regard unknown as any currently */
@@ -120,6 +126,10 @@ export class WASMTypeGen {
                     Pakced.Not,
                     true,
                     true,
+                );
+                this.createCustomTypeName(
+                    `array${this.arrayHeapTypeCnt++}`,
+                    arrayTypeInfo.heapTypeRef,
                 );
                 this.tsType2WASMTypeMap.set(type, arrayTypeInfo.typeRef);
                 this.tsType2WASMHeapTypeMap.set(
@@ -188,6 +198,10 @@ export class WASMTypeGen {
                 const signature = createSignatureTypeRefAndHeapTypeRef(
                     paramWASMTypes,
                     resultWASMType,
+                );
+                this.createCustomTypeName(
+                    `function${this.funcHeapTypeCnt++}`,
+                    signature.heapTypeRef,
                 );
                 this.tsType2WASMTypeMap.set(type, signature.typeRef);
                 this.tsType2WASMHeapTypeMap.set(type, signature.heapTypeRef);
@@ -292,6 +306,10 @@ export class WASMTypeGen {
                                 baseType.fields.length)
                         ? undefined
                         : this.getWASMHeapType(baseType),
+                );
+                this.createCustomTypeName(
+                    `struct${this.structHeapTypeCnt++}`,
+                    wasmClassType.heapTypeRef,
                 );
                 this.tsType2WASMTypeMap.set(type, wasmClassType.typeRef);
                 this.tsType2WASMHeapTypeMap.set(
@@ -582,5 +600,16 @@ export class WASMTypeGen {
 
     getInfcHeapTypeRef(): binaryenCAPI.HeapTypeRef {
         return infcTypeInfo.heapTypeRef;
+    }
+
+    private createCustomTypeName(
+        name: string,
+        heapTypeRef: binaryenCAPI.HeapTypeRef,
+    ) {
+        binaryenCAPI._BinaryenModuleSetTypeName(
+            this.WASMCompiler.module.ptr,
+            heapTypeRef,
+            this.WASMCompiler.getCString(name),
+        );
     }
 }
