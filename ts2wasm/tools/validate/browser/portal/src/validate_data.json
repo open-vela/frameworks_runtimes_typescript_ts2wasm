@@ -1745,6 +1745,51 @@
         ]
     },
     {
+        "module": "ref_type_cmp",
+        "entries": [
+            {
+                "name": "structCmpEq",
+                "args": [],
+                "result": 1
+            },
+            {
+                "name": "structCmpNotEq",
+                "args": [],
+                "result": 0
+            },
+            {
+                "name": "arrayCmpEq",
+                "args": [],
+                "result": 1
+            },
+            {
+                "name": "arrayCmpNotEq",
+                "args": [],
+                "result": 0
+            },
+            {
+                "name": "infcCmpEq",
+                "args": [],
+                "result": 1
+            },
+            {
+                "name": "infcCmpNotEq",
+                "args": [],
+                "result": 0
+            },
+            {
+                "name": "infcClassCmpEq",
+                "args": [],
+                "result": 1
+            },
+            {
+                "name": "infcClassCmpNotEq",
+                "args": [],
+                "result": 0
+            }
+        ]
+    },
+    {
         "module": "rest_param_interface",
         "entries": [
             {

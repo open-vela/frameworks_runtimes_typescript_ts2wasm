@@ -619,7 +619,7 @@ export class WASMExpressionBase {
                 );
             }
             default:
-                return module.unreachable();
+                throw new Error(`operator doesn't support, ${operatorKind}`);
         }
     }
 
@@ -642,7 +642,35 @@ export class WASMExpressionBase {
                 );
             }
             default:
-                return module.unreachable();
+                throw new Error(`operator doesn't support, ${operatorKind}`);
+        }
+    }
+
+    operateRefRef(
+        leftExprRef: binaryen.ExpressionRef,
+        leftExprType: Type,
+        rightExprRef: binaryen.ExpressionRef,
+        rightExprType: Type,
+        operatorKind: ts.SyntaxKind,
+    ) {
+        const module = this.module;
+        if (leftExprType.kind === TypeKind.INTERFACE) {
+            leftExprRef = this.getInterfaceObj(leftExprRef);
+        }
+        if (rightExprType.kind === TypeKind.INTERFACE) {
+            rightExprRef = this.getInterfaceObj(rightExprRef);
+        }
+        switch (operatorKind) {
+            case ts.SyntaxKind.EqualsEqualsToken:
+            case ts.SyntaxKind.EqualsEqualsEqualsToken: {
+                return binaryenCAPI._BinaryenRefEq(
+                    module.ptr,
+                    leftExprRef,
+                    rightExprRef,
+                );
+            }
+            default:
+                throw new Error(`operator doesn't support, ${operatorKind}`);
         }
     }
 
@@ -670,7 +698,7 @@ export class WASMExpressionBase {
                 );
             }
             default:
-                return module.unreachable();
+                throw new Error(`operator doesn't support, ${operatorKind}`);
         }
     }
 
@@ -709,7 +737,7 @@ export class WASMExpressionBase {
                 }
             }
             default:
-                return module.unreachable();
+                throw new Error(`operator doesn't support, ${operatorKind}`);
         }
     }
 
@@ -737,7 +765,7 @@ export class WASMExpressionBase {
                 );
             }
             default:
-                return module.unreachable();
+                throw new Error(`operator doesn't support, ${operatorKind}`);
         }
     }
 
@@ -1039,6 +1067,21 @@ export class WASMExpressionBase {
             );
         }
         return res;
+    }
+
+    getInterfaceObj(expr: binaryen.ExpressionRef) {
+        const obj = binaryenCAPI._BinaryenStructGet(
+            this.module.ptr,
+            2,
+            expr,
+            this.wasmType.getInfcTypeRef(),
+            false,
+        );
+        return binaryenCAPI._BinaryenRefCast(
+            this.module.ptr,
+            obj,
+            emptyStructType.typeRef,
+        );
     }
 }
 
@@ -1767,6 +1810,22 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 operatorKind,
             );
         }
+        // iff array, class or interface
+        if (
+            (leftExprType.kind === TypeKind.ARRAY &&
+                rightExprType.kind === TypeKind.ARRAY) ||
+            (leftExprType instanceof TSClass &&
+                rightExprType instanceof TSClass)
+        ) {
+            return this.operateRefRef(
+                leftExprRef,
+                leftExprType,
+                rightExprRef,
+                rightExprType,
+                operatorKind,
+            );
+        }
+
         throw new Error(
             'unexpected left expr type ' +
                 leftExprType.kind +

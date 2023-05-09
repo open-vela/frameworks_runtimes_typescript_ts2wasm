@@ -1913,6 +1913,51 @@
         ]
     },
     {
+        "module": "ref_type_cmp",
+        "entries": [
+            {
+                "name": "structCmpEq",
+                "args": [],
+                "result": "0x1:i32"
+            },
+            {
+                "name": "structCmpNotEq",
+                "args": [],
+                "result": "0x0:i32"
+            },
+            {
+                "name": "arrayCmpEq",
+                "args": [],
+                "result": "0x1:i32"
+            },
+            {
+                "name": "arrayCmpNotEq",
+                "args": [],
+                "result": "0x0:i32"
+            },
+            {
+                "name": "infcCmpEq",
+                "args": [],
+                "result": "0x1:i32"
+            },
+            {
+                "name": "infcCmpNotEq",
+                "args": [],
+                "result": "0x0:i32"
+            },
+            {
+                "name": "infcClassCmpEq",
+                "args": [],
+                "result": "0x1:i32"
+            },
+            {
+                "name": "infcClassCmpNotEq",
+                "args": [],
+                "result": "0x0:i32"
+            }
+        ]
+    },
+    {
         "module": "rest_param_interface",
         "entries": [
             {
