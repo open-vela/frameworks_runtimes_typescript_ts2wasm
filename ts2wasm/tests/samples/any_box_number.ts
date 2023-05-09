@@ -5,11 +5,11 @@
 
 export function boxNumberWithVarStmt() {
     let a: any = 1;
-    return a;
+    return a as number;
 }
 
 export function boxNumberWithBinaryExpr() {
     let a: any;
     a = 1;
-    return a;
+    return a as number;
 }

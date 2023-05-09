@@ -5,11 +5,11 @@
 
 export function boxBooleanWithVarStmt() {
     let a: any = true;
-    return a;
+    return a as boolean;
 }
 
 export function boxBooleanWithBinaryExpr() {
     let a: any;
     a = true;
-    return a;
+    return a as boolean;
 }

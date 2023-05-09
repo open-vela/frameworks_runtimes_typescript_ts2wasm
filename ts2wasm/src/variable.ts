@@ -136,7 +136,7 @@ export class Parameter extends Variable {
         this._isDestructuring = isDestructuring;
     }
 
-    get optional(): boolean {
+    get isOptional(): boolean {
         return this._isOptional;
     }
 
@@ -215,12 +215,10 @@ export class VariableScanner {
                 ) {
                     isDestructuring = true;
                 }
-                let isOptional =
-                    parameterNode.questionToken === undefined ? false : true;
-                isOptional =
-                    isOptional || parameterNode.initializer === undefined
-                        ? false
-                        : true;
+                const isOptional =
+                    parameterNode.questionToken || parameterNode.initializer
+                        ? true
+                        : false;
                 const paramModifiers = [];
                 if (parameterNode.modifiers !== undefined) {
                     for (const modifier of parameterNode.modifiers) {

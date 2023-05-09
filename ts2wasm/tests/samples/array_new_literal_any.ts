@@ -5,10 +5,10 @@
 
 export function newLiteralExplicitAny() {
     const array1: any[] = [1, 'hi', true, { a: 1 }];
-    return array1[0];
+    return array1[0] as number;
 }
 
 export function newLiteralNonExplicitAny() {
     const array1 = [1, 'hi', true, { a: 1 }];
-    return array1[0];
+    return array1[0] as number;
 }

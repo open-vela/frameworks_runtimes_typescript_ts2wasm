@@ -7,19 +7,19 @@ export function addAnyAny() {
     let a: any = 1;
     let b: any = 2;
     let c: any = a + b;
-    return c;
+    return c as number;
 }
 
 export function addNumberAnyInBinaryExpr() {
     let a: any = 1;
     let b: any;
     b = a + 1;
-    return b;
+    return b as number;
 }
 
 export function addNumberAnyInMulExpr() {
     let a: any = 1;
     let c: any;
     c = 2 + a + 6;
-    return c;
+    return c as number;
 }

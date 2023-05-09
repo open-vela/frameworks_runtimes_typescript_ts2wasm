@@ -764,6 +764,11 @@
                 "result": "5:f64"
             },
             {
+                "name": "someDefaultParamWithAny",
+                "args": [],
+                "result": "17:f64"
+            },
+            {
                 "name": "paramIsAny",
                 "args": [],
                 "result": "3:f64"
@@ -1869,6 +1874,31 @@
                 "name": "structWithSameLayout",
                 "args": [],
                 "result": "1:f64"
+            }
+        ]
+    },
+    {
+        "module": "optional_param",
+        "entries": [
+            {
+                "name": "testOptionalParam",
+                "args": [],
+                "result": "30:f64"
+            },
+            {
+                "name": "testOptionalParamAndRestParam",
+                "args": [],
+                "result": "30:f64"
+            },
+            {
+                "name": "testOptionalMethod",
+                "args": [],
+                "result": "60:f64"
+            },
+            {
+                "name": "testPartOptionalMethod",
+                "args": [],
+                "result": "60:f64"
             }
         ]
     },

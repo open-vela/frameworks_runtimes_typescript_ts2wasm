@@ -9,7 +9,7 @@ export function setPrototype() {
     };
     let obj: any = { weight: 2 };
     obj.__proto__ = prototypeObj;
-    return obj.height;
+    return obj.height as number;
 }
 
 export function returnPrototypeObject() {

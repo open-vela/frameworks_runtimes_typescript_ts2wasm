@@ -53,9 +53,19 @@ describe('testType', function () {
         expect(funcType.getParamTypes()[1]).eq(numberType);
         expect(funcType.returnType).eq(numberType);
         expect(funcType.hasRest()).eq(false);
+    });
 
-        funcType.setRest();
+    it('judgeFunctionTypeOptionalParam', function () {
+        const funcType = new TSFunction();
+        funcType.addIsOptionalParam(true);
+        funcType.addIsOptionalParam(false);
+        expect(funcType.isOptionalParams[0]).eq(true);
+        expect(funcType.isOptionalParams[1]).eq(false);
+        expect(funcType.hasRest()).eq(false);
+
+        funcType.restParamIdx = 1;
         expect(funcType.hasRest()).eq(true);
+        expect(funcType.restParamIdx).eq(1);
     });
 
     it('judgeObjectLiteralType', function () {
