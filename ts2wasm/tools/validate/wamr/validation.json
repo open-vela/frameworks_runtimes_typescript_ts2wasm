@@ -1864,6 +1864,11 @@
                 "name": "withMethodField",
                 "args": [],
                 "result": "117:f64"
+            },
+            {
+                "name": "structWithSameLayout",
+                "args": [],
+                "result": "1:f64"
             }
         ]
     },

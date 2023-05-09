@@ -240,6 +240,7 @@ export class WASMGen extends Ts2wasmBackend {
     private startBodyArray: Array<binaryen.ExpressionRef> = [];
     private globalInitArray: Array<binaryen.ExpressionRef> = [];
     private globalInitFuncName = '';
+    private wasmStringMap = new Map<string, number>();
 
     constructor(parserContext: ParserContext) {
         super(parserContext);
@@ -1060,5 +1061,20 @@ export class WASMGen extends Ts2wasmBackend {
             wrapperName: wrappedName,
             wrapperType: wrapperFuncType,
         };
+    }
+
+    public getCString(str: string) {
+        if (this.wasmStringMap.has(str)) {
+            return this.wasmStringMap.get(str) as number;
+        }
+        const wasmStr = binaryenCAPI._malloc(str.length + 1);
+        let index = wasmStr;
+        // consider UTF-8 only
+        for (let i = 0; i < str.length; i++) {
+            binaryenCAPI.__i32_store8(index++, str.codePointAt(i) as number);
+        }
+        binaryenCAPI.__i32_store8(index, 0);
+        this.wasmStringMap.set(str, wasmStr);
+        return wasmStr;
     }
 }
