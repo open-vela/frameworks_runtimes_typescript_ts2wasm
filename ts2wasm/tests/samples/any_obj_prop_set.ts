@@ -7,11 +7,11 @@ export function setUnExistProp() {
     let obj: any = {};
     obj.a = 1;
     obj.length = 4;
-    return obj.length;
+    return obj.length as number;
 }
 
 export function setExistProp() {
     let obj: any = { a: 1 };
     obj.a = 2;
-    return obj.a;
+    return obj.a as number;
 }

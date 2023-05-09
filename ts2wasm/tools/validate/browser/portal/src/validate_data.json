@@ -595,6 +595,11 @@
                 "result": 5
             },
             {
+                "name": "someDefaultParamWithAny",
+                "args": [],
+                "result": 17
+            },
+            {
                 "name": "paramIsAny",
                 "args": [],
                 "result": 3
@@ -1699,6 +1704,31 @@
                 "name": "structWithSameLayout",
                 "args": [],
                 "result": 1
+            }
+        ]
+    },
+    {
+        "module": "optional_param",
+        "entries": [
+            {
+                "name": "testOptionalParam",
+                "args": [],
+                "result": 30
+            },
+            {
+                "name": "testOptionalParamAndRestParam",
+                "args": [],
+                "result": 30
+            },
+            {
+                "name": "testOptionalMethod",
+                "args": [],
+                "result": 60
+            },
+            {
+                "name": "testPartOptionalMethod",
+                "args": [],
+                "result": 60
             }
         ]
     },

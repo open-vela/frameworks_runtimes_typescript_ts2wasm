@@ -342,9 +342,10 @@ export class TSArray extends Type {
 export class TSFunction extends Type {
     typeKind = TypeKind.FUNCTION;
     private _parameterTypes: Type[] = [];
+    private _isOptionalParams: boolean[] = [];
     private _returnType: Type = new Primitive('void');
     // iff last parameter is rest paremeter
-    private _hasRestParameter = false;
+    private _restParamIdex = -1;
     private _isMethod = false;
     private _isDeclare = false;
     private _isStatic = false;
@@ -370,12 +371,24 @@ export class TSFunction extends Type {
         return this._parameterTypes;
     }
 
-    setRest() {
-        this._hasRestParameter = true;
+    addIsOptionalParam(isOptional: boolean) {
+        this._isOptionalParams.push(isOptional);
+    }
+
+    get isOptionalParams() {
+        return this._isOptionalParams;
+    }
+
+    set restParamIdx(idx: number) {
+        this._restParamIdex = idx;
+    }
+
+    get restParamIdx() {
+        return this._restParamIdex;
     }
 
     hasRest() {
-        return this._hasRestParameter === true;
+        return this._restParamIdex !== -1;
     }
 
     get isMethod() {
@@ -415,7 +428,8 @@ export class TSFunction extends Type {
         const func = new TSFunction(this.funcKind);
         func.returnType = this.returnType;
         func._parameterTypes = this._parameterTypes;
-        func._hasRestParameter = this._hasRestParameter;
+        func._isOptionalParams = this._isOptionalParams;
+        func._restParamIdex = this._restParamIdex;
         func.isMethod = this.isMethod;
         func.isDeclare = this.isDeclare;
         func.isStatic = this.isStatic;
@@ -718,10 +732,15 @@ export default class TypeResolver {
         }
 
         const tsFunction = new TSFunction();
-        signature.getParameters().map((param) => {
+        signature.getParameters().map((param, index) => {
             const valueDecl = param.valueDeclaration!;
             if (ts.isParameter(valueDecl) && valueDecl.dotDotDotToken) {
-                tsFunction.setRest();
+                tsFunction.restParamIdx = index;
+            }
+            if (ts.isParameter(valueDecl) && valueDecl.questionToken) {
+                tsFunction.addIsOptionalParam(true);
+            } else {
+                tsFunction.addIsOptionalParam(false);
             }
             let tsType = this.tsTypeToType(
                 this.typechecker!.getTypeAtLocation(valueDecl),
