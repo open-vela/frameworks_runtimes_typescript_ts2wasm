@@ -1694,6 +1694,11 @@
                 "name": "withMethodField",
                 "args": [],
                 "result": 117
+            },
+            {
+                "name": "structWithSameLayout",
+                "args": [],
+                "result": 1
             }
         ]
     },
