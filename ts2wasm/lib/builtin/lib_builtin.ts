@@ -50,6 +50,26 @@ export class String {
     search(pattern: string): string {
         return 'search';
     }
+
+    @binaryen
+    charAt(pos: number): string {
+        return 'charAt';
+    }
+
+    @binaryen
+    toLowerCase(): string {
+        return 'toLowerCase';
+    }
+
+    @binaryen
+    toUpperCase(): string {
+        return 'toUpperCase';
+    }
+
+    @binaryen
+    trim(): string {
+        return 'trim';
+    }
 }
 
 export class Math {

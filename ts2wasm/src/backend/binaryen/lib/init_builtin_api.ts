@@ -1305,6 +1305,539 @@ function string_search(module: binaryen.Module) {
     return module.block('search', statementArray);
 }
 
+function string_charAt(module: binaryen.Module) {
+    const statementArray: binaryen.ExpressionRef[] = [];
+
+    /** Args: context, this, index */
+    const thisStrStructIdx = 1;
+    const paramIdx = 2;
+    const newStrArrayIdx = 3;
+
+    const thisStrStruct = module.local.get(
+        thisStrStructIdx,
+        stringTypeInfo.typeRef,
+    );
+
+    const strArray = binaryenCAPI._BinaryenStructGet(
+        module.ptr,
+        1,
+        thisStrStruct,
+        charArrayTypeInfo.typeRef,
+        false,
+    );
+    const strLen = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray);
+
+    const index = module.i32.trunc_s.f64(
+        module.local.get(paramIdx, binaryen.f64),
+    );
+
+    const judgment = module.if(
+        module.i32.ge_s(index, module.i32.const(0)),
+        module.if(
+            module.i32.le_s(index, module.i32.sub(strLen, module.i32.const(1))),
+            module.block(null, [
+                module.local.set(
+                    newStrArrayIdx,
+                    binaryenCAPI._BinaryenArrayNew(
+                        module.ptr,
+                        charArrayTypeInfo.heapTypeRef,
+                        module.i32.const(1),
+                        module.i32.const(0),
+                    ),
+                ),
+                binaryenCAPI._BinaryenArrayCopy(
+                    module.ptr,
+                    module.local.get(newStrArrayIdx, charArrayTypeInfo.typeRef),
+                    module.i32.const(0),
+                    strArray,
+                    index,
+                    module.i32.const(1),
+                ),
+                module.return(
+                    binaryenCAPI._BinaryenStructNew(
+                        module.ptr,
+                        arrayToPtr([
+                            module.i32.const(0),
+                            module.local.get(
+                                newStrArrayIdx,
+                                charArrayTypeInfo.typeRef,
+                            ),
+                        ]).ptr,
+                        2,
+                        stringTypeInfo.heapTypeRef,
+                    ),
+                ),
+            ]),
+            module.block(null, [
+                module.local.set(
+                    newStrArrayIdx,
+                    binaryenCAPI._BinaryenArrayNew(
+                        module.ptr,
+                        charArrayTypeInfo.heapTypeRef,
+                        module.i32.const(0),
+                        module.i32.const(0),
+                    ),
+                ),
+                module.return(
+                    binaryenCAPI._BinaryenStructNew(
+                        module.ptr,
+                        arrayToPtr([
+                            module.i32.const(0),
+                            module.local.get(
+                                newStrArrayIdx,
+                                charArrayTypeInfo.typeRef,
+                            ),
+                        ]).ptr,
+                        2,
+                        stringTypeInfo.heapTypeRef,
+                    ),
+                ),
+            ]),
+        ),
+        module.block(null, [
+            module.local.set(
+                newStrArrayIdx,
+                binaryenCAPI._BinaryenArrayNew(
+                    module.ptr,
+                    charArrayTypeInfo.heapTypeRef,
+                    module.i32.const(0),
+                    module.i32.const(0),
+                ),
+            ),
+            module.return(
+                binaryenCAPI._BinaryenStructNew(
+                    module.ptr,
+                    arrayToPtr([
+                        module.i32.const(0),
+                        module.local.get(
+                            newStrArrayIdx,
+                            charArrayTypeInfo.typeRef,
+                        ),
+                    ]).ptr,
+                    2,
+                    stringTypeInfo.heapTypeRef,
+                ),
+            ),
+        ]),
+    );
+
+    statementArray.push(judgment);
+
+    /* generate block, return block */
+    statementArray.push(module.return(thisStrStruct));
+    const charAtBlock = module.block('string_charAt', statementArray);
+    return charAtBlock;
+}
+
+function string_toLowerCase(module: binaryen.Module) {
+    return string_toLowerOrUpperCase_internal(module, true);
+}
+
+function string_toUpperCase(module: binaryen.Module) {
+    return string_toLowerOrUpperCase_internal(module, false);
+}
+
+function string_toLowerOrUpperCase_internal(
+    module: binaryen.Module,
+    lower: boolean,
+) {
+    const statementArray: binaryen.ExpressionRef[] = [];
+
+    const strIdx = 1;
+    const for_i_Idx = 2;
+    const newStrArrayIdx = 3;
+    const copyCurLenIdx = 4;
+    const paramIdx = 5;
+    const str = module.local.get(strIdx, stringTypeInfo.typeRef);
+
+    const newStrArrayType = charArrayTypeInfo.typeRef;
+
+    const thisStrArray = binaryenCAPI._BinaryenStructGet(
+        module.ptr,
+        1,
+        str,
+        charArrayTypeInfo.typeRef,
+        false,
+    );
+
+    const thisStrLen = binaryenCAPI._BinaryenArrayLen(module.ptr, thisStrArray);
+
+    if (lower == true) {
+        statementArray.push(module.local.set(paramIdx, module.i32.const(1)));
+    } else {
+        statementArray.push(module.local.set(paramIdx, module.i32.const(0)));
+    }
+
+    statementArray.push(
+        module.local.set(
+            newStrArrayIdx,
+            binaryenCAPI._BinaryenArrayNew(
+                module.ptr,
+                charArrayTypeInfo.heapTypeRef,
+                thisStrLen,
+                module.i32.const(0),
+            ),
+        ),
+    );
+
+    statementArray.push(
+        binaryenCAPI._BinaryenArrayCopy(
+            module.ptr,
+            module.local.get(newStrArrayIdx, charArrayTypeInfo.typeRef),
+            module.i32.const(0),
+            thisStrArray,
+            module.i32.const(0),
+            thisStrLen,
+        ),
+    );
+    statementArray.push(module.local.set(copyCurLenIdx, thisStrLen));
+
+    const strArray = binaryenCAPI._BinaryenStructNew(
+        module.ptr,
+        arrayToPtr([
+            module.i32.const(0),
+            module.local.get(newStrArrayIdx, newStrArrayType),
+        ]).ptr,
+        2,
+        stringTypeInfo.heapTypeRef,
+    );
+
+    const strLen = binaryenCAPI._BinaryenArrayLen(module.ptr, thisStrArray);
+
+    const for_label_1 = 'for_loop_1_block';
+    const for_init_1 = module.local.set(for_i_Idx, module.i32.const(0));
+    const for_condition_1 = module.i32.lt_u(
+        module.local.get(for_i_Idx, binaryen.i32),
+        strLen,
+    );
+    const for_incrementor_1 = module.local.set(
+        for_i_Idx,
+        module.i32.add(
+            module.local.get(for_i_Idx, binaryen.i32),
+            module.i32.const(1),
+        ),
+    );
+
+    const for_body_1 = module.if(
+        module.i32.eq(
+            module.local.get(paramIdx, binaryen.i32),
+            module.i32.const(1),
+        ),
+        module.if(
+            module.i32.ge_u(
+                binaryenCAPI._BinaryenArrayGet(
+                    module.ptr,
+                    module.local.get(newStrArrayIdx, charArrayTypeInfo.typeRef),
+                    module.local.get(for_i_Idx, binaryen.i32),
+                    charArrayTypeInfo.typeRef,
+                    false,
+                ),
+                module.i32.const(65),
+            ),
+            module.if(
+                module.i32.le_u(
+                    binaryenCAPI._BinaryenArrayGet(
+                        module.ptr,
+                        module.local.get(
+                            newStrArrayIdx,
+                            charArrayTypeInfo.typeRef,
+                        ),
+                        module.local.get(for_i_Idx, binaryen.i32),
+                        charArrayTypeInfo.typeRef,
+                        false,
+                    ),
+                    module.i32.const(90),
+                ),
+                binaryenCAPI._BinaryenArraySet(
+                    module.ptr,
+                    module.local.get(newStrArrayIdx, charArrayTypeInfo.typeRef),
+                    module.local.get(for_i_Idx, binaryen.i32),
+                    module.i32.add(
+                        binaryenCAPI._BinaryenArrayGet(
+                            module.ptr,
+                            module.local.get(
+                                newStrArrayIdx,
+                                charArrayTypeInfo.typeRef,
+                            ),
+                            module.local.get(for_i_Idx, binaryen.i32),
+                            charArrayTypeInfo.typeRef,
+                            false,
+                        ),
+                        module.i32.const(32),
+                    ),
+                ),
+            ),
+        ),
+        module.if(
+            module.i32.ge_u(
+                binaryenCAPI._BinaryenArrayGet(
+                    module.ptr,
+                    module.local.get(newStrArrayIdx, charArrayTypeInfo.typeRef),
+                    module.local.get(for_i_Idx, binaryen.i32),
+                    charArrayTypeInfo.typeRef,
+                    false,
+                ),
+                module.i32.const(97),
+            ),
+            module.if(
+                module.i32.le_u(
+                    binaryenCAPI._BinaryenArrayGet(
+                        module.ptr,
+                        module.local.get(
+                            newStrArrayIdx,
+                            charArrayTypeInfo.typeRef,
+                        ),
+                        module.local.get(for_i_Idx, binaryen.i32),
+                        charArrayTypeInfo.typeRef,
+                        false,
+                    ),
+                    module.i32.const(122),
+                ),
+                binaryenCAPI._BinaryenArraySet(
+                    module.ptr,
+                    module.local.get(newStrArrayIdx, charArrayTypeInfo.typeRef),
+                    module.local.get(for_i_Idx, binaryen.i32),
+                    module.i32.sub(
+                        binaryenCAPI._BinaryenArrayGet(
+                            module.ptr,
+                            module.local.get(
+                                newStrArrayIdx,
+                                charArrayTypeInfo.typeRef,
+                            ),
+                            module.local.get(for_i_Idx, binaryen.i32),
+                            charArrayTypeInfo.typeRef,
+                            false,
+                        ),
+                        module.i32.const(32),
+                    ),
+                ),
+            ),
+        ),
+    );
+
+    const flattenLoop_1: FlattenLoop = {
+        label: for_label_1,
+        condition: for_condition_1,
+        statements: for_body_1,
+        incrementor: for_incrementor_1,
+    };
+    statementArray.push(for_init_1);
+    statementArray.push(
+        module.loop(
+            for_label_1,
+            flattenLoopStatement(
+                flattenLoop_1,
+                ts.SyntaxKind.ForStatement,
+                module,
+            ),
+        ),
+    );
+
+    statementArray.push(module.return(strArray));
+
+    statementArray.push(
+        module.local.get(newStrArrayIdx, stringArrayTypeInfo.typeRef),
+    );
+
+    const toLowerOrUpperCaseinternalBlock = module.block(
+        'toLowerOrUpperCaseinternal',
+        statementArray,
+    );
+    return toLowerOrUpperCaseinternalBlock;
+}
+
+function string_trim(module: binaryen.Module) {
+    const thisStrStructIdx = 1;
+    const for_i_Idx = 2;
+    const newStrCharArrayIdx = 3;
+    const trimStartIdx = 4;
+    const trimEndIdx = 5;
+
+    const thisStrStruct = module.local.get(
+        thisStrStructIdx,
+        stringTypeInfo.typeRef,
+    );
+    const thisStrCharArray = binaryenCAPI._BinaryenStructGet(
+        module.ptr,
+        1,
+        thisStrStruct,
+        charArrayTypeInfo.typeRef,
+        false,
+    );
+    const thisStrLen = binaryenCAPI._BinaryenArrayLen(
+        module.ptr,
+        thisStrCharArray,
+    );
+
+    const statementArray: binaryen.ExpressionRef[] = [];
+
+    /**if the array is empty */
+    const stringIsEmpty = module.if(
+        module.i32.eq(thisStrLen, module.i32.const(0)),
+        module.return(thisStrStruct),
+    );
+    statementArray.push(stringIsEmpty);
+
+    /**loop1 */
+    const block_label_1 = 'block_label_1';
+    const loop_label_1 = 'loop_label_1';
+
+    const loop_init_1 = module.block(null, [
+        module.local.set(trimStartIdx, module.i32.const(0)),
+        module.local.set(for_i_Idx, module.i32.const(0)),
+    ]);
+    const loop_stmts_1 = module.block(null, [
+        module.if(
+            module.i32.ne(
+                binaryenCAPI._BinaryenArrayGet(
+                    module.ptr,
+                    thisStrCharArray,
+                    module.local.get(for_i_Idx, binaryen.i32),
+                    charArrayTypeInfo.typeRef,
+                    false,
+                ),
+                module.i32.const(32),
+            ),
+            module.block(null, [
+                module.local.set(
+                    trimStartIdx,
+                    module.local.get(for_i_Idx, binaryen.i32),
+                ),
+                /**jump out the loop */
+                module.br(block_label_1),
+            ]),
+        ),
+        /**inc i */
+        module.local.set(
+            for_i_Idx,
+            module.i32.add(
+                module.local.get(for_i_Idx, binaryen.i32),
+                module.i32.const(1),
+            ),
+        ),
+        /**jump out the loop */
+        module.br(
+            block_label_1,
+            module.i32.ge_s(
+                module.local.get(for_i_Idx, binaryen.i32),
+                thisStrLen,
+            ),
+        ),
+        /**jump to loop */
+        module.br(loop_label_1),
+    ]);
+    const loop_1 = module.loop(loop_label_1, loop_stmts_1);
+    const stmts_block_1 = module.block(block_label_1, [loop_init_1, loop_1]);
+    statementArray.push(stmts_block_1);
+
+    /**loop2 */
+    const block_label_2 = 'block_label_2';
+    const loop_label_2 = 'loop_label_2';
+
+    const loop_init_2 = module.block(null, [
+        module.local.set(
+            trimEndIdx,
+            module.i32.sub(thisStrLen, module.i32.const(1)),
+        ),
+        module.local.set(
+            for_i_Idx,
+            module.i32.sub(thisStrLen, module.i32.const(1)),
+        ),
+    ]);
+    const loop_stmts_2 = module.block(null, [
+        module.if(
+            module.i32.ne(
+                binaryenCAPI._BinaryenArrayGet(
+                    module.ptr,
+                    thisStrCharArray,
+                    module.local.get(for_i_Idx, binaryen.i32),
+                    charArrayTypeInfo.typeRef,
+                    false,
+                ),
+                module.i32.const(32),
+            ),
+            module.block(null, [
+                module.local.set(
+                    trimEndIdx,
+                    module.local.get(for_i_Idx, binaryen.i32),
+                ),
+                /**jump out the loop */
+                module.br(block_label_2),
+            ]),
+        ),
+        /**dec i */
+        module.local.set(
+            for_i_Idx,
+            module.i32.sub(
+                module.local.get(for_i_Idx, binaryen.i32),
+                module.i32.const(1),
+            ),
+        ),
+        /**jump out the loop */
+        module.br(
+            block_label_2,
+            module.i32.le_s(
+                module.local.get(for_i_Idx, binaryen.i32),
+                module.i32.const(-1),
+            ),
+        ),
+        /**jump to loop */
+        module.br(loop_label_2),
+    ]);
+    const loop_2 = module.loop(loop_label_2, loop_stmts_2);
+    const stmts_block_2 = module.block(block_label_2, [loop_init_2, loop_2]);
+    statementArray.push(stmts_block_2);
+
+    /**copy the array between trimStart and trimEnd */
+    const newStrLen = module.i32.add(
+        module.i32.sub(
+            module.local.get(trimEndIdx, binaryen.i32),
+            module.local.get(trimStartIdx, binaryen.i32),
+        ),
+        module.i32.const(1),
+    );
+
+    statementArray.push(
+        module.local.set(
+            newStrCharArrayIdx,
+            binaryenCAPI._BinaryenArrayNew(
+                module.ptr,
+                charArrayTypeInfo.heapTypeRef,
+                newStrLen,
+                module.i32.const(0),
+            ),
+        ),
+    );
+    statementArray.push(
+        binaryenCAPI._BinaryenArrayCopy(
+            module.ptr,
+            module.local.get(newStrCharArrayIdx, charArrayTypeInfo.typeRef),
+            module.i32.const(0),
+            thisStrCharArray,
+            module.local.get(trimStartIdx, binaryen.i32),
+            newStrLen,
+        ),
+    );
+    statementArray.push(
+        module.return(
+            binaryenCAPI._BinaryenStructNew(
+                module.ptr,
+                arrayToPtr([
+                    module.i32.const(0),
+                    module.local.get(
+                        newStrCharArrayIdx,
+                        charArrayTypeInfo.typeRef,
+                    ),
+                ]).ptr,
+                2,
+                stringTypeInfo.heapTypeRef,
+            ),
+        ),
+    );
+    const trimBlock = module.block('string_trim', statementArray);
+    return trimBlock;
+}
+
 function Array_isArray(module: binaryen.Module) {
     const param = module.local.get(1, binaryen.anyref);
     const statementArray: binaryen.ExpressionRef[] = [];
@@ -1542,6 +2075,57 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         binaryen.f64,
         [binaryen.i32, binaryen.f64],
         string_search(module),
+    );
+    module.addFunction(
+        getFuncName(
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.stringcharAtFuncName,
+        ),
+        binaryen.createType([
+            emptyStructType.typeRef,
+            stringTypeInfo.typeRef,
+            binaryen.f64,
+        ]),
+        stringTypeInfo.typeRef,
+        [charArrayTypeInfo.typeRef],
+        string_charAt(module),
+    );
+    module.addFunction(
+        getFuncName(
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.stringtoLowerCaseFuncName,
+        ),
+        binaryen.createType([emptyStructType.typeRef, stringTypeInfo.typeRef]),
+        stringTypeInfo.typeRef,
+        [binaryen.i32, charArrayTypeInfo.typeRef, binaryen.i32, binaryen.i32],
+        string_toLowerCase(module),
+    );
+    module.addFunction(
+        getFuncName(
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.stringtoUpperCaseFuncName,
+        ),
+        binaryen.createType([emptyStructType.typeRef, stringTypeInfo.typeRef]),
+        stringTypeInfo.typeRef,
+        [binaryen.i32, charArrayTypeInfo.typeRef, binaryen.i32, binaryen.i32],
+        string_toUpperCase(module),
+    );
+    module.addFunction(
+        getFuncName(
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.stringtrimFuncName,
+        ),
+        binaryen.createType([emptyStructType.typeRef, stringTypeInfo.typeRef]),
+        stringTypeInfo.typeRef,
+        [
+            binaryen.i32,
+            charArrayTypeInfo.typeRef,
+            binaryen.i32,
+            binaryen.i32,
+            binaryen.i32,
+            binaryen.i32,
+        ],
+        string_trim(module),
     );
     /** TODO: */
 
