@@ -2832,6 +2832,25 @@ export class WASMExpressionGen extends WASMExpressionBase {
             binaryen.f64,
         );
 
+        if (wasmValue.tsType.typeKind == TypeKind.STRING && !byRef) {
+            const index_charAt = this.convertTypeToF64(index, binaryen.i32);
+            const res = module.call(
+                getFuncName(
+                    BuiltinNames.builtinModuleName,
+                    BuiltinNames.stringcharAtFuncName,
+                ),
+                [
+                    binaryenCAPI._BinaryenRefNull(
+                        this.module.ptr,
+                        emptyStructType.typeRef,
+                    ),
+                    arrayStructRef,
+                    index_charAt,
+                ],
+                stringTypeInfo.typeRef,
+            );
+            return res;
+        }
         if (arrayType instanceof TSArray) {
             const elementType = arrayType.elementType;
             const elemWasmType = this.wasmType.getWASMType(elementType);

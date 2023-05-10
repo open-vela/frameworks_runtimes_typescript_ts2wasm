@@ -707,6 +707,31 @@
                 "name": "stringSearch",
                 "args": [],
                 "result": "0 \n7 \n-1 \n0 \n0:f64"
+            },
+            {
+                "name": "stringcharAt",
+                "args": [],
+                "result": "h"
+            },
+            {
+                "name": "stringtoLowerCase",
+                "args": [],
+                "result": "hello"
+            },
+            {
+                "name": "stringtoUpperCase",
+                "args": [],
+                "result": "HELLO"
+            },
+            {
+                "name": "stringtrim",
+                "args": [],
+                "result": "hello"
+            },
+            {
+                "name": "stringreadonly",
+                "args": [],
+                "result": "e"
             }
         ]
     },

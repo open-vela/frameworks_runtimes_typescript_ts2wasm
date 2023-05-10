@@ -81,6 +81,10 @@ export namespace BuiltinNames {
     export const stringIndexOfInternalFuncName = 'String|indexOfInternal';
     export const stringMatchFuncName = 'String|match';
     export const stringSearchFuncName = 'String|search';
+    export const stringcharAtFuncName = 'String|charAt';
+    export const stringtoLowerCaseFuncName = 'String|toLowerCase';
+    export const stringtoUpperCaseFuncName = 'String|toUpperCase';
+    export const stringtrimFuncName = 'String|trim';
 
     export interface GenericFuncName {
         generic: string;
