@@ -122,6 +122,10 @@ interface String {
     indexOf(str: string): number;
     match(pattern: string): string[];
     search(pattern: string): number;
+    charAt(index: number): string;
+    toLowerCase(): string;
+    toUpperCase(): string;
+    trim(): string;
 }
 
 interface StringConstructor {

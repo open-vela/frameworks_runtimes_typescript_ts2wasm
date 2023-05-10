@@ -101,3 +101,33 @@ export function stringSearch(){
     console.log(idx);               // 0
     return idx;
 }
+
+export function stringcharAt() {
+    const a: string = 'hello world';
+    let b: string = a.charAt(0);
+    console.log(b);
+}
+
+export function stringtoLowerCase() {
+    const a: string = 'HELLO';
+    let b: string = a.toLowerCase();
+    console.log(b);
+}
+
+export function stringtoUpperCase() {
+    const a: string = 'Hello';
+    let b: string = a.toUpperCase();
+    console.log(b);
+}
+
+export function stringtrim() {
+    const a: string = '  hello  ';
+    let b: string = a.trim();
+    console.log(b);
+}
+
+export function stringreadonly() {
+    const a: string = 'hello';
+    let b: string = a[1];
+    console.log(b);
+}
