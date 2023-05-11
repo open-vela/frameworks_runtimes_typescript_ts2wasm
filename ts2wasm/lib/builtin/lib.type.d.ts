@@ -42,7 +42,7 @@ interface Array<T> {
     reverse(): T[];
     shift(): T;
     slice(start?: number, end?: number): T[];
-    sort(compareFn?: (a: T, b: T) => number): T[];
+    sort(compareFn: (a: T, b: T) => number): T[]; // change compareFn to required parameter
     splice(start: number, deleteCount?: number, ...items: T[]): T[];
     unshift(...items: T[]): number;
     indexOf(searchElement: T, fromIndex?: number): number;
@@ -51,7 +51,7 @@ interface Array<T> {
     every(predicate: (value: T, index: number, array: T[]) => boolean): boolean;
     some(predicate: (value: T, index: number, array: T[]) => boolean): boolean;
 
-    forEach(callbackfn: (value: T, index: number, array: T[]) => void): void;
+    forEach(callbackfn: (value: T, index: number, array: T[]) => void): any;
 
     map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[];
 

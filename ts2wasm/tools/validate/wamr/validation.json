@@ -511,6 +511,61 @@
         ]
     },
     {
+        "module": "array_fill",
+        "entries": [
+            {
+                "name": "array_fill_number",
+                "args": [],
+                "result": "0 : 123 \n1 : 234 \n2 : 0 \n3 : 0 \n4 : 0 \n5 : 0 \n6 : 0 \n0 : 123 \n1 : 234 \n2 : 0 \n3 : 0 \n4 : 0 \n5 : 0 \n6 : 0"
+            },
+            {
+                "name": "array_fill_string",
+                "args": [],
+                "result": "0 : hello \n1 : hello \n2 : hello \n3 : hello \n4 : hello \n5 : hello \n6 : hello \n0 : hello \n1 : hello \n2 : hello \n3 : hello \n4 : hello \n5 : hello \n6 : hello"
+            }
+        ]
+    },
+    {
+        "module": "array_foreach",
+        "entries": [
+            {
+                "name": "array_foreach_number",
+                "args": [],
+                "result": "0 : 123 \n1 : 234 \n2 : 456 \n3 : 4 \n4 : 453 \n5 : 0 \n6 : 456 \nundefined"
+            },
+            {
+                "name": "array_foreach_string",
+                "args": [],
+                "result": "0 : s123 \n1 : s234 \n2 : s456 \n3 : s4 \n4 : s453 \n5 : s0 \n6 : s456 \nundefined"
+            }
+        ]
+    },
+    {
+        "module": "array_slice",
+        "entries": [
+            {
+                "name": "array_slice",
+                "args": [],
+                "result": "0 : 0 \n1 : 456"
+            },
+            {
+                "name": "array_slice_empty",
+                "args": [],
+                "result": ""
+            }
+        ]
+    },
+    {
+        "module": "array_sort",
+        "entries": [
+            {
+                "name": "array_sort_number",
+                "args": [],
+                "result": "0 : 0 \n1 : 4 \n2 : 6 \n3 : 12 \n4 : 23 \n5 : 45 \n6 : 56 \n0 : 0 \n1 : 4 \n2 : 6 \n3 : 12 \n4 : 23 \n5 : 45 \n6 : 56"
+            }
+        ]
+    },
+    {
         "module": "block_inner_block",
         "entries": [
             {
