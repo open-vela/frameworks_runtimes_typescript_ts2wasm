@@ -2246,7 +2246,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         BuiltinNames.arrayForEachFuncNames,
         true,
         [binaryen.anyref, binaryen.anyref],
-        binaryen.none,
+        binaryen.anyref,
     );
     addArrayMethod(
         module,
