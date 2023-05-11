@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
+#include "dyntype.h"
+#include "quickjs.h"
 #include "gc_export.h"
 #include "bh_platform.h"
 #include "./utils.h"
@@ -119,18 +121,142 @@ void *
 array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                     void *start_obj, void *end_obj)
 {
-    wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
-                               "not implemented");
-    return NULL;
+    uint32 len, new_len;
+    wasm_struct_obj_t new_arr_struct = NULL;
+    wasm_array_obj_t new_arr, arr_ref = get_array_ref(obj);
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
+    wasm_struct_type_t struct_type;
+    wasm_array_type_t arr_type;
+    wasm_value_t init = {0}, tmp_val = {0};
+    struct_type =
+        (wasm_struct_type_t)wasm_obj_get_defined_type((wasm_obj_t)obj);
+    arr_type =
+        (wasm_array_type_t)wasm_obj_get_defined_type((wasm_obj_t)arr_ref);
+
+
+    len = get_array_length(obj);
+    if (len == 0) {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
+                                   "array is empty!");
+        return NULL;
+    }
+
+    const JSValue* start_idx = wasm_anyref_obj_get_value(start_obj);
+    const JSValue* end_idx = wasm_anyref_obj_get_value(end_obj);
+    int iter = JS_VALUE_GET_INT(*start_idx);
+    int end = JS_VALUE_GET_INT(*end_idx);
+    iter = iter < 0 ? 0 : iter;
+    end = end > len ? len : end;
+    new_len = end - iter;
+    new_arr =
+        wasm_array_obj_new_with_type(exec_env, arr_type, new_len, &init);
+    if (!new_arr) {
+        wasm_runtime_set_exception((wasm_module_inst_t)module_inst,
+                                   "alloc memory failed");
+        goto end;
+    }
+
+    for (int i = 0;iter != end; iter++, i++) {
+        wasm_array_obj_get_elem(arr_ref, iter, false, &tmp_val);
+        wasm_array_obj_set_elem(new_arr, i, &tmp_val);
+    }
+
+    new_arr_struct = wasm_struct_obj_new_with_type(exec_env, struct_type);
+
+    if (!new_arr_struct) {
+        wasm_runtime_set_exception((wasm_module_inst_t)module_inst,
+                                   "alloc memory failed");
+        goto end;
+    }
+
+    tmp_val.gc_obj = (wasm_obj_t)new_arr;
+    wasm_struct_obj_set_field(new_arr_struct, 0, &tmp_val);
+    tmp_val.u32 = new_len;
+    wasm_struct_obj_set_field(new_arr_struct, 1, &tmp_val);
+end:
+    return new_arr_struct;
 }
+
+void quick_sort(wasm_exec_env_t exec_env, wasm_array_obj_t arr, int l, int r, 
+        wasm_func_obj_t closure_func, wasm_value_t context) {
+    
+    if (l >= r) return;
+    int i = l - 1, j = r + 1, pivot_idx = (l + r) >> 1;
+    double cmp_res;
+    wasm_value_t pivot_elem, elem, tmp_elem, left_elem, right_elem;
+
+    wasm_array_obj_get_elem(arr, pivot_idx, false, &pivot_elem);
+    uint32 argv[6], argc = 6;
+    /* argc should be 6 means 3 args*/
+    uint bsize = sizeof(argv); // actual byte size of argv
+    while(i < j) {
+        do {
+            i++;
+            /* arg0: context */
+            b_memcpy_s(argv, bsize, &(context.gc_obj), sizeof(void *));
+            /* arg1: pivot elem*/
+            b_memcpy_s(argv + 2, bsize - 2 * sizeof(uint32),
+                       &pivot_elem.gc_obj,
+                       sizeof(void *));
+            /* arg2: elem*/
+            wasm_array_obj_get_elem(arr, i, false, &elem);
+            b_memcpy_s(argv + 4, bsize - 4 * sizeof(uint32),
+                       &elem.gc_obj,
+                       sizeof(void *));
+            wasm_runtime_call_func_ref(exec_env,
+                    closure_func, argc, argv);
+            cmp_res = *(double*)argv;
+
+            // printf("comp left %f\n", cmp_res);
+        } while(cmp_res > 0.0);
+
+        do {
+            j--;
+            /* arg0: context */
+            b_memcpy_s(argv, bsize, &(context.gc_obj), sizeof(void *));
+            /* arg1: pivot elem*/
+            b_memcpy_s(argv + 2, bsize - 2 * sizeof(uint32),
+                       &pivot_elem.gc_obj,
+                       sizeof(void *));
+            /* arg2: elem*/
+            wasm_array_obj_get_elem(arr, j, false, &elem);
+            b_memcpy_s(argv + 4, bsize - 4 * sizeof(uint32),
+                       &elem.gc_obj,
+                       sizeof(void *));
+            wasm_runtime_call_func_ref(exec_env,
+                        closure_func, argc, argv);
+
+            // printf("comp right %f\n", cmp_res);
+            cmp_res = *(double*)argv;
+        } while(cmp_res < 0.0);
+
+        if (i < j) {
+            wasm_array_obj_get_elem(arr, i, false, &left_elem);
+            wasm_array_obj_get_elem(arr, j, false, &right_elem);
+            tmp_elem = left_elem;
+            wasm_array_obj_set_elem(arr, i, &right_elem);
+            wasm_array_obj_set_elem(arr, j, &tmp_elem);
+        }
+    }
+
+    quick_sort(exec_env, arr, l, j, closure_func, context);
+    quick_sort(exec_env, arr, j + 1, r, closure_func, context);
+}
+
 
 void *
 array_sort_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                    void *closure)
 {
-    wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
-                               "not implemented");
-    return NULL;
+    uint32 len;
+    wasm_value_t context = {0}, func_obj = {0};
+    wasm_array_obj_t arr_ref = get_array_ref(obj);
+    len = get_array_length(obj);
+    /* get closure context and func ref */
+    wasm_struct_obj_get_field(closure, 0, false, &context);
+    wasm_struct_obj_get_field(closure, 1, false, &func_obj);
+    quick_sort(exec_env, arr_ref, 0, len - 1, (wasm_func_obj_t)func_obj.gc_obj, context);
+    return obj;
 }
 
 void *
@@ -203,12 +329,46 @@ array_some_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     return 0;
 }
 
-void
+void *
 array_forEach_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                       void *closure)
 {
-    wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
-                               "not implemented");
+    uint32 i, len;
+    wasm_array_obj_t arr_ref = get_array_ref(obj);
+
+    len = get_array_length(obj);
+
+    /* invoke callback function */
+    for (i = 0; i < len; i++) {
+        uint32 argv[10];
+        uint32 argc = 8;
+        WASMValue element = { 0 };
+        WASMValue context = { 0 }, func_obj = { 0 };
+
+        /* get closure context and func ref */
+        wasm_struct_obj_get_field(closure, 0, false, &context);
+        wasm_struct_obj_get_field(closure, 1, false, &func_obj);
+
+        wasm_array_obj_get_elem(arr_ref, i, false, &element);
+
+        /* prepare args to callback */
+        /* arg0: context */
+        b_memcpy_s(argv, sizeof(argv), &context.gc_obj, sizeof(void *));
+        /* arg1: element */
+        b_memcpy_s(argv + 2, sizeof(argv) - 2 * sizeof(uint32), &element.gc_obj,
+                   sizeof(void *));
+        /* arg2: index */
+        *(double *)(argv + 4) = i;
+        /* arg3: arr */
+        b_memcpy_s(argv + 6, sizeof(argv) - 6 * sizeof(uint32), &obj,
+                   sizeof(void *));
+
+        wasm_runtime_call_func_ref(exec_env, (wasm_func_obj_t)func_obj.gc_obj,
+                                   argc, argv);
+    }
+
+    return wasm_anyref_obj_new(exec_env,
+                               dyntype_new_undefined(dyntype_get_context()));
 }
 
 void *
@@ -325,8 +485,8 @@ array_filter_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
         wasm_runtime_set_exception(module_inst, "alloc memory failed");
         return NULL;
     }
-    memset(include_refs, 0, sizeof(wasm_obj_t) * len);
 
+    memset(include_refs, 0, sizeof(wasm_obj_t) * len);
     /* invoke callback function */
     for (i = 0; i < len; i++) {
         uint32 argv[10];
@@ -454,13 +614,28 @@ array_findIndex_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
 
 #define ARRAY_FILL_API(elem_type, wasm_type, wasm_field)                      \
     void *array_fill_##wasm_type(wasm_exec_env_t exec_env, void *ctx,         \
-                                 void *obj, elem_type value, void *start_obj, \
+                                 void *obj, elem_type fill_value, void *start_obj, \
                                  void *end_obj)                               \
-    {                                                                         \
-        wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),    \
-                                   "not implemented");                        \
-                                                                              \
-        return NULL;                                                          \
+    {                                                                          \
+        uint32 len;                                                            \
+        wasm_array_obj_t arr_ref = get_array_ref(obj);                         \
+        wasm_value_t value = { 0 };                                            \
+        len = get_array_length(obj);                                           \
+        if (len == 0) {                                                        \
+            wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env), \
+                                       "array is empty");                      \
+            return 0;                                                          \
+        }                                                                      \
+        value.wasm_field = fill_value;                                         \
+        const JSValue* start_idx = wasm_anyref_obj_get_value(start_obj);       \
+        const JSValue* end_idx = wasm_anyref_obj_get_value(end_obj);           \
+        int iter = JS_VALUE_GET_INT(*start_idx), end = JS_VALUE_GET_INT(*end_idx); \
+        iter = iter < 0 ? 0 : iter;                                            \
+        end = end > len ? len : end;                                           \
+        for (; iter != end; iter++) {                                          \
+            wasm_array_obj_set_elem(arr_ref, iter, &value);                    \
+        }                                                                      \
+        return obj;                                                           \
     }
 
 ARRAY_FILL_API(double, f64, f64)
@@ -529,7 +704,7 @@ static NativeSymbol native_symbols[] = {
     REG_NATIVE_FUNC(array_lastIndexOf_anyref, "(rrrr)F"),
     REG_NATIVE_FUNC(array_every_generic, "(rrr)i"),
     REG_NATIVE_FUNC(array_some_generic, "(rrr)i"),
-    REG_NATIVE_FUNC(array_forEach_generic, "(rrr)"),
+    REG_NATIVE_FUNC(array_forEach_generic, "(rrr)r"),
     REG_NATIVE_FUNC(array_map_generic, "(rrr)r"),
     REG_NATIVE_FUNC(array_filter_generic, "(rrr)r"),
     REG_NATIVE_FUNC(array_reduce_f64, "(rrrF)F"),
