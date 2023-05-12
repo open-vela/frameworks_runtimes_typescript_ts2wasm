@@ -86,7 +86,7 @@ class A3 {
 
 export function anyType() {
     const a: A3 = new A3(10);
-    return a.a;
+    return a.a as number;
 }
 
 class Base {
