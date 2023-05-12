@@ -17,23 +17,23 @@
     (dyn_value_t) wasm_anyref_obj_get_value((wasm_anyref_obj_t)anyref)
 
 /******************* Initialization and destroy *******************/
-dyn_ctx_t
+void *
 dyntype_context_init_wrapper(wasm_exec_env_t exec_env)
 {
-    return dyntype_context_init();
+    BOX_ANYREF(dyntype_context_init());
 }
 
-dyn_ctx_t
+void *
 dyntype_context_init_with_opt_wrapper(wasm_exec_env_t exec_env,
                                       dyn_options_t *options)
 {
-    return dyntype_context_init_with_opt(options);
+    BOX_ANYREF(dyntype_context_init_with_opt(options));
 }
 
 void
 dyntype_context_destroy_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    return dyntype_context_destroy(ctx);
+    return dyntype_context_destroy(UNBOX_ANYREF(ctx));
 }
 
 /******************* Field access *******************/
@@ -41,13 +41,13 @@ dyn_value_t
 dyntype_new_number_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            double value)
 {
-    BOX_ANYREF(dyntype_new_number(ctx, value));
+    BOX_ANYREF(dyntype_new_number(UNBOX_ANYREF(ctx), value));
 }
 
 dyn_value_t
 dyntype_new_boolean_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, bool value)
 {
-    BOX_ANYREF(dyntype_new_boolean(ctx, value));
+    BOX_ANYREF(dyntype_new_boolean(UNBOX_ANYREF(ctx), value));
 }
 
 dyn_value_t
@@ -58,38 +58,38 @@ dyntype_new_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     wasm_struct_obj_get_field(str_obj, 1, false, &arr_obj);
     const char *str = (char *)wasm_array_obj_first_elem_addr(
         (wasm_array_obj_t)arr_obj.gc_obj);
-    BOX_ANYREF(dyntype_new_string(ctx, str));
+    BOX_ANYREF(dyntype_new_string(UNBOX_ANYREF(ctx), str));
 }
 
 dyn_value_t
 dyntype_new_undefined_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    BOX_ANYREF(dyntype_new_undefined(ctx));
+    BOX_ANYREF(dyntype_new_undefined(UNBOX_ANYREF(ctx)));
 }
 
 dyn_value_t
 dyntype_new_null_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    BOX_ANYREF(dyntype_new_null(ctx));
+    BOX_ANYREF(dyntype_new_null(UNBOX_ANYREF(ctx)));
 }
 
 dyn_value_t
 dyntype_new_object_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    BOX_ANYREF(dyntype_new_object(ctx));
+    BOX_ANYREF(dyntype_new_object(UNBOX_ANYREF(ctx)));
 }
 
 dyn_value_t
 dyntype_new_array_with_length_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                       int len)
 {
-    BOX_ANYREF(dyntype_new_array_with_length(ctx, len));
+    BOX_ANYREF(dyntype_new_array_with_length(UNBOX_ANYREF(ctx), len));
 }
 
 dyn_value_t
 dyntype_new_array_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    BOX_ANYREF(dyntype_new_array(ctx));
+    BOX_ANYREF(dyntype_new_array(UNBOX_ANYREF(ctx)));
 }
 
 void
@@ -115,7 +115,7 @@ dyn_value_t
 dyntype_new_extref_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, void *ptr,
                            external_ref_tag tag)
 {
-    BOX_ANYREF(dyntype_new_extref(ctx, ptr, tag));
+    BOX_ANYREF(dyntype_new_extref(UNBOX_ANYREF(ctx), ptr, tag));
 }
 
 int
@@ -123,7 +123,7 @@ dyntype_set_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                              dyn_value_t obj, const char *prop,
                              dyn_value_t value)
 {
-    return dyntype_set_property(ctx, UNBOX_ANYREF(obj), prop,
+    return dyntype_set_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop,
                                 UNBOX_ANYREF(value));
 }
 
@@ -132,7 +132,7 @@ dyntype_define_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                 dyn_value_t obj, const char *prop,
                                 dyn_value_t desc)
 {
-    return dyntype_define_property(ctx, UNBOX_ANYREF(obj), prop,
+    return dyntype_define_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop,
                                    UNBOX_ANYREF(desc));
 }
 
@@ -140,21 +140,22 @@ dyn_value_t
 dyntype_get_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                              dyn_value_t obj, const char *prop)
 {
-    BOX_ANYREF(dyntype_get_property(ctx, UNBOX_ANYREF(obj), prop));
+    BOX_ANYREF(
+        dyntype_get_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop));
 }
 
 int
 dyntype_has_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                              dyn_value_t obj, const char *prop)
 {
-    return dyntype_has_property(ctx, UNBOX_ANYREF(obj), prop);
+    return dyntype_has_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop);
 }
 
 int
 dyntype_delete_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                 dyn_value_t obj, const char *prop)
 {
-    return dyntype_delete_property(ctx, UNBOX_ANYREF(obj), prop);
+    return dyntype_delete_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop);
 }
 
 /******************* Runtime type checking *******************/
@@ -162,21 +163,21 @@ bool
 dyntype_is_undefined_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                              dyn_value_t obj)
 {
-    return dyntype_is_undefined(ctx, UNBOX_ANYREF(obj));
+    return dyntype_is_undefined(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 bool
 dyntype_is_null_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                         dyn_value_t obj)
 {
-    return dyntype_is_null(ctx, UNBOX_ANYREF(obj));
+    return dyntype_is_null(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 bool
 dyntype_is_bool_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                         dyn_value_t obj)
 {
-    return dyntype_is_bool(ctx, UNBOX_ANYREF(obj));
+    return dyntype_is_bool(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 int
@@ -185,7 +186,7 @@ dyntype_to_bool_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 {
     bool value = 0, ret;
 
-    ret = dyntype_to_bool(ctx, UNBOX_ANYREF(bool_obj), &value);
+    ret = dyntype_to_bool(UNBOX_ANYREF(ctx), UNBOX_ANYREF(bool_obj), &value);
     if (ret != DYNTYPE_SUCCESS) {
         wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
                                    "libdyntype: failed to convert to bool");
@@ -198,7 +199,7 @@ bool
 dyntype_is_number_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                           dyn_value_t obj)
 {
-    return dyntype_is_number(ctx, UNBOX_ANYREF(obj));
+    return dyntype_is_number(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 int
@@ -208,7 +209,7 @@ dyntype_to_number_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     double value = 0;
     bool ret;
 
-    ret = dyntype_to_number(ctx, UNBOX_ANYREF(obj), &value);
+    ret = dyntype_to_number(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), &value);
     if (ret != DYNTYPE_SUCCESS) {
         wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
                                    "libdyntype: failed to convert to number");
@@ -221,7 +222,7 @@ bool
 dyntype_is_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                           dyn_value_t obj)
 {
-    return dyntype_is_string(ctx, UNBOX_ANYREF(obj));
+    return dyntype_is_string(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 char *
@@ -237,28 +238,28 @@ dyntype_to_cstring_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 void
 dyntype_free_cstring_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, char *str)
 {
-    return dyntype_free_cstring(ctx, str);
+    return dyntype_free_cstring(UNBOX_ANYREF(ctx), str);
 }
 
 bool
 dyntype_is_object_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                           dyn_value_t obj)
 {
-    return dyntype_is_object(ctx, UNBOX_ANYREF(obj));
+    return dyntype_is_object(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 bool
 dyntype_is_array_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                          dyn_value_t obj)
 {
-    return dyntype_is_array(ctx, UNBOX_ANYREF(obj));
+    return dyntype_is_array(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 bool
 dyntype_is_extref_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                           dyn_value_t obj)
 {
-    return dyntype_is_extref(ctx, UNBOX_ANYREF(obj));
+    return dyntype_is_extref(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 void *
@@ -268,7 +269,7 @@ dyntype_to_extref_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     void *value = NULL;
     bool ret;
 
-    ret = dyntype_to_extref(ctx, UNBOX_ANYREF(obj), &value);
+    ret = dyntype_to_extref(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), &value);
     if (ret != DYNTYPE_SUCCESS) {
         wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
                                    "libdyntype: failed to convert to extref");
@@ -281,14 +282,15 @@ dyntype_to_extref_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 dyn_type_t
 dyntype_typeof_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, dyn_value_t obj)
 {
-    return dyntype_typeof(ctx, UNBOX_ANYREF(obj));
+    return dyntype_typeof(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 bool
 dyntype_type_eq_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                         dyn_value_t lhs, dyn_value_t rhs)
 {
-    return dyntype_type_eq(ctx, UNBOX_ANYREF(lhs), UNBOX_ANYREF(rhs));
+    return dyntype_type_eq(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs),
+                           UNBOX_ANYREF(rhs));
 }
 
 /******************* Subtyping *******************/
@@ -296,35 +298,38 @@ dyn_value_t
 dyntype_new_object_with_proto_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                       const dyn_value_t proto_obj)
 {
-    BOX_ANYREF(dyntype_new_object_with_proto(ctx, UNBOX_ANYREF(proto_obj)));
+    BOX_ANYREF(dyntype_new_object_with_proto(UNBOX_ANYREF(ctx),
+                                             UNBOX_ANYREF(proto_obj)));
 }
 
 int
 dyntype_set_prototype_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                               dyn_value_t obj, const dyn_value_t proto_obj)
 {
-    return dyntype_set_prototype(ctx, UNBOX_ANYREF(obj), UNBOX_ANYREF(proto_obj));
+    return dyntype_set_prototype(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj),
+                                 UNBOX_ANYREF(proto_obj));
 }
 
 const dyn_value_t
 dyntype_get_prototype_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                               dyn_value_t obj)
 {
-    BOX_ANYREF(dyntype_get_prototype(ctx, UNBOX_ANYREF(obj)));
+    BOX_ANYREF(dyntype_get_prototype(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj)));
 }
 
 dyn_value_t
 dyntype_get_own_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                  dyn_value_t obj, const char *prop)
 {
-    BOX_ANYREF(dyntype_get_own_property(ctx, UNBOX_ANYREF(obj), prop));
+    BOX_ANYREF(
+        dyntype_get_own_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop));
 }
 
 bool
 dyntype_instanceof_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            const dyn_value_t src_obj, const dyn_value_t dst_obj)
 {
-    return dyntype_instanceof(ctx, UNBOX_ANYREF(src_obj),
+    return dyntype_instanceof(UNBOX_ANYREF(ctx), UNBOX_ANYREF(src_obj),
                               UNBOX_ANYREF(dst_obj));
 }
 
@@ -333,14 +338,15 @@ void
 dyntype_dump_value_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            dyn_value_t obj)
 {
-    return dyntype_dump_value(ctx, UNBOX_ANYREF(obj));
+    return dyntype_dump_value(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 int
 dyntype_dump_value_buffer_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                   dyn_value_t obj, void *buffer, int len)
 {
-    return dyntype_dump_value_buffer(ctx, UNBOX_ANYREF(obj), buffer, len);
+    return dyntype_dump_value_buffer(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj),
+                                     buffer, len);
 }
 
 /******************* Garbage collection *******************/
@@ -348,20 +354,20 @@ dyntype_dump_value_buffer_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 void
 dyntype_hold_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, dyn_value_t obj)
 {
-    return dyntype_hold(ctx, UNBOX_ANYREF(obj));
+    return dyntype_hold(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 void
 dyntype_release_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                         dyn_value_t obj)
 {
-    return dyntype_release(ctx, UNBOX_ANYREF(obj));
+    return dyntype_release(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
 void
 dyntype_collect_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    return dyntype_collect(ctx);
+    return dyntype_collect(UNBOX_ANYREF(ctx));
 }
 
 /* clang-format off */

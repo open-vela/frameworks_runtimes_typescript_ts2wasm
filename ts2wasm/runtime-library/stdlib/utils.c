@@ -5,6 +5,7 @@
 
 #include "gc_export.h"
 #include "bh_platform.h"
+#include "wasm.h"
 
 /*
     utilities for array object
@@ -42,6 +43,14 @@ get_array_capacity(wasm_struct_obj_t obj)
     wasm_array_obj_t array_ref = get_array_ref(obj);
 
     return wasm_array_obj_length(array_ref);
+}
+
+uint32_t
+get_array_element_size(wasm_array_obj_t obj)
+{
+    wasm_array_type_t arr_type =
+        (wasm_array_type_t)wasm_obj_get_defined_type((wasm_obj_t)obj);
+    return wasm_value_type_size(arr_type->elem_type);
 }
 
 int32_t
