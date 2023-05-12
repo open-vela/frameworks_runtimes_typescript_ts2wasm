@@ -15,6 +15,9 @@ get_array_ref(wasm_struct_obj_t obj);
 int
 get_array_capacity(wasm_struct_obj_t obj);
 
+uint32_t
+get_array_element_size(wasm_array_obj_t obj);
+
 /* Type reflection */
 int32_t
 get_array_type_by_element(wasm_module_t wasm_module,
