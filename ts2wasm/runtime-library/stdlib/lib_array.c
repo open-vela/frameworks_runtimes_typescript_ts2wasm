@@ -349,6 +349,8 @@ array_forEach_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
         uint32 argc = 8;
         uint32 occupied_slots = 0;
 
+        /* Must get arr ref again since it may be changed inside callback */
+        arr_ref = get_array_ref(obj);
         wasm_array_obj_get_elem(arr_ref, i, false, &element);
 
         /* prepare args to callback */
@@ -434,6 +436,8 @@ array_map_generic(wasm_exec_env_t exec_env, void *ctx, void *obj, void *closure)
         uint32 argc = 8;
         uint32 occupied_slots = 0;
 
+        /* Must get arr ref again since it may be changed inside callback */
+        arr_ref = get_array_ref(obj);
         wasm_array_obj_get_elem(arr_ref, i, false, &element);
 
         /* prepare args to callback */
@@ -517,6 +521,8 @@ array_filter_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
         uint32 argc = 8;
         uint32 occupied_slots = 0;
 
+        /* Must get arr ref again since it may be changed inside callback */
+        arr_ref = get_array_ref(obj);
         wasm_array_obj_get_elem(arr_ref, i, false, &element);
 
         /* prepare args to callback */

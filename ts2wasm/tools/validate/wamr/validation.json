@@ -746,7 +746,7 @@
             {
                 "name": "stringSplit",
                 "args": [],
-                "result": "h \ne \nl \nl \no \n\u0004 \nllo \n\u0004 \nref.struct"
+                "result": "h \ne \nl \nl \no \n \nllo \n \nref.struct"
             },
             {
                 "name": "stringReplace",
@@ -756,7 +756,7 @@
             {
                 "name": "stringMatch",
                 "args": [],
-                "result": "hello \norld \n\u0004 \nref.struct"
+                "result": "hello \norld \n \nref.struct"
             },
             {
                 "name": "stringSearch",

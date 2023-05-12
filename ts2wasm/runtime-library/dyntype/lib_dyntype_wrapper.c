@@ -55,9 +55,16 @@ dyntype_new_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            wasm_struct_obj_t str_obj)
 {
     WASMValue arr_obj = { 0 };
+    uint32_t arr_len = 0;
+    const char *str = "";
     wasm_struct_obj_get_field(str_obj, 1, false, &arr_obj);
-    const char *str = (char *)wasm_array_obj_first_elem_addr(
-        (wasm_array_obj_t)arr_obj.gc_obj);
+    arr_len = wasm_array_obj_length((wasm_array_obj_t)arr_obj.gc_obj);
+
+    if (arr_len != 0) {
+        str = (char *)wasm_array_obj_first_elem_addr(
+            (wasm_array_obj_t)arr_obj.gc_obj);
+    }
+
     BOX_ANYREF(dyntype_new_string(UNBOX_ANYREF(ctx), str));
 }
 
