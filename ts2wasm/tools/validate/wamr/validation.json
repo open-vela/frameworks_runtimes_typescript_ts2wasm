@@ -1973,12 +1973,12 @@
             {
                 "name": "testOptionalMethod",
                 "args": [],
-                "result": "60:f64"
+                "result": "40:f64"
             },
             {
                 "name": "testPartOptionalMethod",
                 "args": [],
-                "result": "60:f64"
+                "result": "40:f64"
             }
         ]
     },

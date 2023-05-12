@@ -1723,12 +1723,12 @@
             {
                 "name": "testOptionalMethod",
                 "args": [],
-                "result": 60
+                "result": 40
             },
             {
                 "name": "testPartOptionalMethod",
                 "args": [],
-                "result": 60
+                "result": 40
             }
         ]
     },
