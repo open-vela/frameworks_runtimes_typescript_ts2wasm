@@ -522,7 +522,7 @@
             {
                 "name": "stringSplit",
                 "args": [],
-                "result": "h \ne \nl \nl \no \n\u0004 \nllo \n\u0004 \nref.array"
+                "result": "h \ne \nl \nl \no \n \nllo \n \nref.array"
             },
             {
                 "name": "stringReplace",
@@ -532,7 +532,7 @@
             {
                 "name": "stringMatch",
                 "args": [],
-                "result": "hello \norld \n\u0004 \nref.array"
+                "result": "hello \norld \n \nref.array"
             },
             {
                 "name": "stringSearch",
