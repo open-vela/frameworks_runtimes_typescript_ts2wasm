@@ -14,3 +14,19 @@ export function objLiteralAndInfc() {
     o = i;
     return o.x;
 }
+
+interface RouteInfo {
+    package: string;
+    path: string;
+    value: number;
+}
+
+const route: RouteInfo = {
+    path: '',
+    package: '',
+    value: 12,
+};
+
+export function infcInitGlobal() {
+    return route.value;
+}

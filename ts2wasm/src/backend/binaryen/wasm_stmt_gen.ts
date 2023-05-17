@@ -499,9 +499,20 @@ export class WASMStatementGen {
                         ),
                     );
                 } else {
-                    const varInitExprRef = wasmExpr.WASMExprGen(
+                    let varInitExprRef = wasmExpr.WASMExprGen(
                         globalVar.initExpression,
                     ).binaryenRef;
+                    if (
+                        globalVar.initExpression.exprType instanceof TSClass &&
+                        globalVar.varType instanceof TSClass
+                    ) {
+                        varInitExprRef =
+                            this.WASMCompiler.wasmExprCompiler.maybeTypeBoxingAndUnboxing(
+                                globalVar.initExpression.exprType,
+                                globalVar.varType,
+                                varInitExprRef,
+                            );
+                    }
                     if (
                         globalVar.varType.kind === TypeKind.NUMBER ||
                         globalVar.varType.isWasmType
