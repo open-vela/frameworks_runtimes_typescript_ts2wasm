@@ -6,13 +6,12 @@
 import ts from 'typescript';
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
-import { FunctionKind, TSFunction, TSClass } from '../../type.js';
+import { FunctionKind, TSClass } from '../../type.js';
 import { builtinTypes, Type, TypeKind } from '../../type.js';
 import { Variable } from '../../variable.js';
 import {
     arrayToPtr,
     emptyStructType,
-    generateArrayStructTypeInfo,
     initStructType,
     Pakced,
 } from './glue/transform.js';
@@ -52,6 +51,8 @@ import { ArgNames, BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { Ts2wasmBackend, ParserContext } from '../index.js';
 import { Logger } from '../../log.js';
 import { callBuiltInAPIs } from './lib/init_builtin_api.js';
+import { Statement } from '../../statement.js';
+import { Expression } from '../../expression.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -241,6 +242,8 @@ export class WASMGen extends Ts2wasmBackend {
     private globalInitArray: Array<binaryen.ExpressionRef> = [];
     private globalInitFuncName = '';
     private wasmStringMap = new Map<string, number>();
+    private debugInfoFileNames = new Map<string, number>();
+    private map: string | null = null;
 
     constructor(parserContext: ParserContext) {
         super(parserContext);
@@ -250,6 +253,7 @@ export class WASMGen extends Ts2wasmBackend {
     }
 
     public codegen(options?: any): void {
+        binaryen.setDebugInfo(options && options.debug ? true : false);
         this.binaryenModule.setFeatures(binaryen.Features.All);
         this.binaryenModule.autoDrop();
         this.WASMGenerate();
@@ -283,7 +287,16 @@ export class WASMGen extends Ts2wasmBackend {
     }
 
     public emitBinary(options?: any): Uint8Array {
-        return this.binaryenModule.emitBinary();
+        let res: Uint8Array = this.binaryenModule.emitBinary();
+        if (!options || !options.sourceMap) {
+            res = this.binaryenModule.emitBinary();
+        } else {
+            const name = `${options.name}.wasm.map`;
+            const binaryInfo = this.binaryenModule.emitBinary(name);
+            res = binaryInfo.binary;
+            this.map = binaryInfo.sourceMap;
+        }
+        return res;
     }
 
     public emitText(options?: any): string {
@@ -291,6 +304,25 @@ export class WASMGen extends Ts2wasmBackend {
             return this.binaryenModule.emitStackIR();
         }
         return this.binaryenModule.emitText();
+    }
+
+    public emitSourceMap(name: string): string {
+        /** generete source map file */
+        if (this.map === null) {
+            return '';
+        }
+        const sourceMapStr = this.map;
+        const content = JSON.parse(sourceMapStr);
+        content.sourceRoot = `./${name}`;
+        const sourceCode: string[] = [];
+        for (const global of this.globalScopes) {
+            if (this.debugInfoFileNames.has(global.srcFilePath)) {
+                sourceCode.push(global.node!.getSourceFile().getFullText());
+            }
+        }
+        content.sourcesContent = sourceCode;
+        this.map = null;
+        return JSON.stringify(content);
     }
 
     public dispose(): void {
@@ -473,20 +505,34 @@ export class WASMGen extends Ts2wasmBackend {
         const wasmTypes = new Array<binaryen.ExpressionRef>();
         this.generateStartFuncVarTypes(globalScope, globalScope, wasmTypes);
         // generate module start function
-        this.module.addFunction(
+        const funcRef = this.module.addFunction(
             globalScope.startFuncName,
             binaryen.none,
             binaryen.none,
             wasmTypes,
             body,
         );
+        const debugMode = this.parserContext.compileArgs[ArgNames.debug];
+        if (debugMode) {
+            this.setDebugLocation(
+                globalScope,
+                funcRef,
+                new Map<string, number>(),
+            );
+        }
     }
 
     generateFuncVarTypes(
         scope: Scope,
         funcScope: FunctionScope,
         varWasmTypes: Array<binaryen.ExpressionRef>,
+        localNameMap: Map<string, number>,
+        localNameIndex: number,
     ) {
+        const name = localNameMap.has('@context')
+            ? `@context|${localNameIndex}`
+            : '@context';
+        localNameMap.set(name, localNameIndex++);
         varWasmTypes.push(
             (<typeInfo>WASMGen.contextOfScope.get(scope)).typeRef,
         );
@@ -494,6 +540,10 @@ export class WASMGen extends Ts2wasmBackend {
 
         /* the first one is context struct, no need to parse */
         for (const variable of remainVars) {
+            const name = localNameMap.has(variable.varName)
+                ? `${variable.varName}|${localNameIndex}`
+                : variable.varName;
+            localNameMap.set(name, localNameIndex++);
             if (variable.varType.kind === TypeKind.FUNCTION) {
                 varWasmTypes.push(
                     this.wasmType.getWASMFuncStructType(variable.varType),
@@ -510,13 +560,23 @@ export class WASMGen extends Ts2wasmBackend {
         scope.children.forEach((s) => {
             if (s instanceof BlockScope) {
                 /* Only process block scope, inner functions will be processed separately */
-                this.generateFuncVarTypes(s, funcScope, varWasmTypes);
+                this.generateFuncVarTypes(
+                    s,
+                    funcScope,
+                    varWasmTypes,
+                    localNameMap,
+                    localNameIndex,
+                );
             }
         });
 
         if (scope === funcScope) {
             /* Append temp vars */
             (scope as FunctionScope).getTempVars().forEach((v) => {
+                const name = localNameMap.has(v.varName)
+                    ? `${v.varName}|${localNameIndex}`
+                    : v.varName;
+                localNameMap.set(name, localNameIndex++);
                 if (v.varType.kind === TypeKind.FUNCTION) {
                     varWasmTypes.push(
                         this.wasmType.getWASMFuncStructType(v.varType),
@@ -804,7 +864,19 @@ export class WASMGen extends Ts2wasmBackend {
         }
 
         const varWASMTypes = new Array<binaryen.ExpressionRef>();
-        this.generateFuncVarTypes(functionScope, functionScope, varWASMTypes);
+        // customize local names
+        const localVarNameIndexMap = new Map<string, number>();
+        let localVarIndex = 0;
+        for (const param of functionScope.paramArray) {
+            localVarNameIndexMap.set(param.varName, localVarIndex++);
+        }
+        this.generateFuncVarTypes(
+            functionScope,
+            functionScope,
+            varWASMTypes,
+            localVarNameIndexMap,
+            localVarIndex,
+        );
 
         // add wrapper function if exported
         const isExport =
@@ -871,7 +943,7 @@ export class WASMGen extends Ts2wasmBackend {
             );
         }
 
-        this.module.addFunction(
+        const funcRef = this.module.addFunction(
             functionScope.mangledName,
             paramWASMType,
             returnWASMType,
@@ -888,6 +960,12 @@ export class WASMGen extends Ts2wasmBackend {
                 returnWASMType,
             ),
         );
+
+        /** set customize local var names iff debug mode*/
+        const debugMode = this.parserContext.compileArgs[ArgNames.debug];
+        if (debugMode) {
+            this.setDebugLocation(functionScope, funcRef, localVarNameIndexMap);
+        }
     }
 
     WASMClassGen(classScope: ClassScope) {
@@ -1063,6 +1141,21 @@ export class WASMGen extends Ts2wasmBackend {
         };
     }
 
+    public addDebugInfoRef(
+        node: Statement | Expression,
+        exprRef: binaryen.ExpressionRef,
+    ) {
+        if (node.debugLoc && this.currentFuncCtx) {
+            const scope = this.currentFuncCtx.getFuncScope();
+            if (
+                scope instanceof FunctionScope ||
+                scope instanceof GlobalScope
+            ) {
+                node.debugLoc.ref = exprRef;
+                scope.debugLocations.push(node.debugLoc);
+            }
+        }
+    }
     public getCString(str: string) {
         if (this.wasmStringMap.has(str)) {
             return this.wasmStringMap.get(str) as number;
@@ -1076,5 +1169,43 @@ export class WASMGen extends Ts2wasmBackend {
         binaryenCAPI.__i32_store8(index, 0);
         this.wasmStringMap.set(str, wasmStr);
         return wasmStr;
+    }
+
+    private setDebugLocation(
+        scope: FunctionScope | GlobalScope,
+        funcRef: binaryen.FunctionRef,
+        localVarNameIndexMap: Map<string, number>,
+    ) {
+        localVarNameIndexMap.forEach((index, name) => {
+            binaryenCAPI._BinaryenFunctionSetLocalName(
+                funcRef,
+                index,
+                this.getCString(name),
+            );
+        });
+        const srcPath = scope.getRootGloablScope()!.srcFilePath;
+        const isBuiltIn = srcPath.includes(BuiltinNames.builtinTypeName);
+        // add debug location
+        if (!isBuiltIn && scope.debugLocations.length > 0) {
+            if (!this.debugInfoFileNames.has(srcPath)) {
+                this.debugInfoFileNames.set(
+                    srcPath,
+                    this.module.addDebugInfoFileName(srcPath),
+                );
+            }
+            const debugFileName = this.debugInfoFileNames.get(srcPath)!;
+
+            const debugLocs = scope.debugLocations;
+            for (let i = 0; i < debugLocs.length; i++) {
+                const loc = debugLocs[i];
+                this.module.setDebugLocation(
+                    funcRef,
+                    loc.ref,
+                    debugFileName,
+                    loc.line,
+                    loc.col,
+                );
+            }
+        }
     }
 }

@@ -37,3 +37,14 @@ Refer to [ts2wasm playground](./tools/playground/README.md)
 ``` bash
 npm run test
 ```
+## Debug
+
+there provide wasm debug based on source map to debug source file on browsers.
+
+argument `--debug` indicates the generated .wat file will contain customize local variables names instead of number index, and argument `sourceMap` tells the compiler to generate corresponding source map files.
+
+if you want open debug mode to debug source file on browsers, you can run
+
+```bash
+node cli/ts2wasm.js <source> -o out.wasm --debug --sourceMap
+```

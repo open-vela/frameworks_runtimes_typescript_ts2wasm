@@ -18,6 +18,8 @@ import {
     Stack,
     getModulePath,
     getGlobalScopeByModuleName,
+    DebugLoc,
+    addSourceMapLoc,
 } from './utils.js';
 import { Variable } from './variable.js';
 import { TSClass, Type } from './type.js';
@@ -27,6 +29,7 @@ type StatementKind = ts.SyntaxKind;
 
 export class Statement {
     private _scope: Scope | null = null;
+    debugLoc: DebugLoc | null = null;
 
     constructor(private kind: StatementKind) {}
 
@@ -262,10 +265,15 @@ export default class StatementProcessor {
     private breakLabelsStack = new Stack<string>();
     private switchLabelStack = new Stack<number>();
     private currentScope: Scope | null = null;
+    private emitSourceMap = false;
 
     constructor(private parserCtx: ParserContext) {}
 
     visit() {
+        if (this.parserCtx.compileArgs[`sourceMap`]) {
+            this.emitSourceMap = true;
+            this.parserCtx.expressionProcessor.emitSourceMap = true;
+        }
         this.parserCtx.nodeScopeMap.forEach((scope, node) => {
             this.currentScope = scope;
             /** arrow function body is a ts.expression */
@@ -342,6 +350,9 @@ export default class StatementProcessor {
                     ? this.visitNode(ifStatementNode.elseStatement)
                     : null;
                 const ifStmt = new IfStatement(condtion, ifTrue, ifFalse);
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(ifStmt, node);
+                }
                 return ifStmt;
             }
             case ts.SyntaxKind.Block: {
@@ -364,6 +375,9 @@ export default class StatementProcessor {
                 }
 
                 const block = new BlockStatement();
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(block, node);
+                }
                 block.setScope(scope);
                 return block;
             }
@@ -376,6 +390,9 @@ export default class StatementProcessor {
                           )
                         : null,
                 );
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(retStmt, node);
+                }
                 return retStmt;
             }
             case ts.SyntaxKind.WhileStatement: {
@@ -400,6 +417,9 @@ export default class StatementProcessor {
                     expr,
                     statement,
                 );
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(loopStatment, node);
+                }
                 loopStatment.setScope(scope);
                 return loopStatment;
             }
@@ -427,6 +447,9 @@ export default class StatementProcessor {
                     expr,
                     statement,
                 );
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(loopStatment, node);
+                }
                 loopStatment.setScope(scope);
                 return loopStatment;
             }
@@ -481,6 +504,9 @@ export default class StatementProcessor {
                     initializer,
                     incrementor,
                 );
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(forStatement, node);
+                }
                 forStatement.setScope(scope);
                 return forStatement;
             }
@@ -491,10 +517,16 @@ export default class StatementProcessor {
                         exprStatement.expression,
                     ),
                 );
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(exprStmt, node);
+                }
                 return exprStmt;
             }
             case ts.SyntaxKind.EmptyStatement: {
                 const emptyStmt = new EmptyStatement();
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(emptyStmt, node);
+                }
                 return emptyStmt;
             }
             case ts.SyntaxKind.SwitchStatement: {
@@ -512,6 +544,9 @@ export default class StatementProcessor {
                 switchLabels.pop();
                 breakLabels.pop();
                 const swicthStmt = new SwitchStatement(expr, caseBlock);
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(swicthStmt, node);
+                }
                 return swicthStmt;
             }
             case ts.SyntaxKind.CaseBlock: {
@@ -531,6 +566,9 @@ export default class StatementProcessor {
                     breakLabelsStack.peek(),
                     clauses,
                 );
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(caseBlock, node);
+                }
                 caseBlock.setScope(scope);
                 return caseBlock;
             }
@@ -547,6 +585,9 @@ export default class StatementProcessor {
                     statements.push(this.visitNode(caseStatements[i])!);
                 }
                 const caseCause = new CaseClause(expr, statements);
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(caseCause, node);
+                }
                 caseCause.setScope(scope);
                 return caseCause;
             }
@@ -560,6 +601,9 @@ export default class StatementProcessor {
                     statements.push(this.visitNode(caseStatements[i])!);
                 }
                 const defaultClause = new DefaultClause(statements);
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(defaultClause, node);
+                }
                 defaultClause.setScope(scope);
                 return defaultClause;
             }
@@ -569,6 +613,9 @@ export default class StatementProcessor {
                 const breakStmt = new BreakStatement(
                     this.breakLabelsStack.peek(),
                 );
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(breakStmt, node);
+                }
                 return breakStmt;
             }
             default:
@@ -609,6 +656,10 @@ export default class StatementProcessor {
                 );
                 assignExpr.setExprType(variable.varType);
                 const expressionStmt = new ExpressionStatement(assignExpr);
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(expressionStmt, varDecNode);
+                    addSourceMapLoc(initExpr, varDecNode.initializer);
+                }
                 currentScope.addStatement(expressionStmt);
             }
         }

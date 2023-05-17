@@ -14,7 +14,7 @@ import {
     getMethodPrefix,
 } from './type.js';
 import { ParserContext } from './frontend.js';
-import { parentIsFunctionLike } from './utils.js';
+import { parentIsFunctionLike, DebugLoc } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
 import { ArgNames, BuiltinNames } from '../lib/builtin/builtin_name.js';
@@ -459,6 +459,9 @@ export class GlobalScope extends Scope {
     // default identifier map: import theDefault from "./export-case1"; import theOtherDefault from "./export-case2";
     defaultModuleImportMap = new Map<string, GlobalScope>();
     defaultNoun = '';
+    srcFilePath = '';
+    node: ts.Node | null = null;
+    debugLocations: DebugLoc[] = [];
 
     isCircularImport = false;
 
@@ -528,6 +531,7 @@ export class FunctionScope extends ClosureEnvironment {
     private _className = '';
     /** iff it explicitly declares constructor */
     hasDeclCtor = true;
+    debugLocations: DebugLoc[] = [];
 
     constructor(parent: Scope) {
         super(parent);
@@ -694,6 +698,8 @@ export class ScopeScanner {
             case ts.SyntaxKind.SourceFile: {
                 const sourceFileNode = <ts.SourceFile>node;
                 const globalScope = new GlobalScope();
+                globalScope.node = node;
+                globalScope.srcFilePath = sourceFileNode.fileName;
                 this.setCurrentScope(globalScope);
                 let moduleName = '';
                 const isBuiltInFile =

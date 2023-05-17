@@ -52,5 +52,15 @@
         "category": "Compile",
         "description": "Decide whether to compile the built-in ts files",
         "default": true
+    },
+    "debug": {
+        "category": "Compile",
+        "description": "Enable debug mode",
+        "default": true
+    },
+    "sourceMap": {
+        "category": "Compile",
+        "description": "Specify source map information",
+        "default": true
     }
 }
