@@ -641,8 +641,51 @@ double
 array_findIndex_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                         void *closure)
 {
-    wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
-                               "not implemented");
+    uint32 i, len, elem_size;
+    wasm_array_obj_t arr_ref = get_array_ref(obj);
+    wasm_value_t element = { 0 };
+    wasm_value_t context = { 0 }, func_obj = { 0 };
+
+    len = get_array_length(obj);
+
+    elem_size = get_array_element_size(arr_ref);
+
+    /* get closure context and func ref */
+    wasm_struct_obj_get_field(closure, 0, false, &context);
+    wasm_struct_obj_get_field(closure, 1, false, &func_obj);
+
+    /* invoke callback function */
+    for (i = 0; i < len; i++) {
+        uint32 argv[10];
+        uint32 argc = 8;
+        uint32 occupied_slots = 0;
+
+        /* Must get arr ref again since it may be changed inside callback */
+        arr_ref = get_array_ref(obj);
+        wasm_array_obj_get_elem(arr_ref, i, false, &element);
+
+        /* prepare args to callback */
+        /* arg0: context */
+        b_memcpy_s(argv, sizeof(argv), &context.gc_obj, sizeof(void *));
+        occupied_slots += sizeof(void *) / sizeof(uint32);
+        /* arg1: element */
+        b_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots,
+                   &element, elem_size);
+        occupied_slots += elem_size / sizeof(uint32);
+        /* arg2: index */
+        *(double *)(argv + occupied_slots) = i;
+        occupied_slots += sizeof(double) / sizeof(uint32);
+        /* arg3: arr */
+        b_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots, &obj,
+                   sizeof(void *));
+
+        wasm_runtime_call_func_ref(exec_env, (wasm_func_obj_t)func_obj.gc_obj,
+                                   argc, argv);
+        if (argv[0]) {
+            return i;
+        }
+    }
+
     return -1;
 }
 

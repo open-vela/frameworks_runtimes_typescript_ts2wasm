@@ -566,6 +566,36 @@
         ]
     },
     {
+        "module": "array_findIndex",
+        "entries": [
+            {
+                "name": "array_findIndex_number",
+                "args": [],
+                "result": "result: 3 \nnoresult: -1"
+            },
+            {
+                "name": "array_findIndex_string",
+                "args": [],
+                "result": "foundIndex: 2 \nnotfoundIndex: -1"
+            },
+            {
+                "name": "array_findIndex_boolean",
+                "args": [],
+                "result": "1"
+            },
+            {
+                "name": "array_findIndex_class",
+                "args": [],
+                "result": "1 \n-1"
+            },
+            {
+                "name": "array_findIndex_interface",
+                "args": [],
+                "result": "1"
+            }
+        ]
+    },
+    {
         "module": "block_inner_block",
         "entries": [
             {
