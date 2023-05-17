@@ -1846,6 +1846,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
         if (matchKind === MatchKind.MisMatch) {
             throw new Error('Type mismatch in ExpressionStatement');
         }
+        if (
+            leftExprType.kind === TypeKind.STRING &&
+            rightExprType.kind === TypeKind.ANY
+        ) {
+            throw new Error(`Not support assign any to string`);
+        }
 
         let assignValue: binaryen.ExpressionRef;
         if (matchKind === MatchKind.ToAnyMatch) {
