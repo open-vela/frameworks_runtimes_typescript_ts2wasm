@@ -1688,6 +1688,16 @@
         ]
     },
     {
+        "module": "infc_assign_obj",
+        "entries": [
+            {
+                "name": "infcInitGlobal",
+                "args": [],
+                "result": "12:f64"
+            }
+        ]
+    },
+    {
         "module": "infc_field_assign",
         "entries": [
             {
