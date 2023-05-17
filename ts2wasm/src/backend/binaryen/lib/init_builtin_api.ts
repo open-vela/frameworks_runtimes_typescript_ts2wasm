@@ -363,23 +363,23 @@ function string_slice(module: binaryen.Module) {
             module.if(
                 module.i32.le_s(
                     module.i32.add(
-                        module.i32.trunc_u_sat.f64(dynToNumberValue),
+                        module.i32.trunc_s_sat.f64(dynToNumberValue),
                         strLen,
                     ),
                     module.i32.const(0),
                 ),
                 module.i32.const(0),
                 module.i32.add(
-                    module.i32.trunc_u_sat.f64(dynToNumberValue),
+                    module.i32.trunc_s_sat.f64(dynToNumberValue),
                     strLen,
                 ),
             ),
             module.if(
                 module.i32.le_s(
-                    module.i32.trunc_u_sat.f64(dynToNumberValue),
+                    module.i32.trunc_s_sat.f64(dynToNumberValue),
                     strLen,
                 ),
-                module.i32.trunc_u_sat.f64(dynToNumberValue),
+                module.i32.trunc_s_sat.f64(dynToNumberValue),
                 strLen,
             ),
         );
