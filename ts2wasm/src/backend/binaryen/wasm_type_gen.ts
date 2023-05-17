@@ -612,4 +612,17 @@ export class WASMTypeGen {
             this.WASMCompiler.getCString(name),
         );
     }
+
+    private createCustomFieldName(
+        name: string,
+        heapTypeRef: binaryenCAPI.HeapTypeRef,
+        index: number,
+    ) {
+        binaryenCAPI._BinaryenModuleSetFieldName(
+            this.WASMCompiler.module.ptr,
+            heapTypeRef,
+            index,
+            this.WASMCompiler.getCString(name),
+        );
+    }
 }

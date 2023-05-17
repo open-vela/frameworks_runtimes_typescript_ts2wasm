@@ -17,6 +17,7 @@ import ExpressionProcessor, { Expression } from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 import { Type } from './type.js';
 import { UnimplementError } from './error.js';
+import { Statement } from './statement.js';
 
 export interface importGlobalInfo {
     internalName: string;
@@ -347,4 +348,24 @@ export function getBuiltInFuncName(oriFuncName: string) {
     return BuiltinNames.builtinModuleName
         .concat(BuiltinNames.moduleDelimiter)
         .concat(oriFuncName);
+}
+
+export interface DebugLoc {
+    line: number;
+    col: number;
+    ref: number; // expressionRef
+}
+
+export function getNodeLoc(node: ts.Node) {
+    const sourceFile = node.getSourceFile();
+    const { line, character } = sourceFile.getLineAndCharacterOfPosition(
+        node.getStart(sourceFile),
+    );
+    // start from 1
+    return { line: line + 1, character: character };
+}
+
+export function addSourceMapLoc(irNode: Statement | Expression, node: ts.Node) {
+    const { line, character } = getNodeLoc(node);
+    irNode.debugLoc = { line: line, col: character, ref: -1 };
 }

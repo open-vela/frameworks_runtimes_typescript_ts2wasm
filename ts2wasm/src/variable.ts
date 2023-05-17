@@ -7,7 +7,11 @@ import ts from 'typescript';
 import { Expression } from './expression.js';
 import TypeResolver, { FunctionKind, TSFunction, Type } from './type.js';
 import { ParserContext } from './frontend.js';
-import { generateNodeExpression, isScopeNode } from './utils.js';
+import {
+    addSourceMapLoc,
+    generateNodeExpression,
+    isScopeNode,
+} from './utils.js';
 import { ClassScope, FunctionScope, GlobalScope, Scope } from './scope.js';
 
 export enum ModifierKind {
@@ -405,6 +409,12 @@ export class VariableInit {
                         variableDeclarationNode.initializer,
                     );
                     variableObj.setInitExpr(variableInit);
+                    if (this.parserCtx.compileArgs[`sourceMap`]) {
+                        addSourceMapLoc(
+                            variableInit,
+                            variableDeclarationNode.initializer,
+                        );
+                    }
                 }
                 break;
             }
