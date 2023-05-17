@@ -7,5 +7,6 @@ export abstract class Ts2wasmBackend {
     public abstract codegen(options?: any): void;
     public abstract emitBinary(options?: any): Uint8Array;
     public abstract emitText(options?: any): string;
+    public abstract emitSourceMap(name: string): string;
     public abstract dispose(): void;
 }

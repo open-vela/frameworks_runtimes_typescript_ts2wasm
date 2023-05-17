@@ -44,60 +44,58 @@ export class WASMStatementGen {
 
     WASMStmtGen(stmt: Statement): binaryen.ExpressionRef {
         this.currentFuncCtx = this.WASMCompiler.curFunctionCtx!;
-
+        let res: binaryen.ExpressionRef | null = null;
         switch (stmt.statementKind) {
             case ts.SyntaxKind.IfStatement: {
-                const ifStmt = this.WASMIfStmt(<IfStatement>stmt);
-                return ifStmt;
+                res = this.WASMIfStmt(<IfStatement>stmt);
+                break;
             }
             case ts.SyntaxKind.Block: {
-                const blockStmt = this.WASMBlock(<BlockStatement>stmt);
-                return blockStmt;
+                res = this.WASMBlock(<BlockStatement>stmt);
+                break;
             }
             case ts.SyntaxKind.ReturnStatement: {
-                const returnStmt = this.WASMReturnStmt(<ReturnStatement>stmt);
-                return returnStmt;
+                res = this.WASMReturnStmt(<ReturnStatement>stmt);
+                break;
             }
             case ts.SyntaxKind.EmptyStatement: {
-                const emptyStmt = this.WASMEmptyStmt();
-                return emptyStmt;
+                res = this.WASMEmptyStmt();
+                break;
             }
             case ts.SyntaxKind.WhileStatement:
             case ts.SyntaxKind.DoStatement: {
-                const loopStmt = this.WASMBaseLoopStmt(<BaseLoopStatement>stmt);
-                return loopStmt;
+                res = this.WASMBaseLoopStmt(<BaseLoopStatement>stmt);
+                break;
             }
             case ts.SyntaxKind.ForStatement: {
-                const forStmt = this.WASMForStmt(<ForStatement>stmt);
-                return forStmt;
+                res = this.WASMForStmt(<ForStatement>stmt);
+                break;
             }
             case ts.SyntaxKind.SwitchStatement: {
-                const switchStmt = this.WASMSwitchStmt(<SwitchStatement>stmt);
-                return switchStmt;
+                res = this.WASMSwitchStmt(<SwitchStatement>stmt);
+                break;
             }
             case ts.SyntaxKind.BreakStatement: {
-                const breakStmt = this.WASMBreakStmt(<BreakStatement>stmt);
-                return breakStmt;
+                res = this.WASMBreakStmt(<BreakStatement>stmt);
+                break;
             }
             case ts.SyntaxKind.ExpressionStatement: {
-                const exprStmt = this.WASMExpressionStmt(
-                    <ExpressionStatement>stmt,
-                );
-                return exprStmt;
+                res = this.WASMExpressionStmt(<ExpressionStatement>stmt);
+                break;
             }
             case ts.SyntaxKind.VariableStatement: {
-                const varStatement = this.WASMVarStmt(<VariableStatement>stmt);
-                return varStatement;
+                res = this.WASMVarStmt(<VariableStatement>stmt);
+                break;
             }
             case ts.SyntaxKind.ImportDeclaration: {
-                const callStartStmt = this.WASMImportStmt(
-                    <ImportDeclaration>stmt,
-                );
-                return callStartStmt;
+                res = this.WASMImportStmt(<ImportDeclaration>stmt);
+                break;
             }
             default:
                 throw new Error('unexpected expr kind ' + stmt.statementKind);
         }
+        this.WASMCompiler.addDebugInfoRef(stmt, res);
+        return res;
     }
 
     WASMIfStmt(stmt: IfStatement): binaryen.ExpressionRef {
@@ -106,6 +104,7 @@ export class WASMStatementGen {
                 stmt.ifCondition,
             ).binaryenRef;
         wasmCond = this.WASMCompiler.wasmExpr.generateCondition(wasmCond);
+        this.WASMCompiler.addDebugInfoRef(stmt.ifCondition, wasmCond);
         const wasmIfTrue: binaryen.ExpressionRef = this.WASMStmtGen(
             stmt.ifIfTrue,
         );
@@ -183,6 +182,7 @@ export class WASMStatementGen {
                     );
             }
         }
+        this.WASMCompiler.addDebugInfoRef(stmt.returnExpression, returnExprRef);
         const setReturnValue = module.local.set(
             this.currentFuncCtx.returnIdx,
             returnExprRef,
@@ -204,6 +204,7 @@ export class WASMStatementGen {
                 stmt.loopCondtion,
             ).binaryenRef;
         WASMCond = this.WASMCompiler.wasmExpr.generateCondition(WASMCond);
+        this.WASMCompiler.addDebugInfoRef(stmt.loopCondtion, WASMCond);
         const WASMStmts: binaryen.ExpressionRef = this.WASMStmtGen(
             stmt.loopBody,
         );
@@ -257,11 +258,16 @@ export class WASMStatementGen {
             WASMCond = this.WASMCompiler.wasmExpr.WASMExprGen(
                 stmt.forLoopCondtion,
             ).binaryenRef;
+            this.WASMCompiler.addDebugInfoRef(stmt.forLoopCondtion, WASMCond);
         }
         if (stmt.forLoopIncrementor !== null) {
             WASMIncrementor = this.WASMCompiler.wasmExpr.WASMExprGen(
                 stmt.forLoopIncrementor,
             ).binaryenRef;
+            this.WASMCompiler.addDebugInfoRef(
+                stmt.forLoopIncrementor,
+                WASMIncrementor,
+            );
         }
         if (stmt.forLoopBody !== null) {
             WASMStmts = this.WASMStmtGen(stmt.forLoopBody);
@@ -296,6 +302,8 @@ export class WASMStatementGen {
             this.WASMCompiler.wasmExpr.WASMExprGen(
                 stmt.switchCondition,
             ).binaryenRef;
+        this.WASMCompiler.addDebugInfoRef(stmt.switchCondition, WASMCond);
+
         // switch
         //   |
         // CaseBlock
@@ -324,14 +332,13 @@ export class WASMStatementGen {
                 indexOfDefault = i;
             } else {
                 const caseCause = <CaseClause>clause;
+                const causeRef = this.WASMCompiler.wasmExpr.WASMExprGen(
+                    caseCause.caseExpr,
+                ).binaryenRef;
+                this.WASMCompiler.addDebugInfoRef(caseCause.caseExpr, causeRef);
                 branches[idx++] = module.br(
                     'case' + i + stmt.switchLabel,
-                    module.f64.eq(
-                        condtion,
-                        this.WASMCompiler.wasmExpr.WASMExprGen(
-                            caseCause.caseExpr,
-                        ).binaryenRef,
-                    ),
+                    module.f64.eq(condtion, causeRef),
                 );
             }
         });
@@ -375,7 +382,10 @@ export class WASMStatementGen {
 
     WASMExpressionStmt(stmt: ExpressionStatement): binaryen.ExpressionRef {
         const innerExpr = stmt.expression;
-        return this.WASMCompiler.wasmExpr.WASMExprGen(innerExpr).binaryenRef;
+        const ref =
+            this.WASMCompiler.wasmExpr.WASMExprGen(innerExpr).binaryenRef;
+        this.WASMCompiler.addDebugInfoRef(innerExpr, ref);
+        return ref;
     }
 
     WASMVarStmt(stmt: VariableStatement): binaryen.ExpressionRef {
@@ -463,6 +473,10 @@ export class WASMStatementGen {
                             );
                         }
                     }
+                    this.WASMCompiler.addDebugInfoRef(
+                        localVar.initExpression,
+                        varInitExprRef,
+                    );
                 }
             }
         } else {
@@ -502,6 +516,10 @@ export class WASMStatementGen {
                     let varInitExprRef = wasmExpr.WASMExprGen(
                         globalVar.initExpression,
                     ).binaryenRef;
+                    this.WASMCompiler.addDebugInfoRef(
+                        globalVar.initExpression,
+                        varInitExprRef,
+                    );
                     if (
                         globalVar.initExpression.exprType instanceof TSClass &&
                         globalVar.varType instanceof TSClass

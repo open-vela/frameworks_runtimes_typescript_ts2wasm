@@ -119,7 +119,7 @@ function showHelp(helpConfig: any) {
     process.exit(0);
 }
 
-function writeFile(filename: string, contents: any, baseDir = '') {
+export function writeFile(filename: string, contents: any, baseDir = '') {
     const dirPath = path.resolve(baseDir, path.dirname(filename));
     const filePath = path.join(dirPath, path.basename(filename));
     fs.mkdirSync(dirPath, { recursive: true });
@@ -197,7 +197,6 @@ function main() {
         /* Step1: Semantic checking, construct scope tree */
         const parserCtx = new ParserContext();
         parserCtx.parse(sourceFileList, compileArgs);
-
         /* Step2: Backend codegen */
         const backend = new WASMGen(parserCtx);
         backend.codegen(compileArgs);
@@ -213,11 +212,22 @@ function main() {
             if (args.o) {
                 generatedWasmFile = args.o;
             }
-            const output = backend.emitBinary();
+            const sourceMapCfg = {
+                sourceMap: args.sourceMap,
+                name: generatedWasmFile.split('.')[0], // file name
+            };
+            const output = backend.emitBinary(sourceMapCfg);
             writeFile(generatedWasmFile, output, baseDir);
             console.log(
                 "The wasm file '" + generatedWasmFile + "' has been generated.",
             );
+            if (args.sourceMap) {
+                const sourceMap = backend.emitSourceMap(sourceMapCfg.name);
+                writeFile(`${sourceMapCfg.name}.wasm.map`, sourceMap, baseDir);
+                console.log(
+                    `The source map file ${sourceMapCfg.name}.wasm.map has been generated.`,
+                );
+            }
             if (args.validate) {
                 const cmd = `iwasm -f ${args.validate} ${getAbsolutePath(
                     generatedWasmFile,

@@ -38,8 +38,9 @@ export namespace BuiltinNames {
     export const builtinModuleName = 'builtin';
 
     // builtin file name
+    export const builtinTypeName = 'lib.type.d.ts';
     export const builtinImplementFileName = 'lib_builtin.ts';
-    export const builtinFileNames = ['lib.type.d.ts', builtinImplementFileName];
+    export const builtinFileNames = [builtinTypeName, builtinImplementFileName];
 
     // builtin class name
     export const MATH = 'Math';
@@ -230,4 +231,6 @@ export namespace ArgNames {
     export const disableBuiltIn = 'disableBuiltIn';
     export const disableInterface = 'disableInterface';
     export const isBuiltIn = 'isBuiltIn';
+    export const debug = 'debug';
+    export const sourceMap = 'sourceMap';
 }

@@ -21,7 +21,7 @@ import path from 'path';
 import { Logger } from './log.js';
 import { SyntaxError } from './error.js';
 import SemanticChecker from './semantic_check.js';
-import { ArgNames, BuiltinNames } from '../lib/builtin/builtin_name.js';
+import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 import { ImportResolver } from './import_resolve.js';
 
 export interface CompileArgs {
