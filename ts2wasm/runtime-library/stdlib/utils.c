@@ -120,3 +120,113 @@ get_array_struct_type(wasm_module_t wasm_module, int32_t array_type_idx,
     }
     return -1;
 }
+
+bool
+is_i8_array(wasm_module_t wasm_module, bool is_mutable,
+            wasm_ref_type_t ref_type)
+{
+    if (ref_type.value_type == VALUE_TYPE_ARRAYREF)
+        return true;
+    if (ref_type.heap_type >= 0) {
+        uint32 type_idx = ref_type.heap_type;
+        wasm_defined_type_t type = wasm_get_defined_type(wasm_module, type_idx);
+        if (wasm_defined_type_is_array_type(type)) {
+            bool mut;
+            wasm_ref_type_t ref_element =
+                wasm_array_type_get_elem_type((wasm_array_type_t)type, &mut);
+            if (ref_element.value_type == VALUE_TYPE_I8 && mut == is_mutable) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+int32_t
+get_string_array_type(wasm_module_t wasm_module,
+                      wasm_array_type_t *p_array_type_t)
+{
+    uint32 i, type_count;
+    bool is_mutable = true;
+    type_count = wasm_get_defined_type_count(wasm_module);
+    for (i = 0; i < type_count; i++) {
+        wasm_defined_type_t type = wasm_get_defined_type(wasm_module, i);
+        if (wasm_defined_type_is_array_type(type)) {
+            bool mutable;
+            wasm_ref_type_t arr_elem_ref_type = wasm_array_type_get_elem_type(
+                (wasm_array_type_t)type, &mutable);
+            if (arr_elem_ref_type.value_type == VALUE_TYPE_I8 && mutable == is_mutable) {
+                if (p_array_type_t) {
+                    *p_array_type_t = (wasm_array_type_t)type;
+                }
+                return i;
+            }
+        }
+    }
+    if (p_array_type_t) {
+        *p_array_type_t = NULL;
+    }
+    return -1;
+}
+
+int32_t
+get_string_struct_type(wasm_module_t wasm_module,
+                       wasm_struct_type_t *p_struct_type)
+{
+    uint32 i, type_count;
+    type_count = wasm_get_defined_type_count(wasm_module);
+    for (i = 0; i < type_count; i++) {
+        wasm_defined_type_t type = wasm_get_defined_type(wasm_module, i);
+        if (wasm_defined_type_is_struct_type(type)
+            && wasm_struct_type_get_field_count((wasm_struct_type_t)type)
+                   == 2) {
+            bool mutable = false;
+            wasm_ref_type_t first_field_type = wasm_struct_type_get_field_type(
+                (wasm_struct_type_t)type, 0, &mutable);
+            wasm_ref_type_t second_field_type = wasm_struct_type_get_field_type(
+                (wasm_struct_type_t)type, 1, &mutable);
+            if (first_field_type.value_type == VALUE_TYPE_I32
+                && is_i8_array(wasm_module, true, second_field_type)) {
+                if (p_struct_type) {
+                    *p_struct_type = (wasm_struct_type_t)type;
+                }
+                return i;
+            };
+        }
+    }
+    if (p_struct_type) {
+        *p_struct_type = NULL;
+    }
+    return -1;
+}
+
+bool
+array_element_is_string(wasm_module_t wasm_module, wasm_obj_t elem)
+{
+    wasm_struct_type_t struct_type;
+    uint32 field_count = 0;
+    wasm_value_t field1 = { 0 };
+    bool is_struct = wasm_obj_is_struct_obj(elem);
+
+    if (is_struct) {
+        struct_type =
+            (wasm_struct_type_t)wasm_obj_get_defined_type((wasm_obj_t)elem);
+        field_count = wasm_struct_type_get_field_count(struct_type);
+        if (field_count != 2) {
+            return false;
+        }
+        bool mutable = false;
+        wasm_ref_type_t first_field_type =
+            wasm_struct_type_get_field_type(struct_type, 0, &mutable);
+        wasm_ref_type_t second_field_type =
+            wasm_struct_type_get_field_type(struct_type, 1, &mutable);
+        wasm_struct_obj_get_field((wasm_struct_obj_t)elem, 1, false, &field1);
+
+        if (field1.gc_obj != NULL
+            && first_field_type.value_type == VALUE_TYPE_I32
+            && is_i8_array(wasm_module, true, second_field_type)) {
+            return true;
+        }
+    }
+    return false;
+}
