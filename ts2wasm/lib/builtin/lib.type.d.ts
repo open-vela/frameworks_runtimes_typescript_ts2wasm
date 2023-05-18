@@ -37,7 +37,7 @@ interface Array<T> {
     pop(): T;
     concat(...items: T[]): T[];
 
-    // join(separator?: string): string;
+    join(separator?: string): string;
 
     reverse(): T[];
     shift(): T;
@@ -77,9 +77,7 @@ interface Array<T> {
         initialValue: T,
     ): T;
 
-    find(
-        predicate: (value: T, index: number, obj: T[]) => boolean,
-    ): T | undefined;
+    find(predicate: (value: T, index: number, obj: T[]) => boolean): any;
 
     findIndex(
         predicate: (value: T, index: number, obj: T[]) => boolean,

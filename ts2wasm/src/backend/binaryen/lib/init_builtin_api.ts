@@ -2154,6 +2154,14 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     );
     addArrayMethod(
         module,
+        'join',
+        BuiltinNames.arrayJoinFuncNames,
+        false,
+        [binaryen.anyref, binaryen.anyref],
+        stringTypeInfo.typeRef,
+    );
+    addArrayMethod(
+        module,
         'concat',
         BuiltinNames.arrayConcatFuncNames,
         true,
@@ -2284,7 +2292,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         module,
         'find',
         BuiltinNames.arrayFindFuncNames,
-        false,
+        true,
         [binaryen.anyref, binaryen.anyref],
         binaryen.anyref,
     );
