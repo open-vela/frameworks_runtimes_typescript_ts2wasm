@@ -27,3 +27,14 @@ get_array_type_by_element(wasm_module_t wasm_module,
 int32_t
 get_array_struct_type(wasm_module_t wasm_module, int32_t array_type_idx,
                       wasm_struct_type_t *p_struct_type);
+
+/* get string struct type*/
+int32_t get_string_struct_type(wasm_module_t wasm_module, wasm_struct_type_t *p_struct_type);
+
+/* get string array type*/
+int32_t
+get_string_array_type(wasm_module_t wasm_module, wasm_array_type_t *p_array_type_t);
+
+bool
+array_element_is_string(wasm_module_t wasm_module, wasm_obj_t element);
+

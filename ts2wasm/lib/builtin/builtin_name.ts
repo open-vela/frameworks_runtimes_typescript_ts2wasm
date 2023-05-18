@@ -115,6 +115,7 @@ export namespace BuiltinNames {
     export const arrayLengthFuncName = 'Array|length';
     export const arrayPushFuncNames = createGenericFuncNames('Array', 'push');
     export const arrayPopFuncNames = createGenericFuncNames('Array', 'pop');
+    export const arrayJoinFuncNames = createGenericFuncNames('Array', 'join');
     export const arrayConcatFuncNames = createGenericFuncNames(
         'Array',
         'concat',
@@ -181,6 +182,7 @@ export namespace BuiltinNames {
     export const genericBuiltinMethods = [
         `${builtinModuleName}|Array|push`,
         `${builtinModuleName}|Array|pop`,
+        `${builtinModuleName}|Array|join`,
         `${builtinModuleName}|Array|concat`,
         `${builtinModuleName}|Array|reverse`,
         `${builtinModuleName}|Array|shift`,
