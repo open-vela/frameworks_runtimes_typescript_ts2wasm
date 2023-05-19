@@ -576,12 +576,12 @@
             {
                 "name": "array_findIndex_number",
                 "args": [],
-                "result": "result: 3 \nnoresult: -1"
+                "result": "foundIndex: 2 \nnotfoundIndex: -1"
             },
             {
                 "name": "array_findIndex_string",
                 "args": [],
-                "result": "foundIndex: 2 \nnotfoundIndex: -1"
+                "result": "result: 3 \nnoresult: -1"
             },
             {
                 "name": "array_findIndex_boolean",
