@@ -37,4 +37,3 @@ get_string_array_type(wasm_module_t wasm_module, wasm_array_type_t *p_array_type
 
 bool
 array_element_is_string(wasm_module_t wasm_module, wasm_obj_t element);
-
