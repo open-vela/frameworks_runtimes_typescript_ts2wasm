@@ -837,6 +837,457 @@
         ]
     },
     {
+        "module": "array_concat",
+        "entries": [
+            {
+                "name": "array_concat_number",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_concat_boolean",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_concat_string",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_concat_class",
+                "args": [],
+                "result": "5:f64"
+            },
+            {
+                "name": "array_concat_interface",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_concat_number_array",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_concat_string_array",
+                "args": [],
+                "result": "hello \n2:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_find",
+        "entries": [
+            {
+                "name": "array_find_number",
+                "args": [],
+                "result": "300 \nundefined"
+            },
+            {
+                "name": "array_find_boolean",
+                "args": [],
+                "result": "true"
+            },
+            {
+                "name": "array_find_string",
+                "args": [],
+                "result": "hello"
+            }
+
+        ]
+    },
+    {
+        "module": "array_join",
+        "entries": [
+            {
+                "name": "array_join_string",
+                "args": [],
+                "result": "hello$wasm$hello$world \nhello,wasm,hello,world"
+            }
+        ]
+    },
+    {
+        "module": "array_indexOf",
+        "entries": [
+            {
+                "name": "array_indexOf_number",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_indexOf_boolean",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_indexOf_string",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_indexOf_class",
+                "args": [],
+                "result": "1:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_lastIndexOf",
+        "entries": [
+            {
+                "name": "array_lastIndexOf_number",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_lastIndexOf_boolean",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_lastIndexOf_string",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_lastIndexOf_class",
+                "args": [],
+                "result": "2:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_reverse",
+        "entries": [
+            {
+                "name": "array_reverse_number",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_reverse_boolean",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_reverse_string",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_reverse_class",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_reverse_interface",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_reverse_number_array",
+                "args": [],
+                "result": "44 \n8:f64"
+            },
+            {
+                "name": "array_reverse_string_array",
+                "args": [],
+                "result": "123 \n3:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_shift",
+        "entries": [
+            {
+                "name": "array_shift_number",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_shift_boolean",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_shift_string",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_shift_class",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_shift_interface",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_shift_number_array",
+                "args": [],
+                "result": "1 \n6:f64"
+            },
+            {
+                "name": "array_shift_string_array",
+                "args": [],
+                "result": "h \n2:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_unshift",
+        "entries": [
+            {
+                "name": "array_unshift_number",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_unshift_boolean",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_unshift_string",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_unshift_class",
+                "args": [],
+                "result": "5:f64"
+            },
+            {
+                "name": "array_unshift_interface",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_unshift_number_array",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_unshift_string_array",
+                "args": [],
+                "result": "wasm \n3:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_splice",
+        "entries": [
+            {
+                "name": "array_splice_number",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "array_splice_boolean",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_splice_string",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_splice_class",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "array_splice_interface",
+                "args": [],
+                "result": "1:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_every",
+        "entries": [
+            {
+                "name": "array_every_number",
+                "args": [],
+                "result": "false \ntrue"
+            },
+            {
+                "name": "array_every_boolean",
+                "args": [],
+                "result": "false \ntrue"
+            },
+            {
+                "name": "array_every_string",
+                "args": [],
+                "result": "false \ntrue"
+            },
+            {
+                "name": "array_every_class",
+                "args": [],
+                "result": "false \ntrue"
+            },
+            {
+                "name": "array_every_interface",
+                "args": [],
+                "result": "false \ntrue"
+            }
+        ]
+    },
+    {
+        "module": "array_some",
+        "entries": [
+            {
+                "name": "array_some_number",
+                "args": [],
+                "result": "false \ntrue"
+            },
+            {
+                "name": "array_some_boolean",
+                "args": [],
+                "result": "false \ntrue"
+            },
+            {
+                "name": "array_some_string",
+                "args": [],
+                "result": "false \ntrue"
+            },
+            {
+                "name": "array_some_class",
+                "args": [],
+                "result": "false \ntrue"
+            },
+            {
+                "name": "array_some_interface",
+                "args": [],
+                "result": "false \ntrue"
+            }
+        ]
+    },
+    {
+        "module": "array_includes",
+        "entries": [
+            {
+                "name": "array_includes_number",
+                "args": [],
+                "result": "false \nfalse \nfalse \nfalse \nfalse \ntrue \ntrue \ntrue \ntrue"
+            },
+            {
+                "name": "array_includes_boolean",
+                "args": [],
+                "result": "false \ntrue \ntrue"
+            },
+            {
+                "name": "array_includes_string",
+                "args": [],
+                "result": "false \nfalse \ntrue \ntrue"
+            },
+            {
+                "name": "array_includes_class",
+                "args": [],
+                "result": "false \nfalse \ntrue \ntrue"
+            },
+            {
+                "name": "array_includes_interface",
+                "args": [],
+                "result": "false \nfalse \ntrue \ntrue"
+            }
+        ]
+    },
+    {
+        "module": "array_reduce",
+        "entries": [
+            {
+                "name": "array_reduce_number",
+                "args": [],
+                "result": "21"
+            },
+            {
+                "name": "array_reduce_boolean",
+                "args": [],
+                "result": "false"
+            },
+            {
+                "name": "array_reduce_string",
+                "args": [],
+                "result": "01234"
+            },
+            {
+                "name": "array_reduce_class",
+                "args": [],
+                "result": "312345"
+            },
+            {
+                "name": "array_reduce_interface",
+                "args": [],
+                "result": "A2"
+            }
+        ]
+    },
+    {
+        "module": "array_reduceRight",
+        "entries": [
+            {
+                "name": "array_reduceRight_number",
+                "args": [],
+                "result": "21"
+            },
+            {
+                "name": "array_reduceRight_boolean",
+                "args": [],
+                "result": "true"
+            },
+            {
+                "name": "array_reduceRight_string",
+                "args": [],
+                "result": "04321"
+            },
+            {
+                "name": "array_reduceRight_class",
+                "args": [],
+                "result": "354321"
+            },
+            {
+                "name": "array_reduceRight_interface",
+                "args": [],
+                "result": "A1"
+            }
+        ]
+    },
+    {
+        "module": "array_copyWithin",
+        "entries": [
+            {
+                "name": "array_copyWithin_number",
+                "args": [],
+                "result": "6:f64"
+            },
+            {
+                "name": "array_copyWithin_boolean",
+                "args": [],
+                "result": "false \nfalse \ntrue"
+            },
+            {
+                "name": "array_copyWithin_string",
+                "args": [],
+                "result": "2 \n3 \n3 \n4 \n5"
+            },
+            {
+                "name": "array_copyWithin_class",
+                "args": [],
+                "result": "A2 \nA2 \nA3"
+            },
+            {
+                "name": "array_copyWithin_interface",
+                "args": [],
+                "result": "A2 \nA2 \nA3"
+            }
+        ]
+    },
+    {
         "module": "block_inner_block",
         "entries": [
             {
