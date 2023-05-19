@@ -334,6 +334,11 @@
                 "result": "4:f64"
             },
             {
+                "name": "array_push_number_with_empty",
+                "args": [],
+                "result": "10:f64"
+            },
+            {
                 "name": "array_push_boolean",
                 "args": [],
                 "result": "4:f64"

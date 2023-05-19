@@ -9,6 +9,12 @@ export function array_push_number() {
     return length;
 }
 
+export function array_push_number_with_empty() {
+    const a: number[] = [];
+    a.push(10);
+    return a[0];
+}
+
 export function array_push_boolean() {
     let array1: boolean[] = [true, false];
     let length: number = array1.push(true, false);

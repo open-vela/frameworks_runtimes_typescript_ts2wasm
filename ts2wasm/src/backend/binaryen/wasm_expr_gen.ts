@@ -3524,12 +3524,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
     ) {
         const arrayLen = elements.length;
         const array = [];
-        if (elements.length === 0) {
-            return binaryenCAPI._BinaryenRefNull(
-                this.module.ptr,
-                binaryenCAPI._BinaryenTypeArrayref(),
-            );
-        }
         const arrElemType = arrType.elementType;
         for (let i = 0; i < arrayLen; i++) {
             const elemExpr = elements[i];
