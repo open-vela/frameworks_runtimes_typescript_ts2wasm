@@ -339,6 +339,11 @@
                 "result": "10:f64"
             },
             {
+                "name": "array_class2",
+                "args": [],
+                "result": "123 \n123"
+            },
+            {
                 "name": "array_push_boolean",
                 "args": [],
                 "result": "4:f64"
@@ -1724,6 +1729,16 @@
                 "name": "accesssGlobalVar",
                 "args": [],
                 "result": "ref.struct"
+            },
+            {
+                "name": "classFieldIsClosure",
+                "args": [],
+                "result": "20"
+            },
+            {
+                "name": "classFieldIsClosureWithDefault",
+                "args": [],
+                "result": "41"
             }
         ]
     },

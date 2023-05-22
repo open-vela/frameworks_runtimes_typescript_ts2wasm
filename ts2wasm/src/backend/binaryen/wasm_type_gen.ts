@@ -286,7 +286,16 @@ export class WASMTypeGen {
                 wasmFieldTypes[0] = vtableType.typeRef;
                 for (let i = 0; i !== tsClassType.fields.length; ++i) {
                     const field = tsClassType.fields[i];
-                    wasmFieldTypes.push(this.getWASMType(field.type));
+                    const fieldType = field.type;
+                    let wasmFieldType;
+                    if (fieldType instanceof TSFunction) {
+                        wasmFieldType = this.getWASMFuncStructType(fieldType);
+                    } else if (fieldType instanceof TSArray) {
+                        wasmFieldType = this.getWasmArrayStructType(fieldType);
+                    } else {
+                        wasmFieldType = this.getWASMType(fieldType);
+                    }
+                    wasmFieldTypes.push(wasmFieldType);
                     if (field.modifier === 'readonly') {
                         muts[i + 1] = false;
                     } else {
