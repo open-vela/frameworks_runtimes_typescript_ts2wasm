@@ -155,6 +155,16 @@
         ]
     },
     {
+        "module": "any_as_string",
+        "entries": [
+            {
+                "name": "any_as_string",
+                "args": [],
+                "result": "hello world"
+            }
+        ]
+    },
+    {
         "module": "array_contain_closure",
         "entries": [
             {

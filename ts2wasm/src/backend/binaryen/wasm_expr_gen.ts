@@ -10,6 +10,7 @@ import TypeResolver, {
     builtinTypes,
     FunctionKind,
     GenericType,
+    Primitive,
     TSArray,
     TSClass,
     TSFunction,
@@ -2907,7 +2908,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const targetType = expr.exprType;
         switch (originType.kind) {
             case TypeKind.ANY: {
-                if (!this.wasmType.hasHeapType(targetType)) {
+                if (targetType instanceof Primitive) {
                     /** if target type is basic type, no need to cast */
                     return this.unboxAnyToBase(
                         originObjExprRef,

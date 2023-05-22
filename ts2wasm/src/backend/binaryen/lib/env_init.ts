@@ -278,11 +278,11 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.bool,
     );
     module.addFunctionImport(
-        dyntype.dyntype_to_cstring,
+        dyntype.dyntype_to_string,
         dyntype.module_name,
-        dyntype.dyntype_to_cstring,
+        dyntype.dyntype_to_string,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
-        dyntype.int,
+        dyntype.dyn_value_t,
     );
     module.addFunctionImport(
         dyntype.dyntype_free_cstring,
