@@ -211,7 +211,7 @@ dyntype_is_number_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     return dyntype_is_number(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
 }
 
-int
+double
 dyntype_to_number_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                           dyn_value_t obj)
 {
