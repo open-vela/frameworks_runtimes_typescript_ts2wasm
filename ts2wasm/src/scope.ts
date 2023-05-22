@@ -798,6 +798,12 @@ export class ScopeScanner {
                     ) {
                         this.visitNode(member);
                     }
+                    if (
+                        ts.isPropertyDeclaration(member) &&
+                        member.initializer
+                    ) {
+                        this.visitNode(member.initializer);
+                    }
                 }
                 this.setCurrentScope(parentScope);
                 break;

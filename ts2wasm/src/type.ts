@@ -541,7 +541,8 @@ export default class TypeResolver {
             const parentNode = node.parent;
             if (
                 ts.isVariableDeclaration(parentNode) ||
-                ts.isBinaryExpression(parentNode)
+                ts.isBinaryExpression(parentNode) ||
+                ts.isPropertyDeclaration(parentNode)
             ) {
                 return this.generateNodeType(parentNode);
             }

@@ -15,6 +15,24 @@ export function array_push_number_with_empty() {
     return a[0];
 }
 
+class ParamsObject {
+    key = '123';
+    val = '';
+}
+
+class RouteInfo {
+    params: Array<ParamsObject> = [];
+}
+
+export function array_class2() {
+    let route: RouteInfo = new RouteInfo();
+    route.params.push(new ParamsObject());
+    console.log(route.params[0].key);
+    route.params = new Array<ParamsObject>();
+    route.params.push(new ParamsObject());
+    console.log(route.params[0].key);
+}
+
 export function array_push_boolean() {
     let array1: boolean[] = [true, false];
     let length: number = array1.push(true, false);
