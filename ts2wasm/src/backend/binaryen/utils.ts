@@ -5,6 +5,7 @@ import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { UnimplementError } from '../../error.js';
 import { TypeKind } from '../../type.js';
 import { dyntype } from './lib/dyntype/utils.js';
+import { stringTypeInfo } from './glue/packType.js';
 
 export interface FlattenLoop {
     label: string;
@@ -125,6 +126,12 @@ export function unboxAnyTypeToBaseType(
             binaryenType = binaryen.i32;
             break;
         }
+        case TypeKind.STRING: {
+            condFuncName = dyntype.dyntype_is_string;
+            cvtFuncName = dyntype.dyntype_to_string;
+            binaryenType = dyntype.dyn_value_t;
+            break;
+        }
         default: {
             throw Error(
                 `unboxing any type to static type, unsupported static type : ${typeKind}`,
@@ -141,7 +148,7 @@ export function unboxAnyTypeToBaseType(
     );
     const condition = module.i32.ne(isBaseTypeRef, module.i32.const(0));
     // iff True
-    const value = module.call(
+    let value = module.call(
         cvtFuncName,
         [
             module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
@@ -149,6 +156,15 @@ export function unboxAnyTypeToBaseType(
         ],
         binaryenType,
     );
+    if (typeKind === TypeKind.STRING) {
+        const wasmStringType = stringTypeInfo.typeRef;
+        const string_value = value;
+        value = binaryenCAPI._BinaryenRefCast(
+            module.ptr,
+            string_value,
+            wasmStringType,
+        );
+    }
     // iff False
     const unreachableRef = module.unreachable();
 

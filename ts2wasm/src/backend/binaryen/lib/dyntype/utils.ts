@@ -70,6 +70,7 @@ export namespace dyntype {
     export const dyntype_to_number = 'dyntype_to_number';
     export const dyntype_is_string = 'dyntype_is_string';
     export const dyntype_to_cstring = 'dyntype_to_cstring';
+    export const dyntype_to_string = 'dyntype_to_string';
     export const dyntype_free_cstring = 'dyntype_free_cstring';
     export const dyntype_is_object = 'dyntype_is_object';
     export const dyntype_is_array = 'dyntype_is_array';
