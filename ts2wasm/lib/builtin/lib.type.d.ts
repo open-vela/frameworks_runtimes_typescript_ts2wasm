@@ -151,3 +151,8 @@ interface Console {
     log(...data: any[]): void;
 }
 var console: Console;
+
+// eslint-disable-next-line no-shadow-restricted-names
+var NaN: number;
+// eslint-disable-next-line no-shadow-restricted-names
+var Infinity: number;
