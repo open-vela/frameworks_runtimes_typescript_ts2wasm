@@ -1550,6 +1550,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
         byRef = false,
     ): binaryen.ExpressionRef | AccessBase {
         // find the target scope
+        if (expr.identifierName === 'NaN') {
+            return this.module.f64.const(NaN);
+        }
+        if (expr.identifierName === 'Infinity') {
+            return this.module.f64.const(Infinity);
+        }
         const currentScope = this.currentFuncCtx.getCurrentScope();
         const accessInfo = this._createAccessInfo(
             expr.identifierName,
