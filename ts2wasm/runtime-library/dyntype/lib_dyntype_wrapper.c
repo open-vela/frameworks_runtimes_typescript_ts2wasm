@@ -354,10 +354,10 @@ dyntype_to_extref_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                           dyn_value_t obj)
 {
     void *value = NULL;
-    bool ret;
+    int ret;
 
     ret = dyntype_to_extref(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), &value);
-    if (ret != DYNTYPE_SUCCESS) {
+    if (ret < ExtObj || ret > ExtArray) {
         wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
                                    "libdyntype: failed to convert to extref");
     }
