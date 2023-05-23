@@ -10,3 +10,13 @@ export function consoleLog() {
     };
     console.log(1, true, 123, obj);
 }
+
+export function specialNum() {
+    const a = NaN;
+    const b = Infinity;
+    const c = -Infinity;
+
+    console.log(a);
+    console.log(b);
+    console.log(c);
+}

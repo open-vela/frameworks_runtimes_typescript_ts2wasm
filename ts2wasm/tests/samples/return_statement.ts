@@ -17,3 +17,18 @@ export function deadReturnStatement(a: number) {
         return 'hi';
     }
 }
+
+export function returnNaN() {
+    const a = NaN;
+    return a;
+}
+
+export function returnInfiity() {
+    const a = Infinity;
+    return a;
+}
+
+export function returnNegInfiity() {
+    const a = -Infinity;
+    return a;
+}

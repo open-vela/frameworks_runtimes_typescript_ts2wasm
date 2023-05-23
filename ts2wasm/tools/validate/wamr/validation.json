@@ -1394,6 +1394,11 @@
                 "name": "consoleLog",
                 "args": [],
                 "result": "1 true 123 [object Object]"
+            },
+            {
+                "name": "specialNum",
+                "args": [],
+                "result": "NaN \nInfinity \n-Infinity"
             }
         ]
     },
@@ -2866,6 +2871,19 @@
                     17
                 ],
                 "result": "17:f64"
+            },
+            {
+                "name": "returnNaN",
+                "args": [],
+                "result": "nan:f64"
+            },            {
+                "name": "returnInfiity",
+                "args": [],
+                "result": "inf:f64"
+            },            {
+                "name": "returnNegInfiity",
+                "args":[],
+                "result": "-inf:f64"
             }
         ]
     },
