@@ -143,6 +143,12 @@ export default class SemanticChecker {
 
     private exprAccept(expr: Expression | null) {
         if (expr instanceof CallExpression) {
+            if (
+                expr.callExpr instanceof PropertyAccessExpression &&
+                expr.callExpr.exprType.kind === TypeKind.ANY
+            ) {
+                return;
+            }
             this.checkCallExpr(expr);
         } else if (expr instanceof BinaryExpression) {
             this.binaryOperateCheck(

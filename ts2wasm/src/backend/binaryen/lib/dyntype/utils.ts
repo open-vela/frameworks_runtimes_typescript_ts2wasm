@@ -80,6 +80,9 @@ export namespace dyntype {
     export const dyntype_type_eq = 'dyntype_type_eq';
     export const dyntype_new_object_with_proto =
         'dyntype_new_object_with_proto';
+    export const dyntype_new_object_with_class =
+        'dyntype_new_object_with_class';
+    export const dyntype_invoke = 'dyntype_invoke';
     export const dyntype_set_prototype = 'dyntype_set_prototype';
     export const dyntype_get_prototype = 'dyntype_get_prototype';
     export const dyntype_get_own_property = 'dyntype_get_own_property';

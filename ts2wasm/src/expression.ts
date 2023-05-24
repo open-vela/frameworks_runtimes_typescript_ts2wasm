@@ -10,6 +10,7 @@ import { Variable } from './variable.js';
 import { getCurScope, DebugLoc, addSourceMapLoc } from './utils.js';
 import { TSFunction, Type, TypeKind } from './type.js';
 import { Logger } from './log.js';
+import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 
 type OperatorKind = ts.SyntaxKind;
 type ExpressionKind = ts.SyntaxKind;
@@ -539,53 +540,23 @@ export default class ExpressionProcessor {
                 const newExprNode = <ts.NewExpression>node;
                 const expr = this.visitNode(newExprNode.expression);
                 res = new NewExpression(expr);
-                if (
-                    expr.expressionKind === ts.SyntaxKind.Identifier &&
-                    (<IdentifierExpression>expr).identifierName === 'Array'
-                ) {
-                    if (!newExprNode.typeArguments) {
-                        if (!this.typeResolver.arrayTypeCheck(node)) {
-                            throw new Error(
-                                'new Array without declare element type',
-                            );
+                const identifierName = this.maybeGetBuiltinObjName(
+                    newExprNode.expression,
+                );
+                if (identifierName) {
+                    this.createNewBuiltInObjExpr(
+                        newExprNode,
+                        identifierName,
+                        res as NewExpression,
+                    );
+                } else {
+                    if (newExprNode.arguments !== undefined) {
+                        const args = new Array<Expression>();
+                        for (const arg of newExprNode.arguments) {
+                            args.push(this.visitNode(arg));
                         }
+                        (res as NewExpression).setArgs(args);
                     }
-                    let isLiteral = false;
-                    if (newExprNode.arguments) {
-                        /* Check if it's created from a literal */
-                        const argLen = newExprNode.arguments.length;
-                        if (argLen > 1) {
-                            isLiteral = true;
-                        } else if (argLen === 1) {
-                            const elem = newExprNode.arguments[0];
-                            const elemExpr = this.visitNode(elem);
-                            if (elemExpr.exprType.kind !== TypeKind.NUMBER) {
-                                isLiteral = true;
-                            }
-                        }
-
-                        if (isLiteral) {
-                            const elemExprs = newExprNode.arguments.map((a) => {
-                                return this.visitNode(a);
-                            });
-                            (res as NewExpression).setArrayLen(argLen);
-                            (res as NewExpression).setArgs(elemExprs);
-                        } else if (argLen === 1) {
-                            (res as NewExpression).setLenExpr(
-                                this.visitNode(newExprNode.arguments[0]),
-                            );
-                        }
-                        /* else no arguments */
-                    }
-                    res.setExprType(this.typeResolver.generateNodeType(node));
-                    break;
-                }
-                if (newExprNode.arguments !== undefined) {
-                    const args = new Array<Expression>();
-                    for (const arg of newExprNode.arguments) {
-                        args.push(this.visitNode(arg));
-                    }
-                    (res as NewExpression).setArgs(args);
                 }
                 res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
@@ -658,5 +629,74 @@ export default class ExpressionProcessor {
             addSourceMapLoc(res, node);
         }
         return res;
+    }
+
+    private maybeGetBuiltinObjName(node: ts.Node): string | null {
+        if (ts.isIdentifier(node)) {
+            const name = node.getText();
+            if (BuiltinNames.builtinIdentifierArray.includes(name)) {
+                return name;
+            }
+        }
+        return null;
+    }
+
+    private createNewBuiltInObjExpr(
+        node: ts.NewExpression,
+        name: string,
+        res: NewExpression,
+    ) {
+        switch (name) {
+            case BuiltinNames.ARRAY:
+                this.createNewArrayExpr(node, res);
+                break;
+            case BuiltinNames.MAP:
+                this.createNewMapExpr(node, res);
+                break;
+            default:
+                throw new Error(`unimpl new built-in object name: ${name}`);
+        }
+    }
+
+    private createNewArrayExpr(node: ts.NewExpression, res: NewExpression) {
+        if (!node.typeArguments) {
+            // TODO: new Array() is allowed
+            // if (!this.typeResolver.arrayTypeCheck(node)) {
+            //     throw new Error(
+            //         'new Array without declare element type',
+            //     );
+            // }
+        }
+        let isLiteral = false;
+        if (node.arguments) {
+            /* Check if it's created from a literal */
+            const argLen = node.arguments.length;
+            if (argLen > 1) {
+                isLiteral = true;
+            } else if (argLen === 1) {
+                const elem = node.arguments[0];
+                const elemExpr = this.visitNode(elem);
+                if (elemExpr.exprType.kind !== TypeKind.NUMBER) {
+                    isLiteral = true;
+                }
+            }
+
+            if (isLiteral) {
+                const elemExprs = node.arguments.map((a) => {
+                    return this.visitNode(a);
+                });
+                res.setArrayLen(argLen);
+                res.setArgs(elemExprs);
+            } else if (argLen === 1) {
+                res.setLenExpr(this.visitNode(node.arguments[0]));
+            }
+            /* else no arguments */
+        }
+    }
+
+    private createNewMapExpr(node: ts.NewExpression, res: NewExpression) {
+        if (node.typeArguments) {
+            throw new Error('unsupport new Map with type arguments');
+        }
     }
 }
