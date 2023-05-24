@@ -47,7 +47,6 @@ include_directories(${STDLIB_DIR})
 set(STDLIB_SOURCE
     ${STDLIB_DIR}/lib_console.c
     ${STDLIB_DIR}/lib_array.c
-    ${STDLIB_DIR}/utils.c
 )
 
 ## struct-dyn
@@ -59,13 +58,29 @@ set(STRUCT_DYN_SOURCE
     ${STRUCT_DYN_DIR}/lib_structdyn.c
 )
 
-include (${SHARED_DIR}/utils/uncommon/shared_uncommon.cmake)
+## utils
+set(UTILS_DIR ${CMAKE_CURRENT_LIST_DIR}/utils)
 
+include_directories(${UTILS_DIR})
+
+set(UTILS_SOURCE
+    ${UTILS_DIR}/type_utils.c
+)
+
+# Ignore warnings of QuickJS
+set_source_files_properties(
+    ${QUICKJS_SOURCE}
+    PROPERTIES
+    COMPILE_FLAGS "-w"
+)
+
+include (${SHARED_DIR}/utils/uncommon/shared_uncommon.cmake)
 add_executable(iwasm_gc main.c
     ${UNCOMMON_SHARED_SOURCE}
     ${QUICKJS_SOURCE}
     ${LIBDYNTYPE_SOURCE}
     ${STDLIB_SOURCE}
     ${STRUCT_DYN_SOURCE}
+    ${UTILS_SOURCE}
 )
 target_link_libraries (iwasm_gc vmlib -lm -ldl -lpthread)
