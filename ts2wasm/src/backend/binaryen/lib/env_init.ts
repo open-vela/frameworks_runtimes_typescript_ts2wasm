@@ -291,6 +291,29 @@ export function importAnyLibAPI(module: binaryen.Module) {
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.pointer]),
         dyntype.cvoid,
     );
+    module.addFunctionImport(
+        dyntype.dyntype_new_object_with_class,
+        dyntype.module_name,
+        dyntype.dyntype_new_object_with_class,
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.pointer,
+            dyntype.dyn_value_t,
+        ]),
+        dyntype.dyn_value_t,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_invoke,
+        dyntype.module_name,
+        dyntype.dyntype_invoke,
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.pointer,
+            dyntype.dyn_value_t,
+            dyntype.dyn_value_t,
+        ]),
+        dyntype.dyn_value_t,
+    );
 }
 
 export function importInfcLibAPI(module: binaryen.Module) {

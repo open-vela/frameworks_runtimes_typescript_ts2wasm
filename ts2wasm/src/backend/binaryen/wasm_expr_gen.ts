@@ -59,6 +59,7 @@ import { MatchKind, Stack } from '../../utils.js';
 import { dyntype, structdyn } from './lib/dyntype/utils.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import {
+    anyArrayTypeInfo,
     charArrayTypeInfo,
     stringTypeInfo,
     stringArrayTypeInfo,
@@ -2278,17 +2279,21 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
     private WASMCallExpr(expr: CallExpression): binaryen.ExpressionRef {
         const callExpr = expr.callExpr;
-
         if (!(callExpr.exprType instanceof TSFunction)) {
             Logger.error(`call non-function`);
+        }
+        /* In call expression, the callee may be a function scope rather than a variable,
+            we use WASMExprGenInternal here which may return a FunctionAccess object */
+        const accessInfo = this.WASMExprGenInternal(callExpr, true);
+
+        /* calling method from an any object, fallback to quickJS */
+        if (accessInfo instanceof DynObjectAccess) {
+            return this.parseDynMethodCall(accessInfo, callExpr, expr.callArgs);
         }
         let callWasmArgs = this.parseArguments(
             callExpr.exprType as TSFunction,
             expr.callArgs,
         );
-        /* In call expression, the callee may be a function scope rather than a variable,
-            we use WASMExprGenInternal here which may return a FunctionAccess object */
-        const accessInfo = this.WASMExprGenInternal(callExpr, true);
         const context = binaryenCAPI._BinaryenRefNull(
             this.module.ptr,
             emptyStructType.typeRef,
@@ -3108,8 +3113,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
         expr: CallExpression,
     ) {
         const funcType = expr.callExpr.exprType as TSFunction;
-        const paramTypes = funcType.getParamTypes();
-
         let funcRef: binaryen.ExpressionRef = -1;
         if (accessInfo instanceof AccessBase) {
             const wasmRef = this._loadFromAccessInfo(accessInfo);
@@ -3677,6 +3680,56 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
         return arrayStructValue;
     }
+
+    private parseDynMethodCall(
+        access: DynObjectAccess,
+        callExpr: Expression,
+        args: Expression[],
+    ) {
+        const nameAddr = this.wasmCompiler.generateRawString(access.fieldName);
+        if (!(callExpr instanceof PropertyAccessExpression)) {
+            throw new Error(
+                'call method from any type should be a property access expr',
+            );
+        }
+        const wasmArgs: binaryen.ExpressionRef[] = [];
+        const dynCompiler = this.wasmCompiler.wasmDynExprCompiler;
+        for (const arg of args) {
+            if (arg instanceof FunctionExpression) {
+                wasmArgs.push(this.WASMExprGen(arg).binaryenRef);
+            } else {
+                wasmArgs.push(dynCompiler.WASMDynExprGen(arg).binaryenRef);
+            }
+        }
+        const arrayValue = binaryenCAPI._BinaryenArrayInit(
+            this.module.ptr,
+            anyArrayTypeInfo.heapTypeRef,
+            arrayToPtr(wasmArgs).ptr,
+            wasmArgs.length,
+        );
+        const arrayStructType = generateArrayStructTypeInfo(anyArrayTypeInfo);
+        const arrayStruct = binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr([arrayValue, this.module.i32.const(wasmArgs.length)])
+                .ptr,
+            2,
+            arrayStructType.heapTypeRef,
+        );
+        const res = this.module.call(
+            dyntype.dyntype_invoke,
+            [
+                this.module.global.get(
+                    dyntype.dyntype_context,
+                    dyntype.dyn_ctx_t,
+                ),
+                this.module.i32.const(nameAddr),
+                access.ref,
+                arrayStruct,
+            ],
+            binaryen.anyref,
+        );
+        return res;
+    }
 }
 
 export class WASMDynExpressionGen extends WASMExpressionBase {
@@ -3716,6 +3769,28 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
             case ts.SyntaxKind.ElementAccessExpression:
                 res = this.boxNonLiteralToAny(expr);
                 break;
+            case ts.SyntaxKind.NewExpression: {
+                const newExpr = <NewExpression>expr;
+                const objExpr = newExpr.newExpr;
+                if (!(objExpr instanceof IdentifierExpression)) {
+                    throw new Error(
+                        "Not impl when creating dynaic object with NewExpression's expr is not identifier",
+                    );
+                }
+                const identifierName = objExpr.identifierName;
+                const scope = this.currentFuncCtx.getCurrentScope();
+                const type = scope.findIdentifier(identifierName);
+                // access to user defined class
+                if (type instanceof Type) {
+                    throw new Error(
+                        'unimpl new non-built-in class for any type',
+                    );
+                } else {
+                    // fallback to quickjs
+                    res = this.createDynObject(newExpr, identifierName);
+                }
+                break;
+            }
             default:
                 throw new Error(
                     'unexpected expr kind ' +
@@ -3787,5 +3862,49 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
             this.currentFuncCtx.insert(setPropertyExpression);
         }
         return this.getVariableValue(objLocalVar, objLocalVarWasmType);
+    }
+
+    /** the dynamic object will fallback to quickjs */
+    private createDynObject(
+        newExpr: NewExpression,
+        name: string,
+    ): binaryen.ExpressionRef {
+        const namePointer = this.wasmCompiler.generateRawString(name);
+        const wasmArgs: binaryen.ExpressionRef[] = [];
+        let numArgs;
+        if (newExpr.newArgs) {
+            numArgs = newExpr.newArgs.length;
+            for (const arg of newExpr.newArgs) {
+                wasmArgs.push(this.WASMDynExprGen(arg).binaryenRef);
+            }
+        } else {
+            numArgs = 0;
+        }
+        const argArray = binaryenCAPI._BinaryenArrayInit(
+            this.module.ptr,
+            anyArrayTypeInfo.heapTypeRef,
+            arrayToPtr(wasmArgs).ptr,
+            numArgs,
+        );
+        const arrayStructType = generateArrayStructTypeInfo(anyArrayTypeInfo);
+        const arrayStruct = binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr([argArray, this.module.i32.const(numArgs)]).ptr,
+            2,
+            arrayStructType.heapTypeRef,
+        );
+        const res = this.module.call(
+            dyntype.dyntype_new_object_with_class,
+            [
+                this.module.global.get(
+                    dyntype.dyntype_context,
+                    dyntype.dyn_ctx_t,
+                ),
+                this.module.i32.const(namePointer),
+                arrayStruct,
+            ],
+            dyntype.dyn_value_t,
+        );
+        return res;
     }
 }
