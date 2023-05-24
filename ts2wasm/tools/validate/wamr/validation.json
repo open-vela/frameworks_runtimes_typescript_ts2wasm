@@ -1534,6 +1534,11 @@
                 "name": "stringreadonly",
                 "args": [],
                 "result": "e"
+            },
+            {
+                "name": "stringadd",
+                "args": [],
+                "result": "hello world"
             }
         ]
     },

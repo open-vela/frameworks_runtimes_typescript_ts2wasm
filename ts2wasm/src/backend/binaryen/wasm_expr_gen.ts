@@ -58,7 +58,12 @@ import {
 import { MatchKind, Stack } from '../../utils.js';
 import { dyntype, structdyn } from './lib/dyntype/utils.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
-import { charArrayTypeInfo, stringTypeInfo } from './glue/packType.js';
+import {
+    charArrayTypeInfo,
+    stringTypeInfo,
+    stringArrayTypeInfo,
+    stringArrayStructTypeInfo,
+} from './glue/packType.js';
 import { WASMGen } from './index.js';
 import { Logger } from '../../log.js';
 import {
@@ -641,6 +646,58 @@ export class WASMExpressionBase {
                     [leftExprRef, rightExprRef],
                     dyntype.bool,
                 );
+            }
+            case ts.SyntaxKind.PlusToken: {
+                const vartype = new TSArray(new Primitive('string'));
+                const objLocalVar = this.generateTmpVar(
+                    '~string|',
+                    '',
+                    vartype,
+                );
+
+                const statementArray: binaryen.ExpressionRef[] = [];
+
+                const arrayValue = binaryenCAPI._BinaryenArrayInit(
+                    module.ptr,
+                    stringArrayTypeInfo.heapTypeRef,
+                    arrayToPtr([rightExprRef]).ptr,
+                    1,
+                );
+
+                statementArray.push(
+                    this.setVariableToCurrentScope(
+                        objLocalVar,
+                        binaryenCAPI._BinaryenStructNew(
+                            module.ptr,
+                            arrayToPtr([arrayValue, module.i32.const(1)]).ptr,
+                            2,
+                            stringArrayStructTypeInfo.heapTypeRef,
+                        ),
+                    ),
+                );
+
+                statementArray.push(
+                    module.call(
+                        getFuncName(
+                            BuiltinNames.builtinModuleName,
+                            BuiltinNames.stringConcatFuncName,
+                        ),
+                        [
+                            binaryenCAPI._BinaryenRefNull(
+                                module.ptr,
+                                emptyStructType.typeRef,
+                            ),
+                            leftExprRef,
+                            this.getVariableValue(
+                                objLocalVar,
+                                stringArrayStructTypeInfo.typeRef,
+                            ),
+                        ],
+                        stringTypeInfo.typeRef,
+                    ),
+                );
+                const concatBlock = module.block(null, statementArray);
+                return concatBlock;
             }
             default:
                 throw new Error(`operator doesn't support, ${operatorKind}`);

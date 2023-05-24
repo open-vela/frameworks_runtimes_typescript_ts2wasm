@@ -131,3 +131,9 @@ export function stringreadonly() {
     let b: string = a[1];
     console.log(b);
 }
+
+export function stringadd() {
+    const a: string = 'hello';
+    const b: string = ' world';
+    console.log( a + b);
+}
