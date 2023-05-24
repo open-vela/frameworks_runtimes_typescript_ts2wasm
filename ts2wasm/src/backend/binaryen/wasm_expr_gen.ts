@@ -1488,7 +1488,19 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 ifFalse,
             );
         } else if (accessInfo instanceof DynArrayAccess) {
-            throw Error(`dynamic array not implemented`);
+            const { ref, index } = accessInfo;
+            loadRef = module.call(
+                dyntype.dyntype_get_elem,
+                [
+                    module.global.get(
+                        dyntype.dyntype_context,
+                        dyntype.dyn_ctx_t,
+                    ),
+                    ref,
+                    index,
+                ],
+                dyntype.dyn_value_t,
+            );
         } else {
             return accessInfo;
         }
@@ -2038,7 +2050,22 @@ export class WASMExpressionGen extends WASMExpressionBase {
             );
             return setPropertyExpression;
         } else if (accessInfo instanceof DynArrayAccess) {
-            throw Error(`Dynamic array not implemented`);
+            const { ref, index } = accessInfo;
+            return module.drop(
+                module.call(
+                    dyntype.dyntype_set_elem,
+                    [
+                        module.global.get(
+                            dyntype.dyntype_context,
+                            dyntype.dyn_ctx_t,
+                        ),
+                        ref,
+                        index,
+                        assignValue,
+                    ],
+                    dyntype.cvoid,
+                ),
+            );
         } else {
             /* TODO: print the related source code */
             throw new Error(`Invalid assign target`);
@@ -2957,7 +2984,18 @@ export class WASMExpressionGen extends WASMExpressionBase {
         } else {
             /* Any-objects */
             if (!byRef) {
-                throw Error(`Dynamic array not implemented`);
+                return module.call(
+                    dyntype.dyntype_get_elem,
+                    [
+                        module.global.get(
+                            dyntype.dyntype_context,
+                            dyntype.dyn_ctx_t,
+                        ),
+                        arrayStructRef,
+                        index,
+                    ],
+                    dyntype.dyn_value_t,
+                );
             } else {
                 return new DynArrayAccess(arrayStructRef, index);
             }
