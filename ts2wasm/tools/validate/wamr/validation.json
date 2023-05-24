@@ -2980,5 +2980,15 @@
     {
         "module": "top_level_statements",
         "entries": []
+    },
+    {
+        "module": "fallback_quickjs",
+        "entries": [
+            {
+                "name": "mapTest",
+                "args": [],
+                "result": "2 \nundefined \nworld \nundefined \ntrue \nfalse \n11"
+            }
+        ]
     }
 ]
