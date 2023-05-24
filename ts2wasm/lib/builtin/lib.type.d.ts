@@ -152,6 +152,20 @@ interface Console {
 }
 var console: Console;
 
+interface MapConstructor {
+    new (): Map<any, any>;
+    set(key: any, value: any): void;
+    get(key: any): any;
+    has(key: any): boolean;
+    size(): number;
+    delete(key: any): boolean;
+    clear(): void;
+    forEach(
+        callbackfn: (value: any, key: any, map: Map<any, any>) => void,
+    ): void;
+}
+var Map: MapConstructor;
+
 // eslint-disable-next-line no-shadow-restricted-names
 var NaN: number;
 // eslint-disable-next-line no-shadow-restricted-names
