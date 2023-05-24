@@ -27,7 +27,7 @@ export function mapTest() {
     console.log(a.has(o2)); // false
     const key = a.get(o1) as A;
     console.log(key.x); // 11
+    console.log(a.size); //1
     // TODO
-    // .size
-    // .has()
+    // if (.has()) {...}
 }
