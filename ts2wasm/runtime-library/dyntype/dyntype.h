@@ -13,12 +13,12 @@
 extern "C" {
 #endif
 
-#define DYNTYPE_FALSE     0
-#define DYNTYPE_TRUE      1
+#define DYNTYPE_FALSE 0
+#define DYNTYPE_TRUE 1
 
-#define DYNTYPE_SUCCESS   0
+#define DYNTYPE_SUCCESS 0
 #define DYNTYPE_EXCEPTION 1
-#define DYNTYPE_TYPEERR   2
+#define DYNTYPE_TYPEERR 2
 
 typedef struct DynTypeContext DynTypeContext;
 
@@ -27,38 +27,40 @@ typedef void dyn_options_t;
 typedef void *dyn_value_t;
 
 typedef enum external_ref_tag {
-  ExtObj,
-  ExtFunc,
-  ExtInfc,
-  ExtArray,
+    ExtObj,
+    ExtFunc,
+    ExtInfc,
+    ExtArray,
 } external_ref_tag;
 
 typedef enum dyn_type_t {
-  DynUnknown,
-  DynUndefined,
-  DynObject,
-  DynBoolean,
-  DynNumber,
-  DynString,
-  DynFunction,
-  DynSymbol,
-  DynBigInt,
-  DynExtRefObj,
-  DynExtRefFunc,
-  DynExtRefInfc,
-  DynExtRefArray,
+    DynUnknown,
+    DynUndefined,
+    DynObject,
+    DynBoolean,
+    DynNumber,
+    DynString,
+    DynFunction,
+    DynSymbol,
+    DynBigInt,
+    DynExtRefObj,
+    DynExtRefFunc,
+    DynExtRefInfc,
+    DynExtRefArray,
 } dyn_type_t;
 
 /******************* Initialization and destroy *******************/
 
-dyn_ctx_t dyntype_get_context();
+dyn_ctx_t
+dyntype_get_context();
 
 /**
  * @brief Initialize the dynamic type system context
  *
  * @return dynamic type system context if success, NULL otherwise
  */
-dyn_ctx_t dyntype_context_init();
+dyn_ctx_t
+dyntype_context_init();
 
 /**
  * @brief Initialize the dynamic type system context with given options
@@ -69,14 +71,16 @@ dyn_ctx_t dyntype_context_init();
  * @param options options to set (TBD)
  * @return dynamic type system context if success, NULL otherwise
  */
-dyn_ctx_t dyntype_context_init_with_opt(dyn_options_t *options);
+dyn_ctx_t
+dyntype_context_init_with_opt(dyn_options_t *options);
 
 /**
  * @brief Destroy the dynamic type system context
  *
  * @param ctx context to destroy
  */
-void dyntype_context_destroy(dyn_ctx_t ctx);
+void
+dyntype_context_destroy(dyn_ctx_t ctx);
 
 /******************* Field access *******************/
 /* Creation */
@@ -88,7 +92,8 @@ void dyntype_context_destroy(dyn_ctx_t ctx);
  * @param value the number to be boxed
  * @return dynamic value if success, NULL otherwise
  */
-dyn_value_t dyntype_new_number(dyn_ctx_t ctx, double value);
+dyn_value_t
+dyntype_new_number(dyn_ctx_t ctx, double value);
 
 /**
  * @brief Boxing a bool to dynamic value
@@ -97,7 +102,8 @@ dyn_value_t dyntype_new_number(dyn_ctx_t ctx, double value);
  * @param value the bool value to be boxed
  * @return dynamic value if success, NULL otherwise
  */
-dyn_value_t dyntype_new_boolean(dyn_ctx_t ctx, bool value);
+dyn_value_t
+dyntype_new_boolean(dyn_ctx_t ctx, bool value);
 
 /**
  * @brief Create a new dynamic string value with the given c-string
@@ -108,7 +114,8 @@ dyn_value_t dyntype_new_boolean(dyn_ctx_t ctx, bool value);
  * @param value the string to initialize the dynamic value
  * @return dynamic value if success, NULL otherwise
  */
-dyn_value_t dyntype_new_string(dyn_ctx_t ctx, const char *str);
+dyn_value_t
+dyntype_new_string(dyn_ctx_t ctx, const char *str);
 
 /**
  * @brief Create a new dynamic JSvalue with the given c JSON string
@@ -128,7 +135,8 @@ dyntype_parse_json(dyn_ctx_t ctx, const char *str);
  * @param ctx the dynamic type system context
  * @return dynamic undefined value if success, NULL otherwise
  */
-dyn_value_t dyntype_new_undefined(dyn_ctx_t ctx);
+dyn_value_t
+dyntype_new_undefined(dyn_ctx_t ctx);
 
 /**
  * @brief Create a null value
@@ -136,7 +144,8 @@ dyn_value_t dyntype_new_undefined(dyn_ctx_t ctx);
  * @param ctx the dynamic type system context
  * @return dynamic null value if success, NULL otherwise
  */
-dyn_value_t dyntype_new_null(dyn_ctx_t ctx);
+dyn_value_t
+dyntype_new_null(dyn_ctx_t ctx);
 
 /**
  * @brief Create a new dynamic object without any property
@@ -144,10 +153,11 @@ dyn_value_t dyntype_new_null(dyn_ctx_t ctx);
  * @param ctx the dynamic type system context
  * @return dynamic value if success, NULL otherwise
  */
-dyn_value_t dyntype_new_object(dyn_ctx_t ctx);
+dyn_value_t
+dyntype_new_object(dyn_ctx_t ctx);
 
-
-dyn_value_t dyntype_new_array_with_length(dyn_ctx_t ctx, int len);
+dyn_value_t
+dyntype_new_array_with_length(dyn_ctx_t ctx, int len);
 
 /**
  * @brief Create a new dynamic array object without any elements
@@ -155,19 +165,21 @@ dyn_value_t dyntype_new_array_with_length(dyn_ctx_t ctx, int len);
  * @param ctx the dynamic type system context
  * @return dynamic value if success, NULL otherwise
  */
-dyn_value_t dyntype_new_array(dyn_ctx_t ctx);
+dyn_value_t
+dyntype_new_array(dyn_ctx_t ctx);
 
 /**
  * @brief Create an object with class name
- * 
+ *
  * @param ctx the dynamic type system context
  * @param name the name of class
  * @param argc the count of arguments
  * @param args the argument array
  * @return dynamic value if success, NULL otherwise
  */
-dyn_value_t 
-dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc, dyn_value_t *args);
+dyn_value_t
+dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
+                              dyn_value_t *args);
 
 /**
  * @brief invoke a method by this and method name
@@ -177,8 +189,10 @@ dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc, dyn_val
  * @param argc the count of arguments
  * @param args the argument array
  * @return dynamic value determined by the method
-*/
-dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj, int argc, dyn_value_t *args);
+ */
+dyn_value_t
+dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj, int argc,
+               dyn_value_t *args);
 
 /**
  * @brief Boxing an external reference to a dynamic value
@@ -188,7 +202,8 @@ dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj
  * @param tag external reference tag
  * @return dynamic value if success, NULL otherwise
  */
-dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag);
+dyn_value_t
+dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag);
 
 /* Modifying and testing */
 /**
@@ -201,8 +216,9 @@ dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag);
  * @return 0 if success, error code otherwise
  * @retval -1:EXCEPTION, -2: TYPE ERROR
  */
-int dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
-                         dyn_value_t value);
+int
+dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
+                     dyn_value_t value);
 
 /**
  * @brief Set the value element of a dynamic object by index.
@@ -237,8 +253,9 @@ dyntype_get_elem(dyn_ctx_t ctx, dyn_value_t obj, int index);
  * @return 0 if success, error code otherwise
  * @retval -1: EXCEPTION, -2: TYPE ERROR
  */
-int dyntype_define_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
-                            dyn_value_t desc);
+int
+dyntype_define_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
+                        dyn_value_t desc);
 
 /**
  * @brief Get the property of a dynamic object
@@ -248,8 +265,8 @@ int dyntype_define_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
  * @param prop property name
  * @return dynamic value if success, NULL otherwise
  */
-dyn_value_t dyntype_get_property(dyn_ctx_t ctx, dyn_value_t obj,
-                                 const char *prop);
+dyn_value_t
+dyntype_get_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
 
 /**
  * @brief Test if the property exists on the given object
@@ -259,7 +276,8 @@ dyn_value_t dyntype_get_property(dyn_ctx_t ctx, dyn_value_t obj,
  * @param prop property name
  * @return TRUE if exists, FALSE if not exists, -1 if EXCEPTION
  */
-int dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
+int
+dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
 
 /**
  * @brief Delete the property of the given object
@@ -269,28 +287,41 @@ int dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
  * @param prop property name
  * @return TRUE if success, FALSE if failed, -1 if EXCEPTION
  */
-int dyntype_delete_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
+int
+dyntype_delete_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
 
 /******************* Runtime type checking *******************/
 /* undefined and null */
-bool dyntype_is_undefined(dyn_ctx_t ctx, dyn_value_t obj);
-bool dyntype_is_null(dyn_ctx_t ctx, dyn_value_t obj);
+bool
+dyntype_is_undefined(dyn_ctx_t ctx, dyn_value_t obj);
+bool
+dyntype_is_null(dyn_ctx_t ctx, dyn_value_t obj);
 /* boolean */
-bool dyntype_is_bool(dyn_ctx_t ctx, dyn_value_t obj);
-int dyntype_to_bool(dyn_ctx_t ctx, dyn_value_t bool_obj, bool *pres);
+bool
+dyntype_is_bool(dyn_ctx_t ctx, dyn_value_t obj);
+int
+dyntype_to_bool(dyn_ctx_t ctx, dyn_value_t bool_obj, bool *pres);
 /* number */
-bool dyntype_is_number(dyn_ctx_t ctx, dyn_value_t obj);
-int dyntype_to_number(dyn_ctx_t ctx, dyn_value_t obj, double *pres);
+bool
+dyntype_is_number(dyn_ctx_t ctx, dyn_value_t obj);
+int
+dyntype_to_number(dyn_ctx_t ctx, dyn_value_t obj, double *pres);
 /* string */
-bool dyntype_is_string(dyn_ctx_t ctx, dyn_value_t obj);
-int dyntype_to_cstring(dyn_ctx_t ctx, dyn_value_t str_obj, char **pres);
-void dyntype_free_cstring(dyn_ctx_t ctx, char *str);
+bool
+dyntype_is_string(dyn_ctx_t ctx, dyn_value_t obj);
+int
+dyntype_to_cstring(dyn_ctx_t ctx, dyn_value_t str_obj, char **pres);
+void
+dyntype_free_cstring(dyn_ctx_t ctx, char *str);
 /* object */
-bool dyntype_is_object(dyn_ctx_t ctx, dyn_value_t obj);
+bool
+dyntype_is_object(dyn_ctx_t ctx, dyn_value_t obj);
 /* array */
-bool dyntype_is_array(dyn_ctx_t ctx, dyn_value_t obj);
+bool
+dyntype_is_array(dyn_ctx_t ctx, dyn_value_t obj);
 /* extern ref */
-bool dyntype_is_extref(dyn_ctx_t ctx, dyn_value_t obj);
+bool
+dyntype_is_extref(dyn_ctx_t ctx, dyn_value_t obj);
 /**
  * @brief Get the extern reference pointer
  *
@@ -299,7 +330,8 @@ bool dyntype_is_extref(dyn_ctx_t ctx, dyn_value_t obj);
  * @param pres [OUTPUT] pointer to the result
  * @return external_ref_tag if success, negative error code otherwise
  */
-int dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres);
+int
+dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres);
 
 /******************* Type equivalence *******************/
 
@@ -310,7 +342,8 @@ int dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres);
  * @param obj dynamic object
  * @return type of the dynamic value
  */
-dyn_type_t dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj);
+dyn_type_t
+dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj);
 
 /**
  * @brief Check if two dynamic value has the same type
@@ -321,7 +354,8 @@ dyn_type_t dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj);
  * @return true if the two dynamic values have same type (shape), false
  * otherwise
  */
-bool dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs);
+bool
+dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs);
 
 /******************* Subtyping *******************/
 
@@ -332,8 +366,8 @@ bool dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs);
  * @param proto_obj prototype object
  * @return dynamic value if success, NULL otherwise
  */
-dyn_value_t dyntype_new_object_with_proto(dyn_ctx_t ctx,
-                                          const dyn_value_t proto_obj);
+dyn_value_t
+dyntype_new_object_with_proto(dyn_ctx_t ctx, const dyn_value_t proto_obj);
 
 /**
  * @brief Set prototype of the given dynamic object
@@ -344,8 +378,9 @@ dyn_value_t dyntype_new_object_with_proto(dyn_ctx_t ctx,
  * @return 0 if success, error code otherwise
  * @retval -1:EXCEPTION, -2: TYPE ERROR
  */
-int dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
-                          const dyn_value_t proto_obj);
+int
+dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
+                      const dyn_value_t proto_obj);
 
 /**
  * @brief Get the prototype of the given dynamic object
@@ -354,7 +389,8 @@ int dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
  * @param obj dynamic object
  * @return prototype object, NULL if failed
  */
-const dyn_value_t dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj);
+const dyn_value_t
+dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj);
 
 /**
  * @brief Get own property of the given dynamic object
@@ -364,8 +400,8 @@ const dyn_value_t dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj);
  * @param prop property name
  * @return dynamic value of the corresponding property if exists, NULL otherwise
  */
-dyn_value_t dyntype_get_own_property(dyn_ctx_t ctx, dyn_value_t obj,
-                                     const char *prop);
+dyn_value_t
+dyntype_get_own_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
 
 /**
  * @brief Check if the src object is instance of the dst object
@@ -375,8 +411,9 @@ dyn_value_t dyntype_get_own_property(dyn_ctx_t ctx, dyn_value_t obj,
  * @param dst_obj dst object
  * @return true if src object is instance of dst object, false otherwise
  */
-bool dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
-                        const dyn_value_t dst_obj);
+bool
+dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
+                   const dyn_value_t dst_obj);
 
 /******************* Dumping *******************/
 
@@ -386,7 +423,8 @@ bool dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
  * @param ctx the dynamic type system context
  * @param obj object to be dumped
  */
-void dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj);
+void
+dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj);
 
 /**
  * @brief Dump dynamic value to given buffer
@@ -399,8 +437,9 @@ void dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj);
  * When failed, a negative error code is returned and content in buffer is
  * undefined
  */
-int dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer,
-                              int len);
+int
+dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer,
+                          int len);
 
 /******************* Garbage collection *******************/
 
@@ -410,7 +449,8 @@ int dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer,
  * @param ctx the dynamic type system context
  * @param obj the dynamic value
  */
-void dyntype_hold(dyn_ctx_t ctx, dyn_value_t obj);
+void
+dyntype_hold(dyn_ctx_t ctx, dyn_value_t obj);
 
 /**
  * @brief Release the object
@@ -418,14 +458,16 @@ void dyntype_hold(dyn_ctx_t ctx, dyn_value_t obj);
  * @param ctx the dynamic type system context
  * @param obj the dynamic value
  */
-void dyntype_release(dyn_ctx_t ctx, dyn_value_t obj);
+void
+dyntype_release(dyn_ctx_t ctx, dyn_value_t obj);
 
 /**
  * @brief Start GC collect
  *
  * @param ctx the dynamic type system context
  */
-void dyntype_collect(dyn_ctx_t ctx);
+void
+dyntype_collect(dyn_ctx_t ctx);
 
 #ifdef __cplusplus
 }

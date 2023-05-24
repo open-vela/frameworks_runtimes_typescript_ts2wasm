@@ -4,10 +4,9 @@
  */
 
 #include "dyntype.h"
-#include "../stdlib/utils.h"
 #include "gc_export.h"
 #include "bh_platform.h"
-#include "../stdlib/utils.h"
+#include "type_utils.h"
 
 /* Convert host pointer to anyref */
 #define BOX_ANYREF(ptr)                            \
@@ -249,7 +248,7 @@ dyntype_to_cstring_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 
 void *
 dyntype_to_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
-                           dyn_value_t str_obj)
+                          dyn_value_t str_obj)
 {
     char *value = NULL, *p, *p_end;
     int ret, len = 0;
@@ -292,27 +291,29 @@ dyntype_to_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 
     val.i32 = 0;
     get_string_array_type(module, &string_array_type);
-    new_arr =
-        wasm_array_obj_new_with_type(exec_env, string_array_type, len + 1, &val);
+    new_arr = wasm_array_obj_new_with_type(exec_env, string_array_type, len + 1,
+                                           &val);
     if (!new_arr) {
         wasm_runtime_set_exception(module_inst, "alloc memory failed");
         goto fail;
     }
 
     p = (char *)wasm_array_obj_first_elem_addr(new_arr);
-    p_end = p + len + 1 ;
+    p_end = p + len + 1;
     bh_assert(p);
     bh_assert(p_end);
 
     bh_memcpy_s(p, len, value, len);
     p += len;
-    bh_memcpy_s(p, p_end - p, "\0", 1);
+    *(p++) = '\0';
     bh_assert(p == p_end);
 
     val.gc_obj = (wasm_obj_t)new_arr;
     wasm_struct_obj_set_field(new_string_struct, 1, &val);
 
     wasm_runtime_pop_local_object_ref(exec_env);
+
+    (void)p_end;
     return new_string_struct;
 
 fail:
@@ -465,14 +466,20 @@ dyntype_invoke_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                        const char *name, wasm_anyref_obj_t this_obj,
                        wasm_struct_obj_t args_array)
 {
-    dyn_value_t this_val = wasm_anyref_obj_get_value(this_obj);
+    dyn_value_t this_val = (dyn_value_t)wasm_anyref_obj_get_value(this_obj);
+    dyn_value_t *argv = NULL;
     dyn_value_t ret = NULL;
     wasm_array_obj_t arr_ref = get_array_ref(args_array);
     wasm_value_t tmp;
     int argc = get_array_length(args_array);
-    dyn_value_t *argv = NULL;
+
     if (argc) {
         argv = wasm_runtime_malloc(sizeof(dyn_value_t) * argc);
+        if (!argv) {
+            wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
+                                       "alloc memory failed");
+        }
+        return NULL;
     }
 
     for (int i = 0; i < argc; i++) {
@@ -484,6 +491,7 @@ dyntype_invoke_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     if (argv) {
         wasm_runtime_free(argv);
     }
+
     BOX_ANYREF(ret);
 }
 
@@ -492,15 +500,20 @@ dyntype_new_object_with_class_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                       const char *name,
                                       wasm_struct_obj_t args_array)
 {
-    int argc = get_array_length(args_array);
-    dyn_value_t ret = NULL;
     wasm_array_obj_t arr_ref = get_array_ref(args_array);
+    dyn_value_t ret = NULL;
     dyn_value_t *argv = NULL;
+    wasm_value_t tmp;
+    int argc = get_array_length(args_array);
+
     if (argc) {
         argv = wasm_runtime_malloc(sizeof(dyn_value_t) * argc);
+        if (!argv) {
+            wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
+                                       "alloc memory failed");
+        }
+        return NULL;
     }
-
-    wasm_value_t tmp;
 
     for (int i = 0; i < argc; i++) {
         wasm_array_obj_get_elem(arr_ref, i, false, &tmp);
@@ -511,6 +524,7 @@ dyntype_new_object_with_class_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     if (argv) {
         wasm_runtime_free(argv);
     }
+
     BOX_ANYREF(ret);
 }
 
