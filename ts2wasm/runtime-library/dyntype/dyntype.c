@@ -144,6 +144,16 @@ dyn_value_t dyntype_new_object(dyn_ctx_t ctx) {
     return dyntype_dup_value(ctx->js_ctx, v);
 }
 
+dyn_value_t
+dyntype_parse_json(dyn_ctx_t ctx, const char *str)
+{
+    JSValue v = JS_ParseJSON(ctx->js_ctx, str, strlen(str), NULL);
+    if (JS_IsException(v)) {
+        return NULL;
+    }
+    return dyntype_dup_value(ctx->js_ctx, v);
+}
+
 dyn_value_t dyntype_new_array_with_length(dyn_ctx_t ctx, int len) {
     JSValue v = JS_NewArray(ctx->js_ctx);
     if (JS_IsException(v)) {
@@ -180,6 +190,34 @@ dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag)
     JS_SetPropertyStr(ctx->js_ctx, v, "@tag", tag_v);
     JS_SetPropertyStr(ctx->js_ctx, v, "@ref", ref_v);
     return dyntype_dup_value(ctx->js_ctx, v);
+}
+
+void
+dyntype_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem)
+{
+    JSValue *obj_ptr = (JSValue *)obj;
+    JSValue *elem_ptr = (JSValue *)elem;
+    if (!JS_IsArray(ctx->js_ctx, *obj_ptr)) {
+        return;
+    }
+    if (index < 0 ) return; 
+    JS_SetPropertyUint32(ctx->js_ctx, *obj_ptr, index, *elem_ptr);
+}
+
+dyn_value_t
+dyntype_get_elem(dyn_ctx_t ctx, dyn_value_t obj, int index)
+{
+    JSValue val;
+    JSValue *obj_ptr = (JSValue *)obj;
+    if (!JS_IsArray(ctx->js_ctx, *obj_ptr)) {
+        return NULL;
+    }
+    if (index < 0 ) return dyntype_new_undefined(dyntype_get_context()); 
+    val = JS_GetPropertyUint32(ctx->js_ctx, *obj_ptr, index);
+    if (JS_IsException(val)) {
+        return NULL;
+    }
+    return dyntype_dup_value(ctx->js_ctx, val);
 }
 
 int dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,

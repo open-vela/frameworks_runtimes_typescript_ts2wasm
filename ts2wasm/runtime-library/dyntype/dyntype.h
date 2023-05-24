@@ -111,6 +111,18 @@ dyn_value_t dyntype_new_boolean(dyn_ctx_t ctx, bool value);
 dyn_value_t dyntype_new_string(dyn_ctx_t ctx, const char *str);
 
 /**
+ * @brief Create a new dynamic JSvalue with the given c JSON string
+ *
+ * @note the string must be null-terminated
+ *
+ * @param ctx the dynamic type system context
+ * @param value the JSON string to initialize the dynamic value
+ * @return dynamic value if success, NULL otherwise
+ */
+dyn_value_t
+dyntype_parse_json(dyn_ctx_t ctx, const char *str);
+
+/**
  * @brief Create a undefined value
  *
  * @param ctx the dynamic type system context
@@ -168,6 +180,29 @@ dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag);
  */
 int dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
                          dyn_value_t value);
+
+/**
+ * @brief Set the value element of a dynamic object by index.
+ *
+ * @param ctx the dynamic type system context
+ * @param obj dynamic object
+ * @param index the index of the element to be set
+ * @param elem the value to be set to the element
+ * @return void
+ */
+void
+dyntype_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem);
+
+/**
+ * @brief Get the value of a dynamic object by index.
+ *
+ * @param ctx the dynamic type system context
+ * @param obj dynamic object
+ * @param index the index of the element to be get
+ * @return dynamic value if success, NULL otherwise
+ */
+dyn_value_t
+dyntype_get_elem(dyn_ctx_t ctx, dyn_value_t obj, int index);
 
 /**
  * @brief Define the property of a dynamic object
