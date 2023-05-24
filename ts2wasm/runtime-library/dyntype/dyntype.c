@@ -172,6 +172,54 @@ dyn_value_t dyntype_new_array(dyn_ctx_t ctx) {
     return dyntype_new_array_with_length(ctx, 0);
 }
 
+dyn_value_t
+dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
+                              dyn_value_t *args)
+{
+    JSValue obj;
+    JSAtom atom = find_atom(ctx->js_ctx, name);
+    JSValue global_var = JS_GetGlobalVar(ctx->js_ctx, atom, true);
+    JSValue argv[argc];
+
+    if (JS_IsException(global_var)) {
+        return NULL;
+    }
+
+    for (int i = 0; i < argc; i++) {
+        argv[i] = *(JSValue *)args[i];
+    }
+
+    obj = JS_CallConstructorInternal(ctx->js_ctx, global_var, global_var, argc,
+                                     argv, 0);
+    JS_FreeValue(ctx->js_ctx, global_var);
+    return dyntype_dup_value(ctx->js_ctx, obj);
+}
+
+dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj,
+                           int argc, dyn_value_t *args) {
+    JSValue this_val = *(JSValue*)this_obj;
+    JSClassCall *call_func = NULL;
+    JSAtom atom = find_atom(ctx->js_ctx, name);
+    JSValue func = JS_GetProperty(ctx->js_ctx, this_val, atom);
+    JSObject *func_obj = JS_VALUE_GET_OBJ(func);
+    uint32_t class_id =  getClassIdFromObject(func_obj);
+    JSValue argv[argc];
+
+    call_func = getCallByClassId(ctx->js_rt, class_id);
+    if (!call_func) {
+        JS_FreeValue(ctx->js_ctx, func);
+        return NULL;
+    }
+
+    for (int i = 0; i < argc; i++) {
+        argv[i] = *(JSValue*)args[i];
+    }
+    JSValue v = call_func(ctx->js_ctx, func, this_val, argc, argv, 0); // flags is 0 because quickjs.c:17047
+
+    JS_FreeValue(ctx->js_ctx, func);
+    return dyntype_dup_value(ctx->js_ctx, v);
+}
+
 dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag)
 {
     JSValue tag_v, ref_v, v;

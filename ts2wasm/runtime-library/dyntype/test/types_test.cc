@@ -286,3 +286,31 @@ TEST_F(TypesTest, create_object) {
         after GC support finished, this line is not needed */
     dyntype_release(ctx, obj);
 }
+
+TEST_F(TypesTest, create_map) {
+    dyn_value_t obj = dyntype_new_object_with_class(ctx, "Map", 0, NULL);
+    dyn_value_t obj1 = dyntype_new_object_with_class(ctx, "Set", 0, NULL);
+    EXPECT_NE(obj, nullptr);
+    EXPECT_FALSE(dyntype_is_number(ctx, obj));
+    EXPECT_FALSE(dyntype_is_bool(ctx, obj));
+    EXPECT_TRUE(dyntype_is_object(ctx, obj));
+    EXPECT_FALSE(dyntype_is_undefined(ctx, obj));
+    EXPECT_FALSE(dyntype_is_null(ctx, obj));
+    EXPECT_FALSE(dyntype_is_string(ctx, obj));
+    EXPECT_FALSE(dyntype_is_array(ctx, obj));
+    EXPECT_FALSE(dyntype_is_extref(ctx, obj));
+    dyntype_hold(ctx, obj);
+    dyntype_release(ctx, obj);
+
+    bool temp;
+    double temp1;
+    char *temp2;
+    EXPECT_EQ(dyntype_to_bool(ctx, obj, &temp), -DYNTYPE_TYPEERR);
+    EXPECT_EQ(dyntype_to_number(ctx, obj, &temp1), -DYNTYPE_TYPEERR);
+    EXPECT_EQ(dyntype_to_cstring(ctx, obj, &temp2), -DYNTYPE_TYPEERR);
+    /* Currently we need to manually release the object,
+        after GC support finished, this line is not needed */
+        
+    dyntype_release(ctx, obj);
+    dyntype_release(ctx, obj1);
+}
