@@ -4,6 +4,7 @@
  */
 
 #include "dyntype.h"
+#include "../stdlib/utils.h"
 #include "gc_export.h"
 #include "bh_platform.h"
 #include "../stdlib/utils.h"
@@ -459,6 +460,60 @@ dyntype_collect_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
     return dyntype_collect(UNBOX_ANYREF(ctx));
 }
 
+wasm_anyref_obj_t
+dyntype_invoke_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
+                       const char *name, wasm_anyref_obj_t this_obj,
+                       wasm_struct_obj_t args_array)
+{
+    dyn_value_t this_val = wasm_anyref_obj_get_value(this_obj);
+    dyn_value_t ret = NULL;
+    wasm_array_obj_t arr_ref = get_array_ref(args_array);
+    wasm_value_t tmp;
+    int argc = get_array_length(args_array);
+    dyn_value_t *argv = NULL;
+    if (argc) {
+        argv = wasm_runtime_malloc(sizeof(dyn_value_t) * argc);
+    }
+
+    for (int i = 0; i < argc; i++) {
+        wasm_array_obj_get_elem(arr_ref, i, false, &tmp);
+        argv[i] = (dyn_value_t)UNBOX_ANYREF(tmp.gc_obj);
+    }
+
+    ret = dyntype_invoke(UNBOX_ANYREF(ctx), name, this_val, argc, argv);
+    if (argv) {
+        wasm_runtime_free(argv);
+    }
+    BOX_ANYREF(ret);
+}
+
+wasm_anyref_obj_t
+dyntype_new_object_with_class_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
+                                      const char *name,
+                                      wasm_struct_obj_t args_array)
+{
+    int argc = get_array_length(args_array);
+    dyn_value_t ret = NULL;
+    wasm_array_obj_t arr_ref = get_array_ref(args_array);
+    dyn_value_t *argv = NULL;
+    if (argc) {
+        argv = wasm_runtime_malloc(sizeof(dyn_value_t) * argc);
+    }
+
+    wasm_value_t tmp;
+
+    for (int i = 0; i < argc; i++) {
+        wasm_array_obj_get_elem(arr_ref, i, false, &tmp);
+        argv[i] = (dyn_value_t)UNBOX_ANYREF(tmp.gc_obj);
+    }
+
+    ret = dyntype_new_object_with_class(UNBOX_ANYREF(ctx), name, argc, argv);
+    if (argv) {
+        wasm_runtime_free(argv);
+    }
+    BOX_ANYREF(ret);
+}
+
 /* clang-format off */
 #define REG_NATIVE_FUNC(func_name, signature) \
     { #func_name, func_name##_wrapper, signature, NULL }
@@ -511,6 +566,9 @@ static NativeSymbol native_symbols[] = {
     REG_NATIVE_FUNC(dyntype_typeof, "(rr)i"),
     REG_NATIVE_FUNC(dyntype_type_eq, "(rrr)i"),
     REG_NATIVE_FUNC(dyntype_instanceof, "(rrr)i"),
+
+    REG_NATIVE_FUNC(dyntype_new_object_with_class, "(r$r)r"),
+    REG_NATIVE_FUNC(dyntype_invoke, "(r$rr)r"),
 
     /* TODO */
 };

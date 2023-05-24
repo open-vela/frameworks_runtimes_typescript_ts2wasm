@@ -158,6 +158,29 @@ dyn_value_t dyntype_new_array_with_length(dyn_ctx_t ctx, int len);
 dyn_value_t dyntype_new_array(dyn_ctx_t ctx);
 
 /**
+ * @brief Create an object with class name
+ * 
+ * @param ctx the dynamic type system context
+ * @param name the name of class
+ * @param argc the count of arguments
+ * @param args the argument array
+ * @return dynamic value if success, NULL otherwise
+ */
+dyn_value_t 
+dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc, dyn_value_t *args);
+
+/**
+ * @brief invoke a method by this and method name
+ *
+ * @param name the name of method name
+ * @param this_obj the The object bound by this
+ * @param argc the count of arguments
+ * @param args the argument array
+ * @return dynamic value determined by the method
+*/
+dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj, int argc, dyn_value_t *args);
+
+/**
  * @brief Boxing an external reference to a dynamic value
  *
  * @param ctx the dynamic type system context

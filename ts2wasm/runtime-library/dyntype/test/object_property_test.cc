@@ -395,3 +395,65 @@ TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
     dyntype_release(ctx, desc7);
     dyntype_release(ctx, desc8);
 }
+
+TEST_F(ObjectPropertyTest, map_function_test) {
+    dyn_value_t obj = dyntype_new_object_with_class(ctx, "Map", 0, NULL);
+
+    dyn_value_t num = dyntype_new_number(ctx, -10.1);
+    dyn_value_t boolean = dyntype_new_boolean(ctx, true);
+    dyn_value_t str = dyntype_new_string(ctx, "123");
+    dyn_value_t array = dyntype_new_array(ctx);
+
+    dyn_value_t argv[10];
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "set"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "get"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "has"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "delete"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "clear"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "size"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "forEach"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "values"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "keys"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "entries"), DYNTYPE_TRUE);
+
+    argv[0] = num;
+    argv[1] = boolean;
+    argv[2] = str;
+    argv[3] = array;
+    dyn_value_t ret;
+    ret = dyntype_invoke(ctx, "set", obj, 2, argv); // set  num -> boolean
+    dyntype_release(ctx, ret); // release duplicate map
+    ret = dyntype_invoke(ctx, "set", obj, 2, argv + 2); // set str -> array
+    dyntype_release(ctx, ret); // release duplicate map
+
+
+    ret = dyntype_invoke(ctx, "has", obj, 1, argv);
+    bool has;
+    dyntype_to_bool(ctx, ret, &has);
+    EXPECT_EQ(has, DYNTYPE_TRUE); // set success
+
+    ret = dyntype_get_property(ctx, obj, "size");
+    double sz;
+    dyntype_to_number(ctx, ret, &sz);
+    EXPECT_EQ(sz, 2.0); // size is 2
+
+    ret = dyntype_invoke(ctx, "delete", obj, 1, argv); // delete num -> boolean
+    dyntype_to_bool(ctx, ret, &has);
+    EXPECT_EQ(has, DYNTYPE_TRUE); // delete success
+
+    ret = dyntype_get_property(ctx, obj, "size");
+    dyntype_to_number(ctx, ret, &sz);
+    EXPECT_EQ(sz, 1.0); // size is 1
+
+    ret = dyntype_invoke(ctx, "clear", obj, 0, argv); // clear
+    ret = dyntype_get_property(ctx, obj, "size");
+    dyntype_to_number(ctx, ret, &sz);
+    EXPECT_EQ(sz, 0.0); // size is 0
+
+    dyntype_release(ctx, num);
+    dyntype_release(ctx, boolean);
+    dyntype_release(ctx, str);
+    dyntype_release(ctx, array);
+
+    dyntype_release(ctx, obj);
+}
