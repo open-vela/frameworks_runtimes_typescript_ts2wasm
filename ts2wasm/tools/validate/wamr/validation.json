@@ -2987,7 +2987,7 @@
             {
                 "name": "mapTest",
                 "args": [],
-                "result": "2 \nundefined \nworld \nundefined \ntrue \nfalse \n11"
+                "result": "2 \nundefined \nworld \nundefined \ntrue \nfalse \n11 \n1"
             }
         ]
     }
