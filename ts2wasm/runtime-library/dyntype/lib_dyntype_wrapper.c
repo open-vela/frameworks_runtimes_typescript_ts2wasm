@@ -478,8 +478,8 @@ dyntype_invoke_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
         if (!argv) {
             wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
                                        "alloc memory failed");
+            return NULL;
         }
-        return NULL;
     }
 
     for (int i = 0; i < argc; i++) {
@@ -511,8 +511,8 @@ dyntype_new_object_with_class_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
         if (!argv) {
             wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
                                        "alloc memory failed");
+            return NULL;
         }
-        return NULL;
     }
 
     for (int i = 0; i < argc; i++) {
