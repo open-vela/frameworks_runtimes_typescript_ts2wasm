@@ -369,6 +369,13 @@ dyntype_to_extref_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     return value;
 }
 
+bool
+dyntype_is_falsy_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
+                         dyn_value_t value)
+{
+    return dyntype_is_falsy(UNBOX_ANYREF(ctx), UNBOX_ANYREF(value));
+}
+
 /******************* Type equivalence *******************/
 dyn_type_t
 dyntype_typeof_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, dyn_value_t obj)
@@ -574,6 +581,7 @@ static NativeSymbol native_symbols[] = {
     REG_NATIVE_FUNC(dyntype_to_cstring, "(rr)i"),
     REG_NATIVE_FUNC(dyntype_to_string, "(rr)r"),
     REG_NATIVE_FUNC(dyntype_to_extref, "(rr)i"),
+    REG_NATIVE_FUNC(dyntype_is_falsy, "(rr)i"),
 
     REG_NATIVE_FUNC(dyntype_free_cstring, "(ri)"),
 

@@ -39,4 +39,4 @@ get_string_array_type(wasm_module_t wasm_module,
                       wasm_array_type_t *p_array_type_t);
 
 bool
-is_ts_string_type(wasm_module_t wasm_module, wasm_obj_t obj);
+is_ts_string_type(wasm_module_t wasm_module, wasm_defined_type_t type);

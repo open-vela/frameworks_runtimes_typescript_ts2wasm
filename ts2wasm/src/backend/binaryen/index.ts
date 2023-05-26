@@ -31,7 +31,6 @@ import {
     importAnyLibAPI,
     importInfcLibAPI,
     generateGlobalContext,
-    generateInitDynContext,
     generateFreeDynContext,
     addItableFunc,
 } from './lib/env_init.js';
@@ -53,6 +52,7 @@ import { Logger } from '../../log.js';
 import { callBuiltInAPIs } from './lib/init_builtin_api.js';
 import { Statement } from '../../statement.js';
 import { Expression } from '../../expression.js';
+import { dyntype } from './lib/dyntype/utils.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -378,7 +378,7 @@ export class WASMGen extends Ts2wasmBackend {
         const startFuncOpcodes = [];
         if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
             generateGlobalContext(this.module);
-            startFuncOpcodes.push(generateInitDynContext(this.module));
+            startFuncOpcodes.push(this.generateInitDynContext());
         }
         startFuncOpcodes.push(
             this.module.call(
@@ -885,7 +885,7 @@ export class WASMGen extends Ts2wasmBackend {
         if (isExport) {
             const functionStmts: binaryen.ExpressionRef[] = [];
             if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
-                functionStmts.push(generateInitDynContext(this.module));
+                functionStmts.push(this.generateInitDynContext());
             }
             functionStmts.push(
                 this.module.call(this.globalInitFuncName, [], binaryen.none),
@@ -1169,6 +1169,20 @@ export class WASMGen extends Ts2wasmBackend {
         binaryenCAPI.__i32_store8(index, 0);
         this.wasmStringMap.set(str, wasmStr);
         return wasmStr;
+    }
+
+    private generateInitDynContext() {
+        const value = this.module.call(
+            dyntype.dyntype_context_init,
+            [],
+            binaryen.anyref,
+        );
+        const expr = binaryenCAPI._BinaryenGlobalSet(
+            this.module.ptr,
+            this.getCString(dyntype.dyntype_context),
+            value,
+        );
+        return expr;
     }
 
     private setDebugLocation(

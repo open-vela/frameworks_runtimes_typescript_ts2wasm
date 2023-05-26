@@ -217,6 +217,45 @@ function string_concat(module: binaryen.Module) {
     return concatBlock;
 }
 
+function anyrefCond(module: binaryen.Module) {
+    const ref = module.local.get(0, binaryen.anyref);
+
+    let cond = module.call(
+        dyntype.dyntype_is_extref,
+        [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), ref],
+        dyntype.bool,
+    );
+    cond = module.i32.and(cond, module.i32.const(1));
+    const index = module.call(
+        dyntype.dyntype_to_extref,
+        [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), ref],
+        dyntype.int,
+    );
+    const extRef = module.table.get(
+        BuiltinNames.extrefTable,
+        index,
+        binaryen.anyref,
+    );
+    const ifTrue = module.block(null, [
+        module.return(
+            module.i32.eqz(binaryenCAPI._BinaryenRefIsNull(module.ptr, extRef)),
+        ),
+    ]);
+    let falsy = module.call(
+        dyntype.dyntype_is_falsy,
+        [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), ref],
+        dyntype.bool,
+    );
+    falsy = module.i32.and(falsy, module.i32.const(1));
+    const ifFalse = module.if(
+        falsy,
+        module.return(module.i32.const(0)),
+        module.return(module.i32.const(1)),
+    );
+    const stmt = module.if(cond, ifTrue, ifFalse);
+    return module.block(null, [stmt], binaryen.i32);
+}
+
 function string_eq(module: binaryen.Module) {
     const statementArray: binaryen.ExpressionRef[] = [];
 
@@ -1929,6 +1968,13 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         binaryen.i32,
         [binaryen.i32],
         Array_isArray(module),
+    );
+    module.addFunction(
+        getFuncName(BuiltinNames.builtinModuleName, BuiltinNames.anyrefCond),
+        binaryen.createType([binaryen.anyref]),
+        binaryen.i32,
+        [],
+        anyrefCond(module),
     );
     /** string */
     module.addFunction(

@@ -59,3 +59,14 @@ export function returnInIf(x: number) {
     }
     return -1;
 }
+
+export function stringAsCond() {
+    let b = '';
+    if (!b) {
+        console.log('b');
+    }
+    b = 'b';
+    if (b) {
+        console.log(b);
+    }
+}

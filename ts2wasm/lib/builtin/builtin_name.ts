@@ -88,6 +88,7 @@ export namespace BuiltinNames {
     export const stringtoLowerCaseFuncName = 'String|toLowerCase';
     export const stringtoUpperCaseFuncName = 'String|toUpperCase';
     export const stringtrimFuncName = 'String|trim';
+    export const anyrefCond = 'anyrefCond';
 
     export interface GenericFuncName {
         generic: string;

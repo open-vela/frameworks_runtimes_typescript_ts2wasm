@@ -2226,6 +2226,11 @@
                     20
                 ],
                 "result": "20:f64"
+            },
+            {
+                "name": "stringAsCond",
+                "args": [],
+                "result": "b \nb"
             }
         ]
     },
@@ -2856,6 +2861,16 @@
                 "name": "restParameterTest",
                 "args": [],
                 "result": "47:f64"
+            },
+            {
+                "name": "undefinedAsCond",
+                "args": [],
+                "result": "hello \nundefined"
+            },
+            {
+                "name": "anyrefCond",
+                "args": [],
+                "result": "hello \nv \nv3 \nv5 \nv7 \nv10"
             }
         ]
     },

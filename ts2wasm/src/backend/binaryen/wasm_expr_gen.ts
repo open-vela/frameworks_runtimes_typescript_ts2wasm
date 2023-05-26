@@ -382,6 +382,25 @@ export class WASMExpressionBase {
         return this.getLocalValue(variable.varIndex, type);
     }
 
+    getDynCond(
+        name: string,
+        expr: binaryen.ExpressionRef,
+        type: binaryen.Type,
+    ) {
+        const isCond = this.module.call(
+            name,
+            [
+                this.module.global.get(
+                    dyntype.dyntype_context,
+                    dyntype.dyn_ctx_t,
+                ),
+                expr,
+            ],
+            type,
+        );
+        const condition = this.module.i32.and(isCond, this.module.i32.const(1));
+        return condition;
+    }
     convertTypeToI32(
         expression: binaryen.ExpressionRef,
         expressionType: binaryen.Type,
@@ -440,15 +459,11 @@ export class WASMExpressionBase {
     unboxAnyToExtref(anyExprRef: binaryen.ExpressionRef, targetType: Type) {
         const module = this.module;
 
-        const isExternRef = module.call(
+        const condition = this.getDynCond(
             dyntype.dyntype_is_extref,
-            [
-                module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                anyExprRef,
-            ],
+            anyExprRef,
             dyntype.bool,
         );
-        const condition = module.i32.eq(isExternRef, module.i32.const(1));
         const wasmType = this.wasmType.getWASMType(targetType);
         // iff True
         const tableIndex = module.call(
@@ -1113,13 +1128,30 @@ export class WASMExpressionBase {
 
     generateCondition(exprRef: binaryen.ExpressionRef) {
         const type = binaryen.getExpressionType(exprRef);
-        // const module = this.WASMCompiler.module;
         let res = this.module.unreachable();
         /* TODO: Haven't handle string yet */
         if (type === binaryen.i32) {
             res = exprRef;
         } else if (type === binaryen.f64) {
             res = this.module.f64.ne(exprRef, this.module.f64.const(0));
+        } else if (type === binaryen.anyref) {
+            const targetFunc = getFuncName(
+                BuiltinNames.builtinModuleName,
+                BuiltinNames.anyrefCond,
+            );
+            res = this.module.call(targetFunc, [exprRef], binaryen.i32);
+        } else if (type === stringTypeInfo.typeRef) {
+            // '' => false, '123' => true
+            // TODO, use field 1
+            const array = binaryenCAPI._BinaryenStructGet(
+                this.module.ptr,
+                1,
+                exprRef,
+                binaryen.i32,
+                false,
+            );
+            const len = binaryenCAPI._BinaryenArrayLen(this.module.ptr, array);
+            res = this.module.i32.ne(len, this.module.i32.const(0));
         } else {
             res = this.module.i32.eqz(
                 binaryenCAPI._BinaryenRefIsNull(this.module.ptr, exprRef),
@@ -1620,6 +1652,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
         byRef = false,
     ): binaryen.ExpressionRef | AccessBase {
         // find the target scope
+        if (expr.identifierName === 'undefined') {
+            return this.generateDynUndefined();
+        }
         if (expr.identifierName === 'NaN') {
             return this.module.f64.const(NaN);
         }
