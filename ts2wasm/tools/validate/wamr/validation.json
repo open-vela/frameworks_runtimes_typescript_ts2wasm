@@ -2988,6 +2988,11 @@
                 "name": "mapTest",
                 "args": [],
                 "result": "2 \nundefined \nworld \nundefined \ntrue \nfalse \n11 \n1"
+            },
+            {
+                "name": "setTest",
+                "args": [],
+                "result": "true \n2 \n[wasm object] \ntrue \ntrue \n4"
             }
         ]
     }
