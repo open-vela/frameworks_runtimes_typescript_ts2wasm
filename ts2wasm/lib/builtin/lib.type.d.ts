@@ -157,7 +157,7 @@ interface MapConstructor {
     set(key: any, value: any): void;
     get(key: any): any;
     has(key: any): boolean;
-    size(): number;
+    size: number;
     delete(key: any): boolean;
     clear(): void;
     forEach(
@@ -165,6 +165,17 @@ interface MapConstructor {
     ): void;
 }
 var Map: MapConstructor;
+
+interface SetConstructor {
+    new (): Set<any>;
+    add(key: any): void;
+    has(key: any): boolean;
+    delete(key: any): boolean;
+    clear(): void;
+    size: number;
+    forEach(callbackfn: (value: any, key: any, map: Set<any>) => void): void;
+}
+var Set: SetConstructor;
 
 // eslint-disable-next-line no-shadow-restricted-names
 var NaN: number;

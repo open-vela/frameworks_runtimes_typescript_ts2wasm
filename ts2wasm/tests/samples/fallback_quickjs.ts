@@ -36,3 +36,27 @@ export function mapTest() {
     // TODO
     // if (.has()) {...}
 }
+
+export function setTest() {
+    const tset: any = new Set();
+    const v1: any = 1;
+    const v2: any = true;
+    tset.add(v1);
+    tset.add(v2);
+    console.log(tset.has(v1)); // true
+    tset.clear();
+    tset.add('hello');
+    tset.add('world');
+    console.log(tset.size); // 2
+
+    const obj1 = new A(10);
+    const o1: any = obj1;
+    console.log(o1); // object
+    const obj2 = new A(11);
+    const o2: any = obj2;
+    tset.add(o1);
+    tset.add(o2);
+    console.log(tset.has(o1)); // true
+    console.log(tset.has(o2)); // true
+    console.log(tset.size); // 4
+}
