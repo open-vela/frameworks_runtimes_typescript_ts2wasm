@@ -248,7 +248,7 @@ dyntype_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem)
     if (!JS_IsArray(ctx->js_ctx, *obj_ptr)) {
         return;
     }
-    if (index < 0 ) return; 
+    if (index < 0 ) return;
     JS_SetPropertyUint32(ctx->js_ctx, *obj_ptr, index, *elem_ptr);
 }
 
@@ -260,7 +260,7 @@ dyntype_get_elem(dyn_ctx_t ctx, dyn_value_t obj, int index)
     if (!JS_IsArray(ctx->js_ctx, *obj_ptr)) {
         return NULL;
     }
-    if (index < 0 ) return dyntype_new_undefined(dyntype_get_context()); 
+    if (index < 0 ) return dyntype_new_undefined(dyntype_get_context());
     val = JS_GetPropertyUint32(ctx->js_ctx, *obj_ptr, index);
     if (JS_IsException(val)) {
         return NULL;
@@ -447,6 +447,34 @@ int dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres) {
     *pres = (void *)(uintptr_t)JS_VALUE_GET_INT(*ref_v);
 
     return JS_VALUE_GET_INT(*tag_v);
+}
+
+bool dyntype_is_falsy(dyn_ctx_t ctx, dyn_value_t value) {
+    bool res;
+
+    if (dyntype_is_extref(ctx, value)) {
+        res = false;
+    } else if (dyntype_is_object(ctx, value)) {
+        res = true;
+    } else if (dyntype_is_undefined(ctx, value) || dyntype_is_null(ctx, value)) {
+        res = true;
+    } else if (dyntype_is_bool(ctx, value)) {
+        bool b;
+        dyntype_to_bool(ctx, value, &b);
+        res = !b;
+    } else if (dyntype_is_number(ctx, value)) {
+        double num;
+        dyntype_to_number(ctx, value, &num);
+        res = num == 0;
+    } else if (dyntype_is_string(ctx, value)) {
+        char *str;
+        dyntype_to_cstring(ctx, value, &str);
+        res = strcmp(str, "") == 0;
+        dyntype_free_cstring(ctx, str);
+    } else {
+        res = false;
+    }
+    return res;
 }
 
 dyn_type_t dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj) {

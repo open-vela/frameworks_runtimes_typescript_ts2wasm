@@ -15,14 +15,14 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.dyntype_context_init,
         dyntype.module_name,
         dyntype.dyntype_context_init,
-        binaryen.none,
+        binaryen.createType([]),
         dyntype.dyn_ctx_t,
     );
     module.addFunctionImport(
         dyntype.dyntype_context_destroy,
         dyntype.module_name,
         dyntype.dyntype_context_destroy,
-        dyntype.dyn_ctx_t,
+        binaryen.createType([dyntype.dyn_ctx_t]),
         dyntype.cvoid,
     );
     module.addFunctionImport(
@@ -292,6 +292,13 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.cvoid,
     );
     module.addFunctionImport(
+        dyntype.dyntype_is_falsy,
+        dyntype.module_name,
+        dyntype.dyntype_is_falsy,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.bool,
+    );
+    module.addFunctionImport(
         dyntype.dyntype_new_object_with_class,
         dyntype.module_name,
         dyntype.dyntype_new_object_with_class,
@@ -421,15 +428,6 @@ export function generateGlobalContext(module: binaryen.Module) {
         true,
         module.ref.null(dyntype.dyn_ctx_t),
     );
-}
-
-export function generateInitDynContext(module: binaryen.Module) {
-    const initDynContextStmt = module.global.set(
-        dyntype.dyntype_context,
-        module.call(dyntype.dyntype_context_init, [], binaryen.none),
-    );
-
-    return initDynContextStmt;
 }
 
 export function generateFreeDynContext(module: binaryen.Module) {

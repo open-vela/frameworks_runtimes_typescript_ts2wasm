@@ -333,6 +333,14 @@ dyntype_is_extref(dyn_ctx_t ctx, dyn_value_t obj);
 int
 dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres);
 
+/**
+* @brief Get the value of any type as a bool condition
+* @param ctx the dynamic type system context
+* @param value dynamic object
+* @return TRUE if the value is falsy, FALSE otherwise
+*/
+bool dyntype_is_falsy(dyn_ctx_t ctx, dyn_value_t value);
+
 /******************* Type equivalence *******************/
 
 /**
