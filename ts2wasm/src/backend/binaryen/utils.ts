@@ -146,7 +146,7 @@ export function unboxAnyTypeToBaseType(
         ],
         dyntype.bool,
     );
-    const condition = module.i32.ne(isBaseTypeRef, module.i32.const(0));
+    const condition = module.i32.and(isBaseTypeRef, module.i32.const(1));
     // iff True
     let value = module.call(
         cvtFuncName,

@@ -6,6 +6,7 @@
 #include "gc_export.h"
 #include "bh_platform.h"
 #include "wasm.h"
+#include "type_utils.h"
 
 /*
     utilities for array object
@@ -192,67 +193,53 @@ get_string_struct_type(wasm_module_t wasm_module,
                        wasm_struct_type_t *p_struct_type)
 {
     uint32 i, type_count;
+    wasm_defined_type_t type;
 
     type_count = wasm_get_defined_type_count(wasm_module);
     for (i = 0; i < type_count; i++) {
-        wasm_defined_type_t type = wasm_get_defined_type(wasm_module, i);
-
-        if (wasm_defined_type_is_struct_type(type)
-            && wasm_struct_type_get_field_count((wasm_struct_type_t)type)
-                   == 2) {
-            bool mut1 = false, mut2 = false;
-            wasm_ref_type_t first_field_type = wasm_struct_type_get_field_type(
-                (wasm_struct_type_t)type, 0, &mut1);
-            wasm_ref_type_t second_field_type = wasm_struct_type_get_field_type(
-                (wasm_struct_type_t)type, 1, &mut2);
-
-            if (first_field_type.value_type == VALUE_TYPE_I32 && mut1 == true
-                && is_i8_array(wasm_module, true, second_field_type)
-                && mut2 == true) {
-                if (p_struct_type) {
-                    *p_struct_type = (wasm_struct_type_t)type;
-                }
-                return i;
-            };
+        type = wasm_get_defined_type(wasm_module, i);
+        if (!is_ts_string_type(wasm_module, type)) {
+            continue;
         }
+        if (p_struct_type) {
+            *p_struct_type = (wasm_struct_type_t)type;
+        }
+        return i;
     }
-
     if (p_struct_type) {
         *p_struct_type = NULL;
     }
-
     return -1;
 }
 
 bool
-is_ts_string_type(wasm_module_t wasm_module, wasm_obj_t obj)
+is_ts_string_type(wasm_module_t wasm_module, wasm_defined_type_t type)
 {
-    bool is_struct = wasm_obj_is_struct_obj(obj);
+    bool is_struct_type;
+    wasm_struct_type_t struct_type;
+    uint32 field_count;
+    bool mut;
+    wasm_ref_type_t field_type;
 
-    if (is_struct) {
-        bool mutable = false;
-        wasm_ref_type_t first_field_type, second_field_type;
-        wasm_value_t field1 = { 0 };
-        wasm_struct_type_t struct_type =
-            (wasm_struct_type_t)wasm_obj_get_defined_type((wasm_obj_t)obj);
-        uint32 field_count = wasm_struct_type_get_field_count(struct_type);
-
-        if (field_count != 2) {
-            return false;
-        }
-
-        first_field_type =
-            wasm_struct_type_get_field_type(struct_type, 0, &mutable);
-        second_field_type =
-            wasm_struct_type_get_field_type(struct_type, 1, &mutable);
-        wasm_struct_obj_get_field((wasm_struct_obj_t)obj, 1, false, &field1);
-
-        if (field1.gc_obj != NULL
-            && first_field_type.value_type == VALUE_TYPE_I32
-            && is_i8_array(wasm_module, true, second_field_type)) {
-            return true;
-        }
+    is_struct_type = wasm_defined_type_is_struct_type(type);
+    if (!is_struct_type) {
+        return false;
     }
 
-    return false;
+    struct_type = (wasm_struct_type_t)type;
+    field_count = wasm_struct_type_get_field_count(struct_type);
+
+    if (field_count != 2) {
+        return false;
+    }
+    field_type = wasm_struct_type_get_field_type(struct_type, 0, &mut);
+    if (field_type.value_type != VALUE_TYPE_I32 || !mut) {
+        return false;
+    }
+    field_type = wasm_struct_type_get_field_type(struct_type, 1, &mut);
+    if (!mut || !is_i8_array(wasm_module, true, field_type)) {
+        return false;
+    }
+
+    return true;
 }

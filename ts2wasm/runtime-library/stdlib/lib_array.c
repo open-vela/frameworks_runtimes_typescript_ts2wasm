@@ -118,6 +118,7 @@ array_join_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_module_t module = wasm_runtime_get_module(module_inst);
     char **string_addrs, *p, *p_end;
     char *sep = NULL;
+    wasm_defined_type_t value_defined_type;
 
     len = get_array_length(obj);
 
@@ -162,7 +163,8 @@ array_join_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
         wasm_array_obj_get_elem(arr_ref, i, 0, &value);
         wasm_struct_obj_get_field((wasm_struct_obj_t)value.gc_obj, 1, false,
                                   &field1);
-        if (is_ts_string_type(module, (wasm_obj_t)value.gc_obj)) {
+        value_defined_type = wasm_obj_get_defined_type((wasm_obj_t)value.gc_obj);
+        if (is_ts_string_type(module, value_defined_type)) {
             wasm_array_obj_t str_array = (wasm_array_obj_t)field1.gc_obj;
             string_lengths[i] = wasm_array_obj_length(str_array);
             string_addrs[i] = wasm_array_obj_first_elem_addr(str_array);
@@ -745,6 +747,8 @@ array_indexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
     wasm_module_t module = wasm_runtime_get_module(module_inst);
+    wasm_defined_type_t value_defined_type;
+
     len = get_array_length(obj);
     if (len == 0)
         return -1;
@@ -774,7 +778,8 @@ array_indexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
         wasm_array_obj_get_elem(arr_ref, i, 0, &tmp_val);
         wasm_struct_obj_get_field((wasm_struct_obj_t)tmp_val.gc_obj, 1, false,
                                   &field1);
-        if (is_ts_string_type(module, (wasm_obj_t)tmp_val.gc_obj)) {
+        value_defined_type = wasm_obj_get_defined_type((wasm_obj_t)tmp_val.gc_obj);
+        if (is_ts_string_type(module, value_defined_type)) {
             wasm_array_obj_t arr2 = (wasm_array_obj_t)field1.gc_obj;
             uint32 array_element_len = wasm_array_obj_length(arr2);
             void *array_element_ptr = wasm_array_obj_first_elem_addr(arr2);
@@ -848,6 +853,8 @@ array_lastIndexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
     wasm_module_t module = wasm_runtime_get_module(module_inst);
+    wasm_defined_type_t value_defined_type;
+
     len = get_array_length(obj);
     if (len == 0)
         return -1;
@@ -878,7 +885,9 @@ array_lastIndexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
         wasm_array_obj_get_elem(arr_ref, i, 0, &tmp_val);
         wasm_struct_obj_get_field((wasm_struct_obj_t)tmp_val.gc_obj, 1, false,
                                   &field1);
-        if (is_ts_string_type(module, (wasm_obj_t)tmp_val.gc_obj)) {
+        value_defined_type = wasm_obj_get_defined_type((wasm_obj_t)tmp_val.gc_obj);
+
+        if (is_ts_string_type(module, value_defined_type)) {
             wasm_array_obj_t arr2 = (wasm_array_obj_t)field1.gc_obj;
             uint32 array_element_len = wasm_array_obj_length(arr2);
             void *array_element_ptr = wasm_array_obj_first_elem_addr(arr2);
@@ -1385,7 +1394,7 @@ array_find_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                     dyntype_new_boolean(dyntype_get_context(), element.i32));
             }
             else if (is_ts_string_type(module,
-                                             (wasm_obj_t)element.gc_obj)) {
+                     wasm_obj_get_defined_type((wasm_obj_t)element.gc_obj))) {
                 wasm_struct_obj_get_field((wasm_struct_obj_t)element.gc_obj, 1,
                                           false, &field1);
                 wasm_array_obj_t a_ref = (wasm_array_obj_t)(field1.gc_obj);
@@ -1667,7 +1676,8 @@ array_includes_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     }
 
     wasm_array_obj_get_elem(arr_ref, from_idx, false, &value);
-    elem_is_string = is_ts_string_type(module, value.gc_obj);
+    elem_is_string = is_ts_string_type(module,
+                                       wasm_obj_get_defined_type(value.gc_obj));
 
     for (int i = from_idx; i < len; ++i) {
         wasm_array_obj_get_elem(arr_ref, i, 0, &value);
