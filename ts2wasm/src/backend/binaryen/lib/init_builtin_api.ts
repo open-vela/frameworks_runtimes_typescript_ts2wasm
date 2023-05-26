@@ -1674,10 +1674,6 @@ function string_toLowerOrUpperCase_internal(
 
     statementArray.push(module.return(strArray));
 
-    statementArray.push(
-        module.local.get(newStrArrayIdx, stringArrayTypeInfo.typeRef),
-    );
-
     const toLowerOrUpperCaseinternalBlock = module.block(
         'toLowerOrUpperCaseinternal',
         statementArray,
