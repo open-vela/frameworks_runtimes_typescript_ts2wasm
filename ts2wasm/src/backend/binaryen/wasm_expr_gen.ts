@@ -2229,15 +2229,18 @@ export class WASMExpressionGen extends WASMExpressionBase {
         let condWASMExpr = this.WASMExprGen(expr.condtion).binaryenRef;
         // convert to condition
         condWASMExpr = this.generateCondition(condWASMExpr);
-        const trueWASMExpr = this.WASMExprGen(expr.whenTrue).binaryenRef;
-        const falseWASMExpr = this.WASMExprGen(expr.whenFalse).binaryenRef;
+        const trueWASMExpr = this.WASMExprGen(expr.whenTrue);
+        const falseWASMExpr = this.WASMExprGen(expr.whenFalse);
         // TODO: union type
         assert(
-            binaryen.getExpressionType(trueWASMExpr) ===
-                binaryen.getExpressionType(falseWASMExpr),
+            trueWASMExpr.tsType === falseWASMExpr.tsType,
             'trueWASMExprType and falseWASMExprType are not equal in conditional expression ',
         );
-        return this.module.select(condWASMExpr, trueWASMExpr, falseWASMExpr);
+        return this.module.select(
+            condWASMExpr,
+            trueWASMExpr.binaryenRef,
+            falseWASMExpr.binaryenRef,
+        );
     }
 
     private _generateFinalArgs(

@@ -212,7 +212,7 @@ array_join_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     }
 
     /* add '\0' as string end*/
-    bh_memcpy_s(p, p_end - p, "\0", 1);
+    *(p++) = '\0';
     bh_assert(p == p_end);
 
     value.gc_obj = (wasm_obj_t)new_arr;
