@@ -84,4 +84,12 @@ export function anyrefCond() {
     if (v10) {
         console.log('v10');
     }
+    const v11: any = {};
+    if (v11) {
+        console.log('v11');
+    }
+    const v12: any = { a: 11 };
+    if (v12) {
+        console.log('v12');
+    }
 }
