@@ -455,7 +455,7 @@ bool dyntype_is_falsy(dyn_ctx_t ctx, dyn_value_t value) {
     if (dyntype_is_extref(ctx, value)) {
         res = false;
     } else if (dyntype_is_object(ctx, value)) {
-        res = true;
+        res = false;
     } else if (dyntype_is_undefined(ctx, value) || dyntype_is_null(ctx, value)) {
         res = true;
     } else if (dyntype_is_bool(ctx, value)) {
