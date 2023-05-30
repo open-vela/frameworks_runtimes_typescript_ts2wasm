@@ -256,22 +256,19 @@ export class WASMTypeGen {
                 let muts = new Array<boolean>(wasmFuncTypes.length).fill(false);
                 const baseType = tsClassType.getBase();
                 /* in order to avoid duplicate function in binaryen */
-                let isMethodSameShape = false;
-                if (
-                    baseType &&
-                    baseType.memberFuncs.length === wasmFuncTypes.length
-                ) {
-                    isMethodSameShape = true;
-                }
                 const vtableType = initStructType(
                     wasmFuncTypes,
                     packed,
                     muts,
                     wasmFuncTypes.length,
                     true,
-                    baseType == null || isMethodSameShape
+                    baseType == null
                         ? undefined
                         : this.getWASMClassVtableHeapType(baseType),
+                );
+                this.createCustomTypeName(
+                    `struct${this.structHeapTypeCnt++}`,
+                    vtableType.heapTypeRef,
                 );
                 this.tsClassVtableType.set(type, vtableType.typeRef);
                 this.tsClassVtableHeapType.set(type, vtableType.heapTypeRef);
@@ -309,10 +306,7 @@ export class WASMTypeGen {
                     muts,
                     wasmFieldTypes.length,
                     true,
-                    baseType == null ||
-                        (isMethodSameShape &&
-                            wasmFieldTypes.length - 1 ===
-                                baseType.fields.length)
+                    baseType == null
                         ? undefined
                         : this.getWASMHeapType(baseType),
                 );

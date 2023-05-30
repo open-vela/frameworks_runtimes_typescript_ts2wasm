@@ -1689,6 +1689,11 @@
                 "name": "methodOverwrite",
                 "args": [],
                 "result": "40:f64"
+            },
+            {
+                "name": "multiLevelExtend",
+                "args": [],
+                "result": "B"
             }
         ]
     },

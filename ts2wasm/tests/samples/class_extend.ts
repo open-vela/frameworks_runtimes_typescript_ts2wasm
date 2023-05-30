@@ -67,3 +67,26 @@ export function methodOverwrite() {
     b.a = 20;
     return a.a + b.a;
 }
+
+class Base {
+    init(): void {
+        console.log('Base');
+    }
+}
+
+class A extends Base {
+    init2(): void {
+        console.log('A');
+    }
+}
+
+class B extends A {
+    init(): void {
+        console.log('B');
+    }
+}
+
+export function multiLevelExtend() {
+    const b: B = new B();
+    b.init();
+}
