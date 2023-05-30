@@ -33,6 +33,12 @@ export function stringSliceWithTwoUndefind() {
     return b;
 }
 
+export function stringSliceWithOneZero() {
+    const a: string = 'abcdef';
+    const b: string = a.slice(0, 2);
+    console.log(b);
+}
+
 export function stringIndexOf() {
     const a: string = 'helloxxxxkasdfhello';
     let x: number = a.indexOf('kasd');   // 9
@@ -78,22 +84,22 @@ export function stringReplace() {
     console.log(na);
 }
 
-export function stringMatch(){
+export function stringMatch() {
     const str: string = "hello world hello world";
     let arr: string[] = str.match("hello");
     outputStrArr(arr);          // ["hello"]
     arr = str.match("orld");
     outputStrArr(arr);          // ["orld"]
-    arr = str.match("");        
+    arr = str.match("");
     outputStrArr(arr);          // [""]
     return arr;
 }
 
-export function stringSearch(){
+export function stringSearch() {
     const str: string = "hello world hello world";
     let idx: number = str.search("hello");
     console.log(idx);               // 0
-    idx = str.search("orld");       
+    idx = str.search("orld");
     console.log(idx);               // 7
     idx = str.search("helloworld");
     console.log(idx);               // -1 
@@ -135,5 +141,5 @@ export function stringreadonly() {
 export function stringadd() {
     const a: string = 'hello';
     const b: string = ' world';
-    console.log( a + b);
+    console.log(a + b);
 }

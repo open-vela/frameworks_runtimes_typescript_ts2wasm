@@ -1486,6 +1486,11 @@
                 "result": "ref.struct"
             },
             {
+                "name": "stringSliceWithOneZero",
+                "args":[],
+                "result":"ab"
+            },
+            {
                 "name": "stringIndexOf",
                 "args": [],
                 "result": "9 \n-1 \n-1:f64"

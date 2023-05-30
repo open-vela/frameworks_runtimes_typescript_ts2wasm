@@ -398,7 +398,7 @@ function string_slice(module: binaryen.Module) {
         );
         // get passed param value by string length
         const paramValue = module.if(
-            module.f64.le(dynToNumberValue, module.f64.const(0)),
+            module.f64.lt(dynToNumberValue, module.f64.const(0)),
             module.if(
                 module.i32.le_s(
                     module.i32.add(
