@@ -220,12 +220,11 @@ function string_concat(module: binaryen.Module) {
 function anyrefCond(module: binaryen.Module) {
     const ref = module.local.get(0, binaryen.anyref);
 
-    let cond = module.call(
+    const cond = module.call(
         dyntype.dyntype_is_extref,
         [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), ref],
         dyntype.bool,
     );
-    cond = module.i32.and(cond, module.i32.const(1));
     const index = module.call(
         dyntype.dyntype_to_extref,
         [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), ref],
@@ -241,12 +240,11 @@ function anyrefCond(module: binaryen.Module) {
             module.i32.eqz(binaryenCAPI._BinaryenRefIsNull(module.ptr, extRef)),
         ),
     ]);
-    let falsy = module.call(
+    const falsy = module.call(
         dyntype.dyntype_is_falsy,
         [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), ref],
         dyntype.bool,
     );
-    falsy = module.i32.and(falsy, module.i32.const(1));
     const ifFalse = module.if(
         falsy,
         module.return(module.i32.const(0)),

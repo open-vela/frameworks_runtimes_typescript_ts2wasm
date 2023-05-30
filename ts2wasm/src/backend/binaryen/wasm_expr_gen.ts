@@ -387,7 +387,7 @@ export class WASMExpressionBase {
         expr: binaryen.ExpressionRef,
         type: binaryen.Type,
     ) {
-        const isCond = this.module.call(
+        const condition = this.module.call(
             name,
             [
                 this.module.global.get(
@@ -398,7 +398,6 @@ export class WASMExpressionBase {
             ],
             type,
         );
-        const condition = this.module.i32.and(isCond, this.module.i32.const(1));
         return condition;
     }
     convertTypeToI32(

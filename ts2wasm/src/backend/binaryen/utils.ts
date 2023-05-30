@@ -146,7 +146,6 @@ export function unboxAnyTypeToBaseType(
         ],
         dyntype.bool,
     );
-    const condition = module.i32.and(isBaseTypeRef, module.i32.const(1));
     // iff True
     let value = module.call(
         cvtFuncName,
@@ -168,7 +167,7 @@ export function unboxAnyTypeToBaseType(
     // iff False
     const unreachableRef = module.unreachable();
 
-    const blockStmt = module.if(condition, value, unreachableRef);
+    const blockStmt = module.if(isBaseTypeRef, value, unreachableRef);
     return module.block(null, [blockStmt], binaryenType);
 }
 
