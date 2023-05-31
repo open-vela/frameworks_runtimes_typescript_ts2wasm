@@ -207,12 +207,6 @@ export default class SemanticChecker {
                 ErrorFlag.ArgsAndParamsTypesAreNominalClass,
                 `argument type and parameter type are nominal class types`,
             );
-            this.nonAnyAndAnyCheck(
-                paramType,
-                argExpr.exprType,
-                ErrorFlag.ArgsAndParamsTypesAreNonAnyAndAnyTypes,
-                `explicitly pass any type as argument without type casting`,
-            );
             if (argExpr instanceof PropertyAccessExpression) {
                 this.invokeAnyObjCheck(
                     paramType,
@@ -233,12 +227,6 @@ export default class SemanticChecker {
             ErrorFlag.ReturnTypesAreNominalClass,
             `return statement type and function return type are nominal classes`,
         );
-        this.nonAnyAndAnyCheck(
-            returnType,
-            expr.exprType,
-            ErrorFlag.ReturnTypesAreNonAnyAndAnyTypes,
-            `return statement type and function return type are non-any and any types`,
-        );
         if (expr instanceof PropertyAccessExpression) {
             this.invokeAnyObjCheck(
                 returnType,
@@ -257,12 +245,6 @@ export default class SemanticChecker {
             right,
             ErrorFlag.BinaryOperationOnNominalClass,
             `binary operation between different nominal classes`,
-        );
-        this.nonAnyAndAnyCheck(
-            left,
-            right,
-            ErrorFlag.BinaryOperationOnNonAnyAndAnyType,
-            `binary operation between non-any type and any type without type cast`,
         );
         this.diffTypesOprtCheck(
             left,
@@ -317,26 +299,6 @@ export default class SemanticChecker {
             }
             this.errors.push({
                 errorKind: ErrorKind.NominalClass,
-                errorFlag: flag,
-                message: msg,
-                scopeName: this.getScopeName(this.curScope!),
-            });
-        }
-    }
-
-    private nonAnyAndAnyCheck(
-        left: Type,
-        right: Type,
-        flag: number,
-        msg: string,
-    ) {
-        const cond =
-            left.kind !== TypeKind.ANY &&
-            !(left instanceof Primitive) &&
-            right.kind === TypeKind.ANY;
-        if (cond) {
-            this.errors.push({
-                errorKind: ErrorKind.nonAnyAndAny,
                 errorFlag: flag,
                 message: msg,
                 scopeName: this.getScopeName(this.curScope!),

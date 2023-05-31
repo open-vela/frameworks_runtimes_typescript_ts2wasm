@@ -3003,16 +3003,12 @@
         ]
     },
     {
-        "module": "top_level_statements",
-        "entries": []
-    },
-    {
         "module": "fallback_quickjs",
         "entries": [
             {
                 "name": "mapTest",
                 "args": [],
-                "result": "2 \nundefined \nworld \nundefined \ntrue \nfalse \n11 \n1"
+                "result": "2 \nundefined \nworld \nundefined \ntrue \nfalse \n11 \n1 \n1 \n3"
             },
             {
                 "name": "setTest",
@@ -3020,5 +3016,29 @@
                 "result": "true \n2 \n[wasm object] \ntrue \ntrue \n4"
             }
         ]
+    },
+    {
+        "module": "auto_box_unbox",
+        "entries": [
+            {
+                "name": "autoBoxUnboxAssign",
+                "args": [],
+                "result": "1 \n2 \nstr \nstr1 \n10 \n11"
+            },
+            {
+                "name": "autoBoxUnboxObjParam",
+                "args": [],
+                "result": "30 \n20"
+            },
+            {
+                "name": "autoBoxunboxObjField",
+                "args": [],
+                "result": "30 \n100 \n100"
+            }
+        ]
+    },
+    {
+        "module": "top_level_statements",
+        "entries": []
     }
 ]
