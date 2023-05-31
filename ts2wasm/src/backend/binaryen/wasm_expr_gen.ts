@@ -283,7 +283,6 @@ export class WASMExpressionBase {
     staticValueGen;
     dynValueGen;
     enterModuleScope;
-    curExtrefTableIdx = -1;
     extrefTableSize = 0;
 
     constructor(WASMCompiler: WASMGen) {
@@ -449,6 +448,16 @@ export class WASMExpressionBase {
             // TODO: deal with more types
         }
         return binaryen.none;
+    }
+
+    unboxAny(exprRef: binaryen.ExpressionRef, targetType: Type) {
+        let res;
+        if (targetType instanceof Primitive) {
+            res = this.unboxAnyToBase(exprRef, targetType.kind);
+        } else {
+            res = this.unboxAnyToExtref(exprRef, targetType);
+        }
+        return res;
     }
 
     unboxAnyToBase(anyExprRef: binaryen.ExpressionRef, typeKind: TypeKind) {
@@ -1041,30 +1050,21 @@ export class WASMExpressionBase {
         const module = this.module;
         // table type is anyref, no need to cast
         /** we regard string-nonLiteral as extref too */
-        let dynFuncName: string;
         let extObjKind: dyntype.ExtObjKind = 0;
         switch (extrefTypeKind) {
-            // case TypeKind.STRING: {
-            //     dynFuncName = dyntype.dyntype_new_string;
-            //     break;
-            // }
             case TypeKind.CLASS: {
-                dynFuncName = dyntype.dyntype_new_extref;
                 extObjKind = dyntype.ExtObjKind.ExtObj;
                 break;
             }
             case TypeKind.FUNCTION: {
-                dynFuncName = dyntype.dyntype_new_extref;
                 extObjKind = dyntype.ExtObjKind.ExtFunc;
                 break;
             }
             case TypeKind.INTERFACE: {
-                dynFuncName = dyntype.dyntype_new_extref;
                 extObjKind = dyntype.ExtObjKind.ExtInfc;
                 break;
             }
             case TypeKind.ARRAY: {
-                dynFuncName = dyntype.dyntype_new_extref;
                 extObjKind = dyntype.ExtObjKind.ExtArray;
                 break;
             }
@@ -1074,33 +1074,20 @@ export class WASMExpressionBase {
                 );
             }
         }
-        if (++this.curExtrefTableIdx >= this.extrefTableSize) {
-            const tableGrowExpr = module.table.grow(
-                BuiltinNames.extrefTable,
-                binaryenCAPI._BinaryenRefNull(
-                    this.module.ptr,
-                    binaryenCAPI._BinaryenTypeStructref(),
-                ),
-                module.i32.const(BuiltinNames.tableGrowDelta),
-            );
-            this.extrefTableSize += BuiltinNames.tableGrowDelta;
-            this.currentFuncCtx.insert(module.drop(tableGrowExpr));
-        }
-        const tableSetOp = module.table.set(
-            BuiltinNames.extrefTable,
-            module.i32.const(this.curExtrefTableIdx),
-            dynValue,
+        const newExternRef = getFuncName(
+            BuiltinNames.builtinModuleName,
+            BuiltinNames.newExternRef,
         );
-        this.currentFuncCtx.insert(tableSetOp);
-        return module.call(
-            dynFuncName,
+        const newExternRefCall = module.call(
+            newExternRef,
             [
                 module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
-                module.i32.const(this.curExtrefTableIdx),
                 module.i32.const(extObjKind),
+                dynValue,
             ],
-            dyntype.dyn_value_t,
+            binaryen.anyref,
         );
+        return newExternRefCall;
     }
 
     getArrayInitFromArrayType(arrayType: TSArray): binaryen.ExpressionRef {
@@ -1940,7 +1927,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         throw new Error(
             'unexpected left expr type ' +
                 leftExprType.kind +
-                'unexpected right expr type ' +
+                ' unexpected right expr type ' +
                 rightExprType.kind,
         );
     }
@@ -1957,12 +1944,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
         if (matchKind === MatchKind.MisMatch) {
             throw new Error('Type mismatch in ExpressionStatement');
         }
-        if (
-            leftExprType.kind === TypeKind.STRING &&
-            rightExprType.kind === TypeKind.ANY
-        ) {
-            throw new Error(`Not support assign any to string`);
-        }
 
         let assignValue: binaryen.ExpressionRef;
         if (matchKind === MatchKind.ToAnyMatch) {
@@ -1973,6 +1954,9 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 assignValue = rightExprRef;
             } else {
                 assignValue = this.WASMExprGen(rightExpr).binaryenRef;
+            }
+            if (rightExpr.exprType.kind === TypeKind.ANY) {
+                assignValue = this.unboxAny(assignValue, leftExprType);
             }
         }
         if (matchKind === MatchKind.ClassInfcMatch) {
@@ -2112,12 +2096,14 @@ export class WASMExpressionGen extends WASMExpressionBase {
         if (rightExprType.kind === TypeKind.NULL) {
             return MatchKind.ExactMatch;
         }
+        if (leftExprType.kind === TypeKind.ANY) {
+            return MatchKind.ToAnyMatch;
+        }
         if (leftExprType.kind === rightExprType.kind) {
             if (
                 leftExprType.kind === TypeKind.NUMBER ||
                 leftExprType.kind === TypeKind.STRING ||
                 leftExprType.kind === TypeKind.BOOLEAN ||
-                leftExprType.kind === TypeKind.ANY ||
                 leftExprType.kind === TypeKind.INTERFACE
             ) {
                 return MatchKind.ExactMatch;
@@ -2193,9 +2179,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 rightExprType.kind === TypeKind.CLASS)
         ) {
             return MatchKind.ClassInfcMatch;
-        }
-        if (leftExprType.kind === TypeKind.ANY) {
-            return MatchKind.ToAnyMatch;
         }
         if (rightExprType.kind === TypeKind.ANY) {
             return MatchKind.FromAnyMatch;
@@ -2307,7 +2290,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     finalCallWasmArgs[i] = this.getWasmValueByExpr(
                         funcScope.paramArray[i].initExpression!,
                         funcScope.funcType.getParamTypes()[i - envArgs.length],
-                    ).binaryenRef;
+                    );
                 }
             }
         }
@@ -3049,23 +3032,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
         const originObjExprRef = this.WASMExprGen(originObjExpr).binaryenRef;
         const originType = originObjExpr.exprType;
         const targetType = expr.exprType;
-        switch (originType.kind) {
-            case TypeKind.ANY: {
-                if (targetType instanceof Primitive) {
-                    /** if target type is basic type, no need to cast */
-                    return this.unboxAnyToBase(
-                        originObjExprRef,
-                        targetType.kind,
-                    );
-                } else {
-                    /** if target type has heap type, need to call to_extref */
-                    return this.unboxAnyToExtref(originObjExprRef, targetType);
-                }
-            }
-            default: {
-                throw Error(`Static type doesn't support type assertion`);
-            }
+        if (originType.kind !== TypeKind.ANY) {
+            throw Error(`Static type doesn't support type assertion`);
         }
+        return this.unboxAny(originObjExprRef, targetType);
     }
 
     private WASMFuncExpr(expr: FunctionExpression): binaryen.ExpressionRef {
@@ -3592,12 +3562,20 @@ export class WASMExpressionGen extends WASMExpressionBase {
         return strLenF64;
     }
 
-    getWasmValueByExpr(expr: Expression, targetType: Type): WasmValue {
+    getWasmValueByExpr(
+        expr: Expression,
+        targetType: Type,
+    ): binaryen.ExpressionRef {
+        let res: binaryen.ExpressionRef;
         if (targetType.kind === TypeKind.ANY) {
-            return this.dynValueGen.WASMDynExprGen(expr);
+            res = this.dynValueGen.WASMDynExprGen(expr).binaryenRef;
         } else {
-            return this.WASMExprGen(expr);
+            res = this.WASMExprGen(expr).binaryenRef;
+            if (expr.exprType.kind === TypeKind.ANY) {
+                res = this.unboxAny(res, targetType);
+            }
         }
+        return res;
     }
 
     parseArguments(
@@ -3615,10 +3593,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             if (funcType.restParamIdx === i) {
                 break;
             }
-            callerArgs[i] = this.getWasmValueByExpr(
-                args[i],
-                paramTypes[i],
-            ).binaryenRef;
+            callerArgs[i] = this.getWasmValueByExpr(args[i], paramTypes[i]);
         }
 
         /* parse optional param as undifined */
@@ -3811,7 +3786,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                 const objExpr = newExpr.newExpr;
                 if (!(objExpr instanceof IdentifierExpression)) {
                     throw new Error(
-                        "Not impl when creating dynaic object with NewExpression's expr is not identifier",
+                        "Not impl when creating dynamic object with NewExpression's expr is not identifier",
                     );
                 }
                 const identifierName = objExpr.identifierName;
@@ -3819,11 +3794,9 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                 const type = scope.findIdentifier(identifierName);
                 // access to user defined class
                 if (type instanceof Type) {
-                    throw new Error(
-                        'unimpl new non-built-in class for any type',
-                    );
+                    res = this.boxNonLiteralToAny(newExpr);
                 } else {
-                    // fallback to quickjs
+                    // fallback to quickjs iff built-in class
                     res = this.createDynObject(newExpr, identifierName);
                 }
                 break;

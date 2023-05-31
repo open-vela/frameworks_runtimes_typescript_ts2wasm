@@ -9,6 +9,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { addWatFuncs } from '../utils.js';
+import { BuiltinNames } from '../../../../lib/builtin/builtin_name.js';
+import { charArrayTypeInfo } from '../glue/packType.js';
+import { getBuiltInFuncName } from '../../../utils.js';
 
 export function importAnyLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
@@ -425,6 +428,16 @@ export function generateGlobalContext(module: binaryen.Module) {
     module.addGlobal(
         dyntype.dyntype_context,
         dyntype.dyn_ctx_t,
+        true,
+        module.ref.null(dyntype.dyn_ctx_t),
+    );
+}
+
+export function generateExtRefTableMaskArr(module: binaryen.Module) {
+    const name = getBuiltInFuncName(BuiltinNames.extRefTableMaskArr);
+    module.addGlobal(
+        name,
+        charArrayTypeInfo.typeRef,
         true,
         module.ref.null(dyntype.dyn_ctx_t),
     );

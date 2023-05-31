@@ -33,6 +33,7 @@ import {
     generateGlobalContext,
     generateFreeDynContext,
     addItableFunc,
+    generateExtRefTableMaskArr,
 } from './lib/env_init.js';
 import { WASMTypeGen } from './wasm_type_gen.js';
 import {
@@ -53,6 +54,7 @@ import { callBuiltInAPIs } from './lib/init_builtin_api.js';
 import { Statement } from '../../statement.js';
 import { Expression } from '../../expression.js';
 import { dyntype } from './lib/dyntype/utils.js';
+import { clearWasmStringMap, getCString } from './utils.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -331,6 +333,7 @@ export class WASMGen extends Ts2wasmBackend {
 
     private WASMGenerate() {
         WASMGen.contextOfScope.clear();
+        clearWasmStringMap();
         this.enterModuleScope = this.globalScopes[this.globalScopes.length - 1];
 
         // init wasm environment
@@ -378,6 +381,7 @@ export class WASMGen extends Ts2wasmBackend {
         const startFuncOpcodes = [];
         if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
             generateGlobalContext(this.module);
+            generateExtRefTableMaskArr(this.module);
             startFuncOpcodes.push(this.generateInitDynContext());
         }
         startFuncOpcodes.push(
@@ -1008,9 +1012,17 @@ export class WASMGen extends Ts2wasmBackend {
         );
         for (let i = 0; i < tsType.staticFields.length; i++) {
             if (tsType.staticFieldsInitValueMap.has(i)) {
-                const initValue = this.wasmExprCompiler.WASMExprGen(
-                    tsType.staticFieldsInitValueMap.get(i)!,
-                );
+                const fieldType = tsType.staticFields[i].type;
+                const initValue = tsType.staticFieldsInitValueMap.get(i)!;
+                let value;
+                if (fieldType.kind === TypeKind.ANY) {
+                    value = this.wasmDynExprCompiler.WASMDynExprGen(initValue);
+                } else {
+                    value = this.wasmExprCompiler.WASMExprGen(
+                        tsType.staticFieldsInitValueMap.get(i)!,
+                    );
+                }
+
                 const staticFieldValue = binaryenCAPI._BinaryenStructSet(
                     this.module.ptr,
                     i,
@@ -1018,7 +1030,7 @@ export class WASMGen extends Ts2wasmBackend {
                         staticFieldsStructName,
                         wasmStaticFieldsType,
                     ),
-                    initValue.binaryenRef,
+                    value.binaryenRef,
                 );
                 this.globalInitArray.push(staticFieldValue);
             }
@@ -1165,21 +1177,6 @@ export class WASMGen extends Ts2wasmBackend {
             }
         }
     }
-    public getCString(str: string) {
-        if (this.wasmStringMap.has(str)) {
-            return this.wasmStringMap.get(str) as number;
-        }
-        const wasmStr = binaryenCAPI._malloc(str.length + 1);
-        let index = wasmStr;
-        // consider UTF-8 only
-        for (let i = 0; i < str.length; i++) {
-            binaryenCAPI.__i32_store8(index++, str.codePointAt(i) as number);
-        }
-        binaryenCAPI.__i32_store8(index, 0);
-        this.wasmStringMap.set(str, wasmStr);
-        return wasmStr;
-    }
-
     private generateInitDynContext() {
         const value = this.module.call(
             dyntype.dyntype_context_init,
@@ -1188,7 +1185,7 @@ export class WASMGen extends Ts2wasmBackend {
         );
         const expr = binaryenCAPI._BinaryenGlobalSet(
             this.module.ptr,
-            this.getCString(dyntype.dyntype_context),
+            getCString(dyntype.dyntype_context),
             value,
         );
         return expr;
@@ -1203,7 +1200,7 @@ export class WASMGen extends Ts2wasmBackend {
             binaryenCAPI._BinaryenFunctionSetLocalName(
                 funcRef,
                 index,
-                this.getCString(name),
+                getCString(name),
             );
         });
         const srcPath = scope.getRootGloablScope()!.srcFilePath;

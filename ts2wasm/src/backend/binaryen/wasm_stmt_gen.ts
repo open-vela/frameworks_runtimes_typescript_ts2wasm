@@ -31,7 +31,7 @@ import {
 import { typeInfo } from './glue/utils.js';
 import { flattenLoopStatement, FlattenLoop } from './utils.js';
 import { WASMGen } from './index.js';
-import { TSClass, TSFunction, TypeKind } from '../../type.js';
+import { TSClass, TypeKind } from '../../type.js';
 import { assert } from 'console';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 
@@ -414,6 +414,15 @@ export class WASMStatementGen {
                         varInitExprRef = wasmExpr.WASMExprGen(
                             localVar.initExpression,
                         ).binaryenRef;
+                        const rightExprTypeKind =
+                            localVar.initExpression.exprType.kind;
+                        if (rightExprTypeKind === TypeKind.ANY) {
+                            varInitExprRef =
+                                this.WASMCompiler.wasmDynExprCompiler.unboxAny(
+                                    varInitExprRef,
+                                    localVar.varType,
+                                );
+                        }
                         // '||' token
                         if (
                             localVar.varType.kind === TypeKind.BOOLEAN &&

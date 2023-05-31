@@ -10,6 +10,15 @@ class A {
     }
 }
 
+class VNode {
+    _data: any;
+    _data2: any = new Map();
+    static _data3: any = new Map();
+    constructor() {
+        this._data = new Map();
+    }
+}
+
 export function mapTest() {
     const a: any = new Map();
     const k: any = 1;
@@ -33,8 +42,18 @@ export function mapTest() {
     const key = a.get(o1) as A;
     console.log(key.x); // 11
     console.log(a.size); //1
-    // TODO
-    // if (.has()) {...}
+    if (a.has(o1)) {
+        console.log(1);
+    }
+    if (a.has(o2)) {
+        console.log(2);
+    }
+
+    const vn = new VNode();
+    vn._data.set('a', 1);
+    vn._data2.set('a', 1);
+    VNode._data3.set('a', 1);
+    console.log(vn._data.get('a') + vn._data2.get('a') + VNode._data3.get('a')); // 3
 }
 
 export function setTest() {
