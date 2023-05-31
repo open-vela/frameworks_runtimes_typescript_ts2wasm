@@ -387,8 +387,13 @@ export class WASMGen extends Ts2wasmBackend {
                 binaryen.none,
             ),
         );
-        if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
+        if (
+            !this.parserContext.compileArgs[ArgNames.noAutoFreeCtx] &&
+            !this.parserContext.compileArgs[ArgNames.disableAny]
+        ) {
             startFuncOpcodes.push(generateFreeDynContext(this.module));
+        } else {
+            // TODO: no need to do anything
         }
         // set enter module start function as wasm start function
         const wasmStartFuncRef = this.module.addFunction(
@@ -914,10 +919,14 @@ export class WASMGen extends Ts2wasmBackend {
             functionStmts.push(
                 isReturn ? this.module.local.set(idx, targetCall) : targetCall,
             );
-            if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
+            if (
+                !this.parserContext.compileArgs[ArgNames.noAutoFreeCtx] &&
+                !this.parserContext.compileArgs[ArgNames.disableAny]
+            ) {
                 functionStmts.push(generateFreeDynContext(this.module));
+            } else {
+                // TODO: no need to do anything
             }
-
             // return value
             const functionVars: binaryen.ExpressionRef[] = [];
             if (isReturn) {

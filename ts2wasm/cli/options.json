@@ -38,6 +38,11 @@
         "description": "Disable any feature",
         "default": true
     },
+    "noAutoFreeCtx": {
+        "category": "Compile",
+        "description": "Disable free context automatically",
+        "default": true
+    },
     "disableBuiltIn": {
         "category": "Compile",
         "description": "Disable builtin functions",
