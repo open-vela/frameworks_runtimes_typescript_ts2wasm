@@ -177,6 +177,24 @@ interface SetConstructor {
 }
 var Set: SetConstructor;
 
+interface JSON {
+    parse(
+        text: string,
+        reviver?: (this: any, key: string, value: any) => any,
+    ): any;
+    stringify(
+        value: any,
+        replacer?: (this: any, key: string, value: any) => any,
+        space?: string | number,
+    ): any;
+    stringify(
+        value: any,
+        replacer?: (number | string)[] | null,
+        space?: string | number,
+    ): any;
+}
+var JSON: JSON;
+
 // eslint-disable-next-line no-shadow-restricted-names
 var NaN: number;
 // eslint-disable-next-line no-shadow-restricted-names

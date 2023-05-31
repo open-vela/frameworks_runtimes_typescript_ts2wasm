@@ -503,6 +503,13 @@ dyntype_invoke_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 }
 
 wasm_anyref_obj_t
+dyntype_get_global_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
+                           const char *name)
+{
+    BOX_ANYREF(dyntype_get_global(UNBOX_ANYREF(ctx), name));
+}
+
+wasm_anyref_obj_t
 dyntype_new_object_with_class_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                       const char *name,
                                       wasm_struct_obj_t args_array)
@@ -591,6 +598,8 @@ static NativeSymbol native_symbols[] = {
 
     REG_NATIVE_FUNC(dyntype_new_object_with_class, "(r$r)r"),
     REG_NATIVE_FUNC(dyntype_invoke, "(r$rr)r"),
+
+    REG_NATIVE_FUNC(dyntype_get_global, "(r$)r"),
 
     /* TODO */
 };
