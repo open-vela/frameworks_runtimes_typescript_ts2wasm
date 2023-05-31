@@ -314,3 +314,34 @@ TEST_F(TypesTest, create_map) {
     dyntype_release(ctx, obj);
     dyntype_release(ctx, obj1);
 }
+
+TEST_F(TypesTest, get_global_obj) {
+    dyn_value_t obj = dyntype_get_global(ctx, "JSON");
+    dyn_value_t str = dyntype_new_string(ctx, "{\"a\":12, \"b\":13}");
+    dyn_value_t ret = NULL;
+    dyn_value_t argv[10];
+
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "stringify"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, obj, "parse"), DYNTYPE_TRUE);
+
+    argv[0] = str;
+    ret = dyntype_invoke(ctx, "parse", obj, 1, argv);
+
+    EXPECT_EQ(dyntype_has_property(ctx, ret, "a"), DYNTYPE_TRUE);
+    EXPECT_EQ(dyntype_has_property(ctx, ret, "b"), DYNTYPE_TRUE);
+
+    argv[0] = ret;
+    ret = dyntype_invoke(ctx, "stringify", obj, 1, argv);
+
+    EXPECT_EQ(dyntype_is_string(ctx, ret), DYNTYPE_TRUE);
+
+    char *cstr = NULL;
+    dyntype_to_cstring(ctx, ret, &cstr);
+    EXPECT_EQ(strcmp(cstr, "{\"a\":12,\"b\":13}"), 0);
+
+    dyntype_free_cstring(ctx, cstr);
+    dyntype_release(ctx, argv[0]);
+    dyntype_release(ctx, ret);
+    dyntype_release(ctx, str);
+    dyntype_release(ctx, obj);
+}

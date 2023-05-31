@@ -651,6 +651,7 @@ export default class ExpressionProcessor {
                 this.createNewArrayExpr(node, res);
                 break;
             case BuiltinNames.MAP:
+            case BuiltinNames.SET:
                 this.createNewMapExpr(node, res);
                 break;
             default:

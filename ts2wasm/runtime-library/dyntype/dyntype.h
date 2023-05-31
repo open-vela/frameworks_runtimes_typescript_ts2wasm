@@ -169,6 +169,15 @@ dyn_value_t
 dyntype_new_array(dyn_ctx_t ctx);
 
 /**
+ * @brief get builtin global object by name
+ *
+ * @param name the name of object
+ * @return dynamic value if success, NULL otherwise
+ */
+dyn_value_t
+dyntype_get_global(dyn_ctx_t ctx, const char *name);
+
+/**
  * @brief Create an object with class name
  *
  * @param ctx the dynamic type system context

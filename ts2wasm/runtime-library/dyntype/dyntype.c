@@ -173,6 +173,19 @@ dyn_value_t dyntype_new_array(dyn_ctx_t ctx) {
 }
 
 dyn_value_t
+dyntype_get_global(dyn_ctx_t ctx, const char *name)
+{
+    JSAtom atom = find_atom(ctx->js_ctx, name);
+    JSValue global_var = JS_GetGlobalVar(ctx->js_ctx, atom, true);
+
+    if (JS_IsException(global_var)) {
+        return NULL;
+    }
+    JS_FreeAtom(ctx->js_ctx, atom);
+    return dyntype_dup_value(ctx->js_ctx, global_var);
+}
+
+dyn_value_t
 dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
                               dyn_value_t *args)
 {
@@ -191,6 +204,8 @@ dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
 
     obj = JS_CallConstructorInternal(ctx->js_ctx, global_var, global_var, argc,
                                      argv, 0);
+
+    JS_FreeAtom(ctx->js_ctx, atom);
     JS_FreeValue(ctx->js_ctx, global_var);
     return dyntype_dup_value(ctx->js_ctx, obj);
 }
@@ -216,6 +231,7 @@ dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj
     }
     JSValue v = call_func(ctx->js_ctx, func, this_val, argc, argv, 0); // flags is 0 because quickjs.c:17047
 
+    JS_FreeAtom(ctx->js_ctx, atom);
     JS_FreeValue(ctx->js_ctx, func);
     return dyntype_dup_value(ctx->js_ctx, v);
 }
