@@ -29,7 +29,7 @@ import { infcTypeInfo, stringTypeInfo } from './glue/packType.js';
 import { WASMGen } from './index.js';
 import { Logger } from '../../log.js';
 import { typeInfo } from './glue/utils.js';
-import { getFuncName } from './utils.js';
+import { getCString, getFuncName } from './utils.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 
 export class WASMTypeGen {
@@ -612,7 +612,7 @@ export class WASMTypeGen {
         binaryenCAPI._BinaryenModuleSetTypeName(
             this.WASMCompiler.module.ptr,
             heapTypeRef,
-            this.WASMCompiler.getCString(name),
+            getCString(name),
         );
     }
 
@@ -625,7 +625,7 @@ export class WASMTypeGen {
             this.WASMCompiler.module.ptr,
             heapTypeRef,
             index,
-            this.WASMCompiler.getCString(name),
+            getCString(name),
         );
     }
 }

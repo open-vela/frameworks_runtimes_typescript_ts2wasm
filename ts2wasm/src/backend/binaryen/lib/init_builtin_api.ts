@@ -14,6 +14,7 @@ import {
     isBaseType,
     unboxAnyTypeToBaseType,
     getFuncName,
+    getCString,
 } from '../utils.js';
 import { dyntype } from './dyntype/utils.js';
 import { arrayToPtr } from '../glue/transform.js';
@@ -25,6 +26,7 @@ import {
 } from '../glue/packType.js';
 import { TypeKind } from '../../../type.js';
 import { array_get_data, array_get_length_i32 } from './array_utils.js';
+import { getBuiltInFuncName } from '../../../utils.js';
 
 function string_concat(module: binaryen.Module) {
     /** Args: context, this, string[] */
@@ -220,21 +222,28 @@ function string_concat(module: binaryen.Module) {
 function anyrefCond(module: binaryen.Module) {
     const ref = module.local.get(0, binaryen.anyref);
 
+    const dynCtx = binaryenCAPI._BinaryenGlobalGet(
+        module.ptr,
+        getCString(dyntype.dyntype_context),
+        dyntype.dyn_ctx_t,
+    );
     const cond = module.call(
         dyntype.dyntype_is_extref,
-        [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), ref],
+        [dynCtx, ref],
         dyntype.bool,
     );
     const index = module.call(
         dyntype.dyntype_to_extref,
-        [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), ref],
+        [dynCtx, ref],
         dyntype.int,
     );
-    const extRef = module.table.get(
-        BuiltinNames.extrefTable,
+    const extRef = binaryenCAPI._BinaryenTableGet(
+        module.ptr,
+        getCString(BuiltinNames.extrefTable),
         index,
         binaryen.anyref,
     );
+
     const ifTrue = module.block(null, [
         module.return(
             module.i32.eqz(binaryenCAPI._BinaryenRefIsNull(module.ptr, extRef)),
@@ -242,7 +251,7 @@ function anyrefCond(module: binaryen.Module) {
     ]);
     const falsy = module.call(
         dyntype.dyntype_is_falsy,
-        [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), ref],
+        [dynCtx, ref],
         dyntype.bool,
     );
     const ifFalse = module.if(
@@ -1896,6 +1905,167 @@ function Array_isArray(module: binaryen.Module) {
     return module.block(null, statementArray);
 }
 
+/** to extref with runtime getting table index */
+function newExternRef(module: binaryen.Module) {
+    const objTagIdx = 1;
+    const objIdx = 2;
+    const tableIdx = 3;
+    const loopIdx = 4;
+    const tmpMaskArrIdx = 5;
+
+    const arrName = getBuiltInFuncName(BuiltinNames.extRefTableMaskArr);
+    const maskArr = binaryenCAPI._BinaryenGlobalGet(
+        module.ptr,
+        getCString(arrName),
+        charArrayTypeInfo.typeRef,
+    );
+    const newArray = binaryenCAPI._BinaryenArrayNew(
+        module.ptr,
+        charArrayTypeInfo.heapTypeRef,
+        binaryenCAPI._BinaryenTableSize(
+            module.ptr,
+            getCString(BuiltinNames.extrefTable),
+        ),
+        module.i32.const(0),
+    );
+    const tableGrow = binaryenCAPI._BinaryenTableGrow(
+        module.ptr,
+        getCString(BuiltinNames.extrefTable),
+        binaryenCAPI._BinaryenRefNull(
+            module.ptr,
+            binaryenCAPI._BinaryenTypeStructref(),
+        ),
+        module.i32.const(BuiltinNames.tableGrowDelta),
+    );
+    const stmts: binaryen.ExpressionRef[] = [];
+    stmts.push(module.local.set(tableIdx, module.i32.const(-1)));
+    stmts.push(module.local.set(loopIdx, module.i32.const(0)));
+    stmts.push(
+        module.if(
+            module.ref.is_null(maskArr),
+            module.block(null, [
+                tableGrow,
+                binaryenCAPI._BinaryenGlobalSet(
+                    module.ptr,
+                    getCString(arrName),
+                    newArray,
+                ),
+            ]),
+        ),
+    );
+    const maskArrLen = binaryenCAPI._BinaryenArrayLen(module.ptr, maskArr);
+    const loopBlock = 'look_block';
+    const loopLabel = 'for_loop';
+    const loopBlockStmts: binaryen.ExpressionRef[] = [];
+    const loopStmts: binaryen.ExpressionRef[] = [];
+    const loopCond = module.i32.lt_u(
+        module.local.get(loopIdx, binaryen.i32),
+        maskArrLen,
+    );
+    const ifBlockStmts: binaryen.ExpressionRef[] = [];
+    ifBlockStmts.push(
+        module.if(
+            module.i32.and(
+                binaryenCAPI._BinaryenArrayGet(
+                    module.ptr,
+                    maskArr,
+                    module.local.get(loopIdx, binaryen.i32),
+                    charArrayTypeInfo.typeRef,
+                    false,
+                ),
+                module.i32.const(0),
+            ),
+            module.block(null, [
+                module.local.set(
+                    tableIdx,
+                    module.local.get(loopIdx, binaryen.i32),
+                ),
+                module.br(loopBlock),
+            ]),
+        ),
+    );
+    loopStmts.push(module.block(null, ifBlockStmts));
+    loopStmts.push(
+        module.local.set(
+            loopIdx,
+            module.i32.add(
+                module.local.get(loopIdx, binaryen.i32),
+                module.i32.const(1),
+            ),
+        ),
+    );
+    loopStmts.push(module.br(loopLabel));
+    loopBlockStmts.push(
+        module.loop(
+            loopLabel,
+            module.if(loopCond, module.block(null, loopStmts)),
+        ),
+    );
+    stmts.push(module.block(loopBlock, loopBlockStmts));
+
+    const ifStmts2: binaryen.ExpressionRef[] = [];
+    ifStmts2.push(tableGrow);
+    ifStmts2.push(module.local.set(tableIdx, maskArrLen));
+    ifStmts2.push(module.local.set(tmpMaskArrIdx, newArray));
+    ifStmts2.push(
+        binaryenCAPI._BinaryenArrayCopy(
+            module.ptr,
+            module.local.get(tmpMaskArrIdx, charArrayTypeInfo.typeRef),
+            module.i32.const(0),
+            maskArr,
+            module.i32.const(0),
+            maskArrLen,
+        ),
+    );
+    ifStmts2.push(
+        binaryenCAPI._BinaryenGlobalSet(
+            module.ptr,
+            getCString(arrName),
+            module.local.get(tmpMaskArrIdx, charArrayTypeInfo.typeRef),
+        ),
+    );
+    stmts.push(
+        module.if(
+            module.i32.eq(
+                module.local.get(tableIdx, binaryen.i32),
+                module.i32.const(-1),
+            ),
+            module.block(null, ifStmts2),
+        ),
+    );
+    const tableSetOp = binaryenCAPI._BinaryenTableSet(
+        module.ptr,
+        getCString(BuiltinNames.extrefTable),
+        module.local.get(tableIdx, binaryen.i32),
+        module.local.get(objIdx, binaryen.anyref),
+    );
+    stmts.push(tableSetOp);
+    stmts.push(
+        binaryenCAPI._BinaryenArraySet(
+            module.ptr,
+            maskArr,
+            module.local.get(tableIdx, binaryen.i32),
+            module.i32.const(1),
+        ),
+    );
+    const call = module.call(
+        dyntype.dyntype_new_extref,
+        [
+            binaryenCAPI._BinaryenGlobalGet(
+                module.ptr,
+                getCString(dyntype.dyntype_context),
+                binaryen.anyref,
+            ),
+            module.local.get(tableIdx, binaryen.i32),
+            module.local.get(objTagIdx, binaryen.i32),
+        ],
+        dyntype.dyn_value_t,
+    );
+    stmts.push(module.return(call));
+
+    return module.block(null, stmts);
+}
+
 export function callBuiltInAPIs(module: binaryen.Module) {
     /** Math.sqrt */
     module.addFunction(
@@ -2166,6 +2336,17 @@ export function callBuiltInAPIs(module: binaryen.Module) {
             binaryen.i32,
         ],
         string_trim(module),
+    );
+    module.addFunction(
+        getFuncName(BuiltinNames.builtinModuleName, BuiltinNames.newExternRef),
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.external_ref_tag,
+            binaryen.anyref,
+        ]),
+        binaryen.anyref,
+        [binaryen.i32, binaryen.i32, charArrayTypeInfo.typeRef],
+        newExternRef(module),
     );
     /** TODO: */
 
