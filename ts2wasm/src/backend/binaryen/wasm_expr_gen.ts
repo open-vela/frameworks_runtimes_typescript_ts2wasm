@@ -17,6 +17,7 @@ import TypeResolver, {
     TSInterface,
     Type,
     TypeKind,
+    WasmType,
 } from '../../type.js';
 import { Variable } from '../../variable.js';
 import {
@@ -1187,7 +1188,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
         this.enterModuleScope = this.wasmCompiler.enterModuleScope!;
 
         let res: binaryen.ExpressionRef | AccessBase;
-
+        const identifer: string | undefined = (<IdentifierExpression>expr)
+            .identifierName;
         switch (expr.expressionKind) {
             case ts.SyntaxKind.NumericLiteral:
                 res = this.WASMNumberLiteral(<NumberLiteralExpression>expr);
@@ -1268,10 +1270,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         ts.SyntaxKind[expr.expressionKind],
                 );
         }
-
         if (res instanceof AccessBase) {
             return res;
         } else {
+            if (BuiltinNames.JSGlobalObjects.has(identifer)) {
+                const tsType_ = new Primitive('any');
+                return {
+                    binaryenRef: res,
+                    tsType: tsType_,
+                };
+            }
             return {
                 binaryenRef: res,
                 tsType: expr.exprType,
@@ -1628,7 +1636,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
             const tsType = identifierInfo;
             return new TypeAccess(tsType);
         } else {
-            throw new Error(`Can't find identifier <"${identifer}">`);
+            BuiltinNames.JSGlobalObjects.set(identifer, true);
+            const tsType = new Primitive('any');
+            const wasmType = this.wasmType.getWASMType(tsType);
+            return new GlobalAccess(identifer, wasmType, tsType);
         }
     }
 
@@ -2700,6 +2711,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         let curAccessInfo: AccessBase | null = null;
 
         const accessInfo = this.WASMExprGenInternal(objPropAccessExpr);
+
         if (accessInfo instanceof AccessBase) {
             if (accessInfo instanceof ScopeAccess) {
                 curAccessInfo = this._createAccessInfo(
@@ -2916,9 +2928,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
                     }
                     break;
                 }
-                case TypeKind.ANY:
+                case TypeKind.ANY: {
                     curAccessInfo = new DynObjectAccess(ref, propName);
                     break;
+                }
                 default:
                     throw Error(
                         `invalid property access, receiver type is: ${tsType.typeKind}`,
@@ -3727,7 +3740,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             2,
             arrayStructType.heapTypeRef,
         );
-        const res = this.module.call(
+        return this.module.call(
             dyntype.dyntype_invoke,
             [
                 this.module.global.get(
@@ -3740,7 +3753,6 @@ export class WASMExpressionGen extends WASMExpressionBase {
             ],
             binaryen.anyref,
         );
-        return res;
     }
 }
 
@@ -3797,7 +3809,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
                     res = this.boxNonLiteralToAny(newExpr);
                 } else {
                     // fallback to quickjs iff built-in class
-                    res = this.createDynObject(newExpr, identifierName);
+                    res = this.createDynObject(identifierName, newExpr);
                 }
                 break;
             }
@@ -3875,14 +3887,14 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
     }
 
     /** the dynamic object will fallback to quickjs */
-    private createDynObject(
-        newExpr: NewExpression,
+    createDynObject(
         name: string,
+        newExpr?: NewExpression,
     ): binaryen.ExpressionRef {
         const namePointer = this.wasmCompiler.generateRawString(name);
         const wasmArgs: binaryen.ExpressionRef[] = [];
         let numArgs;
-        if (newExpr.newArgs) {
+        if (newExpr && newExpr?.newArgs) {
             numArgs = newExpr.newArgs.length;
             for (const arg of newExpr.newArgs) {
                 wasmArgs.push(this.WASMDynExprGen(arg).binaryenRef);
@@ -3896,6 +3908,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
             arrayToPtr(wasmArgs).ptr,
             numArgs,
         );
+
         const arrayStructType = generateArrayStructTypeInfo(anyArrayTypeInfo);
         const arrayStruct = binaryenCAPI._BinaryenStructNew(
             this.module.ptr,

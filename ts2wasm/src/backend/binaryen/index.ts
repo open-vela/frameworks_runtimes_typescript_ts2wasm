@@ -33,6 +33,7 @@ import {
     generateGlobalContext,
     generateFreeDynContext,
     addItableFunc,
+    generateGlobalJSObject,
     generateExtRefTableMaskArr,
 } from './lib/env_init.js';
 import { WASMTypeGen } from './wasm_type_gen.js';
@@ -895,6 +896,13 @@ export class WASMGen extends Ts2wasmBackend {
             const functionStmts: binaryen.ExpressionRef[] = [];
             if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
                 functionStmts.push(this.generateInitDynContext());
+                BuiltinNames.JSGlobalObjects.forEach((init, key) => {
+                    if (init == true) {
+                        generateGlobalJSObject(this.module, key);
+                        functionStmts.push(this.genrateInitJSGlobalObject(key));
+                        BuiltinNames.JSGlobalObjects.set(key, false);
+                    }
+                });
             }
             functionStmts.push(
                 this.module.call(this.globalInitFuncName, [], binaryen.none),
@@ -1187,6 +1195,27 @@ export class WASMGen extends Ts2wasmBackend {
             this.module.ptr,
             getCString(dyntype.dyntype_context),
             value,
+        );
+        return expr;
+    }
+
+    public genrateInitJSGlobalObject(name: string) {
+        const namePointer = this.generateRawString(name);
+        const JSGlobalObj = this.module.call(
+            dyntype.dyntype_get_global,
+            [
+                this.module.global.get(
+                    dyntype.dyntype_context,
+                    dyntype.dyn_ctx_t,
+                ),
+                this.module.i32.const(namePointer),
+            ],
+            dyntype.dyn_value_t,
+        );
+        const expr = binaryenCAPI._BinaryenGlobalSet(
+            this.module.ptr,
+            getCString(name),
+            JSGlobalObj,
         );
         return expr;
     }

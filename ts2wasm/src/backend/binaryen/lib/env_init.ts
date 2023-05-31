@@ -422,6 +422,13 @@ export function importInfcLibAPI(module: binaryen.Module) {
         binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.funcref]),
         binaryen.none,
     );
+    module.addFunctionImport(
+        dyntype.dyntype_get_global,
+        dyntype.module_name,
+        dyntype.dyntype_get_global,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.pointer]),
+        dyntype.dyn_value_t,
+    );
 }
 
 export function generateGlobalContext(module: binaryen.Module) {
@@ -430,6 +437,15 @@ export function generateGlobalContext(module: binaryen.Module) {
         dyntype.dyn_ctx_t,
         true,
         module.ref.null(dyntype.dyn_ctx_t),
+    );
+}
+
+export function generateGlobalJSObject(module: binaryen.Module, name: string) {
+    module.addGlobal(
+        name,
+        dyntype.dyn_value_t,
+        true,
+        module.ref.null(dyntype.dyn_value_t),
     );
 }
 

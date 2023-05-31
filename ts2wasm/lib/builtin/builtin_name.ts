@@ -52,6 +52,7 @@ export namespace BuiltinNames {
     export const FUNCTION = 'Function';
     export const CONSOLE = 'console';
     export const MAP = 'Map';
+    export const SET = 'Set';
 
     export const builtinIdentifierArray = [
         MATH,
@@ -63,6 +64,7 @@ export namespace BuiltinNames {
         FUNCTION,
         CONSOLE,
         MAP,
+        SET,
     ];
 
     // decorator name
@@ -210,6 +212,8 @@ export namespace BuiltinNames {
         `${builtinModuleName}|Array|copyWithin`,
         `${builtinModuleName}|Array|includes`,
     ];
+
+    export const JSGlobalObjects: Map<string, boolean> = new Map();
 
     export function getSpecializedFuncName(
         mangledName: string,
