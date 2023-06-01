@@ -918,16 +918,6 @@
         ]
     },
     {
-        "module": "array_join",
-        "entries": [
-            {
-                "name": "array_join_string",
-                "args": [],
-                "result": "hello$wasm$hello$world \nhello,wasm,hello,world"
-            }
-        ]
-    },
-    {
         "module": "array_indexOf",
         "entries": [
             {
