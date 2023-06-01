@@ -191,14 +191,13 @@ array_join_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     value.i32 = 0;
     get_string_array_type(module, &string_array_type);
     new_arr = wasm_array_obj_new_with_type(exec_env, string_array_type,
-                                           result_len + 1, &value);
+                                           result_len, &value);
     if (!new_arr) {
         wasm_runtime_set_exception(module_inst, "alloc memory failed");
         goto fail;
     }
     p = (char *)wasm_array_obj_first_elem_addr(new_arr);
-    /* len = 1 add to '\0' */
-    p_end = p + result_len + 1;
+    p_end = p + result_len;
     bh_assert(p);
     bh_assert(p_end);
 
@@ -213,8 +212,6 @@ array_join_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
         }
     }
 
-    /* add '\0' as string end*/
-    *(p++) = '\0';
     bh_assert(p == p_end);
 
     value.gc_obj = (wasm_obj_t)new_arr;
