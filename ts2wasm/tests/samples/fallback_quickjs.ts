@@ -78,13 +78,5 @@ export function setTest() {
     console.log(tset.has(o1)); // true
     console.log(tset.has(o2)); // true
     console.log(tset.size); // 4
-}
 
-export function JSONTest(){
-    let json = '{"result":true, "count":42}';
-    let obj = JSON.parse(json);
-    let obj1 = JSON.parse(json);
-    let str: string = JSON.stringify(obj) as string;
-    console.log(obj.count);
-    console.log(str);
 }
