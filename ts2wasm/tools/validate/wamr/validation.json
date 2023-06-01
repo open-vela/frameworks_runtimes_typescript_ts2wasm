@@ -116,6 +116,11 @@
                 "name": "boxStringWithBinaryExpr",
                 "args": [],
                 "result": "ref.struct"
+            },
+            {
+                "name": "stringPlusAnyString",
+                "args": [],
+                "result": "string2string1 \nstring3string2string1"
             }
         ]
     },

@@ -291,7 +291,7 @@ dyntype_to_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 
     val.i32 = 0;
     get_string_array_type(module, &string_array_type);
-    new_arr = wasm_array_obj_new_with_type(exec_env, string_array_type, len + 1,
+    new_arr = wasm_array_obj_new_with_type(exec_env, string_array_type, len,
                                            &val);
     if (!new_arr) {
         wasm_runtime_set_exception(module_inst, "alloc memory failed");
@@ -299,13 +299,12 @@ dyntype_to_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     }
 
     p = (char *)wasm_array_obj_first_elem_addr(new_arr);
-    p_end = p + len + 1;
+    p_end = p + len;
     bh_assert(p);
     bh_assert(p_end);
 
     bh_memcpy_s(p, len, value, len);
     p += len;
-    *(p++) = '\0';
     bh_assert(p == p_end);
 
     val.gc_obj = (wasm_obj_t)new_arr;
