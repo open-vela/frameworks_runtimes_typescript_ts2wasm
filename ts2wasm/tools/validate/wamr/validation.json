@@ -3014,11 +3014,21 @@
                 "name": "setTest",
                 "args": [],
                 "result": "true \n2 \n[wasm object] \ntrue \ntrue \n4"
-            },
+            }
+        ]
+    },
+    {
+        "module": "fallback_quickjs_JSON",
+        "entries": [
             {
                 "name": "JSONTest",
                 "args": [],
-                "result": "42 \n{\"result\":true,\"count\":42}"
+                "result": "42 \n{\"result\":true,\"count\":42} \n42 \n{\"result\":true,\"count\":42}"
+            },
+            {
+                "name": "JSONTest2",
+                "args": [],
+                "result": "42 \n{\"result\":true,\"count\":42} \n42 \n{\"result\":true,\"count\":42}"
             }
         ]
     },

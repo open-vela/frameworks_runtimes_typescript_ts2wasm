@@ -385,6 +385,11 @@ export class WASMGen extends Ts2wasmBackend {
             generateExtRefTableMaskArr(this.module);
             startFuncOpcodes.push(this.generateInitDynContext());
         }
+        BuiltinNames.JSGlobalObjects.forEach((init, key) => {
+            generateGlobalJSObject(this.module, key);
+            startFuncOpcodes.push(this.genrateInitJSGlobalObject(key));
+            BuiltinNames.JSGlobalObjects.delete(key);
+        });
         startFuncOpcodes.push(
             this.module.call(
                 this.enterModuleScope.startFuncName,
@@ -898,7 +903,6 @@ export class WASMGen extends Ts2wasmBackend {
                 functionStmts.push(this.generateInitDynContext());
                 BuiltinNames.JSGlobalObjects.forEach((init, key) => {
                     if (init == true) {
-                        generateGlobalJSObject(this.module, key);
                         functionStmts.push(this.genrateInitJSGlobalObject(key));
                         BuiltinNames.JSGlobalObjects.set(key, false);
                     }
