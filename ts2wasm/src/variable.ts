@@ -5,9 +5,15 @@
 
 import ts from 'typescript';
 import { Expression } from './expression.js';
-import TypeResolver, { FunctionKind, TSFunction, Type } from './type.js';
+import TypeResolver, {
+    FunctionKind,
+    TSFunction,
+    Type,
+    TypeKind,
+} from './type.js';
 import { ParserContext } from './frontend.js';
 import {
+    adjustPrimitiveNodeType,
     addSourceMapLoc,
     generateNodeExpression,
     isScopeNode,
@@ -287,6 +293,11 @@ export class VariableScanner {
                 }
 
                 let variableType = currentScope.findType(typeName);
+                variableType = adjustPrimitiveNodeType(
+                    variableType!,
+                    node,
+                    this.currentScope,
+                );
 
                 /* Sometimes the variable's type is inferred as a TSFunction with
                     isDeclare == true, we need to treat it as non declare function
