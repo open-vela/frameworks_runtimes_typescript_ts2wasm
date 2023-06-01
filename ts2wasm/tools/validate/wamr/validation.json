@@ -682,7 +682,7 @@
             {
                 "name": "array_join_string",
                 "args": [],
-                "result": "hello$wasm$hello$world \nhello,wasm,hello,world"
+                "result": "hello$wasm$hello$world \n22:f64 \nhello,wasm,hello,world \n22:f64"
             }
         ]
     },
