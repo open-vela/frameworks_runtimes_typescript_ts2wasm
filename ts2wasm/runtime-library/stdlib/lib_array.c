@@ -364,7 +364,7 @@ void *
 array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                     void *start_obj, void *end_obj)
 {
-    uint32 len, new_len, iter_len;
+    uint32 i, len, new_len, start, end;
     wasm_struct_obj_t new_arr_struct = NULL;
     wasm_array_obj_t new_arr, arr_ref = get_array_ref(obj);
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
@@ -372,33 +372,37 @@ array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_array_type_t arr_type;
     wasm_value_t init = { 0 }, tmp_val = { 0 };
     wasm_local_obj_ref_t local_ref;
+    dyn_value_t start_idx = (dyn_value_t)wasm_anyref_obj_get_value(start_obj);
+    dyn_value_t end_idx = (dyn_value_t)wasm_anyref_obj_get_value(end_obj);
+
     struct_type =
         (wasm_struct_type_t)wasm_obj_get_defined_type((wasm_obj_t)obj);
     arr_type =
         (wasm_array_type_t)wasm_obj_get_defined_type((wasm_obj_t)arr_ref);
 
     len = get_array_length(obj);
-    if (len == 0) {
-        wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
-                                   "array is empty!");
-        return NULL;
+    start = 0;
+    end = len;
+
+    if (dyntype_is_number(dyntype_get_context(), start_idx)) {
+        double temp;
+        dyntype_to_number(dyntype_get_context(), start_idx, &temp);
+        start = (uint32)temp;
+        start = start < 0 ? start + len : start;
+        start = start < 0 ? 0 : start;
     }
 
-    const JSValue *start_idx = wasm_anyref_obj_get_value(start_obj);
-    const JSValue *end_idx = wasm_anyref_obj_get_value(end_obj);
-
-    int iter = JS_VALUE_GET_INT(*start_idx);
-    iter = iter < 0 ? 0 : iter;
     if (dyntype_is_number(dyntype_get_context(), end_idx)) {
-        int end = JS_VALUE_GET_INT(*end_idx);
+        double temp;
+        dyntype_to_number(dyntype_get_context(), end_idx, &temp);
+        end = (uint32)temp;
+        end = end < 0 ? end + len : end;
+        end = end < 0 ? 0 : end;
         end = end > len ? len : end;
-        new_len = end - iter;
-        iter_len = end;
     }
-    else if (dyntype_is_undefined(dyntype_get_context(), end_idx)) {
-        new_len = len - iter;
-        iter_len = len;
-    }
+
+    new_len = end - start;
+    new_len = new_len < 0 ? 0 : new_len;
 
     new_arr = wasm_array_obj_new_with_type(exec_env, arr_type, new_len, &init);
     if (!new_arr) {
@@ -410,13 +414,12 @@ array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_runtime_push_local_object_ref(exec_env, &local_ref);
     local_ref.val = (wasm_obj_t)new_arr;
 
-    for (int i = 0; iter != iter_len; iter++, i++) {
-        wasm_array_obj_get_elem(arr_ref, iter, false, &tmp_val);
-        wasm_array_obj_set_elem(new_arr, i, &tmp_val);
+    for (i = start; i < end; i++) {
+        wasm_array_obj_get_elem(arr_ref, i, false, &tmp_val);
+        wasm_array_obj_set_elem(new_arr, i - start, &tmp_val);
     }
 
     new_arr_struct = wasm_struct_obj_new_with_type(exec_env, struct_type);
-
     if (!new_arr_struct) {
         wasm_runtime_set_exception((wasm_module_inst_t)module_inst,
                                    "alloc memory failed");
