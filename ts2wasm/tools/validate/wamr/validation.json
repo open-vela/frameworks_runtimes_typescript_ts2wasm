@@ -572,6 +572,11 @@
                 "name": "array_slice_empty",
                 "args": [],
                 "result": ""
+            },
+            {
+                "name": "array_slice_endIdxisUndefined",
+                "args": [],
+                "result": "0 : a \n1 : b \n2 : c"
             }
         ]
     },
@@ -673,7 +678,6 @@
                 "args": [],
                 "result": "hello"
             }
-
         ]
     },
     {
@@ -914,7 +918,6 @@
                 "args": [],
                 "result": "hello"
             }
-
         ]
     },
     {
@@ -1477,8 +1480,8 @@
             },
             {
                 "name": "stringSliceWithOneZero",
-                "args":[],
-                "result":"ab"
+                "args": [],
+                "result": "ab"
             },
             {
                 "name": "stringIndexOf",
@@ -2896,13 +2899,15 @@
                 "name": "returnNaN",
                 "args": [],
                 "result": "nan:f64"
-            },            {
+            },
+            {
                 "name": "returnInfiity",
                 "args": [],
                 "result": "inf:f64"
-            },            {
+            },
+            {
                 "name": "returnNegInfiity",
-                "args":[],
+                "args": [],
                 "result": "-inf:f64"
             }
         ]
