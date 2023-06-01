@@ -13,3 +13,11 @@ export function array_slice_empty() {
         console.log(idx, ":", val);
     });
 }
+
+export function array_slice_endIdxisUndefined() {
+    let arr: Array<string> = ['a', 'b', 'c']
+    let ret = arr.slice(0);
+    ret.forEach((val, idx, arr) => {
+        console.log(idx, ":", val);
+    });
+}
