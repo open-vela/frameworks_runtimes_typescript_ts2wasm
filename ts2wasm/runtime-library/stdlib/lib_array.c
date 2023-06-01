@@ -364,7 +364,7 @@ void *
 array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                     void *start_obj, void *end_obj)
 {
-    uint32 len, new_len;
+    uint32 len, new_len, iter_len;
     wasm_struct_obj_t new_arr_struct = NULL;
     wasm_array_obj_t new_arr, arr_ref = get_array_ref(obj);
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
@@ -386,11 +386,20 @@ array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
 
     const JSValue *start_idx = wasm_anyref_obj_get_value(start_obj);
     const JSValue *end_idx = wasm_anyref_obj_get_value(end_obj);
+
     int iter = JS_VALUE_GET_INT(*start_idx);
-    int end = JS_VALUE_GET_INT(*end_idx);
     iter = iter < 0 ? 0 : iter;
-    end = end > len ? len : end;
-    new_len = end - iter;
+    if (dyntype_is_number(dyntype_get_context(), end_idx)) {
+        int end = JS_VALUE_GET_INT(*end_idx);
+        end = end > len ? len : end;
+        new_len = end - iter;
+        iter_len = end;
+    }
+    else if (dyntype_is_undefined(dyntype_get_context(), end_idx)) {
+        new_len = len - iter;
+        iter_len = len;
+    }
+
     new_arr = wasm_array_obj_new_with_type(exec_env, arr_type, new_len, &init);
     if (!new_arr) {
         wasm_runtime_set_exception((wasm_module_inst_t)module_inst,
@@ -401,7 +410,7 @@ array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_runtime_push_local_object_ref(exec_env, &local_ref);
     local_ref.val = (wasm_obj_t)new_arr;
 
-    for (int i = 0; iter != end; iter++, i++) {
+    for (int i = 0; iter != iter_len; iter++, i++) {
         wasm_array_obj_get_elem(arr_ref, iter, false, &tmp_val);
         wasm_array_obj_set_elem(new_arr, i, &tmp_val);
     }
