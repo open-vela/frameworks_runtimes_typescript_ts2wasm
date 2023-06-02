@@ -21,6 +21,7 @@ export const enum TypeKind {
     BOOLEAN = 'boolean',
     NUMBER = 'number',
     ANY = 'any',
+    UNDEFINED = 'undefined',
     STRING = 'string',
     ARRAY = 'array',
     FUNCTION = 'function',
@@ -121,6 +122,10 @@ export class Primitive extends Type {
                 this.typeKind = TypeKind.ANY;
                 break;
             }
+            case 'undefined': {
+                this.typeKind = TypeKind.UNDEFINED;
+                break;
+            }
             case 'void': {
                 this.typeKind = TypeKind.VOID;
                 break;
@@ -141,6 +146,7 @@ export const builtinTypes = new Map<string, Type>([
     ['string', new Primitive('string')],
     ['boolean', new Primitive('boolean')],
     ['any', new Primitive('any')],
+    ['undefined', new Primitive('undefined')],
     ['void', new Primitive('void')],
     ['null', new Primitive('null')],
     ['generic', new GenericType()],
@@ -580,8 +586,11 @@ export default class TypeResolver {
         if (typeFlag & ts.TypeFlags.Void) {
             return builtinTypes.get('void')!;
         }
-        if (typeFlag & ts.TypeFlags.Any || typeFlag & ts.TypeFlags.Undefined) {
+        if (typeFlag & ts.TypeFlags.Any) {
             return builtinTypes.get('any')!;
+        }
+        if (typeFlag & ts.TypeFlags.Undefined) {
+            return builtinTypes.get('undefined')!;
         }
         if (typeFlag & ts.TypeFlags.Null) {
             return builtinTypes.get('null')!;
@@ -1178,6 +1187,7 @@ export default class TypeResolver {
             case TypeKind.BOOLEAN:
             case TypeKind.NUMBER:
             case TypeKind.ANY:
+            case TypeKind.UNDEFINED:
             case TypeKind.STRING:
             case TypeKind.UNKNOWN:
             case TypeKind.NULL:
@@ -1230,6 +1240,7 @@ export default class TypeResolver {
             case TypeKind.BOOLEAN:
             case TypeKind.NUMBER:
             case TypeKind.ANY:
+            case TypeKind.UNDEFINED:
             case TypeKind.STRING:
             case TypeKind.UNKNOWN:
             case TypeKind.NULL:

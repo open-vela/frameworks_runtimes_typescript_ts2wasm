@@ -1137,6 +1137,7 @@ function string_indexOf(module: binaryen.Module) {
     const Block = module.block('indexOf', statementArray);
     return Block;
 }
+
 function string_match(module: binaryen.Module) {
     /**Args: context, this, targetStr */
     const thisStrStructIdx = 1;
