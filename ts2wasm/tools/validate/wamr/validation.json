@@ -2926,6 +2926,11 @@
                 "result": "17:f64"
             },
             {
+                "name": "returnVoid",
+                "args": [],
+                "result": "before"
+            },
+            {
                 "name": "returnNaN",
                 "args": [],
                 "result": "nan:f64"
