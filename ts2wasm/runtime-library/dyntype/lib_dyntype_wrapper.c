@@ -390,6 +390,14 @@ dyntype_type_eq_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            UNBOX_ANYREF(rhs));
 }
 
+int dyntype_cmp_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
+                            dyn_value_t lhs, dyn_value_t rhs, cmp_operator operator)
+{
+    return dyntype_cmp(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs),
+                           UNBOX_ANYREF(rhs), operator);
+}
+
+
 /******************* Subtyping *******************/
 dyn_value_t
 dyntype_new_object_with_proto_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
@@ -593,6 +601,8 @@ static NativeSymbol native_symbols[] = {
 
     REG_NATIVE_FUNC(dyntype_typeof, "(rr)i"),
     REG_NATIVE_FUNC(dyntype_type_eq, "(rrr)i"),
+    REG_NATIVE_FUNC(dyntype_cmp, "(rrri)i"),
+
     REG_NATIVE_FUNC(dyntype_instanceof, "(rrr)i"),
 
     REG_NATIVE_FUNC(dyntype_new_object_with_class, "(r$r)r"),

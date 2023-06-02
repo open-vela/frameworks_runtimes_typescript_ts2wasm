@@ -6,6 +6,7 @@
 #include "dyntype.h"
 #include "cutils.h"
 #include "quickjs.h"
+#include <string.h>
 
 static dyn_ctx_t g_dynamic_context = NULL;
 
@@ -25,9 +26,80 @@ static inline JSValue* dyntype_dup_value(JSContext *ctx, JSValue value) {
     return ptr;
 }
 
+static inline bool number_cmp(double lhs, double rhs, cmp_operator operator) {
+    bool res = false;
+
+    switch (operator) {
+        case LessThanToken: {
+            res = lhs < rhs;
+            break;
+        }
+        case GreaterThanToken: {
+            res = lhs > rhs;
+            break;
+        }
+        case EqualsEqualsToken:
+        case EqualsEqualsEqualsToken: {
+            res = lhs == rhs;
+            break;
+        }
+        case LessThanEqualsToken: {
+            res = lhs <= rhs;
+        }
+        case GreaterThanEqualsToken: {
+            res = lhs >= rhs;
+            break;
+        }
+        case ExclamationEqualsToken:
+        case ExclamationEqualsEqualsToken: {
+            res = lhs != rhs;
+            break;
+        }
+    }
+
+    return res;
+}
+
+static inline bool string_cmp(const char *lhs, const char * rhs, cmp_operator operator) {
+    bool res = false;
+    int cmp_res = strcmp(lhs, rhs);
+
+    switch (operator) {
+        case LessThanToken: {
+            res = cmp_res < 0;
+            break;
+        }
+        case GreaterThanToken: {
+            res = cmp_res > 0;
+            break;
+        }
+        case EqualsEqualsToken:
+        case EqualsEqualsEqualsToken: {
+            res = cmp_res == 0;
+            break;
+        }
+        case LessThanEqualsToken: {
+            res = cmp_res <= 0;
+            break;
+        }
+        case GreaterThanEqualsToken: {
+            res = cmp_res >= 0;
+            break;
+        }
+        case ExclamationEqualsToken:
+        case ExclamationEqualsEqualsToken: {
+            res = cmp_res != 0;
+            break;
+        }
+    }
+
+    return res;
+}
+
 static dyn_type_t quickjs_type_to_dyn_type(int quickjs_tag) {
     switch (quickjs_tag) {
 #define XX(qtag, dyntype) case qtag: return dyntype;
+    XX(0, DynNull);
     XX(69, DynUndefined);
     XX(73, DynObject);
     XX(71, DynBoolean);
@@ -521,6 +593,92 @@ dyn_type_t dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj) {
 
 bool dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs) {
     return dyntype_typeof(ctx, lhs) == dyntype_typeof(ctx, rhs);
+}
+
+bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator operator) {
+    bool res = false;
+    dyn_type_t type;
+
+    if (lhs == rhs) {
+        return true;
+    }
+    if (!dyntype_type_eq(ctx, lhs, rhs)) {
+        if (operator == EqualsEqualsToken || operator == EqualsEqualsEqualsToken) {
+            return false;
+        } else {
+            printf("[runtime library error]: non-equal compare token on two different any type values");
+            goto fail;
+        }
+    }
+
+    type = dyntype_typeof(ctx, lhs);
+
+    switch (type) {
+        case DynBoolean: {
+            bool lhs_b, rhs_b;
+            dyntype_to_bool(ctx, lhs, &lhs_b);
+            dyntype_to_bool(ctx, rhs, &rhs_b);
+            res = lhs_b == rhs_b;
+            break;
+        }
+        case DynNumber: {
+            double lhs_n, rhs_n;
+            dyntype_to_number(ctx, lhs, &lhs_n);
+            dyntype_to_number(ctx, rhs, &rhs_n);
+            res = number_cmp(lhs_n, rhs_n, operator);
+            break;
+        }
+        case DynNull:
+        case DynUndefined: {
+            res = true;
+            break;
+        }
+
+        case DynString: {
+            char *lhs_s, *rhs_s;
+            dyntype_to_cstring(ctx, lhs, &lhs_s);
+            dyntype_to_cstring(ctx, rhs, &rhs_s);
+            res = string_cmp(lhs_s, rhs_s, operator);
+            dyntype_free_cstring(ctx, lhs_s);
+            dyntype_free_cstring(ctx, rhs_s);
+            break;
+        }
+        case DynObject: {
+            if (operator != EqualsEqualsToken && operator != EqualsEqualsEqualsToken) {
+                printf("[runtime library error]: non-equal compare token on two any type objects");
+                goto fail;
+            }
+            JSValue *lhs_v = (JSValue *)lhs;
+            JSValue *rhs_v = (JSValue *)rhs;
+            res = JS_VALUE_GET_PTR(*lhs_v) == JS_VALUE_GET_PTR(*rhs_v);
+            break;
+        }
+        case DynExtRefObj:
+        case DynExtRefFunc:
+        case DynExtRefInfc:
+        case DynExtRefArray: {
+            if (operator != EqualsEqualsToken && operator != EqualsEqualsEqualsToken) {
+                printf("[runtime library error]: non-equal compare token on two any type external objects");
+                goto fail;
+            }
+            void *lhs_ref, *rhs_ref;
+            int lhs_tag, rhs_tag;
+            lhs_tag = dyntype_to_extref(ctx, lhs, &lhs_ref);
+            rhs_tag = dyntype_to_extref(ctx, rhs, &rhs_ref);
+            res = lhs_tag == rhs_tag && lhs_ref == rhs_ref;
+            // TODO: cmp contents in different table index
+            break;
+        }
+        default: {
+            printf("[runtime library error]: dyntype_cmp, variable type is %d\n", type);
+            goto fail;
+        }
+    }
+    return res;
+
+fail:
+    dyntype_context_destroy(ctx);
+    return false;
 }
 
 dyn_value_t dyntype_new_object_with_proto(dyn_ctx_t ctx,

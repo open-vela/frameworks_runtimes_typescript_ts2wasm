@@ -518,6 +518,9 @@ export class WASMExpressionBase {
             case TypeKind.NULL:
                 res = this.generateDynNull();
                 break;
+            case TypeKind.UNDEFINED:
+                res = this.generateDynUndefined();
+                break;
             default:
                 throw Error(
                     `unboxing static type to any type, unsupported static type : ${expr.exprType.kind}`,
@@ -528,42 +531,37 @@ export class WASMExpressionBase {
 
     boxNonLiteralToAny(expr: Expression): binaryen.ExpressionRef {
         let res: binaryen.ExpressionRef;
-        if (
-            expr instanceof IdentifierExpression &&
-            expr.identifierName === 'undefined'
-        ) {
-            res = this.generateDynUndefined();
-        } else {
-            /** box non-literal expression to any:
-             *  new dynamic value: number, boolean, null
-             *  direct assignment: any
-             *  new string: string (which will be put into table too)
-             *  new extref: obj (including class type, interface type, array type)
-             */
-            const staticRef = this.staticValueGen.WASMExprGen(expr).binaryenRef;
-            switch (expr.exprType.kind) {
-                case TypeKind.NUMBER:
-                case TypeKind.BOOLEAN:
-                case TypeKind.STRING:
-                case TypeKind.NULL:
-                    res = this.boxBaseTypeToAny(expr);
-                    break;
-                case TypeKind.ANY:
-                    res = staticRef;
-                    break;
-                // case TypeKind.STRING:
-                case TypeKind.INTERFACE:
-                case TypeKind.ARRAY:
-                case TypeKind.CLASS:
-                case TypeKind.FUNCTION:
-                    res = this.generateDynExtref(staticRef, expr.exprType.kind);
-                    break;
-                default:
-                    throw Error(
-                        `boxing static type to any type failed, static type is: ${expr.exprType.kind}`,
-                    );
-            }
+        /** box non-literal expression to any:
+         *  new dynamic value: number, boolean, null
+         *  direct assignment: any
+         *  new string: string (which will be put into table too)
+         *  new extref: obj (including class type, interface type, array type)
+         */
+        const staticRef = this.staticValueGen.WASMExprGen(expr).binaryenRef;
+        switch (expr.exprType.kind) {
+            case TypeKind.NUMBER:
+            case TypeKind.BOOLEAN:
+            case TypeKind.STRING:
+            case TypeKind.NULL:
+            case TypeKind.UNDEFINED:
+                res = this.boxBaseTypeToAny(expr);
+                break;
+            case TypeKind.ANY:
+                res = staticRef;
+                break;
+            // case TypeKind.STRING:
+            case TypeKind.INTERFACE:
+            case TypeKind.ARRAY:
+            case TypeKind.CLASS:
+            case TypeKind.FUNCTION:
+                res = this.generateDynExtref(staticRef, expr.exprType.kind);
+                break;
+            default:
+                throw Error(
+                    `boxing static type to any type failed, static type is: ${expr.exprType.kind}`,
+                );
         }
+        // }
         return res;
     }
 
@@ -660,10 +658,14 @@ export class WASMExpressionBase {
         operatorKind: ts.SyntaxKind,
     ) {
         const module = this.module;
+        let res: binaryen.ExpressionRef;
+
         switch (operatorKind) {
+            case ts.SyntaxKind.ExclamationEqualsToken:
+            case ts.SyntaxKind.ExclamationEqualsEqualsToken:
             case ts.SyntaxKind.EqualsEqualsToken:
             case ts.SyntaxKind.EqualsEqualsEqualsToken: {
-                return module.call(
+                res = module.call(
                     getFuncName(
                         BuiltinNames.builtinModuleName,
                         BuiltinNames.stringEQFuncName,
@@ -671,6 +673,13 @@ export class WASMExpressionBase {
                     [leftExprRef, rightExprRef],
                     dyntype.bool,
                 );
+                if (
+                    operatorKind === ts.SyntaxKind.ExclamationEqualsToken ||
+                    operatorKind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+                ) {
+                    res = module.i32.eqz(res);
+                }
+                break;
             }
             case ts.SyntaxKind.PlusToken: {
                 const vartype = new TSArray(new Primitive('string'));
@@ -722,11 +731,25 @@ export class WASMExpressionBase {
                     ),
                 );
                 const concatBlock = module.block(null, statementArray);
-                return concatBlock;
+                res = concatBlock;
+                break;
             }
             default:
-                throw new Error(`operator doesn't support, ${operatorKind}`);
+                // iff two any type operation, the logic is
+                // if (type eq) {
+                //     if (is_number) {
+
+                //     } else if (is_string) {
+
+                //     } else {
+                //         ...
+                //     }
+                // }
+                // so in order to match the logic of number, here we return unreachable
+                res = this.module.unreachable();
         }
+
+        return res;
     }
 
     operateRefRef(
@@ -743,18 +766,29 @@ export class WASMExpressionBase {
         if (rightExprType.kind === TypeKind.INTERFACE) {
             rightExprRef = this.getInterfaceObj(rightExprRef);
         }
+        let res: binaryen.ExpressionRef;
         switch (operatorKind) {
+            case ts.SyntaxKind.ExclamationEqualsToken:
+            case ts.SyntaxKind.ExclamationEqualsEqualsToken:
             case ts.SyntaxKind.EqualsEqualsToken:
             case ts.SyntaxKind.EqualsEqualsEqualsToken: {
-                return binaryenCAPI._BinaryenRefEq(
+                res = binaryenCAPI._BinaryenRefEq(
                     module.ptr,
                     leftExprRef,
                     rightExprRef,
                 );
+                if (
+                    operatorKind === ts.SyntaxKind.ExclamationEqualsToken ||
+                    operatorKind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+                ) {
+                    res = module.i32.eqz(res);
+                }
+                break;
             }
             default:
                 throw new Error(`operator doesn't support, ${operatorKind}`);
         }
+        return res;
     }
 
     operateF64I32(
@@ -847,6 +881,14 @@ export class WASMExpressionBase {
                     binaryen.i32,
                 );
             }
+            case ts.SyntaxKind.EqualsEqualsEqualsToken:
+            case ts.SyntaxKind.EqualsEqualsToken: {
+                return module.i32.eq(leftExprRef, rightExprRef);
+            }
+            case ts.SyntaxKind.ExclamationEqualsToken:
+            case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
+                return module.i32.ne(leftExprRef, rightExprRef);
+            }
             default:
                 throw new Error(`operator doesn't support, ${operatorKind}`);
         }
@@ -857,78 +899,277 @@ export class WASMExpressionBase {
         rightExprRef: binaryen.ExpressionRef,
         operatorKind: ts.SyntaxKind,
     ) {
-        const tmpLeftNumberRef = this.unboxAnyToBase(
-            leftExprRef,
-            TypeKind.NUMBER,
-        );
-        const tmpRightNumberRef = this.unboxAnyToBase(
-            rightExprRef,
-            TypeKind.NUMBER,
-        );
-        const tmpTotalNumberName = this.getTmpVariableName('~numberTotal|');
-        const tmpTotalNumberVar: Variable = new Variable(
-            tmpTotalNumberName,
-            builtinTypes.get(TypeKind.ANY)!,
-            [],
-            0,
-        );
-        const setTotalNumberExpression = this.oprateF64F64ToDyn(
-            tmpLeftNumberRef,
-            tmpRightNumberRef,
-            operatorKind,
-            tmpTotalNumberVar,
-        );
-        // store the external operations into currentScope's statementArray
-        this.currentFuncCtx.insert(setTotalNumberExpression);
-        return this.getVariableValue(tmpTotalNumberVar, binaryen.anyref);
+        // TODO: not support ref type cmp
+        let res: binaryen.ExpressionRef;
+        switch (operatorKind) {
+            case ts.SyntaxKind.EqualsEqualsToken:
+            case ts.SyntaxKind.EqualsEqualsEqualsToken:
+            case ts.SyntaxKind.LessThanEqualsToken:
+            case ts.SyntaxKind.LessThanToken:
+            case ts.SyntaxKind.GreaterThanEqualsToken:
+            case ts.SyntaxKind.GreaterThanToken:
+            case ts.SyntaxKind.ExclamationEqualsToken:
+            case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
+                res = this.module.call(
+                    dyntype.dyntype_cmp,
+                    [
+                        this.module.global.get(
+                            dyntype.dyntype_context,
+                            dyntype.dyn_ctx_t,
+                        ),
+                        leftExprRef,
+                        rightExprRef,
+                        this.module.i32.const(operatorKind),
+                    ],
+                    binaryen.i32,
+                );
+                break;
+            }
+            default: {
+                const tmpVarName = this.getTmpVariableName('~staticToDyn|');
+                const tmpVar = new Variable(
+                    tmpVarName,
+                    builtinTypes.get(TypeKind.ANY)!,
+                    [],
+                    0,
+                );
+                const setTotalNumberExpression = this.operateStaticToDyn(
+                    leftExprRef,
+                    rightExprRef,
+                    operatorKind,
+                    tmpVar,
+                );
+                // store the external operations into currentScope's statementArray
+                this.currentFuncCtx.insert(setTotalNumberExpression);
+                res = this.getVariableValue(tmpVar, binaryen.anyref);
+                /** iff not compare or plus token, tsc will auto convert to number */
+                if (
+                    !(
+                        operatorKind >= ts.SyntaxKind.LessThanToken &&
+                        operatorKind <= ts.SyntaxKind.PlusToken
+                    )
+                ) {
+                    res = this.unboxAnyToBase(res, TypeKind.NUMBER);
+                }
+                break;
+            }
+        }
+        return res;
     }
 
-    operateAnyNumber(
+    operateStaticNullUndefined(
+        leftType: Type,
+        leftExprRef: binaryen.ExpressionRef,
+        rightTypekind: TypeKind,
+        operatorKind: ts.SyntaxKind,
+    ) {
+        let res: binaryen.ExpressionRef;
+        const isNotEqToken =
+            operatorKind === ts.SyntaxKind.ExclamationEqualsToken ||
+            operatorKind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+                ? true
+                : false;
+        if (leftType.kind === rightTypekind) {
+            res = isNotEqToken ? 0 : 1;
+        } else {
+            res = isNotEqToken ? 1 : 0;
+        }
+        res = this.module.i32.const(res);
+        // let xx: A | null === null;
+        // xx === null
+        if (
+            !(leftType instanceof Primitive) &&
+            rightTypekind === TypeKind.NULL
+        ) {
+            res = this.module.ref.is_null(leftExprRef);
+            if (isNotEqToken) {
+                res = this.module.i32.eqz(res);
+            }
+        }
+        return res;
+    }
+
+    operatorAnyStatic(
+        leftExprRef: binaryen.ExpressionRef,
+        rightExprRef: binaryen.ExpressionRef,
+        rightExprType: Type,
+        operatorKind: ts.SyntaxKind,
+    ) {
+        const module = this.module;
+        let res: binaryen.ExpressionRef;
+        const dynCtx = module.global.get(
+            dyntype.dyntype_context,
+            dyntype.dyn_ctx_t,
+        );
+        switch (operatorKind) {
+            case ts.SyntaxKind.EqualsEqualsToken:
+            case ts.SyntaxKind.EqualsEqualsEqualsToken:
+            case ts.SyntaxKind.ExclamationEqualsToken:
+            case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
+                if (rightExprType.kind === TypeKind.NULL) {
+                    res = module.call(
+                        dyntype.dyntype_is_null,
+                        [dynCtx, leftExprRef],
+                        binaryen.i32,
+                    );
+                    // TODO: ref.null need table.get support in native API
+                } else if (rightExprType.kind === TypeKind.UNDEFINED) {
+                    res = module.call(
+                        dyntype.dyntype_is_undefined,
+                        [dynCtx, leftExprRef],
+                        binaryen.i32,
+                    );
+                } else if (rightExprType.kind === TypeKind.NUMBER) {
+                    res = this.operateF64F64ToDyn(
+                        leftExprRef,
+                        rightExprRef,
+                        operatorKind,
+                        true,
+                    );
+                } else if (rightExprType.kind === TypeKind.STRING) {
+                    res = this.operateStrStrToDyn(
+                        leftExprRef,
+                        rightExprRef,
+                        operatorKind,
+                        true,
+                    );
+                } else {
+                    throw new Error(
+                        `operand type doesn't support on any static operation, static type is ${rightExprType.kind}`,
+                    );
+                }
+                if (
+                    operatorKind === ts.SyntaxKind.ExclamationEqualsToken ||
+                    operatorKind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+                ) {
+                    res = module.i32.eqz(res);
+                }
+                break;
+            }
+            default:
+                if (rightExprType.kind === TypeKind.NUMBER) {
+                    res = this.operateF64F64ToDyn(
+                        leftExprRef,
+                        rightExprRef,
+                        operatorKind,
+                        true,
+                    );
+                } else if (rightExprType.kind === TypeKind.STRING) {
+                    res = this.operateStrStrToDyn(
+                        leftExprRef,
+                        rightExprRef,
+                        operatorKind,
+                        true,
+                    );
+                } else {
+                    throw new Error(
+                        `operator doesn't support on any static operation, ${operatorKind}`,
+                    );
+                }
+        }
+        return res;
+    }
+
+    operateStaticToDyn(
         leftExprRef: binaryen.ExpressionRef,
         rightExprRef: binaryen.ExpressionRef,
         operatorKind: ts.SyntaxKind,
+        tmpVar: Variable,
     ) {
-        const tmpLeftNumberRef = this.unboxAnyToBase(
+        const dynTypeCtx = this.module.global.get(
+            dyntype.dyntype_context,
+            dyntype.dyn_ctx_t,
+        );
+        const typeEq = this.module.call(
+            dyntype.dyntype_type_eq,
+            [dynTypeCtx, leftExprRef, rightExprRef],
+            binaryen.i32,
+        );
+        // const
+        const ifFalse = this.module.unreachable();
+        const ifNumber = this.module.call(
+            dyntype.dyntype_is_number,
+            [dynTypeCtx, leftExprRef],
+            binaryen.i32,
+        );
+        const ifString = this.module.call(
+            dyntype.dyntype_is_string,
+            [dynTypeCtx, leftExprRef],
+            binaryen.i32,
+        );
+        const ifStringTrue = this.operateStrStrToDyn(
             leftExprRef,
-            TypeKind.NUMBER,
-        );
-        const tmpTotalNumberName = this.getTmpVariableName('~numberTotal|');
-        const tmpTotalNumberVar: Variable = new Variable(
-            tmpTotalNumberName,
-            builtinTypes.get(TypeKind.ANY)!,
-            [],
-            0,
-        );
-        const setTotalNumberExpression = this.oprateF64F64ToDyn(
-            tmpLeftNumberRef,
             rightExprRef,
             operatorKind,
-            tmpTotalNumberVar,
         );
-        // store the external operations into currentScope's statementArray
-        this.currentFuncCtx.insert(setTotalNumberExpression);
-        return this.getVariableValue(tmpTotalNumberVar, binaryen.anyref);
+        const ifTpeEqTrue = this.module.if(
+            ifNumber,
+            this.operateF64F64ToDyn(leftExprRef, rightExprRef, operatorKind),
+            this.module.if(ifString, ifStringTrue, ifFalse),
+        );
+        this.addVariableToCurrentScope(tmpVar);
+        const res = this.setVariableToCurrentScope(
+            tmpVar,
+            this.module.if(typeEq, ifTpeEqTrue, ifFalse),
+        );
+        return res;
     }
 
-    oprateF64F64ToDyn(
-        leftNumberExpression: binaryen.ExpressionRef,
-        rightNumberExpression: binaryen.ExpressionRef,
+    operateF64F64ToDyn(
+        leftExprRef: binaryen.ExpressionRef,
+        rightExprRef: binaryen.ExpressionRef,
         operatorKind: ts.SyntaxKind,
-        tmpTotalNumberVar: Variable,
+        isRightStatic = false,
     ) {
-        // operate left expression and right expression
-        const operateTotalNumber = this.operateF64F64(
-            leftNumberExpression,
-            rightNumberExpression,
+        const tmpLeftNumberRef = this.module.call(
+            dyntype.dyntype_to_number,
+            [
+                this.module.global.get(
+                    dyntype.dyntype_context,
+                    binaryen.anyref,
+                ),
+                leftExprRef,
+            ],
+            binaryen.f64,
+        );
+        const tmpRightNumberRef = isRightStatic
+            ? rightExprRef
+            : this.module.call(
+                  dyntype.dyntype_to_number,
+                  [
+                      this.module.global.get(
+                          dyntype.dyntype_context,
+                          binaryen.anyref,
+                      ),
+                      rightExprRef,
+                  ],
+                  binaryen.f64,
+              );
+        const operateNumber = this.operateF64F64(
+            tmpLeftNumberRef,
+            tmpRightNumberRef,
             operatorKind,
         );
-        // add tmp total number value to current scope
-        this.addVariableToCurrentScope(tmpTotalNumberVar);
-        const setTotalNumberExpression = this.setVariableToCurrentScope(
-            tmpTotalNumberVar,
-            this.generateDynNumber(operateTotalNumber),
+        return this.generateDynNumber(operateNumber);
+    }
+
+    operateStrStrToDyn(
+        leftExprRef: binaryen.ExpressionRef,
+        rightExprRef: binaryen.ExpressionRef,
+        operatorKind: ts.SyntaxKind,
+        isRightStatic = false,
+    ) {
+        const tmpLeftStrRef = this.unboxAnyToBase(leftExprRef, TypeKind.STRING);
+        const tmpRightStrRef = isRightStatic
+            ? rightExprRef
+            : this.unboxAnyToBase(rightExprRef, TypeKind.STRING);
+        // operate left expression and right expression
+        const operateString = this.operateStringString(
+            tmpLeftStrRef,
+            tmpRightStrRef,
+            operatorKind,
         );
-        return setTotalNumberExpression;
+        return this.generateDynString(operateString);
     }
 
     defaultValue(typeKind: TypeKind) {
@@ -1120,7 +1361,9 @@ export class WASMExpressionBase {
         if (type === binaryen.i32) {
             res = exprRef;
         } else if (type === binaryen.f64) {
-            res = this.module.f64.ne(exprRef, this.module.f64.const(0));
+            const n0 = this.module.f64.ne(exprRef, this.module.f64.const(0));
+            const nNaN = this.module.f64.eq(exprRef, exprRef);
+            res = this.module.i32.and(n0, nNaN);
         } else if (type === binaryen.anyref) {
             const targetFunc = getFuncName(
                 BuiltinNames.builtinModuleName,
@@ -1129,7 +1372,6 @@ export class WASMExpressionBase {
             res = this.module.call(targetFunc, [exprRef], binaryen.i32);
         } else if (type === stringTypeInfo.typeRef) {
             // '' => false, '123' => true
-            // TODO, use field 1
             const array = binaryenCAPI._BinaryenStructGet(
                 this.module.ptr,
                 1,
@@ -1859,63 +2101,91 @@ export class WASMExpressionGen extends WASMExpressionBase {
         leftExprType: Type,
         rightExprType: Type,
     ): binaryen.ExpressionRef {
+        let res: binaryen.ExpressionRef = this.module.unreachable();
         if (
             leftExprType.kind === TypeKind.NUMBER &&
             rightExprType.kind === TypeKind.NUMBER
         ) {
-            return this.operateF64F64(leftExprRef, rightExprRef, operatorKind);
+            res = this.operateF64F64(leftExprRef, rightExprRef, operatorKind);
         }
         if (
             leftExprType.kind === TypeKind.NUMBER &&
             rightExprType.kind === TypeKind.BOOLEAN
         ) {
-            return this.operateF64I32(leftExprRef, rightExprRef, operatorKind);
+            res = this.operateF64I32(leftExprRef, rightExprRef, operatorKind);
         }
         if (
             leftExprType.kind === TypeKind.BOOLEAN &&
             rightExprType.kind === TypeKind.NUMBER
         ) {
-            return this.operateI32F64(leftExprRef, rightExprRef, operatorKind);
+            res = this.operateI32F64(leftExprRef, rightExprRef, operatorKind);
         }
         if (
             leftExprType.kind === TypeKind.BOOLEAN &&
             rightExprType.kind === TypeKind.BOOLEAN
         ) {
-            return this.operateI32I32(leftExprRef, rightExprRef, operatorKind);
-        }
-        if (
-            leftExprType.kind === TypeKind.ANY &&
-            rightExprType.kind === TypeKind.ANY
-        ) {
-            return this.operateAnyAny(leftExprRef, rightExprRef, operatorKind);
-        }
-        if (
-            leftExprType.kind === TypeKind.ANY &&
-            rightExprType.kind === TypeKind.NUMBER
-        ) {
-            return this.operateAnyNumber(
-                leftExprRef,
-                rightExprRef,
-                operatorKind,
-            );
-        }
-        if (
-            leftExprType.kind === TypeKind.NUMBER &&
-            rightExprType.kind === TypeKind.ANY
-        ) {
-            return this.operateAnyNumber(
-                rightExprRef,
-                leftExprRef,
-                operatorKind,
-            );
+            res = this.operateI32I32(leftExprRef, rightExprRef, operatorKind);
         }
         if (
             leftExprType.kind === TypeKind.STRING &&
             rightExprType.kind === TypeKind.STRING
         ) {
-            return this.operateStringString(
+            res = this.operateStringString(
                 leftExprRef,
                 rightExprRef,
+                operatorKind,
+            );
+        }
+        if (
+            leftExprType.kind === TypeKind.ANY &&
+            rightExprType.kind === TypeKind.ANY
+        ) {
+            res = this.operateAnyAny(leftExprRef, rightExprRef, operatorKind);
+        }
+        if (
+            (leftExprType.kind === TypeKind.NULL ||
+                leftExprType.kind === TypeKind.UNDEFINED) &&
+            rightExprType.kind !== TypeKind.ANY
+        ) {
+            res = this.operateStaticNullUndefined(
+                rightExprType,
+                rightExprRef,
+                leftExprType.kind,
+                operatorKind,
+            );
+        }
+        if (
+            leftExprType.kind !== TypeKind.ANY &&
+            (rightExprType.kind === TypeKind.NULL ||
+                rightExprType.kind === TypeKind.UNDEFINED)
+        ) {
+            res = this.operateStaticNullUndefined(
+                leftExprType,
+                leftExprRef,
+                rightExprType.kind,
+                operatorKind,
+            );
+        }
+        /** static any*/
+        if (
+            leftExprType.kind === TypeKind.ANY &&
+            rightExprType.kind !== TypeKind.ANY
+        ) {
+            res = this.operatorAnyStatic(
+                leftExprRef,
+                rightExprRef,
+                rightExprType,
+                operatorKind,
+            );
+        }
+        if (
+            leftExprType.kind !== TypeKind.ANY &&
+            rightExprType.kind === TypeKind.ANY
+        ) {
+            res = this.operatorAnyStatic(
+                rightExprRef,
+                leftExprRef,
+                leftExprType,
                 operatorKind,
             );
         }
@@ -1934,13 +2204,16 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 operatorKind,
             );
         }
+        if (res === this.module.unreachable()) {
+            throw new Error(
+                'unexpected left expr type ' +
+                    leftExprType.kind +
+                    ' unexpected right expr type ' +
+                    rightExprType.kind,
+            );
+        }
 
-        throw new Error(
-            'unexpected left expr type ' +
-                leftExprType.kind +
-                ' unexpected right expr type ' +
-                rightExprType.kind,
-        );
+        return res;
     }
 
     private assignBinaryExpr(

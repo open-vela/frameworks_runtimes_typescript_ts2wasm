@@ -1,6 +1,6 @@
 [
     {
-        "module": "any_binary_add",
+        "module": "any_binary_operation",
         "entries": [
             {
                 "name": "addAnyAny",
@@ -10,12 +10,22 @@
             {
                 "name": "addNumberAnyInBinaryExpr",
                 "args": [],
-                "result": "2:f64"
+                "result": "200:f64"
             },
             {
                 "name": "addNumberAnyInMulExpr",
                 "args": [],
                 "result": "9:f64"
+            },
+            {
+                "name": "anyCmp",
+                "args": [],
+                "result": "false \ntrue \ntrue \nfalse \ntrue \nfalse \nfalse \ntrue \ntrue \nfalse \nfalse"
+            },
+            {
+                "name": "anyNullUndefinedCmp",
+                "args": [],
+                "result": "true \nfalse \ntrue \ntrue \nfalse \ntrue \nfalse"
             }
         ]
     },
@@ -1327,6 +1337,11 @@
                 "name": "booleanBasicFalse",
                 "args": [],
                 "result": "0x0:i32"
+            },
+            {
+                "name": "booleanCmp",
+                "args": [],
+                "result": "false \ntrue"
             }
         ]
     },
@@ -1631,7 +1646,7 @@
             {
                 "name": "castAnyBackToNull",
                 "args": [],
-                "result": "ref.struct"
+                "result": "any:ref.null"
             },
             {
                 "name": "castAnyBackToBoolean",
@@ -2789,6 +2804,16 @@
                 "name": "letPrimitiveVars",
                 "args": [],
                 "result": "6:f64"
+            },
+            {
+                "name": "nullundefinedCmp",
+                "args": [],
+                "result": "false \ntrue \ntrue \nfalse \nfalse \nfalse \ntrue \nfalse \ntrue \nfalse \ntrue \nfalse \ntrue \ntrue \nfalse"
+            },
+            {
+                "name": "NaNNumber",
+                "args": [],
+                "result": "1 \n1"
             }
         ]
     },

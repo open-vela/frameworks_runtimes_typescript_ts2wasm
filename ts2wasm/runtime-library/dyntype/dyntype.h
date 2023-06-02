@@ -35,6 +35,7 @@ typedef enum external_ref_tag {
 
 typedef enum dyn_type_t {
     DynUnknown,
+    DynNull,
     DynUndefined,
     DynObject,
     DynBoolean,
@@ -48,6 +49,17 @@ typedef enum dyn_type_t {
     DynExtRefInfc,
     DynExtRefArray,
 } dyn_type_t;
+
+typedef enum cmp_operator {
+    LessThanToken                = 29,
+    GreaterThanToken             = 31,
+    LessThanEqualsToken          = 32,
+    GreaterThanEqualsToken       = 33,
+    EqualsEqualsToken            = 34,
+    ExclamationEqualsToken       = 35,
+    EqualsEqualsEqualsToken      = 36,
+    ExclamationEqualsEqualsToken = 37,
+} cmp_operator;
 
 /******************* Initialization and destroy *******************/
 
@@ -366,13 +378,26 @@ dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj);
  * @brief Check if two dynamic value has the same type
  *
  * @param ctx the dynamic type system context
- * @param lhs left hand operator
- * @param rhs right hand operator
+ * @param lhs left hand operand
+ * @param rhs right hand operand
  * @return true if the two dynamic values have same type (shape), false
  * otherwise
  */
 bool
 dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs);
+
+/**
+ * @brief Compare two dynamic values
+ *
+ * @param ctx the dynamic type system context
+ * @param lhs left hand operand
+ * @param rhs right hand operand
+ * @param operator the compare operator
+ * @return true if the two dynamic values compares are equal, false
+ * otherwise
+ */
+bool
+dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator operator);
 
 /******************* Subtyping *******************/
 
