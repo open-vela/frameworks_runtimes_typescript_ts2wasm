@@ -392,12 +392,12 @@ dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs);
  * @param ctx the dynamic type system context
  * @param lhs left hand operand
  * @param rhs right hand operand
- * @param operator the compare operator
+ * @param operator_kind the compare operator_kind
  * @return true if the two dynamic values compares are equal, false
  * otherwise
  */
 bool
-dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator operator);
+dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator operator_kind);
 
 /******************* Subtyping *******************/
 
