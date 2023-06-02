@@ -1354,23 +1354,25 @@ export class WASMExpressionBase {
         }
     }
 
-    generateCondition(exprRef: binaryen.ExpressionRef) {
-        const type = binaryen.getExpressionType(exprRef);
+    generateCondition(exprRef: binaryen.ExpressionRef, exprKind: TypeKind) {
         let res = this.module.unreachable();
-        /* TODO: Haven't handle string yet */
-        if (type === binaryen.i32) {
+
+        if (exprKind === TypeKind.BOOLEAN) {
             res = exprRef;
-        } else if (type === binaryen.f64) {
+        } else if (exprKind === TypeKind.NUMBER) {
             const n0 = this.module.f64.ne(exprRef, this.module.f64.const(0));
             const nNaN = this.module.f64.eq(exprRef, exprRef);
             res = this.module.i32.and(n0, nNaN);
-        } else if (type === binaryen.anyref) {
+        } else if (
+            exprKind === TypeKind.ANY ||
+            exprKind === TypeKind.UNDEFINED
+        ) {
             const targetFunc = getFuncName(
                 BuiltinNames.builtinModuleName,
                 BuiltinNames.anyrefCond,
             );
             res = this.module.call(targetFunc, [exprRef], binaryen.i32);
-        } else if (type === stringTypeInfo.typeRef) {
+        } else if (exprKind === TypeKind.STRING) {
             // '' => false, '123' => true
             const array = binaryenCAPI._BinaryenStructGet(
                 this.module.ptr,
@@ -2500,7 +2502,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
             }
             case ts.SyntaxKind.ExclamationToken: {
                 let WASMOperandExpr = this.WASMExprGen(operand).binaryenRef;
-                WASMOperandExpr = this.generateCondition(WASMOperandExpr);
+                WASMOperandExpr = this.generateCondition(
+                    WASMOperandExpr,
+                    operand.exprType.kind,
+                );
                 return this.module.i32.eqz(WASMOperandExpr);
             }
             case ts.SyntaxKind.MinusToken: {
@@ -2529,7 +2534,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
     ): binaryen.ExpressionRef {
         let condWASMExpr = this.WASMExprGen(expr.condtion).binaryenRef;
         // convert to condition
-        condWASMExpr = this.generateCondition(condWASMExpr);
+        condWASMExpr = this.generateCondition(
+            condWASMExpr,
+            expr.condtion.exprType.kind,
+        );
         const trueWASMExpr = this.WASMExprGen(expr.whenTrue);
         const falseWASMExpr = this.WASMExprGen(expr.whenFalse);
         // TODO: union type
