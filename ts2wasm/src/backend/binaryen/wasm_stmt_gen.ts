@@ -183,11 +183,14 @@ export class WASMStatementGen {
             }
         }
         this.WASMCompiler.addDebugInfoRef(stmt.returnExpression, returnExprRef);
-        const setReturnValue = module.local.set(
-            this.currentFuncCtx.returnIdx,
-            returnExprRef,
-        );
-        this.currentFuncCtx!.insert(setReturnValue);
+        /** Not nead set return local var */
+        if (binaryen.getExpressionType(returnExprRef) !== binaryen.none) {
+            const setReturnValue = module.local.set(
+                this.currentFuncCtx.returnIdx,
+                returnExprRef,
+            );
+            this.currentFuncCtx!.insert(setReturnValue);
+        }
         return brReturn;
     }
 

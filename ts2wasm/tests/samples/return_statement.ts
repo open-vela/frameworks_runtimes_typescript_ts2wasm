@@ -18,6 +18,15 @@ export function deadReturnStatement(a: number) {
     }
 }
 
+function helper() {
+    return;
+}
+export function returnVoid(): void {
+    console.log('before');
+    return helper();
+    console.log('after');
+}
+
 export function returnNaN() {
     const a = NaN;
     return a;

@@ -47,6 +47,7 @@ const enum ErrorKind {
     nonAnyAndAny = 'operate between non-any type and any type',
     OperateDiffTypes = 'operate between different types',
     InvokeAnyObj = 'invoke any object',
+    VoidTypeAsVarType = 'void type as variable type',
 }
 
 const enum ErrorFlag {
@@ -59,6 +60,7 @@ const enum ErrorFlag {
     InvokeAnyObject,
     ArgsAndParamsTypesAreNominalClass,
     ArgsAndParamsTypesAreNonAnyAndAnyTypes,
+    VoidTypeAsVarType,
 }
 
 interface SematicError {
@@ -167,6 +169,7 @@ export default class SemanticChecker {
 
     private varInitAccept(expr: Variable | Parameter) {
         if (expr.initExpression) {
+            this.voidTypeCheck(expr.varType.kind);
             this.binaryOperateCheck(
                 expr.varType,
                 expr.initExpression.exprType,
@@ -339,6 +342,17 @@ export default class SemanticChecker {
                     message: `binary operation between ${left.kind} and ${right.kind}`,
                     scopeName: this.getScopeName(this.curScope!),
                 });
+        }
+    }
+
+    private voidTypeCheck(typeKind: TypeKind) {
+        if (typeKind === TypeKind.VOID) {
+            this.errors.push({
+                errorKind: ErrorKind.VoidTypeAsVarType,
+                errorFlag: ErrorFlag.VoidTypeAsVarType,
+                message: `void type as variable type is not allowed`,
+                scopeName: this.getScopeName(this.curScope!),
+            });
         }
     }
 
