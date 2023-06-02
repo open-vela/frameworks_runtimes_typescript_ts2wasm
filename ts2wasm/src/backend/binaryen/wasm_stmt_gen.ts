@@ -403,10 +403,7 @@ export class WASMStatementGen {
             for (const localVar of varArray) {
                 if (localVar.initExpression !== null) {
                     let varInitExprRef: binaryen.ExpressionRef;
-                    if (
-                        localVar.varType.kind === TypeKind.ANY ||
-                        localVar.varType.kind === TypeKind.GENERIC
-                    ) {
+                    if (localVar.varType.kind === TypeKind.ANY) {
                         varInitExprRef = wasmDynExpr.WASMDynExprGen(
                             localVar.initExpression,
                         ).binaryenRef;
