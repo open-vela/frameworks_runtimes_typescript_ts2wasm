@@ -77,6 +77,7 @@ export namespace dyntype {
     export const dyntype_is_extref = 'dyntype_is_extref';
     export const dyntype_to_extref = 'dyntype_to_extref';
     export const dyntype_is_falsy = 'dyntype_is_falsy';
+    export const dyntype_cmp = 'dyntype_cmp';
 
     export const dyntype_typeof = 'dyntype_typeof';
     export const dyntype_type_eq = 'dyntype_type_eq';

@@ -7,6 +7,24 @@ import { TypeKind } from '../../type.js';
 import { dyntype } from './lib/dyntype/utils.js';
 import { stringTypeInfo } from './glue/packType.js';
 
+/** typeof an any type object */
+export const enum DynType {
+    DynUnknown,
+    DynNull,
+    DynUndefined,
+    DynObject,
+    DynBoolean,
+    DynNumber,
+    DynString,
+    DynFunction,
+    DynSymbol,
+    DynBigInt,
+    DynExtRefObj,
+    DynExtRefFunc,
+    DynExtRefInfc,
+    DynExtRefArray,
+}
+
 export interface FlattenLoop {
     label: string;
     condition?: binaryen.ExpressionRef;
@@ -107,13 +125,18 @@ export function unboxAnyTypeToBaseType(
     if (typeKind === TypeKind.ANY) {
         return anyExprRef;
     }
-    if (typeKind === TypeKind.NULL) {
-        return binaryenCAPI._BinaryenRefNull(
-            module.ptr,
-            binaryenCAPI._BinaryenTypeStructref(),
-        );
-    }
     switch (typeKind) {
+        case TypeKind.NULL: {
+            condFuncName = dyntype.dyntype_is_null;
+            binaryenType = binaryen.eqref;
+            break;
+        }
+        case TypeKind.UNDEFINED: {
+            condFuncName = dyntype.dyntype_is_undefined;
+            cvtFuncName = dyntype.dyntype_new_undefined;
+            binaryenType = binaryen.anyref;
+            break;
+        }
         case TypeKind.NUMBER: {
             condFuncName = dyntype.dyntype_is_number;
             cvtFuncName = dyntype.dyntype_to_number;
@@ -147,14 +170,22 @@ export function unboxAnyTypeToBaseType(
         dyntype.bool,
     );
     // iff True
-    let value = module.call(
-        cvtFuncName,
-        [
+    let value: binaryen.ExpressionRef;
+    if (typeKind === TypeKind.NULL) {
+        value = binaryenCAPI._BinaryenRefNull(
+            module.ptr,
+            binaryenCAPI._BinaryenTypeStructref(),
+        );
+    } else {
+        const dynParam = [
             module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t),
             anyExprRef,
-        ],
-        binaryenType,
-    );
+        ];
+        if (typeKind === TypeKind.UNDEFINED) {
+            dynParam.pop();
+        }
+        value = module.call(cvtFuncName, dynParam, binaryenType);
+    }
     if (typeKind === TypeKind.STRING) {
         const wasmStringType = stringTypeInfo.typeRef;
         const string_value = value;

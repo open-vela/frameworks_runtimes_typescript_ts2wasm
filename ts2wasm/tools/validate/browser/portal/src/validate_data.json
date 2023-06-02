@@ -1,6 +1,6 @@
 [
     {
-        "module": "any_binary_add",
+        "module": "any_binary_operation",
         "entries": [
             {
                 "name": "addAnyAny",
@@ -10,7 +10,7 @@
             {
                 "name": "addNumberAnyInBinaryExpr",
                 "args": [],
-                "result": 2
+                "result": 200
             },
             {
                 "name": "addNumberAnyInMulExpr",
