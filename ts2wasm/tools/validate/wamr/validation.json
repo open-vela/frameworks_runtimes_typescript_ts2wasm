@@ -3083,6 +3083,16 @@
         ]
     },
     {
+        "module": "global_value",
+        "entries": [
+            {
+                "name": "entry",
+                "args": [],
+                "result": "1 \n1"
+            }
+        ]
+    },
+    {
         "module": "top_level_statements",
         "entries": []
     }

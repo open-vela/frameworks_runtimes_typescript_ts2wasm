@@ -29,7 +29,7 @@ import {
     ScopeKind,
 } from '../../scope.js';
 import { typeInfo } from './glue/utils.js';
-import { flattenLoopStatement, FlattenLoop } from './utils.js';
+import { flattenLoopStatement, FlattenLoop, getCString } from './utils.js';
 import { WASMGen } from './index.js';
 import { TSClass, TypeKind } from '../../type.js';
 import { assert } from 'console';
@@ -103,7 +103,10 @@ export class WASMStatementGen {
             this.WASMCompiler.wasmExpr.WASMExprGen(
                 stmt.ifCondition,
             ).binaryenRef;
-        wasmCond = this.WASMCompiler.wasmExpr.generateCondition(wasmCond);
+        wasmCond = this.WASMCompiler.wasmExpr.generateCondition(
+            wasmCond,
+            stmt.ifCondition.exprType.kind,
+        );
         this.WASMCompiler.addDebugInfoRef(stmt.ifCondition, wasmCond);
         const wasmIfTrue: binaryen.ExpressionRef = this.WASMStmtGen(
             stmt.ifIfTrue,
@@ -206,7 +209,10 @@ export class WASMStatementGen {
             this.WASMCompiler.wasmExpr.WASMExprGen(
                 stmt.loopCondtion,
             ).binaryenRef;
-        WASMCond = this.WASMCompiler.wasmExpr.generateCondition(WASMCond);
+        WASMCond = this.WASMCompiler.wasmExpr.generateCondition(
+            WASMCond,
+            stmt.loopCondtion.exprType.kind,
+        );
         this.WASMCompiler.addDebugInfoRef(stmt.loopCondtion, WASMCond);
         const WASMStmts: binaryen.ExpressionRef = this.WASMStmtGen(
             stmt.loopBody,
@@ -543,72 +549,35 @@ export class WASMStatementGen {
                                 varInitExprRef,
                             );
                     }
-                    if (
-                        globalVar.varType.kind === TypeKind.NUMBER ||
-                        globalVar.varType.isWasmType
-                    ) {
-                        if (
-                            globalVar.initExpression.expressionKind ===
-                            ts.SyntaxKind.NumericLiteral
-                        ) {
-                            module.addGlobal(
-                                globalVar.mangledName,
-                                varTypeRef,
-                                mutable,
-                                varInitExprRef,
-                            );
-                        } else {
-                            module.addGlobal(
-                                globalVar.mangledName,
-                                varTypeRef,
-                                true,
-                                this.WASMCompiler.getVariableInitValue(
-                                    globalVar.varType,
-                                ),
-                            );
-                            this.currentFuncCtx!.insert(
-                                module.global.set(
-                                    globalVar.mangledName,
-                                    varInitExprRef,
-                                ),
-                            );
-                        }
-                    } else if (globalVar.varType.kind === TypeKind.BOOLEAN) {
-                        module.addGlobal(
-                            globalVar.mangledName,
-                            varTypeRef,
-                            mutable,
-                            varInitExprRef,
-                        );
-                    } else {
-                        module.addGlobal(
-                            globalVar.mangledName,
-                            varTypeRef,
-                            true,
-                            binaryenCAPI._BinaryenRefNull(
+                    /** set global init value */
+                    module.addGlobal(
+                        globalVar.mangledName,
+                        varTypeRef,
+                        true,
+                        this.WASMCompiler.getVariableInitValue(
+                            globalVar.varType,
+                        ),
+                    );
+                    if (globalVar.varType.kind === TypeKind.ANY) {
+                        const dynInitExprRef =
+                            this.WASMCompiler.wasmDynExprCompiler.WASMDynExprGen(
+                                globalVar.initExpression,
+                            ).binaryenRef;
+                        this.currentFuncCtx!.insert(
+                            binaryenCAPI._BinaryenGlobalSet(
                                 module.ptr,
-                                varTypeRef,
+                                getCString(globalVar.mangledName),
+                                dynInitExprRef,
                             ),
                         );
-                        if (globalVar.varType.kind === TypeKind.ANY) {
-                            const dynInitExprRef =
-                                this.WASMCompiler.wasmDynExprCompiler.WASMDynExprGen(
-                                    globalVar.initExpression,
-                                ).binaryenRef;
-                            this.currentFuncCtx!.insert(
-                                module.global.set(
-                                    globalVar.mangledName,
-                                    dynInitExprRef,
-                                ),
-                            );
-                        } else {
-                            this.currentFuncCtx!.insert(
-                                module.global.set(
-                                    globalVar.mangledName,
-                                    varInitExprRef,
-                                ),
-                            );
-                        }
+                    } else {
+                        this.currentFuncCtx!.insert(
+                            binaryenCAPI._BinaryenGlobalSet(
+                                module.ptr,
+                                getCString(globalVar.mangledName),
+                                varInitExprRef,
+                            ),
+                        );
                     }
                 }
             }
