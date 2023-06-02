@@ -390,13 +390,12 @@ dyntype_type_eq_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            UNBOX_ANYREF(rhs));
 }
 
-int dyntype_cmp_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
-                            dyn_value_t lhs, dyn_value_t rhs, cmp_operator operator)
+int dyntype_cmp_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, dyn_value_t lhs,
+                        dyn_value_t rhs, cmp_operator operator_kind)
 {
-    return dyntype_cmp(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs),
-                           UNBOX_ANYREF(rhs), operator);
+    return dyntype_cmp(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs), UNBOX_ANYREF(rhs),
+                       operator_kind);
 }
-
 
 /******************* Subtyping *******************/
 dyn_value_t
