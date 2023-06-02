@@ -26,10 +26,10 @@ static inline JSValue* dyntype_dup_value(JSContext *ctx, JSValue value) {
     return ptr;
 }
 
-static inline bool number_cmp(double lhs, double rhs, cmp_operator operator) {
+static inline bool number_cmp(double lhs, double rhs, cmp_operator operator_kind) {
     bool res = false;
 
-    switch (operator) {
+    switch (operator_kind) {
         case LessThanToken: {
             res = lhs < rhs;
             break;
@@ -60,11 +60,11 @@ static inline bool number_cmp(double lhs, double rhs, cmp_operator operator) {
     return res;
 }
 
-static inline bool string_cmp(const char *lhs, const char * rhs, cmp_operator operator) {
+static inline bool string_cmp(const char *lhs, const char * rhs, cmp_operator operator_kind) {
     bool res = false;
     int cmp_res = strcmp(lhs, rhs);
 
-    switch (operator) {
+    switch (operator_kind) {
         case LessThanToken: {
             res = cmp_res < 0;
             break;
@@ -595,7 +595,7 @@ bool dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs) {
     return dyntype_typeof(ctx, lhs) == dyntype_typeof(ctx, rhs);
 }
 
-bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator operator) {
+bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator operator_kind) {
     bool res = false;
     dyn_type_t type;
 
@@ -603,7 +603,7 @@ bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator o
         return true;
     }
     if (!dyntype_type_eq(ctx, lhs, rhs)) {
-        if (operator == EqualsEqualsToken || operator == EqualsEqualsEqualsToken) {
+        if (operator_kind == EqualsEqualsToken || operator_kind == EqualsEqualsEqualsToken) {
             return false;
         } else {
             printf("[runtime library error]: non-equal compare token on two different any type values");
@@ -625,7 +625,7 @@ bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator o
             double lhs_n, rhs_n;
             dyntype_to_number(ctx, lhs, &lhs_n);
             dyntype_to_number(ctx, rhs, &rhs_n);
-            res = number_cmp(lhs_n, rhs_n, operator);
+            res = number_cmp(lhs_n, rhs_n, operator_kind);
             break;
         }
         case DynNull:
@@ -638,13 +638,13 @@ bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator o
             char *lhs_s, *rhs_s;
             dyntype_to_cstring(ctx, lhs, &lhs_s);
             dyntype_to_cstring(ctx, rhs, &rhs_s);
-            res = string_cmp(lhs_s, rhs_s, operator);
+            res = string_cmp(lhs_s, rhs_s, operator_kind);
             dyntype_free_cstring(ctx, lhs_s);
             dyntype_free_cstring(ctx, rhs_s);
             break;
         }
         case DynObject: {
-            if (operator != EqualsEqualsToken && operator != EqualsEqualsEqualsToken) {
+            if (operator_kind != EqualsEqualsToken && operator_kind != EqualsEqualsEqualsToken) {
                 printf("[runtime library error]: non-equal compare token on two any type objects");
                 goto fail;
             }
@@ -657,7 +657,7 @@ bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator o
         case DynExtRefFunc:
         case DynExtRefInfc:
         case DynExtRefArray: {
-            if (operator != EqualsEqualsToken && operator != EqualsEqualsEqualsToken) {
+            if (operator_kind != EqualsEqualsToken && operator_kind != EqualsEqualsEqualsToken) {
                 printf("[runtime library error]: non-equal compare token on two any type external objects");
                 goto fail;
             }
