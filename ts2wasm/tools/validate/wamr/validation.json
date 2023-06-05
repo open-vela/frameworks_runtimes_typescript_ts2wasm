@@ -1687,6 +1687,11 @@
                 "name": "defaultCtor",
                 "args": [],
                 "result": "3:f64"
+            },
+            {
+                "name": "classNestCall",
+                "args": [],
+                "result": "20:f64"
             }
         ]
     },
@@ -1761,12 +1766,17 @@
             {
                 "name": "accessOuterVars",
                 "args": [],
-                "result": "2:f64"
+                "result": "4:f64"
             },
             {
                 "name": "returnOuterFuncCall",
                 "args": [],
                 "result": "10:f64"
+            },
+            {
+                "name": "returnOuterFuncCall2",
+                "args": [],
+                "result": "4:f64"
             },
             {
                 "name": "accesssGlobalVar",
@@ -2489,6 +2499,11 @@
                 "name": "infcGetter",
                 "args": [],
                 "result": "1:f64"
+            },
+            {
+                "name": "infcNestMethod",
+                "args": [],
+                "result": "6:f64"
             }
         ]
     },
@@ -2923,7 +2938,7 @@
                 "args": [
                     17
                 ],
-                "result": "17:f64"
+                "result": "17"
             },
             {
                 "name": "returnVoid",
@@ -2963,7 +2978,7 @@
             {
                 "name": "stringNotReturned",
                 "args": [],
-                "result": "ref.struct"
+                "result": ""
             },
             {
                 "name": "returnString",

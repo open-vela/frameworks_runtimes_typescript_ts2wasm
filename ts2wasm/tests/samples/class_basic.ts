@@ -111,3 +111,39 @@ export function defaultCtor() {
     const a = new Derived(1, 2);
     return a.test();
 }
+
+class Test {
+    foo(x: number) {
+        return function bar(y: number) {
+            return function baz(z: number) {
+                return x + y + z;
+            };
+        };
+    }
+    static bar(x: number) {
+        return function baz(y: number) {
+            return function foo(z: number) {
+                return x + y + z;
+            };
+        };
+    }
+    baz() {
+        return new Derived(1, 2);
+    }
+
+    static baz1() {
+        return new Derived(1, 2);
+    }
+}
+
+export function classNestCall() {
+    const t = new Test();
+    return (
+        t.foo(1)(2)(3) +
+        Test.bar(1)(2)(3) +
+        t.baz().test() +
+        Test.baz1().test() +
+        t.baz()._arg +
+        Test.baz1()._arg
+    ); // 20
+}

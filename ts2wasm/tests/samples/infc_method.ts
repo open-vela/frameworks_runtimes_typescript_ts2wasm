@@ -57,3 +57,26 @@ export function infcGetter() {
     const m = i._x;
     return m;
 }
+
+interface I3 {
+    x: (y: number) => (z: number) => number;
+    y: () => Foo;
+}
+
+class Test {
+    x(m: number) {
+        return function (n: number) {
+            return m + n;
+        };
+    }
+    y(){
+        return new Foo();
+    }
+}
+
+export function infcNestMethod() {
+    const t = new Test();
+    const i: I3 = t;
+    const f = i.y()._x + (i.y().test() ? 1 : 2) + i.x(1)(2);
+    return f; //6
+}

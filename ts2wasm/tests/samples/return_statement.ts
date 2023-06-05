@@ -11,13 +11,6 @@ export function deadCodeAfterReturn(a: number, b: number) {
     return a;
 }
 
-export function deadReturnStatement(a: number) {
-    if (a > 0) {
-        return a;
-        return 'hi';
-    }
-}
-
 function helper() {
     return;
 }
@@ -25,6 +18,16 @@ export function returnVoid(): void {
     console.log('before');
     return helper();
     console.log('after');
+}
+
+function helper1(a: number) {
+    if (a > 0) {
+        return a;
+        return 'hi';
+    }
+}
+export function deadReturnStatement(a: number) {
+    console.log(helper1(a));
 }
 
 export function returnNaN() {
