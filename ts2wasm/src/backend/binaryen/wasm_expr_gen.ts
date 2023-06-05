@@ -3050,7 +3050,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             }
         } else {
             const wasmValue = accessInfo;
-            const ref = wasmValue.binaryenRef;
+            let ref = wasmValue.binaryenRef;
             const tsType = wasmValue.tsType;
             const currentScope = this.currentFuncCtx.getCurrentScope();
             switch (tsType.typeKind) {
@@ -3080,6 +3080,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 case TypeKind.CLASS: {
                     const classType = tsType as TSClass;
                     const propIndex = classType.getMemberFieldIndex(propName);
+                    const type = binaryen.getExpressionType(ref);
+                    ref = this._parseCallRef(ref, type, tsType);
                     if (propIndex != -1) {
                         /* member field */
                         const propType =
@@ -3415,6 +3417,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
     ) {
         const funcType = expr.callExpr.exprType as TSFunction;
         let funcRef: binaryen.ExpressionRef = -1;
+        let tsType: Type = new Type();
         if (accessInfo instanceof AccessBase) {
             const wasmRef = this._loadFromAccessInfo(accessInfo);
             if (wasmRef instanceof AccessBase) {
@@ -3430,6 +3433,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             }
         } else {
             funcRef = accessInfo.binaryenRef;
+            tsType = accessInfo.tsType;
         }
 
         const envArgs: binaryen.ExpressionRef[] = [];
@@ -3453,9 +3457,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
             /* Call closure */
 
             /* Extract context and funcref from closure */
-            const closureRef = funcRef;
+            let closureRef = funcRef;
             const closureType =
                 binaryenCAPI._BinaryenExpressionGetType(closureRef);
+            closureRef = this._parseCallRef(closureRef, closureType, tsType);
+
             context = binaryenCAPI._BinaryenStructGet(
                 this.module.ptr,
                 0,
@@ -3485,6 +3491,35 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 false,
             );
         }
+    }
+
+    /** binaryen doesn't support struct.get(call_ref ...), so here insert some temp local variables
+     * to support it
+     */
+    private _parseCallRef(
+        ref: binaryen.ExpressionRef,
+        wasmType: binaryen.Type,
+        tsType: Type,
+    ) {
+        if (tsType.kind === TypeKind.UNKNOWN) {
+            return ref;
+        }
+
+        const heaptype = binaryenCAPI._BinaryenTypeGetHeapType(wasmType);
+        const isSignature = binaryenCAPI._BinaryenHeapTypeIsSignature(heaptype);
+        if (isSignature) {
+            let tempVarType = this.wasmType.getWASMType(tsType);
+            if (tsType instanceof TSFunction) {
+                tempVarType = this.wasmType.getWASMFuncStructType(tsType);
+            }
+            const tmpVarName = this.getTmpVariableName('~temp_call_ref|');
+            const tmpVar = new Variable(tmpVarName, tsType, [], 0);
+            this.addVariableToCurrentScope(tmpVar);
+            const tmpWasmLocal = this.setVariableToCurrentScope(tmpVar, ref);
+            this.currentFuncCtx.insert(tmpWasmLocal);
+            return this.getVariableValue(tmpVar, tempVarType);
+        }
+        return ref;
     }
 
     /* get callref from class struct vtable index */
@@ -3688,7 +3723,12 @@ export class WASMExpressionGen extends WASMExpressionBase {
         index: binaryen.ExpressionRef,
         type: Type,
     ) {
-        const wasmType = this.wasmType.getWASMType(type);
+        let wasmType: binaryen.Type;
+        if (type instanceof TSArray) {
+            wasmType = this.wasmType.getWasmArrayStructType(type);
+        } else {
+            wasmType = this.wasmType.getWASMType(type);
+        }
         const typeKind = type.kind;
         let res: binaryen.ExpressionRef | null = null;
         if (typeKind === TypeKind.BOOLEAN) {

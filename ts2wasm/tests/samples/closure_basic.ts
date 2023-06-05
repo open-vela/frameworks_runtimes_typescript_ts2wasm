@@ -5,10 +5,10 @@
 
 function closure1(x: number, y: boolean) {
     let z = 1;
-    function inner() {
+    function inner(z: number) {
         function inner1(a: number) {
-            let m = 1;
-            return m + z;
+            const m = 1;
+            return m + z + a + x; // 4
         }
         return inner1;
     }
@@ -17,7 +17,7 @@ function closure1(x: number, y: boolean) {
 
 export function accessOuterVars() {
     const f1 = closure1(1, false);
-    const f2 = f1();
+    const f2 = f1(1);
     const res = f2(1);
     return res;
 }
@@ -35,6 +35,10 @@ function closure2(x: number, y: boolean) {
 export function returnOuterFuncCall() {
     const f1 = closure2(1, false);
     return f1();
+}
+
+export function returnOuterFuncCall2() {
+    return closure1(1, false)(1)(1); // 4
 }
 
 let y = '123';

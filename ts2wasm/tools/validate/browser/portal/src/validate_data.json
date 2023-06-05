@@ -668,6 +668,11 @@
                 "name": "defaultCtor",
                 "args": [],
                 "result": 3
+            },
+            {
+                "name": "classNestCall",
+                "args": [],
+                "result": 20
             }
         ]
     },
@@ -737,12 +742,17 @@
             {
                 "name": "accessOuterVars",
                 "args": [],
-                "result": 2
+                "result": 4
             },
             {
                 "name": "returnOuterFuncCall",
                 "args": [],
                 "result": 10
+            },
+            {
+                "name": "returnOuterFuncCall2",
+                "args": [],
+                "result": 4
             },
             {
                 "name": "accesssGlobalVar",
@@ -1449,6 +1459,11 @@
                 "name": "infcGetter",
                 "args": [],
                 "result": 1
+            },
+            {
+                "name": "infcNestMethod",
+                "args": [],
+                "result": 6
             }
         ]
     },
@@ -1866,9 +1881,9 @@
             {
                 "name": "deadReturnStatement",
                 "args": [
-                    11
+                    17
                 ],
-                "result": 11
+                "result": 17
             }
         ]
     },
@@ -1888,7 +1903,7 @@
             {
                 "name": "stringNotReturned",
                 "args": [],
-                "result": "undefined"
+                "result": ""
             },
             {
                 "name": "returnString",
