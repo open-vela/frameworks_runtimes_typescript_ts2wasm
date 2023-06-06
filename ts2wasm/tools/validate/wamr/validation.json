@@ -3110,5 +3110,45 @@
     {
         "module": "top_level_statements",
         "entries": []
+    },
+    {
+        "module": "generics_class",
+        "entries": [
+            {
+                "name": "test",
+                "args": [],
+                "result": "cat \nmimi \n12345 \n54321"
+            }
+        ]
+    },
+    {
+        "module": "global_generics_function",
+        "entries": [
+            {
+                "name": "test",
+                "args": [],
+                "result": "call global function \n2023 \ncall global function \nhello world"
+            }
+        ]
+    },
+    {
+        "module": "inner_generics_function",
+        "entries": [
+            {
+                "name": "test",
+                "args": [],
+                "result": "call inner function \n2023 \ncall inner function \nhello world"
+            }
+        ]
+    },
+    {
+        "module": "namespace_generics_function",
+        "entries": [
+            {
+                "name": "test",
+                "args": [],
+                "result": "call namespace function \n2023 \ncall namespace function \nhello world"
+            }
+        ]
     }
 ]
