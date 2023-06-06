@@ -15,7 +15,7 @@ import {
 } from './scope.js';
 import ExpressionProcessor, { Expression } from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
-import { Type } from './type.js';
+import { builtinTypes, Type, TypeKind } from './type.js';
 import { UnimplementError } from './error.js';
 import { Statement } from './statement.js';
 
@@ -368,4 +368,153 @@ export function getNodeLoc(node: ts.Node) {
 export function addSourceMapLoc(irNode: Statement | Expression, node: ts.Node) {
     const { line, character } = getNodeLoc(node);
     irNode.debugLoc = { line: line, col: character, ref: -1 };
+}
+
+export function adjustPrimitiveNodeType(
+    originType: Type,
+    node: ts.Node,
+    currentScope: Scope | null,
+) {
+    if (!node || !currentScope || !originType.isPrimitive) return originType;
+
+    let return_type = originType;
+    switch (node.kind) {
+        case ts.SyntaxKind.PropertyAccessExpression: {
+            const propertyAccessExpressionNode = <ts.PropertyAccessExpression>(
+                node
+            );
+            let owner = '';
+            let property_name = '';
+            const layerArray: string[] = [];
+
+            let expression = propertyAccessExpressionNode.expression;
+            while (ts.isPropertyAccessExpression(expression)) {
+                owner = <string>(<ts.Identifier>expression.name).escapedText;
+                layerArray.push(owner);
+                expression = expression.expression;
+            }
+            owner = <string>(<ts.Identifier>expression).escapedText;
+            layerArray.push(owner);
+
+            property_name = <string>(
+                (<ts.Identifier>propertyAccessExpressionNode.name).escapedText
+            );
+
+            let scope: Scope = currentScope.getRootGloablScope()!;
+            // just for nested namespace
+            if (layerArray.length > 1) {
+                for (const layer of layerArray.reverse()) {
+                    const identifier = scope!.findIdentifier(layer);
+                    if (identifier && identifier instanceof NamespaceScope) {
+                        scope = <NamespaceScope>identifier;
+                    }
+                }
+            }
+            // make sure we can find this owner information
+            if (!scope!.findIdentifier(owner)) {
+                return return_type;
+            }
+            const propertynfo = scope.findIdentifier(property_name);
+            if (
+                propertynfo &&
+                propertynfo instanceof FunctionScope &&
+                propertynfo.funcType
+            ) {
+                const _type = propertynfo.funcType.returnType;
+                return_type = propertynfo.funcType.returnType;
+            } else {
+                return_type = originType;
+            }
+            break;
+        }
+        case ts.SyntaxKind.VariableDeclaration: {
+            const variableDeclarationNode = <ts.VariableDeclaration>node;
+            const initializer = variableDeclarationNode.initializer;
+            if (initializer) {
+                return_type = adjustPrimitiveNodeType(
+                    originType,
+                    initializer,
+                    currentScope,
+                );
+            }
+            break;
+        }
+        case ts.SyntaxKind.CallExpression: {
+            const call_expression = <ts.CallExpression>node;
+            // First, get the mangled name of the variable initialization function
+            let function_return_type = originType;
+            let initializer_function_name = '';
+
+            if (call_expression) {
+                const expression = call_expression.expression;
+                let identifier_object: ts.Identifier;
+                if (!ts.isIdentifier(expression)) {
+                    if (ts.isPropertyAccessExpression(expression)) {
+                        const propertyAccessExpressionNode = <
+                            ts.PropertyAccessExpression
+                        >expression;
+                        return_type = adjustPrimitiveNodeType(
+                            originType,
+                            propertyAccessExpressionNode,
+                            currentScope,
+                        );
+                    }
+                    break;
+                } else {
+                    identifier_object = <ts.Identifier>expression;
+                }
+                initializer_function_name += <string>(
+                    identifier_object.escapedText
+                );
+
+                // Second, get the initialization function type
+                function_return_type = getFunctionTypeByName(
+                    originType,
+                    initializer_function_name,
+                    currentScope,
+                );
+
+                // Last, if the actual return value type is "generic", correct the value of tsType
+                return_type =
+                    function_return_type.typeKind == TypeKind.GENERIC
+                        ? builtinTypes.get('generic')!
+                        : function_return_type;
+            }
+            break;
+        }
+        default: {
+            return return_type;
+        }
+    }
+    return return_type;
+}
+
+function getFunctionTypeByName(
+    originReturnType: Type,
+    functionName: string,
+    currentScope: Scope | null,
+) {
+    if (!currentScope) return originReturnType;
+
+    // get the return type，from the inside out
+    const nearest_function_scope =
+        getNearestFunctionScopeFromCurrent(currentScope);
+    if (!nearest_function_scope) {
+        return originReturnType;
+    }
+    let function_scope = nearest_function_scope.findFunctionScope(functionName);
+    if (function_scope) {
+        return function_scope.funcType.returnType;
+    } else {
+        const gloabl_scope = currentScope.getRootGloablScope();
+        if (!gloabl_scope) {
+            return originReturnType;
+        }
+        function_scope = gloabl_scope.findFunctionScope(functionName);
+        if (function_scope && function_scope.funcType) {
+            return function_scope.funcType.returnType;
+        } else {
+            return originReturnType;
+        }
+    }
 }
