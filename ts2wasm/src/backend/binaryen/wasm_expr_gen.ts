@@ -547,6 +547,7 @@ export class WASMExpressionBase {
                 res = this.boxBaseTypeToAny(expr);
                 break;
             case TypeKind.ANY:
+            case TypeKind.GENERIC:
                 res = staticRef;
                 break;
             // case TypeKind.STRING:
@@ -2466,7 +2467,10 @@ export class WASMExpressionGen extends WASMExpressionBase {
         ) {
             return MatchKind.ClassInfcMatch;
         }
-        if (rightExprType.kind === TypeKind.ANY) {
+        if (
+            rightExprType.kind === TypeKind.ANY ||
+            rightExprType.kind === TypeKind.GENERIC
+        ) {
             return MatchKind.FromAnyMatch;
         }
         return MatchKind.MisMatch;
@@ -2602,9 +2606,18 @@ export class WASMExpressionGen extends WASMExpressionBase {
         if (accessInfo instanceof DynObjectAccess) {
             return this.parseDynMethodCall(accessInfo, callExpr, expr.callArgs);
         }
+        /* handle the case where an array function is called */
+        let isArrayFunc = false;
+        if (callExpr.expressionKind == ts.SyntaxKind.PropertyAccessExpression) {
+            const ownerType = (<PropertyAccessExpression>callExpr)
+                .propertyAccessExpr.exprType;
+            isArrayFunc = ownerType instanceof TSArray;
+        }
         let callWasmArgs = this.parseArguments(
             callExpr.exprType as TSFunction,
             expr.callArgs,
+            null,
+            isArrayFunc,
         );
         const context = binaryenCAPI._BinaryenRefNull(
             this.module.ptr,
@@ -2652,6 +2665,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                         methodType,
                         expr.callArgs,
                         typeArgument,
+                        isArrayFunc,
                     );
                     const finalCallWasmArgs = this._generateFinalArgs(
                         envArgs,
@@ -3899,9 +3913,13 @@ export class WASMExpressionGen extends WASMExpressionBase {
     getWasmValueByExpr(
         expr: Expression,
         targetType: Type,
+        isArrayFunction = false,
     ): binaryen.ExpressionRef {
         let res: binaryen.ExpressionRef;
-        if (targetType.kind === TypeKind.ANY) {
+        if (
+            targetType.kind === TypeKind.ANY ||
+            (targetType.kind === TypeKind.GENERIC && !isArrayFunction)
+        ) {
             res = this.dynValueGen.WASMDynExprGen(expr).binaryenRef;
         } else {
             res = this.WASMExprGen(expr).binaryenRef;
@@ -3916,6 +3934,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         funcType: TSFunction,
         args: Expression[],
         typeArg: Type | null = null,
+        isArrayFunc = false,
     ) {
         const paramTypes = funcType.getParamTypes();
         const callerArgs: binaryen.ExpressionRef[] = new Array(
@@ -3927,7 +3946,11 @@ export class WASMExpressionGen extends WASMExpressionBase {
             if (funcType.restParamIdx === i) {
                 break;
             }
-            callerArgs[i] = this.getWasmValueByExpr(args[i], paramTypes[i]);
+            callerArgs[i] = this.getWasmValueByExpr(
+                args[i],
+                paramTypes[i],
+                isArrayFunc,
+            );
         }
 
         /* parse optional param as undifined */

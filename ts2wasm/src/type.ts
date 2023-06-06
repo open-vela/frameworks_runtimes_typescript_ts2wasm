@@ -15,6 +15,7 @@ import {
 import { Parameter, Variable } from './variable.js';
 import { Expression } from './expression.js';
 import { Logger } from './log.js';
+import { adjustPrimitiveNodeType } from './utils.js';
 
 export const enum TypeKind {
     VOID = 'void',
@@ -540,7 +541,8 @@ export default class TypeResolver {
             /* For "this" keyword, tsc will inference the actual type */
             tsType = this.typechecker!.getDeclaredTypeOfSymbol(tsType.symbol);
         }
-        const type = this.tsTypeToType(tsType);
+        let type = this.tsTypeToType(tsType);
+        type = adjustPrimitiveNodeType(type, node, this.currentScope)!;
         /* for example, a: string[] = new Array(), the type of new Array() should be string[]
          instead of any[]*/
         if (type instanceof TSArray) {
