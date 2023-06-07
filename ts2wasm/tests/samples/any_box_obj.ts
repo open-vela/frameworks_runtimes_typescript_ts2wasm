@@ -34,3 +34,23 @@ export function boxNestedObj() {
     };
     return obj.d.e as number;
 }
+
+class A {
+    x = '10';
+    constructor(xx: string) {
+        this.x = xx;
+    }
+}
+
+function test(str: string) {
+    const a1: any = new A(str);
+    return a1;
+}
+
+export function anyPointToObj() {
+    let b = new A('100');
+    for (let i = 0; i < 100; i++) {
+        b = test('123') as A;
+    }
+    return b.x;
+}
