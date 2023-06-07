@@ -1966,7 +1966,7 @@ function newExternRef(module: binaryen.Module) {
     const ifBlockStmts: binaryen.ExpressionRef[] = [];
     ifBlockStmts.push(
         module.if(
-            module.i32.and(
+            module.i32.eq(
                 binaryenCAPI._BinaryenArrayGet(
                     module.ptr,
                     maskArr,
