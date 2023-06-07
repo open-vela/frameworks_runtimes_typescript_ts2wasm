@@ -67,7 +67,7 @@ dyntype_new_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
             (wasm_array_obj_t)arr_obj.gc_obj);
     }
 
-    BOX_ANYREF(dyntype_new_string(UNBOX_ANYREF(ctx), str));
+    BOX_ANYREF(dyntype_new_string_with_length(UNBOX_ANYREF(ctx), str, arr_len));
 }
 
 dyn_value_t
