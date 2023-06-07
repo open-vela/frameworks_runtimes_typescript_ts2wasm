@@ -200,6 +200,14 @@ dyn_value_t dyntype_new_string(dyn_ctx_t ctx, const char *str) {
     return dyntype_dup_value(ctx->js_ctx, v);
 }
 
+dyn_value_t dyntype_new_string_with_length(dyn_ctx_t ctx, const char *str, int len) {
+    JSValue v = JS_NewStringLen(ctx->js_ctx, str, len);
+    if (JS_IsException(v)) {
+        return NULL;
+    }
+    return dyntype_dup_value(ctx->js_ctx, v);
+}
+
 dyn_value_t dyntype_new_undefined(dyn_ctx_t ctx) {
     return ctx->js_undefined;
 }
