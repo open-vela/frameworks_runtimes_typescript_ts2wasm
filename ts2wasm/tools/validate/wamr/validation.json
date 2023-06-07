@@ -111,6 +111,11 @@
                 "name": "boxNestedObj",
                 "args": [],
                 "result": "1:f64"
+            },
+            {
+                "name": "anyPointToObj",
+                "args": [],
+                "result": "ref.struct"
             }
         ]
     },
