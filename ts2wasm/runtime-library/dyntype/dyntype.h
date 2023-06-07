@@ -123,11 +123,22 @@ dyntype_new_boolean(dyn_ctx_t ctx, bool value);
  * @note the string must be null-terminated
  *
  * @param ctx the dynamic type system context
- * @param value the string to initialize the dynamic value
+ * @param str the string to initialize the dynamic value
  * @return dynamic value if success, NULL otherwise
  */
 dyn_value_t
 dyntype_new_string(dyn_ctx_t ctx, const char *str);
+
+/**
+ * @brief Create a new dynamic string value with the given char* and len
+ *
+ * @param ctx the dynamic type system context
+ * @param str the string to initialize the dynamic value
+ * @param len the length of the given string
+ * @return dynamic value if success, NULL otherwise
+ */
+dyn_value_t
+dyntype_new_string_with_length(dyn_ctx_t ctx, const char *str, int len);
 
 /**
  * @brief Create a new dynamic JSvalue with the given c JSON string

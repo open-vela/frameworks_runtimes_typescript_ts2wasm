@@ -166,7 +166,41 @@ TEST_F(TypesTest, create_string) {
         EXPECT_STREQ(raw_value, check_values[i]);
         dyntype_release(ctx, str);
         dyntype_free_cstring(ctx, raw_value);
+    }
 
+    char const *str_values[] = {"", " ", "abc", "字符串", "123456", "@#$%^&*)(*"};
+    char const *cmp_values[] =   {"", " ", "ab", "字", "1234", "@#$%^"}; // length from 0 to 5, '字' have 3 chars exactly.
+    for (int i = 0; i < sizeof(str_values) / sizeof(str_values[0]); i++) {
+        char *raw_value = nullptr;
+        dyn_value_t str = dyntype_new_string_with_length(ctx, str_values[i], i);
+        EXPECT_NE(str, nullptr);
+        EXPECT_EQ(dyntype_set_property(ctx, str, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
+        EXPECT_EQ(dyntype_define_property(ctx, str, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
+        EXPECT_EQ(dyntype_get_property(ctx, str, "not_a_object"), nullptr);
+        EXPECT_EQ(dyntype_has_property(ctx, str, "not_a_object"), -DYNTYPE_TYPEERR);
+        EXPECT_EQ(dyntype_delete_property(ctx, str, "not_a_object"), -DYNTYPE_FALSE);
+        EXPECT_FALSE(dyntype_is_number(ctx, str));
+        EXPECT_FALSE(dyntype_is_bool(ctx, str));
+        EXPECT_FALSE(dyntype_is_object(ctx, str));
+        EXPECT_FALSE(dyntype_is_undefined(ctx, str));
+        EXPECT_FALSE(dyntype_is_null(ctx, str));
+        EXPECT_TRUE(dyntype_is_string(ctx, str));
+        EXPECT_FALSE(dyntype_is_array(ctx, str));
+        EXPECT_FALSE(dyntype_is_extref(ctx, str));
+
+        dyntype_hold(ctx, str);
+        dyntype_release(ctx, str);
+
+        bool temp;
+        double temp1;
+        EXPECT_EQ(dyntype_to_bool(ctx, str, &temp), -DYNTYPE_TYPEERR);
+        EXPECT_EQ(dyntype_to_number(ctx, str, &temp1), -DYNTYPE_TYPEERR);
+
+        EXPECT_EQ(dyntype_to_cstring(ctx, str, &raw_value), DYNTYPE_SUCCESS);
+        printf("raw_value %s\n", raw_value);
+        EXPECT_STREQ(raw_value, cmp_values[i]);
+        dyntype_release(ctx, str);
+        dyntype_free_cstring(ctx, raw_value);
     }
 }
 
