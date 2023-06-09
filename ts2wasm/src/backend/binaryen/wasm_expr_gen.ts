@@ -692,7 +692,7 @@ export class WASMExpressionBase {
 
                 const statementArray: binaryen.ExpressionRef[] = [];
 
-                const arrayValue = binaryenCAPI._BinaryenArrayInit(
+                const arrayValue = binaryenCAPI._BinaryenArrayNewFixed(
                     module.ptr,
                     stringArrayTypeInfo.heapTypeRef,
                     arrayToPtr([rightExprRef]).ptr,
@@ -1199,7 +1199,7 @@ export class WASMExpressionBase {
             }
             charArray.push(this.module.i32.const(codePoint));
         }
-        const valueContent = binaryenCAPI._BinaryenArrayInit(
+        const valueContent = binaryenCAPI._BinaryenArrayNewFixed(
             this.module.ptr,
             charArrayTypeInfo.heapTypeRef,
             arrayToPtr(charArray).ptr,
@@ -2942,7 +2942,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
 
                     array.push(elemExprRef);
                 }
-                arrayRef = binaryenCAPI._BinaryenArrayInit(
+                arrayRef = binaryenCAPI._BinaryenArrayNewFixed(
                     module.ptr,
                     arrayHeapType,
                     arrayToPtr(array).ptr,
@@ -4034,7 +4034,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
             typeRef: arrayWasmType,
             heapTypeRef: arrayHeapType,
         });
-        const arrayValue = binaryenCAPI._BinaryenArrayInit(
+        const arrayValue = binaryenCAPI._BinaryenArrayNewFixed(
             this.module.ptr,
             arrayHeapType,
             arrayToPtr(array).ptr,
@@ -4070,7 +4070,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
                 wasmArgs.push(dynCompiler.WASMDynExprGen(arg).binaryenRef);
             }
         }
-        const arrayValue = binaryenCAPI._BinaryenArrayInit(
+        const arrayValue = binaryenCAPI._BinaryenArrayNewFixed(
             this.module.ptr,
             anyArrayTypeInfo.heapTypeRef,
             arrayToPtr(wasmArgs).ptr,
@@ -4246,7 +4246,7 @@ export class WASMDynExpressionGen extends WASMExpressionBase {
         } else {
             numArgs = 0;
         }
-        const argArray = binaryenCAPI._BinaryenArrayInit(
+        const argArray = binaryenCAPI._BinaryenArrayNewFixed(
             this.module.ptr,
             anyArrayTypeInfo.heapTypeRef,
             arrayToPtr(wasmArgs).ptr,
