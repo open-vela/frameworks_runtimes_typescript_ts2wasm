@@ -65,6 +65,7 @@ include_directories(${UTILS_DIR})
 
 set(UTILS_SOURCE
     ${UTILS_DIR}/type_utils.c
+    ${UTILS_DIR}/wamr_utils.c
 )
 
 # Ignore warnings of QuickJS
