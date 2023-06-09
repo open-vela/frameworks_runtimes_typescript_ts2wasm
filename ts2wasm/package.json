@@ -30,7 +30,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "binaryen": "^112.0.0",
+    "binaryen": "^113.0.0",
     "ts-node": "^10.9.1",
     "typescript": "^4.7.4",
     "log4js": "^6.8.0",
