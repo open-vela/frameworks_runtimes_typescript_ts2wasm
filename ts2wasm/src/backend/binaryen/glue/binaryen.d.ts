@@ -1869,34 +1869,34 @@ export declare function _BinaryenArrayNewSetSize(
 
 // TODO: BinaryenArrayNewSeg
 
-export declare function _BinaryenArrayInit(
+export declare function _BinaryenArrayNewFixed(
     module: ModuleRef,
     type: HeapTypeRef,
     values: ArrayRef<ExpressionRef>,
     numValues: Index,
 ): ExpressionRef;
-export declare function _BinaryenArrayInitGetNumValues(
+export declare function _BinaryenArrayNewFixedGetNumValues(
     expr: ExpressionRef,
 ): Index;
-export declare function _BinaryenArrayInitGetValueAt(
+export declare function _BinaryenArrayNewFixedGetValueAt(
     expr: ExpressionRef,
     index: Index,
 ): ExpressionRef;
-export declare function _BinaryenArrayInitSetValueAt(
+export declare function _BinaryenArrayNewFixedSetValueAt(
     expr: ExpressionRef,
     index: Index,
     valueExpr: ExpressionRef,
 ): void;
-export declare function _BinaryenArrayInitAppendValue(
+export declare function _BinaryenArrayNewFixedAppendValue(
     expr: ExpressionRef,
     valueExpr: ExpressionRef,
 ): Index;
-export declare function _BinaryenArrayInitInsertValueAt(
+export declare function _BinaryenArrayNewFixedInsertValueAt(
     expr: ExpressionRef,
     index: Index,
     valueExpr: ExpressionRef,
 ): void;
-export declare function _BinaryenArrayInitRemoveValueAt(
+export declare function _BinaryenArrayNewFixedRemoveValueAt(
     expr: ExpressionRef,
     index: Index,
 ): ExpressionRef;
