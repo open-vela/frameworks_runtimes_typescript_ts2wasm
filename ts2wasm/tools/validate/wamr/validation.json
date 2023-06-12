@@ -3008,6 +3008,16 @@
         ]
     },
     {
+        "module": "string_or",
+        "entries": [
+            {
+                "name": "string_or",
+                "args": [],
+                "result": "hello \nwasm"
+            }
+        ]
+    },
+    {
         "module": "switch_case_statement",
         "entries": [
             {

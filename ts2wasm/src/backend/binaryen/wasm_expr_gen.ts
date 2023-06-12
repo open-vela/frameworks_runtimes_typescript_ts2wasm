@@ -412,6 +412,17 @@ export class WASMExpressionBase {
             case binaryen.i32: {
                 return expression;
             }
+            // TODO: deal with string type.
+            case stringTypeInfo.typeRef: {
+                const array = binaryenCAPI._BinaryenStructGet(
+                    module.ptr,
+                    1,
+                    expression,
+                    binaryen.i32,
+                    false,
+                );
+                return binaryenCAPI._BinaryenArrayLen(module.ptr, array);
+            }
             // TODO: deal with more types
         }
         return binaryen.none;
@@ -734,6 +745,14 @@ export class WASMExpressionBase {
                 const concatBlock = module.block(null, statementArray);
                 res = concatBlock;
                 break;
+            }
+            case ts.SyntaxKind.BarBarToken: {
+                return module.select(
+                    this.convertTypeToI32(leftExprRef, stringTypeInfo.typeRef),
+                    leftExprRef,
+                    rightExprRef,
+                    stringTypeInfo.typeRef,
+                );
             }
             default:
                 // iff two any type operation, the logic is
