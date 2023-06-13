@@ -243,3 +243,66 @@ is_ts_string_type(wasm_module_t wasm_module, wasm_defined_type_t type)
 
     return true;
 }
+
+wasm_struct_obj_t create_wasm_string(wasm_exec_env_t exec_env, const char *value)
+{
+    wasm_struct_type_t string_struct_type = NULL;
+    wasm_array_type_t string_array_type = NULL;
+    wasm_local_obj_ref_t local_ref = { 0 };
+    wasm_value_t val = { 0 };
+    wasm_struct_obj_t new_string_struct = NULL;
+    wasm_array_obj_t new_arr;
+    int len = 0;
+    char *p, *p_end;
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
+    wasm_module_t module = wasm_runtime_get_module(module_inst);
+
+    /* get string len */
+    len = strlen(value);
+
+    /* get struct_string_type */
+    get_string_struct_type(module, &string_struct_type);
+    bh_assert(string_struct_type != NULL);
+    bh_assert(wasm_defined_type_is_struct_type(
+        (wasm_defined_type_t)string_struct_type));
+
+    /* wrap with string struct */
+    new_string_struct =
+        wasm_struct_obj_new_with_type(exec_env, string_struct_type);
+    if (!new_string_struct) {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
+                                   "alloc memory failed");
+        return NULL;
+    }
+
+    /* Push object to local ref to avoid being freed at next allocation */
+    wasm_runtime_push_local_object_ref(exec_env, &local_ref);
+    local_ref.val = (wasm_obj_t)new_string_struct;
+
+    val.i32 = 0;
+    get_string_array_type(module, &string_array_type);
+    new_arr = wasm_array_obj_new_with_type(exec_env, string_array_type, len,
+                                           &val);
+    if (!new_arr) {
+        wasm_runtime_pop_local_object_ref(exec_env);
+        wasm_runtime_set_exception(module_inst, "alloc memory failed");
+        return NULL;
+    }
+
+    p = (char *)wasm_array_obj_first_elem_addr(new_arr);
+    p_end = p + len;
+    bh_assert(p);
+    bh_assert(p_end);
+
+    bh_memcpy_s(p, len, value, len);
+    p += len;
+    bh_assert(p == p_end);
+
+    val.gc_obj = (wasm_obj_t)new_arr;
+    wasm_struct_obj_set_field(new_string_struct, 1, &val);
+
+    wasm_runtime_pop_local_object_ref(exec_env);
+
+    (void)p_end;
+    return new_string_struct;
+}

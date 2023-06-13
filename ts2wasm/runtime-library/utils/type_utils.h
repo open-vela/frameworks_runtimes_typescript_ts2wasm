@@ -40,3 +40,7 @@ get_string_array_type(wasm_module_t wasm_module,
 
 bool
 is_ts_string_type(wasm_module_t wasm_module, wasm_defined_type_t type);
+
+/** create wasm string from c string*/
+wasm_struct_obj_t
+create_wasm_string(wasm_exec_env_t exec_env, const char *value);

@@ -54,7 +54,7 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.module_name,
         dyntype.dyntype_typeof,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
-        dyntype.dyn_type_t,
+        dyntype.dyn_value_t,
     );
     module.addFunctionImport(
         dyntype.dyntype_type_eq,
