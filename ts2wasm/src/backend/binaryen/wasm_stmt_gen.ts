@@ -31,7 +31,7 @@ import {
 import { typeInfo } from './glue/utils.js';
 import { flattenLoopStatement, FlattenLoop, getCString } from './utils.js';
 import { WASMGen } from './index.js';
-import { TSClass, TypeKind } from '../../type.js';
+import { TSClass, TypeKind, Type } from '../../type.js';
 import { assert } from 'console';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 
@@ -318,15 +318,18 @@ export class WASMStatementGen {
         // CaseBlock
         //   |
         // [Clauses]
+        const condType = stmt.switchCondition.exprType;
         return this.WASMCaseBlockStmt(
             <CaseBlock>stmt.switchCaseBlock,
             WASMCond,
+            condType,
         );
     }
 
     WASMCaseBlockStmt(
         stmt: CaseBlock,
         condtion: binaryen.ExpressionRef,
+        condType: Type,
     ): binaryen.ExpressionRef {
         const clauses = stmt.caseCauses;
         if (clauses.length === 0) {
@@ -347,7 +350,13 @@ export class WASMStatementGen {
                 this.WASMCompiler.addDebugInfoRef(caseCause.caseExpr, causeRef);
                 branches[idx++] = module.br(
                     'case' + i + stmt.switchLabel,
-                    module.f64.eq(condtion, causeRef),
+                    this.WASMCompiler.wasmExpr.operateBinaryExpr(
+                        condtion,
+                        causeRef,
+                        ts.SyntaxKind.EqualsEqualsEqualsToken,
+                        condType,
+                        caseCause.caseExpr.exprType,
+                    ),
                 );
             }
         });

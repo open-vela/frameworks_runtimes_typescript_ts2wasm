@@ -2116,7 +2116,7 @@ export class WASMExpressionGen extends WASMExpressionBase {
         }
     }
 
-    private operateBinaryExpr(
+    public operateBinaryExpr(
         leftExprRef: binaryen.ExpressionRef,
         rightExprRef: binaryen.ExpressionRef,
         operatorKind: ts.SyntaxKind,
