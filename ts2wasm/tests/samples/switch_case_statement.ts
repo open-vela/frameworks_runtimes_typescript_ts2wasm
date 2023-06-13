@@ -140,3 +140,18 @@ export function varDeclarationInCase() {
     }
     return i;
 }
+
+export function stringInCase() {
+    let tag:string = 'bbb';
+    switch(tag) {
+        case 'aaa':
+            console.log('-aaa-', tag)
+        break;
+        case 'bbb':
+            console.log('-bbb-', tag)
+        break;
+        default:
+            console.log('-ccc-', tag)
+        break;
+    }
+}
