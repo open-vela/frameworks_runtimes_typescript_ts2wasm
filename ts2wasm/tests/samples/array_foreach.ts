@@ -15,3 +15,15 @@ export function array_foreach_string() {
     });
     console.log(ret); // undefine
 }
+
+export function array_foreach_closure() {
+    let map: any = new Map()
+    let arr = new Array<number>()
+    for(let i=0;i<1;i++) {
+        arr.push(i)
+    }
+    arr.forEach((item)=>{
+        map.set(item, item)
+    })
+    return map.size as number
+}

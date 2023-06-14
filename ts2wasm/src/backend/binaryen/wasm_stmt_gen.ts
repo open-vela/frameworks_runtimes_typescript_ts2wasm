@@ -428,9 +428,6 @@ export class WASMStatementGen {
                         varInitExprRef = wasmDynExpr.WASMDynExprGen(
                             localVar.initExpression,
                         ).binaryenRef;
-                        this.currentFuncCtx.insert(
-                            module.local.set(localVar.varIndex, varInitExprRef),
-                        );
                     } else {
                         varInitExprRef = wasmExpr.WASMExprGen(
                             localVar.initExpression,
@@ -444,64 +441,61 @@ export class WASMStatementGen {
                                     localVar.varType,
                                 );
                         }
-                        // '||' token
-                        if (
-                            localVar.varType.kind === TypeKind.BOOLEAN &&
-                            binaryen.getExpressionType(varInitExprRef) ===
-                                binaryen.f64
-                        ) {
-                            const module = this.WASMCompiler.module;
-                            varInitExprRef = module.i32.eqz(
-                                module.i32.eqz(
-                                    module.i32.trunc_u_sat.f64(varInitExprRef),
-                                ),
-                            );
+                    }
+                    // '||' token
+                    if (
+                        localVar.varType.kind === TypeKind.BOOLEAN &&
+                        binaryen.getExpressionType(varInitExprRef) ===
+                            binaryen.f64
+                    ) {
+                        const module = this.WASMCompiler.module;
+                        varInitExprRef = module.i32.eqz(
+                            module.i32.eqz(
+                                module.i32.trunc_u_sat.f64(varInitExprRef),
+                            ),
+                        );
+                    }
+                    /* In this version, we put free variable to context struct when parsing variable declaration */
+                    if (localVar.varIsClosure) {
+                        let scope = currentScope;
+                        if (scope.kind !== ScopeKind.FunctionScope) {
+                            scope = scope.getNearestFunctionScope()!;
                         }
-                        /* In this version, we put free variable to context struct when parsing variable declaration */
-                        if (localVar.varIsClosure) {
-                            let scope = currentScope;
-                            if (scope.kind !== ScopeKind.FunctionScope) {
-                                scope = scope.getNearestFunctionScope()!;
-                            }
-                            const funcScope = <FunctionScope>scope;
-                            /* free variable index in context struct */
-                            const index = localVar.getClosureIndex();
-                            const ctxStructType = <typeInfo>(
-                                WASMGen.contextOfScope.get(funcScope)
+                        const funcScope = <FunctionScope>scope;
+                        /* free variable index in context struct */
+                        const index = localVar.getClosureIndex();
+                        const ctxStructType = <typeInfo>(
+                            WASMGen.contextOfScope.get(funcScope)
+                        );
+                        const contextStruct = module.local.get(
+                            (<ClosureEnvironment>scope).contextVariable!
+                                .varIndex,
+                            ctxStructType.typeRef,
+                        );
+                        const freeVarSetWasmStmt =
+                            binaryenCAPI._BinaryenStructSet(
+                                module.ptr,
+                                index,
+                                contextStruct,
+                                varInitExprRef,
                             );
-                            const contextStruct = module.local.get(
-                                (<ClosureEnvironment>scope).contextVariable!
-                                    .varIndex,
-                                ctxStructType.typeRef,
-                            );
-                            const freeVarSetWasmStmt =
-                                binaryenCAPI._BinaryenStructSet(
-                                    module.ptr,
-                                    index,
-                                    contextStruct,
+                        this.currentFuncCtx.insert(freeVarSetWasmStmt);
+                    } else {
+                        if (
+                            localVar.initExpression.exprType instanceof
+                                TSClass &&
+                            localVar.varType instanceof TSClass
+                        ) {
+                            varInitExprRef =
+                                this.WASMCompiler.wasmExprCompiler.maybeTypeBoxingAndUnboxing(
+                                    localVar.initExpression.exprType,
+                                    localVar.varType,
                                     varInitExprRef,
                                 );
-                            this.currentFuncCtx.insert(freeVarSetWasmStmt);
-                        } else {
-                            if (
-                                localVar.initExpression.exprType instanceof
-                                    TSClass &&
-                                localVar.varType instanceof TSClass
-                            ) {
-                                varInitExprRef =
-                                    this.WASMCompiler.wasmExprCompiler.maybeTypeBoxingAndUnboxing(
-                                        localVar.initExpression.exprType,
-                                        localVar.varType,
-                                        varInitExprRef,
-                                    );
-                            }
-                            this.currentFuncCtx.insert(
-                                module.local.set(
-                                    localVar.varIndex,
-                                    varInitExprRef,
-                                ),
-                            );
                         }
+                        this.currentFuncCtx.insert(
+                            module.local.set(localVar.varIndex, varInitExprRef),
+                        );
                     }
                     this.WASMCompiler.addDebugInfoRef(
                         localVar.initExpression,

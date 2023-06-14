@@ -577,6 +577,11 @@
                 "name": "array_foreach_string",
                 "args": [],
                 "result": "0 : s123 \n1 : s234 \n2 : s456 \n3 : s4 \n4 : s453 \n5 : s0 \n6 : s456 \nundefined"
+            },
+            {
+                "name": "array_foreach_closure",
+                "args": [],
+                "result": "1:f64"
             }
         ]
     },
