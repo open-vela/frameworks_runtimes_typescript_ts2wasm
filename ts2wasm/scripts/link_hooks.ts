@@ -9,6 +9,11 @@ import { fileURLToPath } from 'url';
 
 const hooks = ['pre-commit'];
 
+/**
+ * Create symbolic links for git hooks,
+ * Based on:
+ *   https://github.com/microsoft/TypeScript/blob/main/scripts/link-hooks.mjs
+ */
 hooks.forEach(function (hook) {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
