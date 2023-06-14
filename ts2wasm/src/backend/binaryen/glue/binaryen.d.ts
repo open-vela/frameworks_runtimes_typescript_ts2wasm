@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Portable definitions for Binaryen's C-API.
+ *
+ * tsc uses the .js file next to it, while asc makes it a Wasm import.
+ *
+ * See: https://github.com/WebAssembly/binaryen/blob/main/src/binaryen-c.h
+ *
+ * @license Apache-2.0
+ */
 module 'binaryen';
 
 export declare type bool = boolean;
