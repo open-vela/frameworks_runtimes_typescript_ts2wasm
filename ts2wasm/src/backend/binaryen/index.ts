@@ -55,7 +55,7 @@ import { callBuiltInAPIs } from './lib/init_builtin_api.js';
 import { Statement } from '../../statement.js';
 import { Expression } from '../../expression.js';
 import { dyntype } from './lib/dyntype/utils.js';
-import { clearWasmStringMap, getCString } from './utils.js';
+import { clearWasmStringMap, getCString, processEscape } from './utils.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -172,7 +172,8 @@ class DataSegmentContext {
         return offset;
     }
 
-    addString(str: string) {
+    addString(str_: string) {
+        const str = processEscape(str_);
         if (this.stringOffsetMap.has(str)) {
             /* Re-use the string to save space */
             return this.stringOffsetMap.get(str)!;

@@ -72,6 +72,7 @@ import {
     getClassNameByTypeKind,
     unboxAnyTypeToBaseType,
     getFuncName,
+    processEscape,
 } from './utils.js';
 
 export interface WasmValue {
@@ -1560,11 +1561,8 @@ export class WASMExpressionGen extends WASMExpressionBase {
     private WASMStringLiteral(
         expr: StringLiteralExpression,
     ): binaryen.ExpressionRef {
-        const value = expr.expressionValue.substring(
-            1,
-            expr.expressionValue.length - 1,
-        );
-        return this.generateStringRef(value);
+        const value = expr.expressionValue;
+        return this.generateStringRef(processEscape(value));
     }
 
     private _loadFromAccessInfo(
