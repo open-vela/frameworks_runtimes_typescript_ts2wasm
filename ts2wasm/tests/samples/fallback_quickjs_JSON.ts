@@ -24,3 +24,11 @@ export function JSONTest2(){
     console.log(obj.count);
     console.log(str);
 }
+
+export function JSONTest3() {
+    let res: any = {
+        "'''\'\n\r\t\\1": "2\n",
+    }
+    let jres1: any = JSON.stringify(res)
+    console.log(jres1)
+}
