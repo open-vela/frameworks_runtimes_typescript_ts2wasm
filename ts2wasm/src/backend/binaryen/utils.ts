@@ -244,3 +244,30 @@ export function getCString(str: string) {
 export function clearWasmStringMap() {
     wasmStringMap.clear();
 }
+
+export function processEscape(str: string) {
+    const escapes1 = ['"', "'", '\\'];
+    const escapes2 = ['n', 'r', 't', 'b', 'f'];
+    const appendingStr = ['\n', '\r', '\t', '\b', '\f'];
+    let newStr = '';
+    for (let i = 0; i < str.length; i++) {
+        if (
+            str[i] == '\\' &&
+            i < str.length - 1 &&
+            (escapes1.includes(str[i + 1]) || escapes2.includes(str[i + 1]))
+        ) {
+            if (escapes1.includes(str[i + 1])) {
+                newStr += str[i + 1];
+            } else if (escapes2.includes(str[i + 1])) {
+                newStr += appendingStr[escapes2.indexOf(str[i + 1])];
+            }
+            i += 1;
+            continue;
+        }
+        if (escapes1.includes(str[i]) && (i == 0 || i == str.length - 1)) {
+            continue;
+        }
+        newStr += str[i];
+    }
+    return newStr;
+}

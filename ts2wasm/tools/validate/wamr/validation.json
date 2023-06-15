@@ -3099,6 +3099,11 @@
                 "name": "JSONTest2",
                 "args": [],
                 "result": "42 \n{\"result\":true,\"count\":42} \n42 \n{\"result\":true,\"count\":42}"
+            },
+            {
+                "name": "JSONTest3",
+                "args": [],
+                "result": "42 \n{\"result\":true,\"count\":42} \n{\"''''\\n\\r\\t\\\\1\":\"2\\n\"}"
             }
         ]
     },
