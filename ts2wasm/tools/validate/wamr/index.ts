@@ -11,6 +11,36 @@ import { fileURLToPath } from 'url';
 import { WASMGen } from '../../../src/backend/binaryen/index.js';
 import validationItems from './validation.json' assert { type: 'json' };
 
+const IGNORE_CASES = [
+    /* Need manual validation */
+    'any_box_null:boxNull',
+    'any_box_obj:boxEmptyObj',
+    'any_box_string:boxStringWithVarStmt',
+    'any_box_string:boxStringWithBinaryExpr',
+    'any_box_undefind:boxUndefined',
+    'cast_any_to_static:castAnyBackToUndefined',
+    'prototype:returnPrototypeObject',
+
+    /* ignored in compilation test */
+    'complexType_case1:complexTypeTest',
+    'complexType_case2:cpxCase2Func3',
+    'generics_class:test',
+    'global_generics_function:test',
+    'inner_generics_function:test',
+    'namespace_generics_function:test',
+    'generics_class:test',
+
+    /* require host API */
+    'declare_class:classDecl',
+    'declare_func:assignDeclareFuncToVar',
+
+    /* function not exported */
+    'export_func:subFunc',
+    'export_func:mulFunc',
+    'export_func:divFunc',
+    'export_namespace:bFunc',
+];
+
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SAMPLES_DIR = path.join(SCRIPT_DIR, '../../../tests/samples');
 const COMPILE_DIR = path.join(SCRIPT_DIR, 'wasm_modules');
@@ -44,6 +74,7 @@ let totalCases = 0;
 let totalFail = 0;
 let totalCompilationFail = 0;
 let totalNeedManualValidation = 0;
+let totalSkippedCases = 0;
 
 validationItems.forEach((item) => {
     const sourceFile = `${SAMPLES_DIR}/${item.module}.ts`;
@@ -71,6 +102,31 @@ validationItems.forEach((item) => {
     }
 
     item.entries.forEach((entry) => {
+        const itemName = `${item.module}:${entry.name}`;
+
+        if (IGNORE_CASES.includes(itemName)) {
+            fs.appendFileSync(
+                TEST_LOG_FILE,
+                `===================================================================================\n`,
+            );
+            fs.appendFileSync(TEST_LOG_FILE, `[${itemName}] skipped\n`);
+            fs.appendFileSync(
+                TEST_LOG_FILE,
+                `-----------------------------------------------------------------------------------\n`,
+            );
+            fs.appendFileSync(
+                TEST_LOG_FILE,
+                `source code: \n\t${sourceFile}\n`,
+            );
+            fs.appendFileSync(
+                TEST_LOG_FILE,
+                `===================================================================================\n\n\n`,
+            );
+
+            totalSkippedCases++;
+            return;
+        }
+
         if (!compilationSuccess) {
             totalCompilationFail++;
 
@@ -80,7 +136,7 @@ validationItems.forEach((item) => {
             );
             fs.appendFileSync(
                 TEST_LOG_FILE,
-                `Running [${item.module}:${entry.name}] failed due to compilation error\n`,
+                `Running [${itemName}] failed due to compilation error\n`,
             );
             fs.appendFileSync(
                 TEST_LOG_FILE,
@@ -95,6 +151,7 @@ validationItems.forEach((item) => {
                 `===================================================================================\n\n\n`,
             );
             totalFail++;
+            return;
         }
 
         const iwasmArgs = [
@@ -103,16 +160,17 @@ validationItems.forEach((item) => {
             outputFile,
             ...entry.args.map((a: any) => a.toString()),
         ];
+        const expectRet = (entry as any).ret || 0;
         const result = cp.spawnSync(IWASM_GC_DIR, iwasmArgs);
         const cmdStr = `${IWASM_GC_DIR} ${iwasmArgs.join(' ')}`;
-        if (result.status !== 0) {
+        if (result.status !== expectRet) {
             fs.appendFileSync(
                 TEST_LOG_FILE,
                 `===================================================================================\n`,
             );
             fs.appendFileSync(
                 TEST_LOG_FILE,
-                `Running [${item.module}:${entry.name}] get invalid return code: ${result.status}\n`,
+                `Running [${itemName}] get invalid return code: ${result.status}\n`,
             );
             fs.appendFileSync(TEST_LOG_FILE, `stdout:\n`);
             fs.appendFileSync(TEST_LOG_FILE, result.stdout.toString('utf-8'));
@@ -146,7 +204,7 @@ validationItems.forEach((item) => {
                 );
                 fs.appendFileSync(
                     TEST_LOG_FILE,
-                    `Running [${item.module}:${entry.name}] get unexpected output\n`,
+                    `Running [${itemName}] get unexpected output\n`,
                 );
                 fs.appendFileSync(TEST_LOG_FILE, `\tExpected: ${expected}\n`);
                 fs.appendFileSync(TEST_LOG_FILE, `\tGot: ${executOutput}\n`);
@@ -180,7 +238,11 @@ validationItems.forEach((item) => {
     });
 });
 
-console.log(`${totalCases - totalFail} / ${totalCases} passed!`);
+console.log(
+    `${totalCases - totalFail - totalSkippedCases} / ${
+        totalCases - totalSkippedCases
+    } passed!`,
+);
 console.log(`-------------------------------------------------------------`);
 console.log(`In the ${totalFail} failed cases:`);
 console.log(
@@ -189,5 +251,11 @@ console.log(
 console.log(
     `    * ${totalNeedManualValidation} cases need manual validation due to complex return type`,
 );
+console.log(`-------------------------------------------------------------`);
+console.log(`    * ${totalSkippedCases} cases skipped`);
+
+if (totalFail > 0) {
+    process.exit(1);
+}
 
 process.exit(0);

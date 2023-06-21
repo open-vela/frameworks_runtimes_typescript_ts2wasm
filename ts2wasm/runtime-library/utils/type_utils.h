@@ -41,6 +41,14 @@ get_string_array_type(wasm_module_t wasm_module,
 bool
 is_ts_string_type(wasm_module_t wasm_module, wasm_defined_type_t type);
 
-/** create wasm string from c string*/
+/* create wasm string from c string*/
 wasm_struct_obj_t
 create_wasm_string(wasm_exec_env_t exec_env, const char *value);
+
+/* whether the type is struct(i32_i32_anyref) */
+bool
+is_infc(wasm_obj_t obj);
+
+/* try to get object that an interface point to */
+void *
+get_infc_obj(wasm_exec_env_t exec_env, wasm_obj_t obj);

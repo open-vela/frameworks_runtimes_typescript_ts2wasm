@@ -15,7 +15,7 @@ import {
 } from './scope.js';
 import ExpressionProcessor, { Expression } from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
-import { builtinTypes, Type, TypeKind } from './type.js';
+import { builtinTypes, Type, TSInterface, TypeKind } from './type.js';
 import { UnimplementError } from './error.js';
 import { Statement } from './statement.js';
 
@@ -114,7 +114,8 @@ export function parentIsFunctionLike(node: ts.Node) {
         node.parent.kind === ts.SyntaxKind.SetAccessor ||
         node.parent.kind === ts.SyntaxKind.GetAccessor ||
         node.parent.kind === ts.SyntaxKind.FunctionExpression ||
-        node.parent.kind === ts.SyntaxKind.ArrowFunction
+        node.parent.kind === ts.SyntaxKind.ArrowFunction ||
+        node.parent.kind === ts.SyntaxKind.Constructor
     ) {
         return true;
     }
@@ -188,11 +189,29 @@ export function mangling(
             scope.varArray.forEach((v) => {
                 v.mangledName = `${prefixStack.join(delimiter)}|${v.varName}`;
             });
+
+            scope.namedTypeMap.forEach((t, _) => {
+                if (t.kind == TypeKind.INTERFACE) {
+                    const infc = t as TSInterface;
+                    infc.mangledName = `${prefixStack.join(delimiter)}|${
+                        infc.className
+                    }`;
+                }
+            });
         } else if (scope instanceof NamespaceScope) {
             prefixStack.push(currName);
 
             scope.varArray.forEach((v) => {
                 v.mangledName = `${prefixStack.join(delimiter)}|${v.varName}`;
+            });
+
+            scope.namedTypeMap.forEach((t, _) => {
+                if (t.kind == TypeKind.INTERFACE) {
+                    const infc = t as TSInterface;
+                    infc.mangledName = `${prefixStack.join(delimiter)}|${
+                        infc.className
+                    }`;
+                }
             });
         } else if (scope instanceof FunctionScope) {
             prefixStack.push(currName);
@@ -476,7 +495,7 @@ export function adjustPrimitiveNodeType(
 
                 // Last, if the actual return value type is "generic", correct the value of tsType
                 return_type =
-                    function_return_type.typeKind == TypeKind.GENERIC
+                    function_return_type.kind == TypeKind.GENERIC
                         ? builtinTypes.get('generic')!
                         : function_return_type;
             }
@@ -517,4 +536,31 @@ function getFunctionTypeByName(
             return originReturnType;
         }
     }
+}
+
+export function processEscape(str: string) {
+    const escapes1 = ['"', "'", '\\'];
+    const escapes2 = ['n', 'r', 't', 'b', 'f'];
+    const appendingStr = ['\n', '\r', '\t', '\b', '\f'];
+    let newStr = '';
+    for (let i = 0; i < str.length; i++) {
+        if (
+            str[i] == '\\' &&
+            i < str.length - 1 &&
+            (escapes1.includes(str[i + 1]) || escapes2.includes(str[i + 1]))
+        ) {
+            if (escapes1.includes(str[i + 1])) {
+                newStr += str[i + 1];
+            } else if (escapes2.includes(str[i + 1])) {
+                newStr += appendingStr[escapes2.indexOf(str[i + 1])];
+            }
+            i += 1;
+            continue;
+        }
+        if (escapes1.includes(str[i]) && (i == 0 || i == str.length - 1)) {
+            continue;
+        }
+        newStr += str[i];
+    }
+    return newStr;
 }

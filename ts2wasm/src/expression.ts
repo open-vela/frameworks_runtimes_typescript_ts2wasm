@@ -20,6 +20,8 @@ export class Expression {
     private type: Type = new Type();
     debugLoc: DebugLoc | null = null;
 
+    public tsNode?: ts.Node;
+
     constructor(kind: ExpressionKind) {
         this.kind = kind;
     }
@@ -40,6 +42,12 @@ export class Expression {
 export class NullKeywordExpression extends Expression {
     constructor() {
         super(ts.SyntaxKind.NullKeyword);
+    }
+}
+
+export class UndefinedKeywordExpression extends Expression {
+    constructor() {
+        super(ts.SyntaxKind.UndefinedKeyword);
     }
 }
 
@@ -198,6 +206,7 @@ export class CallExpression extends Expression {
     constructor(
         expr: Expression,
         args: Expression[] = new Array<Expression>(0),
+        private _typeArguments?: Type[],
     ) {
         super(ts.SyntaxKind.CallExpression);
         this.expr = expr;
@@ -210,6 +219,10 @@ export class CallExpression extends Expression {
 
     get callArgs(): Expression[] {
         return this.args;
+    }
+
+    get typeArguments(): Type[] | undefined {
+        return this._typeArguments;
     }
 }
 
@@ -252,7 +265,11 @@ export class NewExpression extends Expression {
     private newArrayLen = 0;
     private lenExpression: Expression | null = null;
 
-    constructor(expr: Expression, args?: Array<Expression>) {
+    constructor(
+        expr: Expression,
+        args?: Array<Expression>,
+        private _typeArguments?: Type[],
+    ) {
         super(ts.SyntaxKind.NewExpression);
         this.expr = expr;
         this.arguments = args;
@@ -284,6 +301,13 @@ export class NewExpression extends Expression {
 
     get lenExpr(): Expression | null {
         return this.lenExpression;
+    }
+
+    setTypeArguments(typeArgs: Type[]) {
+        this._typeArguments = typeArgs;
+    }
+    get typeArguments(): Type[] | undefined {
+        return this._typeArguments;
     }
 }
 
@@ -356,8 +380,21 @@ export default class ExpressionProcessor {
     }
 
     visitNode(node: ts.Node): Expression {
+        const expr = this.visitNodeInternal(node);
+        expr.tsNode = node;
+        return expr;
+    }
+
+    private visitNodeInternal(node: ts.Node): Expression {
         let res: Expression | null = null;
         switch (node.kind) {
+            case ts.SyntaxKind.UndefinedKeyword: {
+                const undefinedExpr = new UndefinedKeywordExpression();
+                undefinedExpr.setExprType(
+                    this.typeResolver.generateNodeType(node),
+                );
+                return undefinedExpr;
+            }
             case ts.SyntaxKind.NullKeyword: {
                 res = new NullKeywordExpression();
                 res.setExprType(this.typeResolver.generateNodeType(node));
@@ -432,41 +469,14 @@ export default class ExpressionProcessor {
                 const binaryExprNode = <ts.BinaryExpression>node;
                 const leftExpr = this.visitNode(binaryExprNode.left);
                 const rightExpr = this.visitNode(binaryExprNode.right);
-                res = new BinaryExpression(
+                const expr: Expression = new BinaryExpression(
                     binaryExprNode.operatorToken.kind,
                     leftExpr,
                     rightExpr,
                 );
-                if (
-                    ts.isPropertyAccessExpression(binaryExprNode.left) &&
-                    binaryExprNode.operatorToken.kind ===
-                        ts.SyntaxKind.EqualsToken
-                ) {
-                    const symbol =
-                        this.parserCtx.typeChecker!.getSymbolAtLocation(
-                            binaryExprNode.left.name,
-                        );
-                    if (symbol && symbol.declarations) {
-                        const symbolDecls = symbol.declarations;
-                        const hasSetter = symbolDecls.find((d) => {
-                            return d.kind === ts.SyntaxKind.SetAccessor;
-                        });
-                        if (hasSetter) {
-                            (
-                                leftExpr as PropertyAccessExpression
-                            ).accessSetter = true;
-                            res = new CallExpression(leftExpr, [rightExpr]);
-                            const type = new TSFunction();
-                            type.addParamType(
-                                this.typeResolver.generateNodeType(
-                                    binaryExprNode.left.name,
-                                ),
-                            );
-                            leftExpr.setExprType(type);
-                        }
-                    }
-                }
-                res.setExprType(this.typeResolver.generateNodeType(node));
+
+                expr.setExprType(this.typeResolver.generateNodeType(node));
+                res = expr;
                 break;
             }
             case ts.SyntaxKind.PrefixUnaryExpression: {
@@ -516,8 +526,13 @@ export default class ExpressionProcessor {
                     res.setExprType(this.typeResolver.generateNodeType(node));
                     break;
                 }
-                res = new CallExpression(expr, args);
-                res.setExprType(this.typeResolver.generateNodeType(node));
+                const callExpr = new CallExpression(
+                    expr,
+                    args,
+                    this.buildTypeArguments(callExprNode.typeArguments),
+                );
+                callExpr.setExprType(this.typeResolver.generateNodeType(node));
+                res = callExpr;
                 break;
             }
             case ts.SyntaxKind.PropertyAccessExpression: {
@@ -539,15 +554,56 @@ export default class ExpressionProcessor {
             case ts.SyntaxKind.NewExpression: {
                 const newExprNode = <ts.NewExpression>node;
                 const expr = this.visitNode(newExprNode.expression);
-                res = new NewExpression(expr);
-                const identifierName = this.maybeGetBuiltinObjName(
-                    newExprNode.expression,
-                );
-                if (identifierName) {
-                    this.createNewBuiltInObjExpr(
-                        newExprNode,
-                        identifierName,
-                        res as NewExpression,
+                const newExpr = new NewExpression(expr);
+                if (
+                    expr.expressionKind === ts.SyntaxKind.Identifier &&
+                    (<IdentifierExpression>expr).identifierName === 'Array'
+                ) {
+                    if (!newExprNode.typeArguments) {
+                        if (!this.typeResolver.arrayTypeCheck(node)) {
+                            throw new Error(
+                                'new Array without declare element type',
+                            );
+                        }
+                    }
+                    let isLiteral = false;
+                    if (newExprNode.arguments) {
+                        /* Check if it's created from a literal */
+                        const argLen = newExprNode.arguments.length;
+                        if (argLen > 1) {
+                            isLiteral = true;
+                        } else if (argLen === 1) {
+                            const elem = newExprNode.arguments[0];
+                            const elemExpr = this.visitNode(elem);
+                            if (elemExpr.exprType.kind !== TypeKind.NUMBER) {
+                                isLiteral = true;
+                            }
+                        }
+
+                        if (isLiteral) {
+                            const elemExprs = newExprNode.arguments.map((a) => {
+                                return this.visitNode(a);
+                            });
+                            newExpr.setArrayLen(argLen);
+                            newExpr.setArgs(elemExprs);
+                        } else if (argLen === 1) {
+                            newExpr.setLenExpr(
+                                this.visitNode(newExprNode.arguments[0]),
+                            );
+                        }
+                        /* else no arguments */
+                    } else {
+                        newExpr.setLenExpr(new NumberLiteralExpression(0));
+                    }
+
+                    if (newExprNode.typeArguments) {
+                        newExpr.setTypeArguments(
+                            this.buildTypeArguments(newExprNode.typeArguments)!,
+                        );
+                    }
+
+                    newExpr.setExprType(
+                        this.typeResolver.generateNodeType(node),
                     );
                 } else {
                     if (newExprNode.arguments !== undefined) {
@@ -555,10 +611,17 @@ export default class ExpressionProcessor {
                         for (const arg of newExprNode.arguments) {
                             args.push(this.visitNode(arg));
                         }
-                        (res as NewExpression).setArgs(args);
+                        (newExpr as NewExpression).setArgs(args);
                     }
                 }
-                res.setExprType(this.typeResolver.generateNodeType(node));
+                if (newExprNode.typeArguments) {
+                    newExpr.setTypeArguments(
+                        this.buildTypeArguments(newExprNode.typeArguments)!,
+                    );
+                }
+
+                newExpr.setExprType(this.typeResolver.generateNodeType(node));
+                res = newExpr;
                 break;
             }
             case ts.SyntaxKind.ObjectLiteralExpression: {
@@ -699,5 +762,19 @@ export default class ExpressionProcessor {
         if (node.typeArguments) {
             throw new Error('unsupport new Map with type arguments');
         }
+    }
+
+    buildTypeArguments(
+        typeArguments?: ts.NodeArray<ts.TypeNode>,
+    ): Type[] | undefined {
+        if (!typeArguments) return undefined;
+
+        const types: Type[] = [];
+        for (const tynode of typeArguments!) {
+            const tstype =
+                this.typeResolver.typechecker!.getTypeFromTypeNode(tynode);
+            types.push(this.typeResolver.tsTypeToType(tstype));
+        }
+        return types;
     }
 }

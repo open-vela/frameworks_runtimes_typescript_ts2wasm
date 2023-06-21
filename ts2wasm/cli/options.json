@@ -19,6 +19,16 @@
         "description": "Generate the WebAssembly text output file (.wat).",
         "default": false
     },
+    "c": {
+       "category": "Output",
+       "description": "Generate the C Code (.c)",
+       "default": false
+    },
+    "dumpast": {
+       "category": "Output",
+       "description": "Dump the AST Tree",
+       "default": false
+    },
     "validate": {
         "category": "Validation",
         "description": "Validate the specified function of the generated wasm File using WAMR."

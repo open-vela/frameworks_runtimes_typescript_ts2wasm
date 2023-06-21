@@ -5,16 +5,11 @@
 
 import ts from 'typescript';
 import { Expression } from './expression.js';
-import TypeResolver, {
-    FunctionKind,
-    TSFunction,
-    Type,
-    TypeKind,
-} from './type.js';
+import { TypeResolver, Type, TSFunction } from './type.js';
 import { ParserContext } from './frontend.js';
 import {
-    adjustPrimitiveNodeType,
     addSourceMapLoc,
+    adjustPrimitiveNodeType,
     generateNodeExpression,
     isScopeNode,
 } from './utils.js';
@@ -28,9 +23,13 @@ export enum ModifierKind {
 }
 export class Variable {
     private _isClosure = false;
-    private _closureIndex = 0;
     public mangledName = '';
     public scope: Scope | null = null;
+    /* If variable is a closure variable, we should record which context it belongs to and its closureIdx */
+    public belongCtx?: Variable;
+    public closureIndex?: number;
+    /* If variable is a closure context, we should record its init context to do initialize */
+    public initContext?: Variable;
 
     constructor(
         private name: string,
@@ -98,14 +97,6 @@ export class Variable {
         return this._isClosure;
     }
 
-    public setClosureIndex(index: number) {
-        this._closureIndex = index;
-    }
-
-    public getClosureIndex(): number {
-        return this._closureIndex;
-    }
-
     public setVarIndex(varIndex: number) {
         this.index = varIndex;
     }
@@ -171,20 +162,6 @@ export class VariableScanner {
         this.nodeScopeMap.forEach((scope, node) => {
             this.currentScope = scope;
             ts.forEachChild(node, this.visitNode.bind(this));
-
-            if (scope instanceof FunctionScope) {
-                const classScope = scope.parent as ClassScope;
-                if (scope.funcType.funcKind !== FunctionKind.DEFAULT) {
-                    /* For class methods, fix type for "this" parameter */
-                    if (!scope.isStatic()) {
-                        /**
-                         * varArray[0] - context
-                         * varArray[0] - this
-                         */
-                        scope.varArray[1].varType = classScope.classType;
-                    }
-                }
-            }
         });
 
         for (let i = 0; i < this.globalScopes.length; ++i) {
@@ -196,6 +173,7 @@ export class VariableScanner {
                 ) {
                     /* Assign index for function variables */
                     scope.initVariableIndex();
+                    scope.initParamIndex();
                 }
             });
         }
@@ -216,7 +194,6 @@ export class VariableScanner {
                 const functionScope = <FunctionScope>(
                     this.currentScope!.getNearestFunctionScope()
                 );
-                // TODO: have not record DotDotDotToken
                 const paramName = parameterNode.name.getText();
                 let isDestructuring = false;
                 if (
@@ -246,12 +223,11 @@ export class VariableScanner {
                 }
 
                 const paramType = functionScope.findType(typeString);
-                const paramIndex = functionScope.paramArray.length;
                 const paramObj = new Parameter(
                     paramName,
                     paramType!,
                     paramModifiers,
-                    paramIndex,
+                    -1,
                     isOptional,
                     isDestructuring,
                 );

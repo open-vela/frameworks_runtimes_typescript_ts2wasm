@@ -8,10 +8,10 @@ import { dyntype, structdyn } from './dyntype/utils.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addWatFuncs } from '../utils.js';
+import { UtilFuncs } from '../utils.js';
 import { BuiltinNames } from '../../../../lib/builtin/builtin_name.js';
-import { charArrayTypeInfo } from '../glue/packType.js';
 import { getBuiltInFuncName } from '../../../utils.js';
+import { charArrayTypeInfo } from '../glue/packType.js';
 
 export function importAnyLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
@@ -55,6 +55,13 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.dyntype_typeof,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
         dyntype.dyn_value_t,
+    );
+    module.addFunctionImport(
+        dyntype.dyntype_typeof1,
+        dyntype.module_name,
+        dyntype.dyntype_typeof1,
+        binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
+        dyntype.int,
     );
     module.addFunctionImport(
         dyntype.dyntype_type_eq,
@@ -478,6 +485,15 @@ export function generateExtRefTableMaskArr(module: binaryen.Module) {
     );
 }
 
+export function generateInitDynContext(module: binaryen.Module) {
+    const initDynContextStmt = module.global.set(
+        dyntype.dyntype_context,
+        module.call(dyntype.dyntype_context_init, [], binaryen.none),
+    );
+
+    return initDynContextStmt;
+}
+
 export function generateFreeDynContext(module: binaryen.Module) {
     const freeDynContextStmt = module.call(
         dyntype.dyntype_context_destroy,
@@ -505,6 +521,6 @@ export function addItableFunc(module: binaryen.Module) {
     );
     const itableLib = fs.readFileSync(itableFilePath, 'utf-8');
     const watModule = binaryen.parseText(itableLib);
-    addWatFuncs(watModule, 'find_index', module);
+    UtilFuncs.addWatFuncs(watModule, 'find_index', module);
     watModule.dispose();
 }

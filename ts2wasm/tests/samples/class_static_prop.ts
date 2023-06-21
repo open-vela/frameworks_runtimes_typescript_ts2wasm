@@ -44,3 +44,48 @@ class B extends A {
 export function staticFields() {
     return A.c + A.d + B.c + B.d;
 }
+
+/* extends static fields */
+export class A1 {
+    static field1: string = 'field1'
+    static field2: string = 'field2'
+    static field3: string = 'field3'
+    static field4: string = 'field4'
+}
+
+export class A2  extends A1 {
+    static field5: string = 'field5'
+    static field6: string = 'field5'
+}
+
+/* overwrite static fields */
+export class A3 {
+    static field1: string = 'field1'
+    static field2: string = 'field2'
+    static field3: string = 'field3'
+    static field4: string = 'field4'
+}
+
+export class A4  extends A2 {
+    static field1: string = 'field5'
+    static field2: string = 'field5'
+}
+
+
+export class staticFieldsInit {
+    static field1: number = 0
+    static field2: number = 1
+    static field3: number = 2
+}
+
+export function testStaticField1() {
+    return staticFieldsInit.field1; // 0
+}
+
+export function testStaticField2() {
+    return staticFieldsInit.field2; // 1
+}
+
+export function testStaticField3() {
+    return staticFieldsInit.field3; // 2
+}

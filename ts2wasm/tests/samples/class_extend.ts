@@ -90,3 +90,31 @@ export function multiLevelExtend() {
     const b: B = new B();
     b.init();
 }
+
+class Base1 {
+    x: number = 1;
+    foo() {
+
+    }
+    y: string = '100';
+}
+
+class ExtendReordered extends Base1 {
+    z: number = 12;
+    y: string = 'Hello';
+    x: number = 10;
+}
+
+export function testExtendReordered() {
+    const e = new ExtendReordered();
+    return e.x + e.z;  // 22
+}
+
+class InheritGetter extends B7 {
+
+}
+
+export function testInheritGetter() {
+    const a = new InheritGetter(10);
+    return a.a; // 10
+}

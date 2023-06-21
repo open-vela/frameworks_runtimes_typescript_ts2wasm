@@ -65,9 +65,11 @@ include_directories(${UTILS_DIR})
 
 set(UTILS_SOURCE
     ${UTILS_DIR}/type_utils.c
-    ${UTILS_DIR}/wamr_utils.c
 )
 
+set(WAMR_UTILS_SOURCE
+    ${UTILS_DIR}/wamr_utils.c
+)
 # Ignore warnings of QuickJS
 set_source_files_properties(
     ${QUICKJS_SOURCE}
@@ -83,5 +85,6 @@ add_executable(iwasm_gc main.c
     ${STDLIB_SOURCE}
     ${STRUCT_DYN_SOURCE}
     ${UTILS_SOURCE}
+    ${WAMR_UTILS_SOURCE}
 )
 target_link_libraries (iwasm_gc vmlib -lm -ldl -lpthread)

@@ -8,7 +8,7 @@
   <p>
   <a href="https://github.com/bytecodealliance/governance/blob/main/SIGs/SIG-TypeScript-Compilation/proposal.md"><img src="https://img.shields.io/badge/SIG-TypeScript--Compilation-blue"></a>
   <a href="https://github.com/WebAssembly/gc"><img src="https://img.shields.io/badge/-WasmGC-brightgreen"></a>
-  
+
   </p>
 </div>
 
@@ -95,7 +95,7 @@ Code is required to be formatted with `npm run lint`.
 
 ### Submitting Changes
 
-Changes to `ts2wasm-compiler` are managed through github [pull requests](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests) (PR). 
+Changes to `ts2wasm-compiler` are managed through github [pull requests](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests) (PR).
 
 ## License
 

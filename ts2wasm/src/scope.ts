@@ -12,12 +12,15 @@ import {
     builtinTypes,
     FunctionKind,
     getMethodPrefix,
+    TSContext,
 } from './type.js';
 import { ParserContext } from './frontend.js';
 import { parentIsFunctionLike, DebugLoc } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
 import { ArgNames, BuiltinNames } from '../lib/builtin/builtin_name.js';
+import { BinaryExpression } from './expression.js';
+import { Logger } from './log.js';
 
 export enum ScopeKind {
     Scope,
@@ -118,13 +121,22 @@ export class Scope {
         }
 
         if (this instanceof FunctionScope) {
-            this.localIndex = this.paramArray.length;
+            this.localIndex = this.paramArray.length + this.envParamLen;
         } else if (this instanceof GlobalScope) {
             this.localIndex = 0;
         } else {
             return;
         }
         this.assignVariableIndex(this);
+    }
+
+    initParamIndex() {
+        if (this instanceof FunctionScope) {
+            const envParamLen = this.envParamLen;
+            this.paramArray.forEach((p, index) => {
+                p.setVarIndex(index + envParamLen);
+            });
+        }
     }
 
     addTempVar(variableObj: Variable) {
@@ -242,8 +254,9 @@ export class Scope {
             (scope) => {
                 return scope.children.find((c) => {
                     return (
-                        c.kind === ScopeKind.FunctionScope &&
-                        (c as FunctionScope).funcName === functionName
+                        c instanceof FunctionScope &&
+                        (c.funcName === functionName ||
+                            (c.isDeclare() && c.oriFuncName! === functionName))
                     );
                 }) as FunctionScope;
             },
@@ -371,10 +384,49 @@ export class Scope {
         return this._getScopeByType<GlobalScope>(ScopeKind.GlobalScope);
     }
 
+    getRootFunctionScope() {
+        let currentScope: Scope | null = this;
+        while (currentScope !== null) {
+            if (
+                currentScope instanceof FunctionScope &&
+                currentScope.parent instanceof GlobalScope
+            ) {
+                return currentScope;
+            }
+            currentScope = currentScope.parent;
+        }
+        return null;
+    }
+
+    public addDeclareName(name: string) {
+        let scope: Scope | null = this;
+        while (scope !== null) {
+            if (scope.kind == ScopeKind.GlobalScope) {
+                (scope as GlobalScope).declareIdentifierList.add(name);
+                break;
+            }
+            if (scope.kind == ScopeKind.NamespaceScope) {
+                name = scope.getName();
+            }
+            scope = scope.parent;
+        }
+    }
+
     public isDeclare(): boolean {
         if (
             this.modifiers.find((modifier) => {
                 return modifier.kind === ts.SyntaxKind.DeclareKeyword;
+            })
+        ) {
+            return true;
+        }
+        return this.parent?.isDeclare() || false;
+    }
+
+    public isAbstract(): boolean {
+        if (
+            this.modifiers.find((modifier) => {
+                return modifier.kind === ts.SyntaxKind.AbstractKeyword;
             })
         ) {
             return true;
@@ -403,6 +455,14 @@ export class Scope {
         });
     }
 
+    public isDecorator(): boolean {
+        return !!this.modifiers.find(
+            (modifier) =>
+                modifier.kind === ts.SyntaxKind.Decorator &&
+                (<ts.Decorator>modifier).expression.getText() === 'binaryen',
+        );
+    }
+
     hasDecorator(name: string): boolean {
         return !!this.modifiers.find(
             (modifier) =>
@@ -421,7 +481,7 @@ export class Scope {
 
 export class ClosureEnvironment extends Scope {
     hasFreeVar = false;
-    contextVariable: Variable | null = null;
+    contextVariable: Variable | undefined = undefined;
 
     constructor(parent: Scope | null = null) {
         super(parent);
@@ -430,13 +490,7 @@ export class ClosureEnvironment extends Scope {
             parent?.getNearestFunctionScope()
         ) {
             /* Add context variable if this scope is inside a function scope */
-            const contextVar = new Variable(
-                '@context',
-                new Type(),
-                [],
-                -1,
-                true,
-            );
+            const contextVar = new Variable('@context', new TSContext());
             this.addVariable(contextVar);
             this.contextVariable = contextVar;
         }
@@ -462,8 +516,11 @@ export class GlobalScope extends Scope {
     srcFilePath = '';
     node: ts.Node | null = null;
     debugLocations: DebugLoc[] = [];
+    // declare list name
+    declareIdentifierList = new Set<string>();
 
     isCircularImport = false;
+    importStartFuncNameList: string[] = [];
 
     constructor(parent: Scope | null = null) {
         super(parent);
@@ -495,6 +552,10 @@ export class GlobalScope extends Scope {
     }
 
     addImportIdentifier(identifier: string, moduleScope: GlobalScope) {
+        if (this.identifierModuleImportMap.has(identifier)) {
+            Logger.warn(`WAMRNING identifier '${identifier}' has been added`);
+            return;
+        }
         this.identifierModuleImportMap.set(identifier, moduleScope);
     }
 
@@ -526,11 +587,14 @@ export class GlobalScope extends Scope {
 export class FunctionScope extends ClosureEnvironment {
     kind = ScopeKind.FunctionScope;
     private parameterArray: Parameter[] = [];
+    envParamLen = 0;
     private functionType = new TSFunction();
     /* iff the function is a member function, which class it belong to */
     private _className = '';
     /** iff it explicitly declares constructor */
-    hasDeclCtor = true;
+    realParamCtxType = new TSContext();
+    /* ori func name iff func is declare */
+    oriFuncName: string | undefined = undefined;
     debugLocations: DebugLoc[] = [];
 
     constructor(parent: Scope) {
@@ -558,6 +622,10 @@ export class FunctionScope extends ClosureEnvironment {
 
     get funcName(): string {
         return this.name;
+    }
+
+    get isAnonymose(): boolean {
+        return this.name == '' || this.name.indexOf('@anonymous') == 0;
     }
 
     setFuncType(type: TSFunction) {
@@ -623,9 +691,8 @@ export class ClassScope extends Scope {
 export class NamespaceScope extends Scope {
     kind = ScopeKind.NamespaceScope;
 
-    constructor(parent: Scope, name = '') {
+    constructor(parent: Scope) {
         super(parent);
-        this.name = name;
     }
 
     addVariable(variableObj: Variable) {
@@ -661,15 +728,13 @@ export class ScopeScanner {
             }
         }
 
-        functionScope.addParameter(
-            new Parameter('@context', new Type(), [], 0, false, false),
-        );
+        /* functionScope put @context env param defaultly */
+        functionScope.envParamLen++;
 
         if (methodType !== FunctionKind.STATIC) {
-            functionScope.addParameter(
-                new Parameter('@this', new Type(), [], 1, false, false),
-            );
-            functionScope.addVariable(new Variable('this', new Type(), [], -1));
+            /* record '@this' as env param, add 'this' to varArray */
+            functionScope.envParamLen++;
+            functionScope.addVariable(new Variable('this', new Type()));
         }
 
         functionScope.setClassName((<ClassScope>parentScope).className);
@@ -680,7 +745,11 @@ export class ScopeScanner {
 
         functionScope.setFuncName(methodName);
         this.nodeScopeMap.set(node, functionScope);
-        if (!functionScope.isDeclare()) {
+        if (
+            !functionScope.isDeclare() &&
+            !functionScope.isAbstract() &&
+            node.body
+        ) {
             this.setCurrentScope(functionScope);
             this.visitNode(node.body!);
             this.setCurrentScope(parentScope);
@@ -739,10 +808,8 @@ export class ScopeScanner {
                         'A namespace declaration is only allowed at the top level of a namespace or module',
                     );
                 }
-                const namespaceScope = new NamespaceScope(
-                    parentScope,
-                    namespaceName,
-                );
+                const namespaceScope = new NamespaceScope(parentScope);
+                namespaceScope.setName(namespaceName);
                 if (moduleDeclaration.modifiers !== undefined) {
                     for (const modifier of moduleDeclaration.modifiers) {
                         namespaceScope.addModifier(modifier);
@@ -805,7 +872,27 @@ export class ScopeScanner {
                         this.visitNode(member.initializer);
                     }
                 }
+                if (classScope.isDeclare()) {
+                    parentScope.addDeclareName(className);
+                }
                 this.setCurrentScope(parentScope);
+                break;
+            }
+            case ts.SyntaxKind.InterfaceDeclaration: {
+                const parentScope = this.currentScope!;
+                const interfaceDeclarationNode = <ts.InterfaceDeclaration>node;
+                if (!interfaceDeclarationNode.modifiers) break;
+
+                const hasDeclareKeyword =
+                    interfaceDeclarationNode.modifiers!.find((modifier) => {
+                        return modifier.kind == ts.SyntaxKind.DeclareKeyword;
+                    });
+                if (hasDeclareKeyword) {
+                    const className = (<ts.Identifier>(
+                        interfaceDeclarationNode.name
+                    )).getText();
+                    parentScope.addDeclareName(className);
+                }
                 break;
             }
             case ts.SyntaxKind.SetAccessor: {
@@ -873,6 +960,29 @@ export class ScopeScanner {
                 this.createBlockScope(defaultClauseNode);
                 break;
             }
+            case ts.SyntaxKind.VariableDeclaration: {
+                const variableDeclarationNode = <ts.VariableDeclaration>node;
+
+                const currentScope = this.currentScope!;
+                const stmtNode = variableDeclarationNode.parent.parent;
+                if (ts.isVariableStatement(stmtNode) && stmtNode.modifiers) {
+                    const hasDeclareKeyword = stmtNode.modifiers!.find(
+                        (modifier) => {
+                            return (
+                                modifier.kind == ts.SyntaxKind.DeclareKeyword
+                            );
+                        },
+                    );
+                    if (hasDeclareKeyword) {
+                        const variableName =
+                            variableDeclarationNode.name.getText();
+                        currentScope.addDeclareName(variableName);
+                        break;
+                    }
+                }
+                ts.forEachChild(node, this.visitNode.bind(this));
+                break;
+            }
             default: {
                 ts.forEachChild(node, this.visitNode.bind(this));
             }
@@ -936,10 +1046,6 @@ export class ScopeScanner {
     ) {
         const parentScope = this.currentScope!;
         const functionScope = new FunctionScope(parentScope);
-        /* function context struct placeholder */
-        functionScope.addParameter(
-            new Parameter('@context', new Type(), [], 0, false, false),
-        );
         if (node.modifiers !== undefined) {
             for (const modifier of node.modifiers) {
                 functionScope.addModifier(modifier);
@@ -949,13 +1055,19 @@ export class ScopeScanner {
         if (node.name !== undefined) {
             functionName = node.name.getText();
         } else {
-            functionName = 'anonymous' + this.anonymousIndex++;
+            functionName = '@anonymous' + this.anonymousIndex++;
         }
-
-        functionScope.setFuncName(functionName);
+        /* function context struct placeholder */
+        functionScope.envParamLen = 1;
         this.nodeScopeMap.set(node, functionScope);
 
-        if (!functionScope.isDeclare()) {
+        if (functionScope.isDeclare()) {
+            functionScope.oriFuncName = functionName;
+            functionScope.setFuncName(functionName);
+            // TODO: this may be mistake since scope funcName has changed
+            parentScope.addDeclareName(functionName);
+        } else {
+            functionScope.setFuncName(functionName);
             this.setCurrentScope(functionScope);
             this.visitNode(node.body!);
             this.setCurrentScope(parentScope);

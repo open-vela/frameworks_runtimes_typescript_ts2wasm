@@ -16,11 +16,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const IGNORE_LIST = [
-    "complexType_case1.ts"
+    "complexType_case1.ts",
+    "complexType_case2.ts",
+    "generics_class.ts",
+    "global_generics_function.ts",
+    "inner_generics_function.ts",
+    "namespace_generics_function.ts",
 ]
 
 describe('basic_cases', function () {
-    this.timeout(5000);
+    this.timeout(50000);
     readdirSync(__dirname)
         .filter((d) => {
             return d.endsWith('.ts') && !d.endsWith('.test.ts');

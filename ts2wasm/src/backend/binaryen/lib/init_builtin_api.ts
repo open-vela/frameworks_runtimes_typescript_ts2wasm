@@ -9,11 +9,9 @@ import * as binaryenCAPI from '../glue/binaryen.js';
 import { BuiltinNames } from '../../../../lib/builtin/builtin_name.js';
 import { emptyStructType } from '../glue/transform.js';
 import {
-    flattenLoopStatement,
+    UtilFuncs,
+    FunctionalFuncs,
     FlattenLoop,
-    isBaseType,
-    unboxAnyTypeToBaseType,
-    getFuncName,
     getCString,
 } from '../utils.js';
 import { dyntype } from './dyntype/utils.js';
@@ -24,8 +22,9 @@ import {
     stringArrayStructTypeInfo,
     stringTypeInfo,
 } from '../glue/packType.js';
-import { TypeKind } from '../../../type.js';
 import { array_get_data, array_get_length_i32 } from './array_utils.js';
+import { SemanticsKind } from '../../../semantics/semantics_nodes.js';
+import { ValueTypeKind } from '../../../semantics/value_types.js';
 import { getBuiltInFuncName } from '../../../utils.js';
 
 function string_concat(module: binaryen.Module) {
@@ -110,10 +109,10 @@ function string_concat(module: binaryen.Module) {
     statementArray.push(
         module.loop(
             for_label_1,
-            flattenLoopStatement(
-                flattenLoop_1,
-                ts.SyntaxKind.ForStatement,
+            FunctionalFuncs.flattenLoopStatement(
                 module,
+                flattenLoop_1,
+                SemanticsKind.FOR,
             ),
         ),
     );
@@ -191,10 +190,10 @@ function string_concat(module: binaryen.Module) {
     statementArray.push(
         module.loop(
             for_label_2,
-            flattenLoopStatement(
-                flattenLoop_2,
-                ts.SyntaxKind.ForStatement,
+            FunctionalFuncs.flattenLoopStatement(
                 module,
+                flattenLoop_2,
+                SemanticsKind.FOR,
             ),
         ),
     );
@@ -344,10 +343,10 @@ function string_eq(module: binaryen.Module) {
     statementArray.push(
         module.loop(
             for_label_1,
-            flattenLoopStatement(
-                flattenLoop_1,
-                ts.SyntaxKind.ForStatement,
+            FunctionalFuncs.flattenLoopStatement(
                 module,
+                flattenLoop_1,
+                SemanticsKind.FOR,
             ),
         ),
     );
@@ -393,15 +392,15 @@ function string_slice(module: binaryen.Module) {
         anyRef: binaryen.ExpressionRef,
         defaultValue: binaryen.ExpressionRef,
     ) => {
-        const isUndefined = isBaseType(
+        const isUndefined = FunctionalFuncs.isBaseType(
             module,
             anyRef,
             dyntype.dyntype_is_undefined,
         );
-        const dynToNumberValue = unboxAnyTypeToBaseType(
+        const dynToNumberValue = FunctionalFuncs.unboxAnyToBase(
             module,
             anyRef,
-            TypeKind.NUMBER,
+            ValueTypeKind.NUMBER,
         );
         // get passed param value by string length
         const paramValue = module.if(
@@ -557,7 +556,7 @@ function string_replace(module: binaryen.Module) {
         module.local.set(
             matchedPosIdx,
             module.call(
-                getFuncName(
+                UtilFuncs.getFuncName(
                     BuiltinNames.builtinModuleName,
                     BuiltinNames.stringIndexOfInternalFuncName,
                 ),
@@ -742,7 +741,7 @@ function string_split(module: binaryen.Module) {
         module.local.set(
             matchIndexIdx,
             module.call(
-                getFuncName(
+                UtilFuncs.getFuncName(
                     BuiltinNames.builtinModuleName,
                     BuiltinNames.stringIndexOfInternalFuncName,
                 ),
@@ -821,7 +820,7 @@ function string_split(module: binaryen.Module) {
         module.local.set(
             matchIndexIdx,
             module.call(
-                getFuncName(
+                UtilFuncs.getFuncName(
                     BuiltinNames.builtinModuleName,
                     BuiltinNames.stringIndexOfInternalFuncName,
                 ),
@@ -1066,10 +1065,10 @@ function string_indexOf_internal(module: binaryen.Module) {
         module.block(forLoop1Block1, [
             module.loop(
                 forLabel2,
-                flattenLoopStatement(
-                    flattenLoop_2,
-                    ts.SyntaxKind.ForStatement,
+                FunctionalFuncs.flattenLoopStatement(
                     module,
+                    flattenLoop_2,
+                    SemanticsKind.FOR,
                 ),
             ),
         ]),
@@ -1095,10 +1094,10 @@ function string_indexOf_internal(module: binaryen.Module) {
         forInit1,
         module.loop(
             forLabel1,
-            flattenLoopStatement(
-                flattenLoop_1,
-                ts.SyntaxKind.ForStatement,
+            FunctionalFuncs.flattenLoopStatement(
                 module,
+                flattenLoop_1,
+                SemanticsKind.FOR,
             ),
         ),
     );
@@ -1120,7 +1119,7 @@ function string_indexOf(module: binaryen.Module) {
     statementArray.push(
         module.f64.convert_s.i32(
             module.call(
-                getFuncName(
+                UtilFuncs.getFuncName(
                     BuiltinNames.builtinModuleName,
                     BuiltinNames.stringIndexOfInternalFuncName,
                 ),
@@ -1216,7 +1215,7 @@ function string_match(module: binaryen.Module) {
         module.local.set(
             matchedPosIdx,
             module.call(
-                getFuncName(
+                UtilFuncs.getFuncName(
                     BuiltinNames.builtinModuleName,
                     BuiltinNames.stringIndexOfInternalFuncName,
                 ),
@@ -1326,7 +1325,7 @@ function string_search(module: binaryen.Module) {
         module.local.set(
             matchedPosIdx,
             module.call(
-                getFuncName(
+                UtilFuncs.getFuncName(
                     BuiltinNames.builtinModuleName,
                     BuiltinNames.stringIndexOfInternalFuncName,
                 ),
@@ -1672,10 +1671,10 @@ function string_toLowerOrUpperCase_internal(
     statementArray.push(
         module.loop(
             for_label_1,
-            flattenLoopStatement(
-                flattenLoop_1,
-                ts.SyntaxKind.ForStatement,
+            FunctionalFuncs.flattenLoopStatement(
                 module,
+                flattenLoop_1,
+                SemanticsKind.FOR,
             ),
         ),
     );
@@ -1882,24 +1881,46 @@ function string_trim(module: binaryen.Module) {
 }
 
 function Array_isArray(module: binaryen.Module) {
-    const param = module.local.get(1, binaryen.anyref);
+    /** Args: context, this, any */
+    /* workaround: interface's method has the @this param */
+    const paramAnyIdx = 2;
+    /** Locals: returnIdx */
+    const returnIdx = 3;
+
+    const param = module.local.get(paramAnyIdx, binaryen.anyref);
     const statementArray: binaryen.ExpressionRef[] = [];
 
-    const setDefault = module.local.set(2, module.i32.const(0));
-    const setTrue = module.local.set(2, module.i32.const(1));
-    const returnStmt = module.return(module.local.get(2, binaryen.i32));
+    const setDefault = module.local.set(returnIdx, module.i32.const(0));
+    const setTrue = module.local.set(returnIdx, module.i32.const(1));
+    const returnStmt = module.return(module.local.get(returnIdx, binaryen.i32));
 
     const dynTypeIsArray = module.call(
         dyntype.dyntype_is_array,
         [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t), param],
         dyntype.bool,
     );
-    const is_any_array = module.if(
+    const is_array = module.if(
         module.i32.eq(dynTypeIsArray, dyntype.bool_true),
         setTrue,
     );
-
+    const is_arr_extref = module.call(
+        dyntype.dyntype_typeof1,
+        [
+            module.global.get(dyntype.dyntype_context, dyntype.dyn_value_t),
+            param,
+        ],
+        binaryen.i32,
+    );
+    const is_any_array = module.if(
+        module.i32.eq(
+            module.local.get(returnIdx, binaryen.i32),
+            module.i32.const(0),
+        ),
+        /** 13 is EXArray tag in quickjs */
+        module.if(module.i32.eq(is_arr_extref, module.i32.const(13)), setTrue),
+    );
     statementArray.push(setDefault);
+    statementArray.push(is_array);
     statementArray.push(is_any_array);
     statementArray.push(returnStmt);
 
@@ -2070,72 +2091,96 @@ function newExternRef(module: binaryen.Module) {
 export function callBuiltInAPIs(module: binaryen.Module) {
     /** Math.sqrt */
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.mathSqrtFuncName,
         ),
-        binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
+        binaryen.createType([
+            emptyStructType.typeRef,
+            emptyStructType.typeRef,
+            binaryen.f64,
+        ]),
         binaryen.f64,
         [],
-        module.f64.sqrt(module.local.get(1, binaryen.f64)),
+        module.f64.sqrt(module.local.get(2, binaryen.f64)),
     );
     /** Math.abs */
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.mathAbsFuncName,
         ),
-        binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
+        binaryen.createType([
+            emptyStructType.typeRef,
+            emptyStructType.typeRef,
+            binaryen.f64,
+        ]),
         binaryen.f64,
         [],
-        module.f64.abs(module.local.get(1, binaryen.f64)),
+        module.f64.abs(module.local.get(2, binaryen.f64)),
     );
     /** Math.ceil */
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.mathCeilFuncName,
         ),
-        binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
+        binaryen.createType([
+            emptyStructType.typeRef,
+            emptyStructType.typeRef,
+            binaryen.f64,
+        ]),
         binaryen.f64,
         [],
-        module.f64.ceil(module.local.get(1, binaryen.f64)),
+        module.f64.ceil(module.local.get(2, binaryen.f64)),
     );
     /** Math.floor */
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.mathFloorFuncName,
         ),
-        binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
+        binaryen.createType([
+            emptyStructType.typeRef,
+            emptyStructType.typeRef,
+            binaryen.f64,
+        ]),
         binaryen.f64,
         [],
-        module.f64.floor(module.local.get(1, binaryen.f64)),
+        module.f64.floor(module.local.get(2, binaryen.f64)),
     );
     /** Math.trunc */
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.mathTruncFuncName,
         ),
-        binaryen.createType([emptyStructType.typeRef, binaryen.f64]),
+        binaryen.createType([
+            emptyStructType.typeRef,
+            emptyStructType.typeRef,
+            binaryen.f64,
+        ]),
         binaryen.f64,
         [],
-        module.f64.trunc(module.local.get(1, binaryen.f64)),
+        module.f64.trunc(module.local.get(2, binaryen.f64)),
     );
     /** Array.isArray */
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.arrayIsArrayFuncName,
         ),
-        binaryen.createType([emptyStructType.typeRef, binaryen.anyref]),
+        binaryen.createType([
+            emptyStructType.typeRef,
+            emptyStructType.typeRef,
+            binaryen.anyref,
+        ]),
         binaryen.i32,
         [binaryen.i32],
         Array_isArray(module),
     );
     module.addFunction(
-        getFuncName(BuiltinNames.builtinModuleName, BuiltinNames.anyrefCond),
+        getBuiltInFuncName(BuiltinNames.anyrefCond),
         binaryen.createType([binaryen.anyref]),
         binaryen.i32,
         [],
@@ -2143,7 +2188,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     );
     /** string */
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.stringConcatFuncName,
         ),
@@ -2157,7 +2202,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_concat(module),
     );
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.stringSliceFuncName,
         ),
@@ -2172,7 +2217,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_slice(module),
     );
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.stringEQFuncName,
         ),
@@ -2182,7 +2227,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_eq(module),
     );
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.stringIndexOfInternalFuncName,
         ),
@@ -2197,7 +2242,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_indexOf_internal(module),
     );
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.stringIndexOfFuncName,
         ),
@@ -2212,7 +2257,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     );
 
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.stringReplaceFuncName,
         ),
@@ -2228,7 +2273,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
     );
 
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.stringSplitFuncName,
         ),
@@ -2252,7 +2297,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_split(module),
     );
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.stringMatchFuncName,
         ),
@@ -2274,7 +2319,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_match(module),
     );
     module.addFunction(
-        getFuncName(
+        UtilFuncs.getFuncName(
             BuiltinNames.builtinModuleName,
             BuiltinNames.stringSearchFuncName,
         ),
@@ -2288,10 +2333,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_search(module),
     );
     module.addFunction(
-        getFuncName(
-            BuiltinNames.builtinModuleName,
-            BuiltinNames.stringcharAtFuncName,
-        ),
+        getBuiltInFuncName(BuiltinNames.stringcharAtFuncName),
         binaryen.createType([
             emptyStructType.typeRef,
             stringTypeInfo.typeRef,
@@ -2302,30 +2344,21 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_charAt(module),
     );
     module.addFunction(
-        getFuncName(
-            BuiltinNames.builtinModuleName,
-            BuiltinNames.stringtoLowerCaseFuncName,
-        ),
+        getBuiltInFuncName(BuiltinNames.stringtoLowerCaseFuncName),
         binaryen.createType([emptyStructType.typeRef, stringTypeInfo.typeRef]),
         stringTypeInfo.typeRef,
         [binaryen.i32, charArrayTypeInfo.typeRef, binaryen.i32, binaryen.i32],
         string_toLowerCase(module),
     );
     module.addFunction(
-        getFuncName(
-            BuiltinNames.builtinModuleName,
-            BuiltinNames.stringtoUpperCaseFuncName,
-        ),
+        getBuiltInFuncName(BuiltinNames.stringtoUpperCaseFuncName),
         binaryen.createType([emptyStructType.typeRef, stringTypeInfo.typeRef]),
         stringTypeInfo.typeRef,
         [binaryen.i32, charArrayTypeInfo.typeRef, binaryen.i32, binaryen.i32],
         string_toUpperCase(module),
     );
     module.addFunction(
-        getFuncName(
-            BuiltinNames.builtinModuleName,
-            BuiltinNames.stringtrimFuncName,
-        ),
+        getBuiltInFuncName(BuiltinNames.stringtrimFuncName),
         binaryen.createType([emptyStructType.typeRef, stringTypeInfo.typeRef]),
         stringTypeInfo.typeRef,
         [
@@ -2339,7 +2372,7 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         string_trim(module),
     );
     module.addFunction(
-        getFuncName(BuiltinNames.builtinModuleName, BuiltinNames.newExternRef),
+        getBuiltInFuncName(BuiltinNames.newExternRef),
         binaryen.createType([
             dyntype.dyn_ctx_t,
             dyntype.external_ref_tag,
@@ -2574,7 +2607,7 @@ function addArrayMethod(
             continue;
         }
         module.addFunctionImport(
-            getFuncName(BuiltinNames.builtinModuleName, value),
+            UtilFuncs.getFuncName(BuiltinNames.builtinModuleName, value),
             'env',
             commonGenericApi
                 ? `array_${method}_generic`

@@ -19,7 +19,6 @@ import {
     TypeKind,
     TSArray,
     TSFunction,
-    Primitive,
 } from './type.js';
 import { Logger } from './log.js';
 import { ParserContext } from './frontend.js';
@@ -283,6 +282,12 @@ export default class SemanticChecker {
         if (!(left instanceof TSClass) || !(right instanceof TSClass)) {
             return;
         }
+
+        // TODO now ignore object literal
+        // we changed the literal name from "@object_literal" to "@object_literal$idx"
+        //
+        if ((left as TSClass).isLiteral && (right as TSClass).isLiteral) return;
+
         if (left.className !== right.className) {
             // is downcast
             // TODO: classname maybe can not get right result when envolving with multiple modules
@@ -295,6 +300,9 @@ export default class SemanticChecker {
             }
             base = left.getBase();
             while (base) {
+                //TODO assume all liberal object's name is "@object_literal"
+                //TODO in factly, I changed the name to "@object_literal$idx"
+                // See TypeResolver.generateObjectLiteralName
                 if (base.className === right.className) {
                     return;
                 }

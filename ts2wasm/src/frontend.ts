@@ -4,7 +4,7 @@
  */
 
 import ts from 'typescript';
-import TypeResolver from './type.js';
+import { TypeResolver, CustomTypeResolver } from './type.js';
 import { mangling, Stack } from './utils.js';
 import { fileURLToPath } from 'url';
 import {
@@ -46,6 +46,7 @@ export class ParserContext {
     private _typeResolver;
     private _variableScanner;
     private _variableInit;
+    private _customTypeResolver;
     private _exprProcessor;
     private _stmtProcessor;
     private _sematicChecker;
@@ -78,6 +79,7 @@ export class ParserContext {
         this._typeResolver = new TypeResolver(this);
         this._variableScanner = new VariableScanner(this);
         this._variableInit = new VariableInit(this);
+        this._customTypeResolver = new CustomTypeResolver(this);
         this._exprProcessor = new ExpressionProcessor(this);
         this._stmtProcessor = new StatementProcessor(this);
         this._sematicChecker = new SemanticChecker(this);
@@ -128,7 +130,9 @@ export class ParserContext {
         mangling(this.globalScopes);
         /* Step6: Add statements to scopes */
         this._stmtProcessor.visit();
-        /* Step7: Additional semantic check */
+        /* Step7: Resolve context type and this type */
+        this._customTypeResolver.visit();
+        /* Step8: Additional semantic check */
         this._sematicChecker.sematicCheck();
 
         this.dumpScopes(Logger.debug, Logger.debug);
