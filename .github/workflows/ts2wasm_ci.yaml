@@ -7,6 +7,9 @@ on:
       - "README.md"
     branches: [main]
   pull_request:
+    types:
+      - opened
+      - synchronize
     paths-ignore:
       - "doc/**"
       - "README.md"
@@ -36,13 +39,16 @@ jobs:
           fetch-depth: 5
       - name: Use node version ${{ matrix.node-version }}
         uses: actions/setup-node@v3
-        # - run: npm ci # becuase there is no packge lock.json
       - run: npm install
 
       - name: Linter
         run: npx lint-staged
 
-      - name: Test
+      - name: Test compilation
         run:
-          # npm run build --if-present
           npm run test
+
+      - name: Validate execution
+        run:
+          npm start
+        working-directory: tools/validate/wamr
