@@ -5,7 +5,6 @@ on:
     paths-ignore:
       - "doc/**"
       - "README.md"
-    branches: [main]
   pull_request:
     types:
       - opened
@@ -13,16 +12,18 @@ on:
     paths-ignore:
       - "doc/**"
       - "README.md"
-    branches: [main]
   # allow to be triggered manually
   workflow_dispatch:
 
+# Cancel any in-flight jobs for the same PR/branch so there's only one active
+# at a time
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build_and_test:
-    name: 'Compiler Build and Test'
-
+  install_dependencies:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         # node-version: [10.x, 12.x, 14.x, 15.x, 16.x]
@@ -37,6 +38,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 5
+
       - name: Use node version ${{ matrix.node-version }}
         uses: actions/setup-node@v3
       - run: npm install
@@ -44,9 +46,28 @@ jobs:
       - name: Linter
         run: npx lint-staged
 
+  validate_compilation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 5
+      - run: npm install
+
       - name: Test compilation
         run:
           npm run test
+
+  validate_execution:
+    needs:
+      [install_dependencies]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 5
 
       - name: Validate execution
         run:
