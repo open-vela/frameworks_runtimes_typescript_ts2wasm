@@ -18,7 +18,7 @@ RUN npm install -g npm@8.11.0
 RUN apt update
 RUN apt install -y \
     lsb-release vim \
-    curl
+    curl wget
 RUN apt install -y \
     build-essential cmake g++-multilib libgcc-8-dev lib32gcc-8-dev
 
@@ -28,22 +28,17 @@ RUN apt install -y \
 RUN git clone -b dev/gc_refactor https://github.com/bytecodealliance/wasm-micro-runtime.git
 RUN cd wasm-micro-runtime/product-mini/platforms/linux/ \
     && mkdir build && cd build \
-    && cmake .. -DWAMR_BUILD_GC=1 -DWAMR_BUILD_FAST_INTERP=0 \
+    && cmake .. -DWAMR_BUILD_GC_BINARYEN=1 -DWAMR_BUILD_FAST_INTERP=0 \
     && make
-RUN ln -s /wasm-micro-runtime/product-mini/platforms/linux/build/iwasm  \
+RUN ln -s wasm-micro-runtime/product-mini/platforms/linux/build/iwasm  \
     /usr/local/bin/iwasm
 
 # Add binaryen
-RUN git clone https://github.com/WebAssembly/binaryen.git
-RUN cd binaryen/ \
-    && git submodule init \
-    && git submodule update \
-    && mkdir build && cd build \
-    && cmake .. \
-    && make
-RUN ln -s /binaryen/build/bin/wasm-as /usr/local/bin/wasm-as
-RUN ln -s /binaryen/build/bin/wasm-opt /usr/local/bin/wasm-opt
-RUN ln -s /binaryen/build/bin/wasm-shell /usr/local/bin/wasm-shell
+RUN wget https://github.com/WebAssembly/binaryen/releases/download/version_113/binaryen-version_113-x86_64-linux.tar.gz
+RUN tar zxvf binaryen-version_113-x86_64-linux.tar.gz
+RUN ln -s binaryen-version_113/bin/wasm-as /usr/local/bin/wasm-as
+RUN ln -s binaryen-version_113/bin/wasm-opt /usr/local/bin/wasm-opt
+RUN ln -s binaryen-version_113/bin/wasm-shell /usr/local/bin/wasm-shell
 
 # Create the non-root user
 RUN userdel -r -f node  \
