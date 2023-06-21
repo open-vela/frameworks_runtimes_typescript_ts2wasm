@@ -7,3 +7,8 @@ coverage
 logs
 lib/builtin/watFile/
 logs
+*.swp
+*.wat
+*.wasm
+*.log
+*.swo

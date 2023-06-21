@@ -94,3 +94,13 @@ export function classFieldIsClosureWithDefault() {
     const b = new B();
     console.log(a.x(10) + a.y(20, b));
 }
+
+export function nullable_closure(): any | null {
+    const handler: ((events: any) => any) | null = (a) => {
+        console.log(a);
+        return a;
+    };
+    if (handler) {
+        return handler('hello');
+    }
+}

@@ -45,6 +45,7 @@ static inline bool number_cmp(double lhs, double rhs, cmp_operator operator_kind
         }
         case LessThanEqualsToken: {
             res = lhs <= rhs;
+            break;
         }
         case GreaterThanEqualsToken: {
             res = lhs >= rhs;
@@ -115,6 +116,7 @@ static inline bool bool_cmp(bool lhs, bool rhs, cmp_operator operator_kind) {
         }
         case LessThanEqualsToken: {
             res = lhs <= rhs;
+            break;
         }
         case GreaterThanEqualsToken: {
             res = lhs >= rhs;
@@ -647,20 +649,13 @@ bool dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs) {
 }
 
 bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator operator_kind) {
-    bool res = false;
+    bool res;
     dyn_type_t type;
 
     if (lhs == rhs) {
         if (cmp_operator_has_equal_token(operator_kind)) {
             return true;
-        }
-    }
-    /** don't allow different type object comparation */
-    if (!dyntype_type_eq(ctx, lhs, rhs)) {
-        if (operator_kind == ExclamationEqualsToken || operator_kind == ExclamationEqualsEqualsToken) {
-            return true;
         } else {
-            /** iff type not equal, return false */
             return false;
         }
     }
@@ -713,7 +708,6 @@ bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator o
             /** only allows == / === / != / !== */
             if (operator_kind < EqualsEqualsToken) {
                 printf("[runtime library error]: non-equal compare token on two any type objects");
-                goto fail;
             }
             JSValue *lhs_v = (JSValue *)lhs;
             JSValue *rhs_v = (JSValue *)rhs;
@@ -723,36 +717,11 @@ bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator o
             }
             break;
         }
-        case DynExtRefObj:
-        case DynExtRefFunc:
-        case DynExtRefInfc:
-        case DynExtRefArray: {
-            if (operator_kind < EqualsEqualsToken) {
-                printf("[runtime library error]: non-equal compare token on two any type external objects");
-                goto fail;
-            }
-            void *lhs_ref, *rhs_ref;
-            int lhs_tag, rhs_tag;
-            lhs_tag = dyntype_to_extref(ctx, lhs, &lhs_ref);
-            rhs_tag = dyntype_to_extref(ctx, rhs, &rhs_ref);
-            res = lhs_tag == rhs_tag && lhs_ref == rhs_ref;
-            // TODO: cmp contents in different table index
-
-            if (operator_kind == ExclamationEqualsToken || operator_kind == ExclamationEqualsEqualsToken) {
-                res = !res;
-            }
-            break;
-        }
         default: {
-            printf("[runtime library error]: dyntype_cmp, variable type is %d\n", type);
-            goto fail;
+            res = false;
         }
     }
     return res;
-
-fail:
-    dyntype_context_destroy(ctx);
-    return false;
 }
 
 dyn_value_t dyntype_new_object_with_proto(dyn_ctx_t ctx,

@@ -200,7 +200,7 @@
             {
                 "name": "nestedArray",
                 "args": [],
-                "result": "need_manual_fill"
+                "result": 100
             }
         ]
     },
@@ -688,6 +688,16 @@
                 "name": "methodOverwrite",
                 "args": [],
                 "result": 40
+            },
+            {
+                "name": "testExtendReordered",
+                "args": [],
+                "result": 22
+            },
+            {
+                "name": "testInheritGetter",
+                "args": [],
+                "result": 10
             }
         ]
     },
@@ -723,6 +733,21 @@
                 "name": "staticFields",
                 "args": [],
                 "result": 74
+            },
+            {
+                "name": "testStaticField1",
+                "args": [],
+                "result": 0
+            },
+            {
+                "name": "testStaticField2",
+                "args": [],
+                "result": 1
+            },
+            {
+                "name": "testStaticField3",
+                "args": [],
+                "result": 2
             }
         ]
     },
@@ -1388,7 +1413,7 @@
         ]
     },
     {
-        "module": "infc_assign_class.",
+        "module": "infc_assign_class",
         "entries": [
             {
                 "name": "classAndInfc",
@@ -1673,7 +1698,7 @@
             {
                 "name": "namespaceNested",
                 "args": [],
-                "result": 4
+                "result": -1
             }
         ]
     },

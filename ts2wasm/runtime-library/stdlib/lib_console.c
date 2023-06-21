@@ -50,7 +50,7 @@ void console_log(wasm_exec_env_t exec_env, void *obj)
     { #func_name, func_name, signature, NULL }
 
 static NativeSymbol native_symbols[] = {
-    REG_NATIVE_FUNC(console_constructor, "(r)r"),
+    REG_NATIVE_FUNC(console_constructor, "()r"),
     REG_NATIVE_FUNC(console_log, "(r)"),
     /* TODO */
 };

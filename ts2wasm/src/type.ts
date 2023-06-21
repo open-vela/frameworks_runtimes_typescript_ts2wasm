@@ -6,9 +6,12 @@
 import ts from 'typescript';
 import { ParserContext } from './frontend.js';
 import {
+    BlockScope,
     ClassScope,
+    ClosureEnvironment,
     FunctionScope,
     GlobalScope,
+    NamespaceScope,
     Scope,
     ScopeKind,
 } from './scope.js';
@@ -16,6 +19,8 @@ import { Parameter, Variable } from './variable.js';
 import { Expression } from './expression.js';
 import { Logger } from './log.js';
 import { adjustPrimitiveNodeType } from './utils.js';
+import { UnimplementError } from './error.js';
+import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 
 export const enum TypeKind {
     VOID = 'void',
@@ -27,8 +32,10 @@ export const enum TypeKind {
     ARRAY = 'array',
     FUNCTION = 'function',
     CLASS = 'class',
+    ENUM = 'enum',
     NULL = 'null',
     INTERFACE = 'interface',
+    UNION = 'unoin',
 
     WASM_I32 = 'i32',
     WASM_I64 = 'i64',
@@ -37,22 +44,31 @@ export const enum TypeKind {
     WASM_ANYREF = 'anyref',
 
     GENERIC = 'generic',
-
     UNKNOWN = 'unknown',
+
+    CONTEXT = 'context',
+    TYPE_PARAMETER = 'type_parameter',
 }
 
 export class Type {
-    typeKind = TypeKind.UNKNOWN;
+    protected typeKind = TypeKind.UNKNOWN;
     isPrimitive = false;
     isWasmType = false;
 
     get kind(): TypeKind {
         return this.typeKind;
     }
+
+    toString(): string {
+        return `TYPE(${this.typeKind})`;
+    }
+
+    get isDeclare(): boolean {
+        return false;
+    }
 }
 
 export class WasmType extends Type {
-    typeKind: TypeKind;
     name: string;
 
     constructor(private type: string) {
@@ -93,8 +109,6 @@ export class WasmType extends Type {
 }
 
 export class GenericType extends Type {
-    typeKind: TypeKind;
-
     constructor() {
         super();
         this.typeKind = TypeKind.GENERIC;
@@ -102,7 +116,6 @@ export class GenericType extends Type {
 }
 
 export class Primitive extends Type {
-    typeKind;
     constructor(private type: string) {
         super();
         this.isPrimitive = true;
@@ -142,6 +155,29 @@ export class Primitive extends Type {
     }
 }
 
+export class TSContext extends Type {
+    constructor(
+        public parentCtxType?: TSContext,
+        public freeVarTypeList: Type[] = [],
+    ) {
+        super();
+        this.typeKind = TypeKind.CONTEXT;
+    }
+
+    toString(): string {
+        const typeName = 'ContextType';
+        if (this.parentCtxType) {
+            typeName.concat('_');
+            typeName.concat(this.parentCtxType.toString());
+        }
+        for (const freeVarType of this.freeVarTypeList) {
+            typeName.concat('_');
+            typeName.concat(freeVarType.toString());
+        }
+        return typeName;
+    }
+}
+
 export const builtinTypes = new Map<string, Type>([
     ['number', new Primitive('number')],
     ['string', new Primitive('string')],
@@ -150,6 +186,7 @@ export const builtinTypes = new Map<string, Type>([
     ['undefined', new Primitive('undefined')],
     ['void', new Primitive('void')],
     ['null', new Primitive('null')],
+    ['undefined', new Primitive('undefined')],
     ['generic', new GenericType()],
 ]);
 
@@ -160,6 +197,43 @@ export const builtinWasmTypes = new Map<string, WasmType>([
     ['f64', new WasmType('f64')],
     ['anyref', new WasmType('anyref')],
 ]);
+
+// type for template
+export class TSTypeParameter extends Type {
+    typeKind = TypeKind.TYPE_PARAMETER;
+    private _name: string; // the name of TypeParameter
+    private _wide: Type; // the wide type of this type parameter
+    private _default?: Type; // the default type of this type parameter
+    private _index: number; // the declaration index, important!
+
+    constructor(name: string, wide: Type, index: number, def?: Type) {
+        super();
+        this._name = name;
+        this._wide = wide;
+        this._index = index;
+        this._default = def;
+    }
+
+    get name(): string {
+        return this._name;
+    }
+
+    get wideType(): Type {
+        return this._wide;
+    }
+
+    get index(): number {
+        return this._index;
+    }
+
+    get defaultType(): Type | undefined {
+        return this._default;
+    }
+
+    toString(): string {
+        return `TypeParameter(${this._name} wide:${this._wide} default: ${this._default})`;
+    }
+}
 
 export interface TsClassField {
     name: string;
@@ -201,7 +275,37 @@ export interface ClassMethod {
     method: TsClassFunc | null;
 }
 
-export class TSClass extends Type {
+export class TSTypeWithArguments extends Type {
+    private _typeArguments?: TSTypeParameter[];
+
+    constructor() {
+        super();
+    }
+
+    get typeArguments(): TSTypeParameter[] | undefined {
+        return this._typeArguments;
+    }
+
+    addTypeParameter(type: TSTypeParameter) {
+        if (!this._typeArguments) this._typeArguments = [];
+
+        this._typeArguments.push(type); // ignore the index
+    }
+
+    setTypeParameters(types: TSTypeParameter[] | undefined) {
+        this._typeArguments = types;
+    }
+
+    getTypeParameter(name: string): TSTypeParameter | undefined {
+        if (this._typeArguments) {
+            const param = this._typeArguments.find((p) => p.name == name);
+            if (param) return param;
+        }
+        return undefined;
+    }
+}
+
+export class TSClass extends TSTypeWithArguments {
     typeKind = TypeKind.CLASS;
     private _typeId = 0;
     private _name = '';
@@ -210,7 +314,13 @@ export class TSClass extends Type {
     private _staticFields: Array<TsClassField> = [];
     private _methods: Array<TsClassFunc> = [];
     private _baseClass: TSClass | null = null;
+    private _isLiteral = false;
     private _ctor: TSFunction | null = null;
+    public hasDeclareCtor = true;
+    private _isDeclare = false;
+
+    private _numberIndexType?: Type;
+    private _stringIndexType?: Type;
 
     public staticFieldsInitValueMap: Map<number, Expression> = new Map();
     /* override or own methods */
@@ -218,6 +328,13 @@ export class TSClass extends Type {
 
     constructor() {
         super();
+        this.typeKind = TypeKind.CLASS;
+    }
+
+    toString(): string {
+        return `Class(${this._name}(${this._mangledName} ${
+            this._isLiteral ? 'Literanl' : ''
+        }))`;
     }
 
     get fields(): Array<TsClassField> {
@@ -238,6 +355,30 @@ export class TSClass extends Type {
 
     get ctorType(): TSFunction {
         return this._ctor!;
+    }
+
+    get isDeclare(): boolean {
+        return this._isDeclare;
+    }
+
+    set isDeclare(value: boolean) {
+        this._isDeclare = value;
+    }
+
+    get numberIndexType(): Type | undefined {
+        return this._numberIndexType;
+    }
+
+    setNumberIndexType(type: Type) {
+        this._numberIndexType = type;
+    }
+
+    get stringIndexType(): Type | undefined {
+        return this._stringIndexType;
+    }
+
+    setStringIndexType(type: Type) {
+        this._stringIndexType = type;
     }
 
     setBase(base: TSClass): void {
@@ -325,28 +466,39 @@ export class TSClass extends Type {
     get typeId() {
         return this._typeId;
     }
+
+    set isLiteral(b: boolean) {
+        this._isLiteral = b;
+    }
+
+    get isLiteral(): boolean {
+        return this._isLiteral;
+    }
 }
 
 export class TSInterface extends TSClass {
-    typeKind = TypeKind.INTERFACE;
-
     constructor() {
         super();
+        this.typeKind = TypeKind.INTERFACE;
     }
 }
 
 export class TSArray extends Type {
-    typeKind = TypeKind.ARRAY;
     constructor(private _elemType: Type) {
         super();
+        this.typeKind = TypeKind.ARRAY;
     }
 
     get elementType(): Type {
         return this._elemType;
     }
+
+    toString(): string {
+        return `Array<${this._elemType}>`;
+    }
 }
 
-export class TSFunction extends Type {
+export class TSFunction extends TSTypeWithArguments {
     typeKind = TypeKind.FUNCTION;
     private _parameterTypes: Type[] = [];
     private _isOptionalParams: boolean[] = [];
@@ -357,9 +509,18 @@ export class TSFunction extends Type {
     private _isDeclare = false;
     private _isStatic = false;
     private _isBinaryenImpl = false;
+    private _isExport = false;
+    public envParamLen = 0;
+
+    toString(): string {
+        const s: string[] = [];
+        this._parameterTypes.forEach((t) => s.push(t.toString()));
+        return `Function(${s.join(',')})${this._returnType}`;
+    }
 
     constructor(public funcKind: FunctionKind = FunctionKind.DEFAULT) {
         super();
+        this.typeKind = TypeKind.FUNCTION;
     }
 
     set returnType(type: Type) {
@@ -372,6 +533,10 @@ export class TSFunction extends Type {
 
     addParamType(paramType: Type) {
         this._parameterTypes.push(paramType);
+    }
+
+    setParamTypes(paramTypes: Type[]) {
+        this._parameterTypes = paramTypes;
     }
 
     getParamTypes(): Type[] {
@@ -395,7 +560,7 @@ export class TSFunction extends Type {
     }
 
     hasRest() {
-        return this._restParamIdex !== -1;
+        return this._restParamIdex >= 0;
     }
 
     get isMethod() {
@@ -406,7 +571,7 @@ export class TSFunction extends Type {
         this._isMethod = value;
     }
 
-    get isDeclare() {
+    get isDeclare(): boolean {
         return this._isDeclare;
     }
 
@@ -430,6 +595,14 @@ export class TSFunction extends Type {
         this._isStatic = value;
     }
 
+    get isExport() {
+        return this._isExport;
+    }
+
+    set isExport(value: boolean) {
+        this._isExport = value;
+    }
+
     // shadow copy, content of parameterTypes and returnType is not copied
     public clone(): TSFunction {
         const func = new TSFunction(this.funcKind);
@@ -440,11 +613,107 @@ export class TSFunction extends Type {
         func.isMethod = this.isMethod;
         func.isDeclare = this.isDeclare;
         func.isStatic = this.isStatic;
+        func.envParamLen = this.envParamLen;
+        func.setTypeParameters(this.typeArguments);
         return func;
     }
 }
 
-export default class TypeResolver {
+export class TSUnion extends Type {
+    typeKind = TypeKind.UNION;
+    _types: Type[] = [];
+
+    constructor() {
+        super();
+    }
+
+    get types(): Array<Type> {
+        return this._types;
+    }
+
+    addType(type: Type) {
+        this._types.push(type);
+    }
+
+    toString(): string {
+        const s: string[] = [];
+        this._types.forEach((t) => s.push(t.toString()));
+        return `Union(${s.join(' | ')})`;
+    }
+}
+
+const MixEnumMemberType: Type = (function () {
+    const union = new TSUnion();
+    union.addType(builtinTypes.get('number')!);
+    union.addType(builtinTypes.get('string')!);
+    return union;
+})();
+
+export class TSEnum extends Type {
+    typeKind = TypeKind.ENUM;
+    private _name: string;
+    private _memberType: Type = builtinTypes.get('undefined')!;
+    private _members: Map<string, number | string> = new Map();
+
+    constructor(name: string) {
+        super();
+        this._name = name;
+    }
+
+    get name(): string {
+        return this._name;
+    }
+
+    get memberType(): Type {
+        return this._memberType;
+    }
+
+    addMember(name: string, value: number | string) {
+        if (this._members.has(name)) {
+            throw Error(`EnumMember exist: ${name}`);
+        }
+        this._members.set(name, value);
+        if (this._memberType.kind == TypeKind.UNDEFINED) {
+            if (typeof value == 'string') {
+                this._memberType = builtinTypes.get('string')!;
+            } else {
+                this._memberType = builtinTypes.get('number')!;
+            }
+        } else if (
+            (this._memberType.kind == TypeKind.STRING &&
+                typeof value != 'string') ||
+            (this._memberType.kind == TypeKind.NUMBER &&
+                typeof value != 'number')
+        ) {
+            this._memberType = MixEnumMemberType;
+        }
+    }
+
+    getMember(name: string): number | string | undefined {
+        return this._members.get(name);
+    }
+
+    get members(): Map<string, number | string> {
+        return this._members;
+    }
+
+    toString(): string {
+        let i = 0;
+        let s = '';
+        this._members.forEach((v, k) => {
+            if (i < 4) {
+                s += k + ',';
+                i++;
+            } else if (i == 4) {
+                s = s + '...';
+            }
+        });
+
+        return `Enum(${s})`;
+    }
+}
+
+export class TypeResolver {
     typechecker: ts.TypeChecker | undefined = undefined;
     globalScopes: Array<GlobalScope>;
     currentScope: Scope | null = null;
@@ -452,8 +721,51 @@ export default class TypeResolver {
     // cache class shape layout string, <class name, type string>
     methodShapeStr = new Map<string, string>();
     fieldShapeStr = new Map<string, string>();
-    // cache class shape layout, <ts.Node, tsType>
-    nodeTypeCache = new Map<ts.Node, TSClass>();
+    // cache node & type
+    /*
+       e.g : interface Array<T> {
+               ...
+               filter(predicate: (value: T, index: number, array: T[]) => boolean): T[];
+               ..
+             }
+
+       if some code:
+       ```
+             arr.filter((value, indx, arr) => { ... });
+       ```
+       when build 'arr.filter' in src/expression.ts build PropertyAccessExpression:
+       ```
+           propAccessExpr.setExprType(
+                this.typeResolver.generateNodeType(node),   <--- node is 'arr.filter'
+           );
+       ```
+        TypeResolver try to parse the type of 'arr.filter', call generateNodeType:
+       ```
+           let tsType = this.typechecker!.getTypeAtLocation(node);
+       ```
+       the 'tsType' is AST of 'filter(predicate: (value: T, index: number, array: T[]) => boolean): T[]'
+
+       But, 'T' is defined in 'Array<T>', 'T' cannot be resolved becasue generateNodeType lost the context of 'Array';
+
+       So, We must cache the 'node' and 'type' in 'nodeTypeCache', so that,
+       TypeResolve just parse the type when it's declared, don't need to parse it EVERYTIME.
+     */
+    nodeTypeCache = new Map<ts.Node, Type>();
+    // for TypeParameter
+    /*
+        interface Array<T> {
+           ....
+            map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[];
+           ...
+        }
+
+        T is type of interface
+        U is type of map
+        the parameter callbackfn use T & U
+        we must put the owner of T, U into the typeParameterStack,
+        so that callbackfn can find them
+     */
+    typeParameterStack: TSTypeWithArguments[] = [];
 
     constructor(private parserCtx: ParserContext) {
         this.nodeScopeMap = this.parserCtx.nodeScopeMap;
@@ -490,6 +802,17 @@ export default class TypeResolver {
                     node as ts.InterfaceDeclaration,
                 );
                 this.addTypeToTypeMap(type, node);
+                //break;
+                return; // dno't visit it's children, parseInfDecl do all things
+            }
+            case ts.SyntaxKind.UnionType: {
+                const type = this.parseUnionTypeNode(node as ts.UnionTypeNode);
+                this.addTypeToTypeMap(type, node);
+                break;
+            }
+            case ts.SyntaxKind.EnumDeclaration: {
+                const type = this.parseEnumType(node as ts.EnumDeclaration);
+                this.addTypeToTypeMap(type, node);
                 break;
             }
         }
@@ -509,8 +832,7 @@ export default class TypeResolver {
         if (
             this.currentScope!.kind === ScopeKind.FunctionScope &&
             type.kind === TypeKind.FUNCTION &&
-            !ts.isParameter(node) &&
-            !ts.isVariableDeclaration(node)
+            ts.isFunctionLike(node)
         ) {
             (<FunctionScope>this.currentScope!).setFuncType(type as TSFunction);
         }
@@ -525,9 +847,20 @@ export default class TypeResolver {
     }
 
     generateNodeType(node: ts.Node): Type {
+        const cached_type = this.nodeTypeCache.get(node);
+        if (cached_type) return cached_type;
+
         if (ts.isConstructorDeclaration(node)) {
             return this.parseSignature(
                 this.typechecker!.getSignatureFromDeclaration(node)!,
+            );
+        }
+
+        if (node.kind == ts.SyntaxKind.ConstructSignature) {
+            return this.parseSignature(
+                this.typechecker!.getSignatureFromDeclaration(
+                    node as ts.ConstructSignatureDeclaration,
+                )!,
             );
         }
         /* Resolve wasm specific type */
@@ -552,19 +885,21 @@ export default class TypeResolver {
                 ts.isBinaryExpression(parentNode) ||
                 ts.isPropertyDeclaration(parentNode)
             ) {
-                return this.generateNodeType(parentNode);
+                type = this.generateNodeType(parentNode);
             }
             if (
                 ts.isNewExpression(parentNode) ||
                 ts.isArrayLiteralExpression(parentNode)
             ) {
-                return (<TSArray>this.generateNodeType(parentNode)).elementType;
+                type = (<TSArray>this.generateNodeType(parentNode)).elementType;
             }
         }
+
+        this.nodeTypeCache.set(node, type);
         return type;
     }
 
-    private tsTypeToType(type: ts.Type): Type {
+    public tsTypeToType(type: ts.Type): Type {
         const typeFlag = type.flags;
         // basic types
         if (
@@ -598,33 +933,76 @@ export default class TypeResolver {
             return builtinTypes.get('null')!;
         }
         if (typeFlag & ts.TypeFlags.TypeParameter) {
-            return builtinTypes.get('generic')!;
+            const type_name = type.symbol.getName();
+            for (let i = this.typeParameterStack.length - 1; i >= 0; i--) {
+                const typeWithArgs = this.typeParameterStack[i];
+                const type = typeWithArgs.getTypeParameter(type_name);
+                if (type) return type;
+            }
+
+            const type_param = this.currentScope!.findType(type_name);
+            if (!type_param || type_param.kind != TypeKind.TYPE_PARAMETER) {
+                throw Error(
+                    `Cannot find the type ${type_name} or it isn't a TypeParameter (${type_param})`,
+                );
+            }
+            return type_param!;
+            //return builtinTypes.get('generic')!;
         }
         // union type ==> type of first elem, iff all types are same, otherwise, any
         if (type.isUnion()) {
-            const nodeTypeArray = type.types.map((elem) => {
-                return this.tsTypeToType(elem);
-            });
-            let res = builtinTypes.get('any')!;
-            // iff there is at least one null type
-            if (nodeTypeArray.find((type) => type.kind === TypeKind.NULL)) {
-                const nonNullTypes = nodeTypeArray.filter(
-                    (type) => type.kind !== TypeKind.NULL,
-                );
-                // iff A | null => ref.null A, otherwise => any
-                if (
-                    nonNullTypes.length > 0 &&
-                    nonNullTypes.every((type) => type === nonNullTypes[0]) &&
-                    !nonNullTypes[0].isPrimitive
-                ) {
-                    res = nonNullTypes[0];
+            if (this.parserCtx.compileArgs.buildWASM) {
+                const nodeTypeArray = type.types.map((elem) => {
+                    return this.tsTypeToType(elem);
+                });
+                let res = builtinTypes.get('any')!;
+                // iff there is at least one null type
+                if (nodeTypeArray.find((type) => type.kind === TypeKind.NULL)) {
+                    const nonNullTypes = nodeTypeArray.filter(
+                        (type) => type.kind !== TypeKind.NULL,
+                    );
+                    // iff A | null => ref.null A, otherwise => any
+                    if (
+                        nonNullTypes.length > 0 &&
+                        nonNullTypes.every(
+                            (type) => type === nonNullTypes[0],
+                        ) &&
+                        !nonNullTypes[0].isPrimitive
+                    ) {
+                        res = nonNullTypes[0];
+                    }
+                } else {
+                    if (
+                        nodeTypeArray.every((type) => type === nodeTypeArray[0])
+                    ) {
+                        res = nodeTypeArray[0];
+                    }
                 }
+                return res;
             } else {
-                if (nodeTypeArray.every((type) => type === nodeTypeArray[0])) {
-                    res = nodeTypeArray[0];
+                const typeArray = type.types.map((elem) => {
+                    return this.tsTypeToType(elem);
+                });
+                // iff there is at least one null type
+                if (typeArray.find((type) => type.kind === TypeKind.NULL)) {
+                    const nonNullTypes = typeArray.filter(
+                        (type) => type.kind !== TypeKind.NULL,
+                    );
+                    // iff Class | null => Class, otherwise => UnionType
+                    if (
+                        nonNullTypes.length == 1 &&
+                        nonNullTypes[0] instanceof TSClass
+                    ) {
+                        return nonNullTypes[0];
+                    }
+                } else {
+                    // iff all types are same
+                    if (typeArray.every((type) => type === typeArray[0])) {
+                        return typeArray[0];
+                    }
                 }
+                return this.parseUnionType(type as ts.UnionType);
             }
-            return res;
         }
         // sophisticated types
         //               object
@@ -652,37 +1030,56 @@ export default class TypeResolver {
             }
             return tsType;
         }
+
         // iff object literal type
         if (this.isObjectLiteral(type)) {
+            const decl = type.symbol.declarations![0];
+            const cached_type = this.nodeTypeCache.get(decl);
+            if (cached_type) return cached_type;
+
             const tsClass = new TSClass();
-            tsClass.setClassName('@object_literal');
+            tsClass.setClassName(this.generateObjectLiteralName());
+            tsClass.isLiteral = true;
+            this.nodeTypeCache.set(decl, tsClass);
             const methodTypeStrs: string[] = [];
             const fieldTypeStrs: string[] = [];
             type.getProperties().map((prop) => {
-                const propertyAssignment =
-                    prop.valueDeclaration as ts.PropertyAssignment;
-                const propType =
-                    this.typechecker!.getTypeAtLocation(propertyAssignment);
-                let typeString = this.typeToString(propertyAssignment);
+                const propertyKind = prop.valueDeclaration!.kind;
+                let property: ts.PropertyAssignment | ts.MethodDeclaration;
+                if (propertyKind === ts.SyntaxKind.PropertyAssignment) {
+                    property = prop.valueDeclaration as ts.PropertyAssignment;
+                } else if (propertyKind === ts.SyntaxKind.MethodDeclaration) {
+                    property = prop.valueDeclaration as ts.MethodDeclaration;
+                } else {
+                    throw new UnimplementError(
+                        `unImplement propertyKind ${propertyKind} in objLiteral`,
+                    );
+                }
+                const propType = this.typechecker!.getTypeAtLocation(property);
+                let typeString = this.typeToString(property);
                 // ts.Type's intrinsicName is `true` or `false`, instead of `boolean`
                 if (typeString === 'true' || typeString === 'false') {
                     typeString = 'boolean';
                 }
-                const fieldName = prop.name;
+                const propName = prop.name;
                 const tsType = this.tsTypeToType(propType);
-                if (tsType instanceof TSFunction) {
-                    tsType.funcKind = FunctionKind.DEFAULT;
+                /* functionType in objLiteral will always have 2 envParams */
+                // TODO: set objLiteral's envParamLen here, add a wrapper method in backend
+                // if (tsType instanceof TSFunction) {
+                //     tsType.envParamLen = 2;
+                // }
+                if (ts.isMethodDeclaration(property)) {
                     tsClass.addMethod({
-                        name: fieldName,
-                        type: tsType,
+                        name: propName,
+                        type: tsType as TSFunction,
                     });
-                    methodTypeStrs.push(`${fieldName}: ${typeString}`);
+                    methodTypeStrs.push(`${propName}: ${typeString}`);
                 } else {
                     tsClass.addMemberField({
-                        name: fieldName,
+                        name: propName,
                         type: tsType,
                     });
-                    fieldTypeStrs.push(`${fieldName}: ${typeString}`);
+                    fieldTypeStrs.push(`${propName}: ${typeString}`);
                 }
             });
             const typeString =
@@ -743,10 +1140,94 @@ export default class TypeResolver {
             throw new Error('signature is undefined');
         }
 
+        const cached_type = this.nodeTypeCache.get(signature.getDeclaration());
+        if (cached_type) return cached_type as TSFunction;
+
         const tsFunction = new TSFunction();
+
+        /* parse modifiers */
+        tsFunction.isDeclare = signature.declaration
+            ? this.parseNestDeclare(
+                  <
+                      | ts.FunctionLikeDeclaration
+                      | ts.ModuleDeclaration
+                      | ts.ClassDeclaration
+                  >signature.declaration,
+              )
+            : false;
+
+        tsFunction.isStatic = signature.declaration
+            ? this.parseStatic(
+                  <ts.FunctionLikeDeclaration>signature.declaration,
+              )
+            : false;
+
+        tsFunction.isBinaryenImpl = !!signature.declaration?.modifiers?.find(
+            (modifier) =>
+                modifier.kind === ts.SyntaxKind.Decorator &&
+                (<ts.Decorator>modifier).expression.getText() ===
+                    BuiltinNames.decorator,
+        );
+
+        tsFunction.isExport = !!signature.declaration?.modifiers?.find(
+            (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+        );
+
+        tsFunction.isMethod = !!(
+            signature.declaration &&
+            ((
+                signature.declaration as
+                    | ts.ConstructSignatureDeclaration
+                    | ts.MethodSignature
+                    | ts.ConstructorDeclaration
+                    | ts.MethodDeclaration
+            ).kind === ts.SyntaxKind.ConstructSignature ||
+                (
+                    signature.declaration as
+                        | ts.ConstructSignatureDeclaration
+                        | ts.MethodSignature
+                        | ts.ConstructorDeclaration
+                        | ts.MethodDeclaration
+                ).kind === ts.SyntaxKind.MethodSignature ||
+                (
+                    signature.declaration as
+                        | ts.ConstructSignatureDeclaration
+                        | ts.MethodSignature
+                        | ts.ConstructorDeclaration
+                        | ts.MethodDeclaration
+                ).kind === ts.SyntaxKind.Constructor ||
+                (
+                    signature.declaration as
+                        | ts.ConstructSignatureDeclaration
+                        | ts.MethodSignature
+                        | ts.ConstructorDeclaration
+                        | ts.MethodDeclaration
+                ).kind === ts.SyntaxKind.MethodDeclaration)
+        );
+
+        /* get env type length: @context & @this */
+        let envTypeLen = 1;
+        if (tsFunction.isMethod && !tsFunction.isStatic) {
+            envTypeLen++;
+        }
+        tsFunction.envParamLen = envTypeLen;
+
+        /* parse original parameters type */
+        this.typeParameterStack.push(tsFunction);
+        // TODO check currentScope is right
+        this.parseTypeParameters(
+            tsFunction,
+            signature.getDeclaration(),
+            this.currentScope &&
+                this.currentScope!.kind == ScopeKind.FunctionScope
+                ? this.currentScope
+                : null,
+        );
+
         signature.getParameters().map((param, index) => {
             const valueDecl = param.valueDeclaration!;
             if (ts.isParameter(valueDecl) && valueDecl.dotDotDotToken) {
+                /* restParamIdx should include the @context and @this */
                 tsFunction.restParamIdx = index;
             }
             if (ts.isParameter(valueDecl) && valueDecl.questionToken) {
@@ -767,6 +1248,7 @@ export default class TypeResolver {
             tsFunction.addParamType(tsType);
         });
 
+        /* parse return type */
         const returnType =
             this.typechecker!.getReturnTypeOfSignature(signature);
         if (
@@ -776,28 +1258,8 @@ export default class TypeResolver {
             tsFunction.returnType = this.tsTypeToType(returnType);
         }
 
-        tsFunction.isDeclare = signature.declaration
-            ? this.parseNestDeclare(
-                  <
-                      | ts.FunctionLikeDeclaration
-                      | ts.ModuleDeclaration
-                      | ts.ClassDeclaration
-                  >signature.declaration,
-              )
-            : false;
-
-        tsFunction.isStatic = signature.declaration
-            ? this.parseStatic(
-                  <ts.FunctionLikeDeclaration>signature.declaration,
-              )
-            : false;
-
-        tsFunction.isBinaryenImpl = !!signature.declaration?.modifiers?.find(
-            (modifier) =>
-                modifier.kind === ts.SyntaxKind.Decorator &&
-                (<ts.Decorator>modifier).expression.getText() === 'binaryen',
-        );
-
+        this.typeParameterStack.pop();
+        this.nodeTypeCache.set(signature.getDeclaration(), tsFunction);
         return tsFunction;
     }
 
@@ -805,7 +1267,8 @@ export default class TypeResolver {
         node:
             | ts.FunctionLikeDeclaration
             | ts.ModuleDeclaration
-            | ts.ClassDeclaration,
+            | ts.ClassDeclaration
+            | ts.InterfaceDeclaration,
     ): boolean {
         let res = false;
         if (node.modifiers) {
@@ -846,6 +1309,11 @@ export default class TypeResolver {
         let methodTypeStrs: string[] = [];
         let fieldTypeStrs: string[] = [];
 
+        this.parseTypeParameters(classType, node, this.currentScope);
+        this.typeParameterStack.push(classType);
+
+        classType.isDeclare = this.parseNestDeclare(node);
+
         const heritage = node.heritageClauses;
         let baseType: TSClass | null = null;
         if (
@@ -856,6 +1324,7 @@ export default class TypeResolver {
             const heritageName = heritage[0].types[0].getText();
 
             const scope = this.currentScope!;
+            // TODO try resolve the template type
             const heritageType = <TSClass>scope.findType(heritageName);
             classType.setBase(heritageType);
             methodTypeStrs = this.methodShapeStr
@@ -897,32 +1366,24 @@ export default class TypeResolver {
                 ctorScope = <FunctionScope>defaultCtor;
                 ctorType = ctorScope.funcType;
             } else {
+                /* create scope & type manually */
                 ctorScope = new FunctionScope(this.currentScope!);
+                ctorType = new TSFunction(FunctionKind.CONSTRUCTOR);
                 ctorScope.setFuncName('constructor');
                 ctorScope.setClassName(node.name!.getText());
-                ctorScope.addParameter(
-                    new Parameter('@context', new Type(), [], 0, false, false),
-                );
-                ctorScope.addParameter(
-                    new Parameter('@this', new Type(), [], 1, false, false),
-                );
-                ctorScope.addVariable(new Variable('this', classType, [], -1));
-                ctorType = new TSFunction(FunctionKind.CONSTRUCTOR);
-                ctorScope.hasDeclCtor = false;
+                ctorType.isMethod = true;
+                /* insert params, variables, types */
+                ctorType.envParamLen = 2;
+                ctorScope.envParamLen = 2;
+                ctorScope.addVariable(new Variable('this', classType));
+                classType.hasDeclareCtor = false;
                 if (baseType) {
                     const baseCtorType = baseType.ctorType;
                     const paramTypes = baseCtorType.getParamTypes();
                     for (let i = 0; i < paramTypes.length; i++) {
                         ctorType.addParamType(paramTypes[i]);
                         ctorScope.addParameter(
-                            new Parameter(
-                                `@anonymous${i}`,
-                                paramTypes[i],
-                                [],
-                                i + 2,
-                                false,
-                                false,
-                            ),
+                            new Parameter(`@anonymous${i}`, paramTypes[i]),
                         );
                     }
                 }
@@ -1038,18 +1499,62 @@ export default class TypeResolver {
         Logger.info(
             `Assign type id [${classType.typeId}] for class [${classType.className}], type string: ${typeString}`,
         );
+        this.typeParameterStack.pop();
         return classType;
+    }
+
+    private parseIndexSignature(
+        infc: TSInterface,
+        indexSignature: ts.IndexSignatureDeclaration,
+    ) {
+        const param_type = indexSignature.parameters[0];
+        const key_type = this.tsTypeToType(
+            this.typechecker!.getTypeFromTypeNode(param_type.type!),
+        );
+        const value_type = this.tsTypeToType(
+            this.typechecker!.getTypeFromTypeNode(indexSignature.type),
+        );
+        if (
+            key_type.kind !== TypeKind.NUMBER &&
+            key_type.kind !== TypeKind.STRING
+        ) {
+            throw Error(
+                `${infc.className} indexSignature need number or string : ${key_type}`,
+            );
+        }
+        if (key_type.kind === TypeKind.NUMBER) {
+            infc.setNumberIndexType(value_type);
+        } else {
+            infc.setStringIndexType(value_type);
+        }
+        Logger.debug(
+            `=== ${infc.className} index type [${key_type}] : ${value_type}`,
+        );
     }
 
     private parseInfcDecl(node: ts.InterfaceDeclaration): TSInterface {
         const infc = new TSInterface();
         this.nodeTypeCache.set(node, infc);
+        infc.setClassName(node.name!.getText());
         const methodTypeStrs: string[] = [];
         const fieldTypeStrs: string[] = [];
 
+        this.parseTypeParameters(infc, node, this.currentScope);
+        this.typeParameterStack.push(infc);
+
+        infc.isDeclare = this.parseNestDeclare(node);
+
         node.members.map((member) => {
+            if (member.kind == ts.SyntaxKind.IndexSignature) {
+                this.parseIndexSignature(
+                    infc,
+                    member as ts.IndexSignatureDeclaration,
+                );
+                return;
+            }
             /** Currently, we only handle PropertySignature and MethodSignature */
             if (
+                member.kind !== ts.SyntaxKind.ConstructSignature &&
                 member.kind !== ts.SyntaxKind.PropertySignature &&
                 member.kind !== ts.SyntaxKind.MethodSignature &&
                 member.kind !== ts.SyntaxKind.GetAccessor &&
@@ -1059,20 +1564,36 @@ export default class TypeResolver {
             }
             let fieldType = this.generateNodeType(member);
             const typeString = this.typeToString(member);
-            let funcKind = FunctionKind.METHOD;
+            let funcKind =
+                member.kind == ts.SyntaxKind.ConstructSignature
+                    ? FunctionKind.CONSTRUCTOR
+                    : FunctionKind.METHOD;
             if (ts.isSetAccessor(member)) {
                 const type = new TSFunction();
                 type.addParamType(fieldType);
                 fieldType = type;
                 funcKind = FunctionKind.SETTER;
+                this.parseTypeParameters(
+                    type,
+                    member as ts.DeclarationWithTypeParameters,
+                    null,
+                );
             }
             if (ts.isGetAccessor(member)) {
                 const type = new TSFunction(FunctionKind.GETTER);
                 type.returnType = fieldType;
                 fieldType = type;
                 funcKind = FunctionKind.GETTER;
+                this.parseTypeParameters(
+                    type,
+                    member as ts.DeclarationWithTypeParameters,
+                    null,
+                );
             }
-            const fieldName = member.name!.getText();
+            const fieldName =
+                funcKind == FunctionKind.CONSTRUCTOR
+                    ? 'constructor'
+                    : member.name!.getText();
             if (fieldType instanceof TSFunction) {
                 fieldType.funcKind = funcKind;
                 infc.addMethod({
@@ -1080,6 +1601,12 @@ export default class TypeResolver {
                     type: fieldType,
                 });
                 methodTypeStrs.push(`${fieldName}: ${typeString}`);
+                this.parseTypeParameters(
+                    fieldType as TSFunction,
+                    member as ts.DeclarationWithTypeParameters,
+                    null,
+                );
+                infc.overrideOrOwnMethods.add(fieldName);
             } else {
                 infc.addMemberField({
                     name: fieldName,
@@ -1092,10 +1619,50 @@ export default class TypeResolver {
             methodTypeStrs.join(', ') + ', ' + fieldTypeStrs.join(', ');
         infc.setTypeId(this.generateTypeId(typeString));
         Logger.info(
-            `Assign type id [${infc.typeId}] for interface: ${typeString}`,
+            `Assign type id [${infc.typeId}] for interface(${infc.className}): ${typeString}`,
         );
 
+        this.typeParameterStack.pop();
         return infc;
+    }
+
+    private parseUnionTypeNode(unionType: ts.UnionTypeNode): Type {
+        return this.parseUnionType(
+            this.typechecker!.getTypeFromTypeNode(unionType) as ts.UnionType,
+        );
+    }
+
+    private parseUnionType(type: ts.UnionType): Type {
+        const union_type = new TSUnion();
+
+        if (!type.types) {
+            return builtinTypes.get('any')!;
+        }
+
+        for (const tstype of type.types) {
+            union_type.addType(this.tsTypeToType(tstype));
+        }
+
+        const types = union_type.types;
+        if (types.every((type) => type === types[0])) {
+            return types[0];
+        }
+
+        // T | null will be treated as nullable T type
+        if (types.find((type) => type.kind === TypeKind.NULL)) {
+            const nonNullTypes = types.filter(
+                (type) => type.kind !== TypeKind.NULL,
+            );
+            if (
+                nonNullTypes.length > 0 &&
+                nonNullTypes.every((type) => type === nonNullTypes[0]) &&
+                !nonNullTypes[0].isPrimitive
+            ) {
+                return nonNullTypes[0];
+            }
+        }
+
+        return union_type;
     }
 
     private generateTypeId(typeString: string): number {
@@ -1105,6 +1672,13 @@ export default class TypeResolver {
         const id = this.parserCtx.typeIdMap.size;
         this.parserCtx.typeIdMap.set(typeString, id);
         return id;
+    }
+
+    private generateObjectLiteralName(): string {
+        const id = this.parserCtx.typeIdMap.size;
+        const name = `@object_literal${id}`;
+        this.generateTypeId(name);
+        return name;
     }
 
     private typeToString(node: ts.Node) {
@@ -1140,6 +1714,10 @@ export default class TypeResolver {
 
         const type = this.generateNodeType(func);
         let tsFuncType = new TSFunction(funcKind);
+        /* record tsFuncType envParamLen: @context. @this */
+        tsFuncType.envParamLen = 2;
+
+        this.parseTypeParameters(tsFuncType, func, this.currentScope);
 
         const nameWithPrefix = getMethodPrefix(funcKind) + func.name.getText();
 
@@ -1153,10 +1731,16 @@ export default class TypeResolver {
         if (funcKind === FunctionKind.SETTER) {
             tsFuncType.addParamType(type);
         }
-        const isOverride =
-            baseType && baseType.getMethod(methodName, funcKind).method
-                ? true
-                : false;
+
+        let isOverride = false;
+        if (baseType) {
+            const baseFuncType = baseType.getMethod(methodName, funcKind).method
+                ?.type;
+            if (baseFuncType) {
+                tsFuncType = baseFuncType;
+                isOverride = true;
+            }
+        }
         if (!isOverride) {
             /* override methods has been copied from base class,
                 only add non-override methods here */
@@ -1173,6 +1757,108 @@ export default class TypeResolver {
         classType.overrideOrOwnMethods.add(nameWithPrefix);
     }
 
+    parseTypeParameters(
+        tstype: TSTypeWithArguments,
+        node: ts.DeclarationWithTypeParameters,
+        scope: Scope | null,
+    ) {
+        const typeParams = ts.getEffectiveTypeParameterDeclarations(node);
+        if (!typeParams) return;
+
+        let index = 0;
+        for (const tp of typeParams!) {
+            const name = tp.name.getText();
+            const constraint_node =
+                ts.getEffectiveConstraintOfTypeParameter(tp);
+            let wide_type: Type = builtinTypes.get('generic')!;
+            if (constraint_node) {
+                // TypeNode
+                const constraint_tstype =
+                    this.typechecker!.getTypeFromTypeNode(constraint_node);
+                wide_type = this.tsTypeToType(constraint_tstype);
+            }
+            let default_type: Type | undefined = undefined;
+            const default_node = tp.default;
+            if (default_node) {
+                const default_tstype =
+                    this.typechecker!.getTypeFromTypeNode(default_node);
+                default_type = this.tsTypeToType(default_tstype);
+            }
+
+            const type_param = new TSTypeParameter(
+                name,
+                wide_type,
+                index++,
+                default_type,
+            );
+
+            tstype.addTypeParameter(type_param);
+
+            if (scope) {
+                scope.addType(type_param.name, type_param);
+            }
+        }
+    }
+
+    private parseEnumType(node: ts.EnumDeclaration): Type {
+        const scope = this.currentScope!;
+
+        let start = 0;
+        const enumType = new TSEnum(node.name.getText());
+        for (const member of node.members) {
+            const name = member.name.getText();
+            let value: number | string = start;
+            if (member.initializer) {
+                value = this.parseEnumMemberValue(enumType, member.initializer);
+            } else {
+                start++;
+            }
+            enumType.addMember(name, value);
+        }
+        scope.addType(node.name.getText(), enumType);
+        return enumType;
+    }
+
+    private parseEnumMemberValue(
+        enumType: TSEnum,
+        expr: ts.Expression,
+    ): number | string {
+        switch (expr.kind) {
+            case ts.SyntaxKind.StringLiteral:
+                return (expr as ts.StringLiteral).text; // return the string value without \' or \"
+            case ts.SyntaxKind.NumericLiteral:
+                return parseInt((expr as ts.NumericLiteral).getText());
+            case ts.SyntaxKind.Identifier: {
+                const name = (expr as ts.Identifier).getText();
+                const value = enumType.getMember(name);
+                if (!value) {
+                    throw Error(`EnumMember cannot find ${name}`);
+                }
+                return value;
+            }
+            case ts.SyntaxKind.BinaryExpression: {
+                const bnode = expr as ts.BinaryExpression;
+                const left = this.parseEnumMemberValue(enumType, bnode.left);
+                const right = this.parseEnumMemberValue(enumType, bnode.right);
+                switch (bnode.operatorToken.kind) {
+                    case ts.SyntaxKind.PlusToken:
+                        if (typeof left == 'string' || typeof right == 'string')
+                            return `${left}${right}`;
+                        else return (left as number) + (right as number);
+                    default:
+                        throw Error(
+                            `EnumMember cannot support the operator ${
+                                ts.SyntaxKind[bnode.operatorToken.kind]
+                            }`,
+                        );
+                }
+            }
+            default:
+                throw Error(`EnumMember don't support dynamic expression`);
+        }
+        return 0;
+    }
+
     public static maybeBuiltinWasmType(node: ts.Node) {
         const definedTypeName = (node as any).type?.typeName?.escapedText;
         if (definedTypeName) {
@@ -1184,7 +1870,7 @@ export default class TypeResolver {
 
     /* Check if the type, and all of its children contains generic type */
     public static isTypeGeneric(type: Type): boolean {
-        switch (type.typeKind) {
+        switch (type.kind) {
             case TypeKind.VOID:
             case TypeKind.BOOLEAN:
             case TypeKind.NUMBER:
@@ -1229,7 +1915,11 @@ export default class TypeResolver {
             case TypeKind.GENERIC: {
                 return true;
             }
+            default: {
+                throw new UnimplementError('Not implemented type: ${type}');
+            }
         }
+        return false;
     }
 
     public static createSpecializedType(type: Type, typeArg: Type): Type {
@@ -1237,7 +1927,7 @@ export default class TypeResolver {
             return type;
         }
 
-        switch (type.typeKind) {
+        switch (type.kind) {
             case TypeKind.VOID:
             case TypeKind.BOOLEAN:
             case TypeKind.NUMBER:
@@ -1279,7 +1969,7 @@ export default class TypeResolver {
             case TypeKind.INTERFACE: {
                 const classType = type as TSClass;
                 let newType: TSClass;
-                if (type.typeKind === TypeKind.CLASS) {
+                if (type.kind === TypeKind.CLASS) {
                     newType = new TSClass();
                 } else {
                     newType = new TSInterface();
@@ -1314,7 +2004,11 @@ export default class TypeResolver {
 
                 return builtinTypes.get('any')!;
             }
+            default: {
+                throw new UnimplementError('Not implemented type: ${type}');
+            }
         }
+        return builtinTypes.get('any')!;
     }
 
     public arrayTypeCheck(node: ts.Node): boolean {
@@ -1330,5 +2024,151 @@ export default class TypeResolver {
             }
         }
         return false;
+    }
+}
+
+export class CustomTypeResolver {
+    globalScopes: Array<GlobalScope>;
+
+    constructor(private parserCtx: ParserContext) {
+        this.globalScopes = this.parserCtx.globalScopes;
+    }
+
+    visit() {
+        for (const globalScope of this.globalScopes) {
+            this.parseThis(globalScope);
+            this.parseContext(globalScope);
+        }
+    }
+
+    private parseThis(scope: Scope) {
+        if (
+            scope instanceof FunctionScope &&
+            scope.parent instanceof ClassScope &&
+            scope.isMethod() &&
+            !scope.isStatic()
+        ) {
+            const thisType: Type = scope.parent.classType;
+            for (const variable of scope.varArray) {
+                if (variable.varName === 'this') {
+                    variable.varType = thisType;
+                    break;
+                }
+            }
+        }
+
+        /* traverse scope's children */
+        for (const child of scope.children) {
+            this.parseThis(child);
+        }
+    }
+
+    private parseContext(scope: Scope) {
+        if (scope instanceof ClosureEnvironment) {
+            const currentCtxVar = scope.contextVariable!;
+            let parentScope = scope.parent;
+            let parentCtxVar: Variable | undefined = undefined;
+            // skip class scope
+            while (
+                parentScope instanceof ClassScope ||
+                parentScope instanceof NamespaceScope
+            ) {
+                parentScope = parentScope.parent;
+            }
+            if (scope instanceof FunctionScope) {
+                /* function scope: parse param context type and variable context type */
+                if (parentScope instanceof GlobalScope) {
+                    parentCtxVar = undefined;
+                } else if (parentScope instanceof ClosureEnvironment) {
+                    parentCtxVar = parentScope.contextVariable!;
+                }
+                this.parseParamContextType(scope, parentCtxVar);
+                const realParamCtxVar = new Parameter(
+                    '@context',
+                    scope.realParamCtxType,
+                    [],
+                    0,
+                );
+                this.parseVarContextType(
+                    scope,
+                    currentCtxVar,
+                    realParamCtxVar.varType as TSContext,
+                    realParamCtxVar,
+                );
+            } else if (
+                scope instanceof BlockScope &&
+                scope.parent?.getNearestFunctionScope()
+            ) {
+                /* block scope: parse variable context type */
+                if (parentScope instanceof GlobalScope) {
+                    parentCtxVar = undefined;
+                } else if (parentScope instanceof ClosureEnvironment) {
+                    parentCtxVar = parentScope.contextVariable;
+                }
+                this.parseVarContextType(
+                    scope,
+                    currentCtxVar,
+                    parentCtxVar
+                        ? (parentCtxVar.varType as TSContext)
+                        : new TSContext(),
+                    parentCtxVar,
+                );
+            }
+        }
+
+        /* traverse scope's children */
+        for (const child of scope.children) {
+            this.parseContext(child);
+        }
+    }
+
+    private parseParamContextType(
+        scope: FunctionScope,
+        parentVarContextVar?: Variable,
+    ) {
+        let paramContextType = new TSContext();
+        if (parentVarContextVar) {
+            paramContextType = new TSContext(
+                parentVarContextVar!.varType as TSContext,
+            );
+        }
+        /* record the realType */
+        scope.realParamCtxType = paramContextType;
+        scope.addType(paramContextType.toString(), paramContextType);
+    }
+
+    private parseVarContextType(
+        scope: ClosureEnvironment,
+        currentCtxVar: Variable,
+        parentContextType: TSContext,
+        parentCtxVar?: Variable,
+    ) {
+        if (parentCtxVar) {
+            currentCtxVar.initContext = parentCtxVar;
+        }
+        const varFreeVarTypeList: Type[] = [];
+        if (scope instanceof FunctionScope) {
+            scope.paramArray.forEach((value) => {
+                if (value.varIsClosure) {
+                    value.belongCtx = currentCtxVar;
+                    value.closureIndex = varFreeVarTypeList.length;
+                    varFreeVarTypeList.push(value.varType);
+                }
+            });
+        }
+        scope.varArray.forEach((value) => {
+            if (value.varIsClosure) {
+                value.belongCtx = currentCtxVar;
+                value.closureIndex = varFreeVarTypeList.length;
+                varFreeVarTypeList.push(value.varType);
+            }
+        });
+        const varContextType = new TSContext(
+            parentContextType,
+            varFreeVarTypeList,
+        );
+        currentCtxVar.varType = varContextType;
+        scope.addType(varContextType.toString(), varContextType);
+        return varContextType;
     }
 }

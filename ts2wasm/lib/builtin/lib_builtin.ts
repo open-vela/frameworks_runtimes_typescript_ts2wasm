@@ -3,77 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
+/* Workaround: since console is not used as `declare var console: Console;` in type.d.ts
+ * so we should keep this definition here.
+ */
 export declare class console {
-    static log(...values: any[]): void;
-}
-
-export class Array<T> {
-    @binaryen
-    static isArray(x: any): boolean {
-        return false;
-    }
-
-    /* builtin methods are detected by the compiler,
-        don't need to write signature here */
-}
-
-export class String {
-    @binaryen
-    concat(...strings: string[]): string {
-        return 'concat';
-    }
-
-    @binaryen
-    slice(start?: number, end?: number): string {
-        return 'slice';
-    }
-
-    @binaryen
-    split(sep: string): string[] {
-        return [];
-    }
-
-    @binaryen
-    replace(from: string, to: string): string {
-        return 'replace';
-    }
-
-    @binaryen
-    indexOf(str: string): number {
-        return -1;
-    }
-    @binaryen
-    match(pattern: string): string[] {
-        return [];
-    }
-    @binaryen
-    search(pattern: string): string {
-        return 'search';
-    }
-
-    @binaryen
-    charAt(pos: number): string {
-        return 'charAt';
-    }
-
-    @binaryen
-    toLowerCase(): string {
-        return 'toLowerCase';
-    }
-
-    @binaryen
-    toUpperCase(): string {
-        return 'toUpperCase';
-    }
-
-    @binaryen
-    trim(): string {
-        return 'trim';
-    }
+    log(...values: any[]): void;
 }
 
 export class Math {
-    static pow(x: number, y: number): number {
+    pow(x: number, y: number): number {
         let res = 1;
         let power = y < 0 ? -y : y;
         while (power > 0) {
@@ -84,7 +22,7 @@ export class Math {
         return res;
     }
 
-    static max(x: number[]): number {
+    max(...x: number[]): number {
         const arrLen = x.length;
         let res = x[0];
         for (let i = 1; i < arrLen; i++) {
@@ -95,7 +33,7 @@ export class Math {
         return res;
     }
 
-    static min(x: number[]): number {
+    min(...x: number[]): number {
         const arrLen = x.length;
         let res = x[0];
         for (let i = 1; i < arrLen; i++) {
@@ -105,33 +43,4 @@ export class Math {
         }
         return res;
     }
-
-    @binaryen
-    static sqrt(x: number): number {
-        return 0;
-    }
-
-    @binaryen
-    static abs(x: number): number {
-        return 0;
-    }
-
-    @binaryen
-    static ceil(x: number): number {
-        return 0;
-    }
-
-    @binaryen
-    static floor(x: number): number {
-        return 0;
-    }
-
-    @binaryen
-    static trunc(x: number): number {
-        return 0;
-    }
-}
-
-function binaryen(target: any, propertyKey: string, descriptor: any) {
-    // decorator logic here
 }

@@ -17,6 +17,7 @@ const doCompile = (filename: string) => {
     try {
         compiler.parse([filename]);
     } catch (e) {
+        console.log(e);
         return null;
     }
 
@@ -44,7 +45,8 @@ export function testCompile(filename: string): boolean {
         if (!wasmFile) return false;
         /* TODO: check wasm file */
         return fs.existsSync(wasmFile);
-    } catch {
+    } catch (e) {
+        console.log(e);
         return false;
     }
 }

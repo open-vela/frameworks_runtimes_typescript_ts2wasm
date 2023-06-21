@@ -80,6 +80,7 @@ export namespace dyntype {
     export const dyntype_cmp = 'dyntype_cmp';
 
     export const dyntype_typeof = 'dyntype_typeof';
+    export const dyntype_typeof1 = 'dyntype_typeof1';
     export const dyntype_type_eq = 'dyntype_type_eq';
     export const dyntype_new_object_with_proto =
         'dyntype_new_object_with_proto';

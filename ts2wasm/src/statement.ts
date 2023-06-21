@@ -12,7 +12,7 @@ import {
     IdentifierExpression,
     PropertyAccessExpression,
 } from './expression.js';
-import { Scope, ScopeKind } from './scope.js';
+import { Scope, ScopeKind, FunctionScope } from './scope.js';
 import {
     parentIsFunctionLike,
     Stack,
@@ -20,6 +20,7 @@ import {
     getGlobalScopeByModuleName,
     DebugLoc,
     addSourceMapLoc,
+    getCurScope,
 } from './utils.js';
 import { Variable } from './variable.js';
 import { TSClass, Type } from './type.js';
@@ -30,6 +31,7 @@ type StatementKind = ts.SyntaxKind;
 export class Statement {
     private _scope: Scope | null = null;
     debugLoc: DebugLoc | null = null;
+    public tsNode?: ts.Node;
 
     constructor(private kind: StatementKind) {}
 
@@ -43,6 +45,15 @@ export class Statement {
 
     getScope(): Scope | null {
         return this._scope;
+    }
+}
+
+/** in order to keep order of namespace in parent level scope, creat a corresponding statement
+ * for namespace
+ */
+export class ModDeclStatement extends Statement {
+    constructor(public scope: Scope) {
+        super(ts.SyntaxKind.ModuleDeclaration);
     }
 }
 
@@ -236,6 +247,16 @@ export class BreakStatement extends Statement {
     }
 }
 
+export class FunctionDeclarationStatement extends Statement {
+    constructor(private _funcScope: FunctionScope) {
+        super(ts.SyntaxKind.FunctionDeclaration);
+    }
+
+    get funcScope(): FunctionScope {
+        return this._funcScope;
+    }
+}
+
 export class VariableStatement extends Statement {
     private variableArray: Variable[] = [];
 
@@ -300,6 +321,12 @@ export default class StatementProcessor {
     }
 
     visitNode(node: ts.Node): Statement | null {
+        const stm = this.visitNodeInternal(node);
+        if (stm != null) stm.tsNode = node;
+        return stm;
+    }
+
+    visitNodeInternal(node: ts.Node): Statement | null {
         switch (node.kind) {
             case ts.SyntaxKind.ImportDeclaration: {
                 const importDeclaration = <ts.ImportDeclaration>node;
@@ -314,9 +341,15 @@ export default class StatementProcessor {
                 );
                 const importStmt = new ImportDeclaration();
                 if (!importModuleScope.isCircularImport) {
+                    const currentGlobalScope =
+                        this.currentScope!.getRootGloablScope()!;
+                    currentGlobalScope.importStartFuncNameList.push(
+                        importModuleScope.startFuncName,
+                    );
+                    importModuleScope.isCircularImport = true;
+
                     importStmt.importModuleStartFuncName =
                         importModuleScope.startFuncName;
-                    importModuleScope.isCircularImport = true;
                     return importStmt;
                 }
                 /** Currently, we put all ts files into a whole wasm file.
@@ -421,7 +454,14 @@ export default class StatementProcessor {
                     addSourceMapLoc(loopStatment, node);
                 }
                 loopStatment.setScope(scope);
-                return loopStatment;
+                /* current scope is outter block scope */
+                scope.addStatement(loopStatment);
+                const block = new BlockStatement();
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(block, node);
+                }
+                block.setScope(scope);
+                return block;
             }
             case ts.SyntaxKind.DoStatement: {
                 const doWhileStatementNode = <ts.DoStatement>node;
@@ -451,7 +491,15 @@ export default class StatementProcessor {
                     addSourceMapLoc(loopStatment, node);
                 }
                 loopStatment.setScope(scope);
-                return loopStatment;
+
+                /* current scope is outter block scope */
+                scope.addStatement(loopStatment);
+                const block = new BlockStatement();
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(block, node);
+                }
+                block.setScope(scope);
+                return block;
             }
             case ts.SyntaxKind.ForStatement: {
                 const forStatementNode = <ts.ForStatement>node;
@@ -508,7 +556,15 @@ export default class StatementProcessor {
                     addSourceMapLoc(forStatement, node);
                 }
                 forStatement.setScope(scope);
-                return forStatement;
+
+                /* current scope is outter block scope */
+                scope.addStatement(forStatement);
+                const block = new BlockStatement();
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(block, node);
+                }
+                block.setScope(scope);
+                return block;
             }
             case ts.SyntaxKind.ExpressionStatement: {
                 const exprStatement = <ts.ExpressionStatement>node;
@@ -618,9 +674,32 @@ export default class StatementProcessor {
                 }
                 return breakStmt;
             }
+            case ts.SyntaxKind.FunctionDeclaration: {
+                const funcScope = getCurScope(
+                    node,
+                    this.parserCtx.nodeScopeMap,
+                );
+                const funcDeclStmt = new FunctionDeclarationStatement(
+                    funcScope! as FunctionScope,
+                );
+                return funcDeclStmt;
+            }
+            case ts.SyntaxKind.ModuleDeclaration: {
+                const md = <ts.ModuleDeclaration>node;
+                const moduleBlock = <ts.ModuleBlock>md.body!;
+                const scope = this.parserCtx.nodeScopeMap.get(moduleBlock);
+                if (!scope) {
+                    throw new Error(
+                        `failed to find scope for ModuleDeclaration ${md.name}`,
+                    );
+                }
+                return new ModDeclStatement(scope);
+            }
             default:
                 Logger.info(
-                    `Encounter unprocessed statements, kind: [${node.kind}]`,
+                    `Encounter unprocessed statements, kind: [${
+                        ts.SyntaxKind[node.kind]
+                    }]`,
                 );
                 break;
         }

@@ -230,7 +230,7 @@
             {
                 "name": "nestedArray",
                 "args": [],
-                "result": "need_manual_fill"
+                "result": "100:f64"
             }
         ]
     },
@@ -402,6 +402,46 @@
                 "name": "array_push_string_array",
                 "args": [],
                 "result": "123 \n3:f64"
+            }
+        ]
+    },
+    {
+        "module": "array_unshift",
+        "entries": [
+            {
+                "name": "array_unshift_number",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_unshift_boolean",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_unshift_string",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_unshift_class",
+                "args": [],
+                "result": "5:f64"
+            },
+            {
+                "name": "array_unshift_interface",
+                "args": [],
+                "result": "3:f64"
+            },
+            {
+                "name": "array_unshift_number_array",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "array_unshift_string_array",
+                "args": [],
+                "result": "wasm \n3:f64"
             }
         ]
     },
@@ -646,66 +686,6 @@
         ]
     },
     {
-        "module": "array_concat",
-        "entries": [
-            {
-                "name": "array_concat_number",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_concat_boolean",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_concat_string",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_concat_class",
-                "args": [],
-                "result": "5:f64"
-            },
-            {
-                "name": "array_concat_interface",
-                "args": [],
-                "result": "3:f64"
-            },
-            {
-                "name": "array_concat_number_array",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_concat_string_array",
-                "args": [],
-                "result": "hello \n2:f64"
-            }
-        ]
-    },
-    {
-        "module": "array_find",
-        "entries": [
-            {
-                "name": "array_find_number",
-                "args": [],
-                "result": "300 \nundefined"
-            },
-            {
-                "name": "array_find_boolean",
-                "args": [],
-                "result": "true"
-            },
-            {
-                "name": "array_find_string",
-                "args": [],
-                "result": "hello"
-            }
-        ]
-    },
-    {
         "module": "array_join",
         "entries": [
             {
@@ -716,176 +696,6 @@
         ]
     },
     {
-        "module": "array_indexOf",
-        "entries": [
-            {
-                "name": "array_indexOf_number",
-                "args": [],
-                "result": "3:f64"
-            },
-            {
-                "name": "array_indexOf_boolean",
-                "args": [],
-                "result": "1:f64"
-            },
-            {
-                "name": "array_indexOf_string",
-                "args": [],
-                "result": "3:f64"
-            },
-            {
-                "name": "array_indexOf_class",
-                "args": [],
-                "result": "1:f64"
-            }
-        ]
-    },
-    {
-        "module": "array_lastIndexOf",
-        "entries": [
-            {
-                "name": "array_lastIndexOf_number",
-                "args": [],
-                "result": "3:f64"
-            },
-            {
-                "name": "array_lastIndexOf_boolean",
-                "args": [],
-                "result": "1:f64"
-            },
-            {
-                "name": "array_lastIndexOf_string",
-                "args": [],
-                "result": "3:f64"
-            },
-            {
-                "name": "array_lastIndexOf_class",
-                "args": [],
-                "result": "2:f64"
-            }
-        ]
-    },
-    {
-        "module": "array_reverse",
-        "entries": [
-            {
-                "name": "array_reverse_number",
-                "args": [],
-                "result": "3:f64"
-            },
-            {
-                "name": "array_reverse_boolean",
-                "args": [],
-                "result": "3:f64"
-            },
-            {
-                "name": "array_reverse_string",
-                "args": [],
-                "result": "2:f64"
-            },
-            {
-                "name": "array_reverse_class",
-                "args": [],
-                "result": "2:f64"
-            },
-            {
-                "name": "array_reverse_interface",
-                "args": [],
-                "result": "2:f64"
-            },
-            {
-                "name": "array_reverse_number_array",
-                "args": [],
-                "result": "44 \n8:f64"
-            },
-            {
-                "name": "array_reverse_string_array",
-                "args": [],
-                "result": "123 \n3:f64"
-            }
-        ]
-    },
-    {
-        "module": "array_shift",
-        "entries": [
-            {
-                "name": "array_shift_number",
-                "args": [],
-                "result": "2:f64"
-            },
-            {
-                "name": "array_shift_boolean",
-                "args": [],
-                "result": "2:f64"
-            },
-            {
-                "name": "array_shift_string",
-                "args": [],
-                "result": "1:f64"
-            },
-            {
-                "name": "array_shift_class",
-                "args": [],
-                "result": "1:f64"
-            },
-            {
-                "name": "array_shift_interface",
-                "args": [],
-                "result": "1:f64"
-            },
-            {
-                "name": "array_shift_number_array",
-                "args": [],
-                "result": "1 \n6:f64"
-            },
-            {
-                "name": "array_shift_string_array",
-                "args": [],
-                "result": "h \n2:f64"
-            }
-        ]
-    },
-    {
-        "module": "array_unshift",
-        "entries": [
-            {
-                "name": "array_unshift_number",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_unshift_boolean",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_unshift_string",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_unshift_class",
-                "args": [],
-                "result": "5:f64"
-            },
-            {
-                "name": "array_unshift_interface",
-                "args": [],
-                "result": "3:f64"
-            },
-            {
-                "name": "array_unshift_number_array",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_unshift_string_array",
-                "args": [],
-                "result": "wasm \n3:f64"
-            }
-        ]
-    },
-    {
         "module": "array_concat",
         "entries": [
             {
@@ -1072,46 +882,6 @@
                 "name": "array_shift_string_array",
                 "args": [],
                 "result": "h \n2:f64"
-            }
-        ]
-    },
-    {
-        "module": "array_unshift",
-        "entries": [
-            {
-                "name": "array_unshift_number",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_unshift_boolean",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_unshift_string",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_unshift_class",
-                "args": [],
-                "result": "5:f64"
-            },
-            {
-                "name": "array_unshift_interface",
-                "args": [],
-                "result": "3:f64"
-            },
-            {
-                "name": "array_unshift_number_array",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "array_unshift_string_array",
-                "args": [],
-                "result": "wasm \n3:f64"
             }
         ]
     },
@@ -1722,6 +1492,16 @@
                 "name": "multiLevelExtend",
                 "args": [],
                 "result": "B"
+            },
+            {
+                "name": "testExtendReordered",
+                "args": [],
+                "result": "22:f64"
+            },
+            {
+                "name": "testInheritGetter",
+                "args": [],
+                "result": "10:f64"
             }
         ]
     },
@@ -1757,6 +1537,21 @@
                 "name": "staticFields",
                 "args": [],
                 "result": "74:f64"
+            },
+            {
+                "name": "testStaticField1",
+                "args": [],
+                "result": "0:f64"
+            },
+            {
+                "name": "testStaticField2",
+                "args": [],
+                "result": "1:f64"
+            },
+            {
+                "name": "testStaticField3",
+                "args": [],
+                "result": "2:f64"
             }
         ]
     },
@@ -2438,7 +2233,7 @@
         ]
     },
     {
-        "module": "infc_assign_class.",
+        "module": "infc_assign_class",
         "entries": [
             {
                 "name": "classAndInfc",
@@ -2523,7 +2318,8 @@
             {
                 "name": "infcToClass",
                 "args": [],
-                "result": "1:f64"
+                "result": "Exception: cast failure",
+                "ret": 1
             },
             {
                 "name": "classToInfc",
@@ -2548,7 +2344,8 @@
             {
                 "name": "returnClass",
                 "args": [],
-                "result": "10:f64"
+                "result": "Exception: cast failure",
+                "ret": 1
             }
         ]
     },
@@ -2723,7 +2520,7 @@
             {
                 "name": "namespaceNested",
                 "args": [],
-                "result": "4:f64"
+                "result": "-1:f64"
             }
         ]
     },
@@ -3178,6 +2975,16 @@
                 "name": "test",
                 "args": [],
                 "result": "call namespace function \n2023 \ncall namespace function \nhello world"
+            }
+        ]
+    },
+    {
+        "module": "union_field_get",
+        "entries": [
+            {
+                "name": "test_func_return_any_null",
+                "args": [],
+                "result": "is null"
             }
         ]
     }

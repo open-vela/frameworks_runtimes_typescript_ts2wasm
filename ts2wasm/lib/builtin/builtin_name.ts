@@ -30,6 +30,8 @@ export namespace BuiltinNames {
 
     // delimiters
     export const moduleDelimiter = '|';
+    export const declareSuffix = '-declare';
+    export const wrapperSuffix = '-wrapper';
 
     // import external name
     export const externalModuleName = 'env';
@@ -40,7 +42,19 @@ export namespace BuiltinNames {
     // builtin file name
     export const builtinTypeName = 'lib.type.d.ts';
     export const builtinImplementFileName = 'lib_builtin.ts';
+    // export const builtinFileNames = ['lib.type.d.ts', builtinImplementFileName];
+    // export const builtinFileNames = ['lib.type.d.ts'];
     export const builtinFileNames = [builtinTypeName, builtinImplementFileName];
+
+    // builtin globals
+    export const builtinTypeManglePrefix = 'lib/builtin/lib.type.d';
+    export const nanName = `${builtinTypeManglePrefix}|NaN`;
+    export const infinityName = `${builtinTypeManglePrefix}|Infinity`;
+    export const builtinGlobalNames = [nanName, infinityName];
+
+    // Globals that should be fallbacked to libdyntype
+    export const jsonName = `${builtinTypeManglePrefix}|JSON`;
+    export const fallbackGlobalNames = [jsonName];
 
     // builtin class name
     export const MATH = 'Math';
@@ -217,9 +231,9 @@ export namespace BuiltinNames {
 
     export function getSpecializedFuncName(
         mangledName: string,
-        type: Type,
+        type: TypeKind,
     ): string {
-        switch (type.kind) {
+        switch (type) {
             case TypeKind.NUMBER:
             case TypeKind.WASM_F64:
                 return mangledName + '_f64';

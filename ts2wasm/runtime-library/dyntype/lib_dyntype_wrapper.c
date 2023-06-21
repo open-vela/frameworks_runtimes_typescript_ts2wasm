@@ -7,6 +7,7 @@
 #include "gc_export.h"
 #include "bh_platform.h"
 #include "type_utils.h"
+#include "wamr_utils.h"
 
 /* Convert host pointer to anyref */
 #define BOX_ANYREF(ptr)                            \
@@ -319,6 +320,7 @@ dyntype_is_falsy_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 }
 
 /******************* Type equivalence *******************/
+/* for typeof keyword*/
 void *
 dyntype_typeof_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, dyn_value_t obj)
 {
@@ -361,6 +363,13 @@ dyntype_typeof_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, dyn_value_t obj)
     return (void*)res;
 }
 
+/* for internal use, no need to create a wasm string*/
+dyn_type_t
+dyntype_typeof1_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, dyn_value_t obj)
+{
+    return dyntype_typeof(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj));
+}
+
 int
 dyntype_type_eq_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                         dyn_value_t lhs, dyn_value_t rhs)
@@ -372,8 +381,73 @@ dyntype_type_eq_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
 int dyntype_cmp_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, dyn_value_t lhs,
                         dyn_value_t rhs, cmp_operator operator_kind)
 {
-    return dyntype_cmp(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs), UNBOX_ANYREF(rhs),
-                       operator_kind);
+    int res = 0;
+    dyn_type_t type_l, type_r;
+    bool l_is_null = false, r_is_null = false;
+    void *lhs_ref, *rhs_ref;
+    int32_t lhs_idx, rhs_idx;
+
+    type_l = dyntype_typeof(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs));
+    type_r = dyntype_typeof(UNBOX_ANYREF(ctx), UNBOX_ANYREF(rhs));
+
+    if (type_l == type_r) {
+        res = dyntype_cmp(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs), UNBOX_ANYREF(rhs),
+                        operator_kind);
+    }
+    if (res) {
+        return res;
+    }
+    if (dyntype_is_null(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs))) {
+        l_is_null = true;
+    }
+    if (dyntype_is_null(UNBOX_ANYREF(ctx), UNBOX_ANYREF(rhs))) {
+        r_is_null = true;
+    }
+    // iff undefined
+    if (type_l != type_r && (type_l == DynUndefined || type_r == DynUndefined)) {
+        if (operator_kind == ExclamationEqualsToken
+            || operator_kind == ExclamationEqualsEqualsToken) {
+            res = !res;
+        }
+        return res;
+    }
+    // iff null
+    if ((!l_is_null && (type_l < DynExtRefObj || type_l > DynExtRefArray))
+        || (!r_is_null && (type_r < DynExtRefObj || type_r > DynExtRefArray))) {
+        if (type_l != type_r && (operator_kind == ExclamationEqualsToken
+            || operator_kind == ExclamationEqualsEqualsToken)) {
+            res = !res;
+        }
+        return res;
+    }
+
+    if (!l_is_null) {
+        dyntype_to_extref(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs), &lhs_ref);
+        lhs_idx = (int32_t)(intptr_t)lhs_ref;
+        lhs_ref = wamr_utils_get_table_element(exec_env, lhs_idx);
+        if (is_infc(lhs_ref)) {
+            lhs_ref = get_infc_obj(exec_env, lhs_ref);
+        }
+    } else {
+        lhs_ref = NULL;
+    }
+    if (!r_is_null) {
+        dyntype_to_extref(UNBOX_ANYREF(ctx), UNBOX_ANYREF(rhs), &rhs_ref);
+        rhs_idx = (int32_t)(intptr_t)rhs_ref;
+        rhs_ref = wamr_utils_get_table_element(exec_env, rhs_idx);
+        if (is_infc(rhs_ref)) {
+            rhs_ref = get_infc_obj(exec_env, rhs_ref);
+        }
+    } else {
+        rhs_ref = NULL;
+    }
+    res = lhs_ref == rhs_ref;
+
+    if (operator_kind == ExclamationEqualsToken || operator_kind == ExclamationEqualsEqualsToken) {
+        res = !res;
+    }
+
+    return res;
 }
 
 /******************* Subtyping *******************/
@@ -578,6 +652,7 @@ static NativeSymbol native_symbols[] = {
     REG_NATIVE_FUNC(dyntype_free_cstring, "(ri)"),
 
     REG_NATIVE_FUNC(dyntype_typeof, "(rr)r"),
+    REG_NATIVE_FUNC(dyntype_typeof1, "(rr)i"),
     REG_NATIVE_FUNC(dyntype_type_eq, "(rrr)i"),
     REG_NATIVE_FUNC(dyntype_cmp, "(rrri)i"),
 

@@ -306,3 +306,50 @@ wasm_struct_obj_t create_wasm_string(wasm_exec_env_t exec_env, const char *value
     (void)p_end;
     return new_string_struct;
 }
+
+bool
+is_infc(wasm_obj_t obj) {
+    wasm_struct_type_t struct_type;
+
+    if (!obj || !wasm_obj_is_struct_obj(obj)) {
+        return false;
+    }
+    struct_type = (wasm_struct_type_t)wasm_obj_get_defined_type(obj);
+
+    uint32_t fields_count;
+    bool mut;
+    wasm_ref_type_t field_type;
+
+    fields_count = wasm_struct_type_get_field_count(struct_type);
+    if (fields_count != 3) {
+        return false;
+    }
+    field_type = wasm_struct_type_get_field_type(struct_type, 0, &mut);
+    if (field_type.value_type != VALUE_TYPE_I32 || mut) {
+        return false;
+    }
+    field_type = wasm_struct_type_get_field_type(struct_type, 1, &mut);
+    if (field_type.value_type != VALUE_TYPE_I32 || mut) {
+        return false;
+    }
+    field_type = wasm_struct_type_get_field_type(struct_type, 2, &mut);
+    if (field_type.value_type != VALUE_TYPE_ANYREF || !mut) {
+        return false;
+    }
+
+    return true;
+}
+
+void *
+get_infc_obj(wasm_exec_env_t exec_env, wasm_obj_t obj) {
+    wasm_value_t res = { 0 };
+    wasm_struct_obj_t struct_obj;
+
+    if (!is_infc(obj)) {
+        return NULL;
+    }
+    struct_obj = (wasm_struct_obj_t)obj;
+    wasm_struct_obj_get_field(struct_obj, 2, false, &res);
+
+    return res.gc_obj;
+}

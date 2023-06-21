@@ -4,6 +4,8 @@
  */
 
 import ts from 'typescript';
+import path from 'path';
+
 import { ParserContext } from './frontend.js';
 import {
     getExportIdentifierName,
@@ -12,7 +14,6 @@ import {
     getModulePath,
 } from './utils.js';
 import { GlobalScope, Scope } from './scope.js';
-import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 
 export class ImportResolver {
     globalScopes: Array<GlobalScope>;
@@ -30,17 +31,24 @@ export class ImportResolver {
             ts.forEachChild(node, this.visitNode.bind(this));
         });
         /* Auto import the standard library module for every user file */
-        const builtinScope = this.globalScopes[1];
-        for (
-            let i = this.parserCtx.builtinFileNames.length;
-            i < this.globalScopes.length;
-            i++
-        ) {
-            for (const builtinIdentifier of BuiltinNames.builtinIdentifierArray) {
-                this.globalScopes[i].addImportIdentifier(
-                    builtinIdentifier,
-                    builtinScope,
-                );
+        const builtinScopes = this.globalScopes.filter((scope) => {
+            return !!this.parserCtx.builtinFileNames.find((name) => {
+                const fileName = path.basename(scope.moduleName);
+                return name.includes(fileName);
+            });
+        });
+
+        for (let i = 0; i < this.globalScopes.length; i++) {
+            const scope = this.globalScopes[i];
+            if (builtinScopes.indexOf(scope) < 0) {
+                for (const builtinScope of builtinScopes) {
+                    for (const builtinIdentifier of builtinScope.declareIdentifierList) {
+                        scope.addImportIdentifier(
+                            builtinIdentifier,
+                            builtinScope,
+                        );
+                    }
+                }
             }
         }
     }

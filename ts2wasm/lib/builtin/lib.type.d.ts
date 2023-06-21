@@ -29,7 +29,7 @@ interface ArrayConstructor {
     <T>(...items: T[]): T[];
     isArray(arg: any): arg is any[];
 }
-var Array: ArrayConstructor;
+declare var Array: ArrayConstructor;
 
 interface Array<T> {
     length: number;
@@ -132,7 +132,7 @@ interface StringConstructor {
     readonly prototype: String;
     fromCharCode(...codes: number[]): string;
 }
-var String: StringConstructor;
+declare var String: StringConstructor;
 
 interface Math {
     pow(x: number, y: number): number;
@@ -143,14 +143,15 @@ interface Math {
     ceil(x: number): number;
     floor(x: number): number;
 }
-var Math: Math;
+declare var Math: Math;
 
 interface TypedPropertyDescriptor<T> {}
 
 interface Console {
     log(...data: any[]): void;
 }
-var console: Console;
+
+declare var console: Console;
 
 interface MapConstructor {
     new (): Map<any, any>;
@@ -164,7 +165,7 @@ interface MapConstructor {
         callbackfn: (value: any, key: any, map: Map<any, any>) => void,
     ): void;
 }
-var Map: MapConstructor;
+declare var Map: MapConstructor;
 
 interface SetConstructor {
     new (): Set<any>;
@@ -175,7 +176,7 @@ interface SetConstructor {
     size: number;
     forEach(callbackfn: (value: any, key: any, map: Set<any>) => void): void;
 }
-var Set: SetConstructor;
+declare var Set: SetConstructor;
 
 interface JSON {
     parse(
@@ -193,9 +194,11 @@ interface JSON {
         space?: string | number,
     ): any;
 }
-var JSON: JSON;
+
+/* JSON will fallback to libdyntype */
+declare var JSON: any;
 
 // eslint-disable-next-line no-shadow-restricted-names
-var NaN: number;
+declare var NaN: number;
 // eslint-disable-next-line no-shadow-restricted-names
-var Infinity: number;
+declare var Infinity: number;
