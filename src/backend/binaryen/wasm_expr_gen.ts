@@ -54,6 +54,7 @@ import {
     VarValueKind,
     OffsetCallValue,
     VTableCallValue,
+    TypeofValue,
 } from '../../semantics/value.js';
 import {
     ArrayType,
@@ -79,7 +80,7 @@ import {
 import { NewConstructorObjectValue } from '../../semantics/value.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { dyntype, structdyn } from './lib/dyntype/utils.js';
-import { anyArrayTypeInfo, infcTypeInfo } from './glue/packType.js';
+import { anyArrayTypeInfo, charArrayTypeInfo, infcTypeInfo, stringArrayStructTypeInfo } from './glue/packType.js';
 import {
     GetBuiltinObjectType,
     GetShapeFromType,
@@ -195,6 +196,8 @@ export class WASMExpressionGen {
                 return this.wasmNewArray(
                     <NewArrayValue | NewArrayLenValue>value,
                 );
+            case SemanticsValueKind.TYPEOF:
+                return this.wasmTypeof(<TypeofValue>value);
             default:
                 throw new Error(`unexpected value: ${value}`);
         }
@@ -1333,7 +1336,10 @@ export class WASMExpressionGen {
                     cast if we find the actual object should be fallbacked
                     to libdyntype */
                 const fallbackConstructors = ['Map', 'Set'];
-                if (fallbackConstructors.includes(fromObjType.meta.name)) {
+                if (
+                    fromObjType.meta &&
+                    fallbackConstructors.includes(fromObjType.meta.name)
+                ) {
                     return fromValueRef;
                 }
 
@@ -2971,6 +2977,22 @@ export class WASMExpressionGen {
                 : dyntype.dyntype_invoke,
             finalArgs,
             dyntype.dyn_value_t,
+        );
+        return res;
+    }
+
+    private wasmTypeof(value: TypeofValue): binaryen.ExpressionRef {
+        const expr = this.wasmExprGen(value.value);
+        const res = this.module.call(
+            dyntype.dyntype_typeof,
+            [
+                this.module.global.get(
+                    dyntype.dyntype_context,
+                    binaryen.anyref,
+                ),
+                expr,
+            ],
+            stringArrayStructTypeInfo.typeRef,
         );
         return res;
     }

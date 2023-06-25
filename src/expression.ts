@@ -369,6 +369,15 @@ export class FunctionExpression extends Expression {
     }
 }
 
+export class TypeOfExpression extends Expression {
+    constructor(private _expr: Expression) {
+        super(ts.SyntaxKind.TypeOfExpression);
+    }
+    get expr() {
+        return this._expr;
+    }
+}
+
 export default class ExpressionProcessor {
     private typeResolver;
     private nodeScopeMap;
@@ -680,6 +689,14 @@ export default class ExpressionProcessor {
             case ts.SyntaxKind.ThisKeyword: {
                 res = new IdentifierExpression('this');
                 res.setExprType(this.typeResolver.generateNodeType(node));
+                break;
+            }
+            case ts.SyntaxKind.TypeOfExpression: {
+                const typeofExpr = <ts.TypeOfExpression>node;
+                res = new TypeOfExpression(
+                    this.visitNode(typeofExpr.expression),
+                );
+                res.setExprType(this.typeResolver.generateNodeType(typeofExpr));
                 break;
             }
             default:
