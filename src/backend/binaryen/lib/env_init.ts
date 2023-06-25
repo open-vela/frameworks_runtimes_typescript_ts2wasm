@@ -11,7 +11,10 @@ import { fileURLToPath } from 'url';
 import { UtilFuncs } from '../utils.js';
 import { BuiltinNames } from '../../../../lib/builtin/builtin_name.js';
 import { getBuiltInFuncName } from '../../../utils.js';
-import { charArrayTypeInfo } from '../glue/packType.js';
+import {
+    charArrayTypeInfo,
+    stringArrayStructTypeInfo,
+} from '../glue/packType.js';
 
 export function importAnyLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
@@ -54,7 +57,7 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.module_name,
         dyntype.dyntype_typeof,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
-        dyntype.dyn_value_t,
+        stringArrayStructTypeInfo.typeRef,
     );
     module.addFunctionImport(
         dyntype.dyntype_typeof1,
