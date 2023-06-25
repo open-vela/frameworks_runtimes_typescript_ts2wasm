@@ -94,6 +94,7 @@ import {
     ClosureCallValue,
     NewArrayValue,
     NewArrayLenValue,
+    TypeofValue,
 } from './value.js';
 
 import {
@@ -129,6 +130,7 @@ import {
     ElementAccessExpression,
     AsExpression,
     FunctionExpression,
+    TypeOfExpression,
 } from '../expression.js';
 
 import {
@@ -153,6 +155,7 @@ import {
     TSInterface,
     TSContext,
     TSUnion,
+    builtinTypes,
 } from '../type.js';
 
 import {
@@ -603,6 +606,46 @@ function buildIdentiferExpression(
     }
 
     throw Error(`Cannot find the idenentifier "${name}"`);
+}
+
+function buildTypeOfExpression(
+    expr: TypeOfExpression,
+    context: BuildContext,
+): SemanticsValue {
+    const typeKind = expr.expr.exprType.kind;
+    let res: SemanticsValue;
+    switch (typeKind) {
+        case TypeKind.STRING:
+            res = new LiteralValue(Primitive.String, 'string');
+            break;
+        case TypeKind.NUMBER:
+            res = new LiteralValue(Primitive.String, 'number');
+            break;
+        case TypeKind.BOOLEAN:
+            res = new LiteralValue(Primitive.String, 'boolean');
+            break;
+        case TypeKind.UNDEFINED:
+            res = new LiteralValue(Primitive.String, 'undefined');
+            break;
+        case TypeKind.FUNCTION:
+            res = new LiteralValue(Primitive.String, 'function');
+            break;
+        case TypeKind.ARRAY:
+        case TypeKind.ENUM:
+        case TypeKind.INTERFACE:
+        case TypeKind.CLASS:
+        case TypeKind.NULL:
+            res = new LiteralValue(Primitive.String, 'object');
+            break;
+        case TypeKind.UNION:
+        case TypeKind.ANY: {
+            res = new TypeofValue(buildExpression(expr.expr, context));
+            break;
+        }
+        default:
+            throw new Error(`unimpl typeof's expression type ${typeKind}`);
+    }
+    return res;
 }
 
 function findObjectLiteralType(
@@ -2071,6 +2114,8 @@ export function buildExpression(
             case ts.SyntaxKind.PrefixUnaryExpression:
             case ts.SyntaxKind.PostfixUnaryExpression:
                 return buildUnaryExpression(expr as UnaryExpression, context);
+            case ts.SyntaxKind.TypeOfExpression:
+                return buildTypeOfExpression(expr as TypeOfExpression, context);
         }
         return new UnimplementValue(expr.tsNode!);
     } catch (e: any) {

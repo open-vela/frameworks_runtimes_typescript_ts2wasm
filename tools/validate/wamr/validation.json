@@ -2987,5 +2987,15 @@
                 "result": "is null"
             }
         ]
+    },
+    {
+        "module": "typeof",
+        "entries": [
+            {
+                "name": "typeofTest",
+                "args": [],
+                "result": "number \nstring \nboolean \nobject \nobject \nobject \nobject \nobject \nundefined \nnumber \nobject \nobject \nnumber \nstring \nfunction \nobject"
+            }
+        ]
     }
 ]

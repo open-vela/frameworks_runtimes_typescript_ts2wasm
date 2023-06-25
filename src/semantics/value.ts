@@ -111,6 +111,8 @@ export enum SemanticsValueKind {
     BLOCK_BRANCH_IF,
 
     RET,
+
+    TYPEOF,
 }
 
 export type ValueBinaryOperator = ts.BinaryOperator;
@@ -599,6 +601,19 @@ export class ToStringValue extends SemanticsValue {
         writer.shift();
         this.value.dump(writer);
         writer.unshift();
+    }
+
+    forEachChild(visitor: SemanticsValueVisitor) {
+        visitor(this.value);
+    }
+}
+
+/** for typeof, iff value is any type, which can't be determined in compile time, so here
+ * create TypeofValue to determine the type in runtime
+ */
+export class TypeofValue extends SemanticsValue {
+    constructor(public value: SemanticsValue) {
+        super(SemanticsValueKind.TYPEOF, Primitive.String);
     }
 
     forEachChild(visitor: SemanticsValueVisitor) {
