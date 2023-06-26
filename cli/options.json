@@ -19,11 +19,6 @@
         "description": "Generate the WebAssembly text output file (.wat).",
         "default": false
     },
-    "c": {
-       "category": "Output",
-       "description": "Generate the C Code (.c)",
-       "default": false
-    },
     "dumpast": {
        "category": "Output",
        "description": "Dump the AST Tree",
