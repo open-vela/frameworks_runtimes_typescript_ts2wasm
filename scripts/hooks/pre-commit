@@ -1,1 +1,1 @@
-npx lint-staged --cwd ts2wasm/
+npx lint-staged
