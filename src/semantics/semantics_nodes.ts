@@ -267,6 +267,28 @@ export class FunctionDeclareNode extends SemanticsNode {
         return this._closureVars;
     }
 
+    findClosureIndex(v: VarDeclareNode) : number {
+        if (!this._closureVars) return -1;
+        for (let i = 0; i < this._closureVars!.length; i++) {
+            const c = this._closureVars![i];
+            if (c === v
+               || c.name == v.name)
+                return i;
+        }
+        return -1;
+    }
+
+    findParameterIndex(v: VarDeclareNode) : number {
+        if (!this.parameters) return -1;
+        let i = 0;
+        for (i; i < this.parameters!.length; i ++) {
+            const p = this.parameters![i];
+            if (p === v || p.name == v.name)
+                return i;
+        }
+        return -1;
+    }
+
     dump(writer: DumpWriter) {
         writer.write(this.toString());
     }

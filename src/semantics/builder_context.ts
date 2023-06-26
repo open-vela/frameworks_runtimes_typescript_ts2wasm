@@ -368,6 +368,7 @@ export class BuildContext {
         const newValue = value.copy();
         newValue.ref = new_var_decl;
 
+        ownScope = ownScope.getRootFunctionScope()!;
         for (let i = env_idx + 1; i < this.stackEnv.length; i++) {
             const env = this.stackEnv[i];
             if (env.function) {
@@ -426,7 +427,7 @@ export class BuildContext {
                     const val = v as VarValue;
                     const var_decl = val.ref as VarDeclareNode;
                     if (var_decl.isUsedInClosureFunction()) {
-                        const idx = closure_decl!.indexOf(var_decl);
+                        const idx = func.findClosureIndex(var_decl);
                         if (idx >= 0) init_list[idx] = val;
                     }
                 }
