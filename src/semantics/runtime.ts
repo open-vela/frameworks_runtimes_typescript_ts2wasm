@@ -141,6 +141,7 @@ export class ObjectDescription {
     public drived = 0;
     private _base?: ObjectDescription;
     private _inited = false;
+    private _builtin = false;
     public ctor?: MemberDescription;
 
     get isInited(): boolean {
@@ -148,6 +149,13 @@ export class ObjectDescription {
     }
     setInited() {
         this._inited = true;
+    }
+
+    get isBuiltin() : boolean {
+        return this._builtin;
+    }
+    setBuiltin() {
+        this._builtin = true;
     }
 
     get base(): ObjectDescription | undefined {
@@ -421,13 +429,13 @@ export class ShapeAccessor extends ShapeMember {
     }
 
     get getterOffset(): number | undefined {
-        return this._getter && this.isOffset
+        return this._getter !== undefined && this.isOffset
             ? (this._getter! as number)
             : undefined;
     }
 
     get getterValue(): Value | undefined {
-        return this._getter && this.isValue
+        return this._getter !== undefined && this.isValue
             ? (this._getter! as Value)
             : undefined;
     }
@@ -440,13 +448,13 @@ export class ShapeAccessor extends ShapeMember {
     }
 
     get setterOffset(): number | undefined {
-        return this._setter && this.isOffset
+        return this._setter !== undefined && this.isOffset
             ? (this._setter! as number)
             : undefined;
     }
 
     get setterValue(): Value | undefined {
-        return this._setter && this.isValue
+        return this._setter !== undefined && this.isValue
             ? (this._setter! as Value)
             : undefined;
     }

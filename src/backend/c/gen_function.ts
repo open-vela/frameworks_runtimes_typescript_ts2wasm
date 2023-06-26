@@ -104,7 +104,7 @@ export function genFunction(context: GeneratorContext, func: IRFunction) {
     context.shift();
     if (func.varCount + func.tempCount > 0) {
         context.addSource(
-            `ts_value_t vars[${func.varCount + func.tempCount}];`,
+            `ts_value_t vars[${func.varCount}/*varCount*/ + ${func.tempCount}/*tempCount*/];`,
         );
     }
     const func_context = new FunctionContext(func, func.varCount);
@@ -214,13 +214,17 @@ function genCode(context: GeneratorContext, op: IRCode, fc: FunctionContext) {
             break;
         case IRCodeKind.DUP:
             context.addSource(
-                `ts_dup_${value_type}(context, &var[${fc.spCur()}], ${
+                `ts_dup_${value_type}(context, &var[${fc.spCur()} + ${
                     op.index
-                });`,
+                }], &var[${fc.spNext()}]);`,
             );
             break;
         case IRCodeKind.SWAP:
-            context.addSource(`ts_swap(context, &var[${fc.spCur()}]);`);
+            context.addSource(
+                `ts_swap(context, &var[${fc.spCur()}], &var[${
+                    fc.spCur() - 1
+                }]);`,
+            );
             break;
         case IRCodeKind.NEW_REF:
             context.addSource(
