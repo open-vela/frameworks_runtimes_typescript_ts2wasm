@@ -4,6 +4,7 @@ dist
 out
 .nyc_output
 coverage
+c-backend
 logs
 lib/builtin/watFile/
 logs

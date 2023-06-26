@@ -13,7 +13,6 @@ import log4js from 'log4js';
 import { Logger, consoleLogger } from '../src/log.js';
 import { Ts2wasmBackend } from '../src/backend/index.js';
 import { WASMGen } from '../src/backend/binaryen/index.js';
-import { CCodeGen } from '../src/backend/c/index.js';
 import { default as logConfig } from '../config/log4js.js';
 import { SyntaxError } from '../src/error.js';
 import { DumpAST } from '../src/dump_ast.js';
@@ -136,9 +135,6 @@ function getAbsolutePath(filename: string, baseDir = '') {
 }
 
 function createBackend(args: any, parserCtx: ParserContext): Ts2wasmBackend {
-    if (args.c) {
-        return new CCodeGen(parserCtx);
-    }
     return new WASMGen(parserCtx);
 }
 
@@ -268,9 +264,6 @@ function main() {
                         generatedWatFile +
                         "' has been generated.",
                 );
-            } else if (args.c) {
-                const output = backend.emitText();
-                writeFile(generatedWasmFile, output, baseDir);
             }
         } else if (args.wat || args.validate) {
             console.warn('WARNING: No wasm file specified.');
