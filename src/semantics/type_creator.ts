@@ -931,6 +931,12 @@ export function createObjectDescriptionShapes(
             }
         }
         meta.thisShape = this_shape;
+    } else if (meta.type == ObjectDescriptionType.INTERFACE) {
+        // create a shape with null members
+        const this_shape = new Shape(meta);
+        const this_members = new Array<ShapeMember>(members.length);
+        this_shape.members = this_members;
+        meta.thisShape = this_shape;
     } else {
         meta.thisShape = shape;
     }
@@ -1068,6 +1074,9 @@ function specializeObjectDescription(
     if (!meta) return undefined;
 
     const self_meta = new ObjectDescription(meta!.name, meta!.type, meta!);
+
+    if (meta.isBuiltin)
+      self_meta.setBuiltin();
 
     if (meta.isInited && meta.originShape)
         initSpecializeObjectDescription(mapper, meta!, self_meta);
@@ -1288,6 +1297,10 @@ export class SpecializeTypeMapper {
         }
         if (special_type !== valueType) {
             special_type.setGenericOwner(valueType);
+
+            if (valueType.isBuiltin) {
+                special_type.setBuiltin();
+            }
 
             if (special_type instanceof ValueTypeWithArguments) {
                 if (special_type !== this.ownerType) {

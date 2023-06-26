@@ -196,6 +196,9 @@ export function GetBuiltinObjectType(name: string): ObjectType {
     class_meta.instance = inst_meta;
     inst_meta.clazz = class_meta;
 
+    inst_meta.setBuiltin();
+    class_meta.setBuiltin();
+
     const [inst_type, class_type] = createObjectTypes(
         inst_info,
         class_info,
@@ -206,6 +209,8 @@ export function GetBuiltinObjectType(name: string): ObjectType {
     inst_type.classType = class_type;
     class_type.instanceType = inst_type;
 
+    inst_type.setBuiltin();
+    class_type.setBuiltin();
     builtinTypes.set(inst_info.inst_name, inst_type);
     builtinTypes.set(inst_info.class_name, class_type);
 

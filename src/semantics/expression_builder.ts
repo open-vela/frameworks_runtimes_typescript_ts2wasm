@@ -185,7 +185,8 @@ import { processEscape } from '../utils.js';
 import { createObjectDescriptionShapes } from './type_creator.js';
 
 function isInt(n: number): boolean {
-    return (n | 0) === 0;
+    /* TODO: currently we treat all numbers as f64, we can make some analysis and optimize some number to int */
+    return false;
 }
 
 function toInt(n: number): number {
@@ -1101,8 +1102,8 @@ function isMemberGetValue(kind: SemanticsValueKind): boolean {
     return (
         kind == SemanticsValueKind.DYNAMIC_GET ||
         kind == SemanticsValueKind.SHAPE_GET ||
-        kind == SemanticsValueKind.VTABLE_SET ||
-        kind == SemanticsValueKind.OFFSET_SET ||
+        kind == SemanticsValueKind.VTABLE_GET ||
+        kind == SemanticsValueKind.OFFSET_GET ||
         kind == SemanticsValueKind.OFFSET_GETTER ||
         kind == SemanticsValueKind.DIRECT_GETTER
     );
@@ -1467,7 +1468,7 @@ function buildCallExpression(
     let func = buildExpression(expr.callExpr, context);
     context.popReference();
 
-    if (isMemberGetValue(func.kind)) {
+    if (func.kind === SemanticsValueKind.DYNAMIC_GET) {
         const p = func as MemberGetValue;
         if (
             p.type.kind != ValueTypeKind.FUNCTION &&
