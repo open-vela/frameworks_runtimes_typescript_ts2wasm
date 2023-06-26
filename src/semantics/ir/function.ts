@@ -15,6 +15,7 @@ import {
     SemanticsKind,
     SemanticsNode,
     FunctionDeclareNode,
+    FunctionOwnKind,
     VarDeclareNode,
     BlockNode,
     BasicBlockNode,
@@ -93,7 +94,7 @@ class Context {
     }
 
     get varCount(): number {
-        return this._varsMap.size - 1;
+        return this._varsMap.size;
     }
 
     getLocalVarIndex(value: VarDeclareNode): number {
@@ -270,6 +271,12 @@ export class IRFunction extends IRBlock {
 
     constructor(public vm: IRModule) {
         super('function', false);
+    }
+
+    get isStartFunction(): boolean {
+        return (
+            !!this.funcNode && this.funcNode.ownKind == FunctionOwnKind.START
+        );
     }
 
     build(func: FunctionDeclareNode, global: GlobalContext) {

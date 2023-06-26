@@ -4,6 +4,8 @@
  */
 
 import { GeneratorContext } from './gen_context.js';
+import { IRFunction } from '../../semantics/ir/function.js';
+import Names from './name_builder.js';
 
 export function genHeader(context: GeneratorContext) {
     context.addSource('/************************************/');
@@ -17,4 +19,18 @@ export function genHeader(context: GeneratorContext) {
 export function genFooter(context: GeneratorContext) {
     context.addSource('/********************************************/');
     context.addSource('// end');
+}
+
+export function genInitFunc(context: GeneratorContext, starts: IRFunction[]) {
+    context.newLines();
+    context.addSource(`TS_EXPORT void ts_init_module(ts_context_t* context) {`);
+
+    context.shift();
+    for (const f of starts) {
+        context.addSource(
+            `${Names.buildIdentifyFromName(f.name)}(context, NULL, 0, 0);`,
+        );
+    }
+    context.unshift();
+    context.addSource(`}`);
 }

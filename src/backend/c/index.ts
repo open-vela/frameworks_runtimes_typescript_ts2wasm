@@ -25,7 +25,8 @@ import { ModuleNode } from '../../semantics/semantics_nodes.js';
 import { BuildModuleNode } from '../../semantics/index.js';
 import { CreateDefaultDumpWriter } from '../../semantics/dump.js';
 import { IRModule } from '../../semantics/ir/irmodule.js';
-import { genHeader, genFooter } from './code_framework.js';
+import { IRFunction } from '../../semantics/ir/function.js';
+import { genHeader, genFooter, genInitFunc } from './code_framework.js';
 import { GeneratorContext } from './gen_context.js';
 import Names from './name_builder.js';
 import { genFunction } from './gen_function.js';
@@ -62,12 +63,15 @@ export class CCodeGen extends Ts2wasmBackend {
 
     genCCode() {
         const context = new GeneratorContext(this.vm!);
+        const startFunctions: IRFunction[] = [];
         genHeader(context);
         for (const f of this.vm!.functions) {
-            //if (Names.isBuiltin(f.name)) continue;
+            if (Names.isBuiltin(f.name)) continue;
             genFunction(context, f);
+            if (f.isStartFunction) startFunctions.push(f);
         }
         genRuntime(context, this.vm!);
+        genInitFunc(context, startFunctions);
         genFooter(context);
         this.code = context.getCode();
     }

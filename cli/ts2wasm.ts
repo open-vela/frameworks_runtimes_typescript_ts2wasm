@@ -268,6 +268,9 @@ function main() {
                         generatedWatFile +
                         "' has been generated.",
                 );
+            } else if (args.c) {
+                const output = backend.emitText();
+                writeFile(generatedWasmFile, output, baseDir);
             }
         } else if (args.wat || args.validate) {
             console.warn('WARNING: No wasm file specified.');

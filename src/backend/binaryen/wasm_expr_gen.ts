@@ -1170,6 +1170,29 @@ export class WASMExpressionGen {
         const meta = owner.shape!.meta!;
         const member = meta.members[value.index];
         const args = value.parameters;
+        let target = meta.name;
+        let isBuiltin = false;
+
+        /* Workaround: should use meta.isBuiltin, but currently only class defined
+            inside src/semantics/builtin.ts will be marked as builtin. After that
+            issue fixed, we should modify the code here */
+        if (target.includes('Console')) {
+            target = 'console';
+            isBuiltin = true;
+        }
+        else if (target.includes('Math')) {
+            target = 'Math';
+            isBuiltin = true;
+        }
+
+        if (isBuiltin) {
+            return this.callBuiltinOrStaticMethod(
+                member,
+                target,
+                value.parameters,
+                true,
+            );
+        }
 
         switch (owner.type.kind) {
             case ValueTypeKind.OBJECT: {

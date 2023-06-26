@@ -821,6 +821,10 @@ export class OffsetCallValue extends FunctionCallBaseValue {
         visitor(this.owner);
         super.forEachChild(visitor);
     }
+
+    toString(): string {
+        return `[OffsetCall ${this.funcType}@${this.index}]`;
+    }
 }
 
 export class VTableGetValue extends SemanticsValue {

@@ -119,6 +119,16 @@ export class ValueType {
 
     private _generic_owner?: ValueType;
 
+    private _builtin_type: boolean = false;
+
+    get isBuiltin() : boolean {
+        return this._builtin_type;
+    }
+
+    setBuiltin() {
+        this._builtin_type = true;
+    }
+
     setGenericOwner(vt: ValueType) {
         this._generic_owner = vt;
     }
