@@ -48,7 +48,7 @@ TEST_F(TypesTest, create_number_object) {
         bool temp;
         char *temp2;
         EXPECT_EQ(dyntype_to_bool(ctx, num, &temp), -DYNTYPE_TYPEERR);
-        EXPECT_EQ(dyntype_to_cstring(ctx, num, &temp2), -DYNTYPE_TYPEERR);
+        EXPECT_EQ(dyntype_to_cstring(ctx, num, &temp2), DYNTYPE_SUCCESS);
 
         dyntype_to_number(ctx, num, &raw_number);
         EXPECT_EQ(raw_number, check_values[i]);
@@ -81,7 +81,7 @@ TEST_F(TypesTest, create_boolean_object) {
         double temp1;
         char *temp2;
         EXPECT_EQ(dyntype_to_number(ctx, boolean, &temp1), -DYNTYPE_TYPEERR);
-        EXPECT_EQ(dyntype_to_cstring(ctx, boolean, &temp2), -DYNTYPE_TYPEERR);
+        EXPECT_EQ(dyntype_to_cstring(ctx, boolean, &temp2), DYNTYPE_SUCCESS);
 
         dyntype_to_bool(ctx, boolean, &raw_value);
         EXPECT_EQ(raw_value, check_values[i]);
@@ -112,7 +112,7 @@ TEST_F(TypesTest, create_undefined) {
     char *temp2;
     EXPECT_EQ(dyntype_to_bool(ctx, undefined, &temp), -DYNTYPE_TYPEERR);
     EXPECT_EQ(dyntype_to_number(ctx, undefined, &temp1), -DYNTYPE_TYPEERR);
-    EXPECT_EQ(dyntype_to_cstring(ctx, undefined, &temp2), -DYNTYPE_TYPEERR);
+    EXPECT_EQ(dyntype_to_cstring(ctx, undefined, &temp2), DYNTYPE_SUCCESS);
 }
 
 TEST_F(TypesTest, create_null) {
@@ -226,7 +226,7 @@ TEST_F(TypesTest, create_array) {
     char *temp2;
     EXPECT_EQ(dyntype_to_bool(ctx, array, &temp), -DYNTYPE_TYPEERR);
     EXPECT_EQ(dyntype_to_number(ctx, array, &temp1), -DYNTYPE_TYPEERR);
-    EXPECT_EQ(dyntype_to_cstring(ctx, array, &temp2), -DYNTYPE_TYPEERR);
+    EXPECT_EQ(dyntype_to_cstring(ctx, array, &temp2), DYNTYPE_SUCCESS);
 
 
     dyntype_release(ctx, array);
@@ -314,7 +314,7 @@ TEST_F(TypesTest, create_object) {
     char *temp2;
     EXPECT_EQ(dyntype_to_bool(ctx, obj, &temp), -DYNTYPE_TYPEERR);
     EXPECT_EQ(dyntype_to_number(ctx, obj, &temp1), -DYNTYPE_TYPEERR);
-    EXPECT_EQ(dyntype_to_cstring(ctx, obj, &temp2), -DYNTYPE_TYPEERR);
+    EXPECT_EQ(dyntype_to_cstring(ctx, obj, &temp2), DYNTYPE_SUCCESS);
 
     /* Currently we need to manually release the object,
         after GC support finished, this line is not needed */
@@ -341,10 +341,10 @@ TEST_F(TypesTest, create_map) {
     char *temp2;
     EXPECT_EQ(dyntype_to_bool(ctx, obj, &temp), -DYNTYPE_TYPEERR);
     EXPECT_EQ(dyntype_to_number(ctx, obj, &temp1), -DYNTYPE_TYPEERR);
-    EXPECT_EQ(dyntype_to_cstring(ctx, obj, &temp2), -DYNTYPE_TYPEERR);
+    EXPECT_EQ(dyntype_to_cstring(ctx, obj, &temp2), DYNTYPE_SUCCESS);
     /* Currently we need to manually release the object,
         after GC support finished, this line is not needed */
-        
+
     dyntype_release(ctx, obj);
     dyntype_release(ctx, obj1);
 }
