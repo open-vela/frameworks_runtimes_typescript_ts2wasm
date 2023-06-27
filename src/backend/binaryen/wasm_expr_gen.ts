@@ -55,6 +55,7 @@ import {
     OffsetCallValue,
     VTableCallValue,
     TypeofValue,
+    ToStringValue,
 } from '../../semantics/value.js';
 import {
     ArrayType,
@@ -80,11 +81,8 @@ import {
 import { NewConstructorObjectValue } from '../../semantics/value.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { dyntype, structdyn } from './lib/dyntype/utils.js';
-import { anyArrayTypeInfo, charArrayTypeInfo, infcTypeInfo, stringArrayStructTypeInfo } from './glue/packType.js';
-import {
-    GetBuiltinObjectType,
-    GetShapeFromType,
-} from '../../semantics/builtin.js';
+import { anyArrayTypeInfo, infcTypeInfo } from './glue/packType.js';
+import { GetBuiltinObjectType } from '../../semantics/builtin.js';
 import { getBuiltInFuncName } from '../../utils.js';
 import { stringTypeInfo } from './glue/packType.js';
 
@@ -198,6 +196,9 @@ export class WASMExpressionGen {
                 );
             case SemanticsValueKind.TYPEOF:
                 return this.wasmTypeof(<TypeofValue>value);
+            case SemanticsValueKind.VALUE_TO_STRING:
+            case SemanticsValueKind.OBJECT_TO_STRING:
+                return this.wasmToString(<ToStringValue>value);
             default:
                 throw new Error(`unexpected value: ${value}`);
         }
@@ -1182,8 +1183,7 @@ export class WASMExpressionGen {
         if (target.includes('Console')) {
             target = 'console';
             isBuiltin = true;
-        }
-        else if (target.includes('Math')) {
+        } else if (target.includes('Math')) {
             target = 'Math';
             isBuiltin = true;
         }
@@ -2992,7 +2992,29 @@ export class WASMExpressionGen {
                 ),
                 expr,
             ],
-            stringArrayStructTypeInfo.typeRef,
+            stringTypeInfo.typeRef,
+        );
+        return res;
+    }
+
+    private wasmToString(value: ToStringValue): binaryen.ExpressionRef {
+        const expr = this.wasmExprGen(value.value);
+        const boxedExpr = FunctionalFuncs.boxToAny(
+            this.module,
+            expr,
+            value.value.type.kind,
+            value.value.kind,
+        );
+        const res = this.module.call(
+            dyntype.dyntype_toString,
+            [
+                this.module.global.get(
+                    dyntype.dyntype_context,
+                    binaryen.anyref,
+                ),
+                boxedExpr,
+            ],
+            stringTypeInfo.typeRef,
         );
         return res;
     }
