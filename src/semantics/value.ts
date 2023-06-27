@@ -420,15 +420,14 @@ export class NewClosureFunction extends SemanticsValue {
         super(SemanticsValueKind.NEW_CLOSURE_FUNCTION, funcNode.funcType);
     }
 
-    toString() : string {
-        return `[NewClosureFunction ${this.funcNode}]`
+    toString(): string {
+        return `[NewClosureFunction ${this.funcNode}]`;
     }
 
     forEachChild(visitor: SemanticsValueVisitor) {
         if (this.closureInitList) {
             for (const p of this.closureInitList) {
-                if (p)
-                    visitor(p);
+                if (p) visitor(p);
             }
         }
     }

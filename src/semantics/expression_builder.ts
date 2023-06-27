@@ -972,6 +972,7 @@ export function newCastValue(
         type.kind == ValueTypeKind.OBJECT &&
         value_type.kind == ValueTypeKind.OBJECT
     ) {
+        const from_value = value;
         const from_obj_type = value_type as ObjectType;
         // check value_type's shape
         let from_shape = value.shape;
@@ -984,13 +985,51 @@ export function newCastValue(
         const to_meta = (type as ObjectType).meta;
         let to_shape = to_meta.originShape;
 
+        /* to_meta may differ from from_meta, like undefined
+        interface NoddOptions {
+            attrs?: number
+        }
+        const opts: NoddOptions = {}
+         */
+        if (to_meta.members.length > from_obj_type.meta.members.length) {
+            for (const to_member of to_meta.members) {
+                if (
+                    from_obj_type.meta.members.find((from_member) => {
+                        from_member.name === to_member.name;
+                    })
+                ) {
+                    continue;
+                }
+                if (
+                    to_member.valueType.kind === ValueTypeKind.UNION &&
+                    (<UnionType>to_member.valueType).types.has(
+                        Primitive.Undefined,
+                    )
+                ) {
+                    (from_value as NewLiteralObjectValue).initValues.push(
+                        new LiteralValue(Primitive.Undefined, undefined),
+                    );
+                    const curLen = (from_value.type as ObjectType).meta.members
+                        .length;
+                    (from_value.type as ObjectType).meta.members.push(
+                        new MemberDescription(
+                            to_member.name,
+                            to_member.type,
+                            curLen,
+                            to_member.valueType,
+                        ),
+                    );
+                }
+            }
+        }
+
         if (from_shape && from_shape.isStaticShape()) {
             to_shape = to_meta.buildShape(from_shape);
         }
         const cast_value = new CastValue(
             SemanticsValueKind.OBJECT_CAST_OBJECT,
             type,
-            value,
+            from_value,
         );
         cast_value.shape = to_shape;
         return cast_value;

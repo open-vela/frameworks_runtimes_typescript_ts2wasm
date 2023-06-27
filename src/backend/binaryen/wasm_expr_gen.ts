@@ -2414,6 +2414,12 @@ export class WASMExpressionGen {
                 [ref, index],
                 binaryen.f32,
             );
+        } else if (wasmType === binaryen.anyref) {
+            res = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_anyref,
+                [ref, index],
+                binaryen.anyref,
+            );
         } else {
             const obj = this.module.call(
                 structdyn.StructDyn.struct_get_dyn_anyref,
