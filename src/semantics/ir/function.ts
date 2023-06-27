@@ -76,18 +76,20 @@ import { ObjectDescription, Shape } from '../runtime.js';
 import { isEqualOperator } from '../expression_builder.js';
 
 class LocalVars {
-  constructor(public readonly start : number,
-              public readonly vars: VarDeclareNode[]) {}
+    constructor(
+        public readonly start: number,
+        public readonly vars: VarDeclareNode[],
+    ) {}
 
-  findVar(v: VarDeclareNode) : number {
-    for (let i = 0; i < this.vars.length; i ++) {
-      const local_var = this.vars[i];
-      if (local_var === v || local_var.name == v.name)
-        return i + this.start;
+    findVar(v: VarDeclareNode): number {
+        for (let i = 0; i < this.vars.length; i++) {
+            const local_var = this.vars[i];
+            if (local_var === v || local_var.name == v.name)
+                return i + this.start;
+        }
+        return -1;
     }
-    return -1;
-  }
-};
+}
 
 class Context {
     public maxTempCount = 0;
@@ -97,7 +99,7 @@ class Context {
     private _blockStack: IRBlock[] = [];
 
     private _localVarsStack: LocalVars[] = [];
-    private _varCount : number = 0;
+    private _varCount = 0;
 
     constructor(
         private _globalContext: GlobalContext,
@@ -105,21 +107,23 @@ class Context {
         _irFunc: IRFunction,
     ) {
         this.pushBlock(_irFunc);
-        this._varCount = (this._func.varList ? this._func.varList.length : 0)
-              + (this._func.flattenValue ? this.calcLocalVarCount(this._func.flattenValue!) : 0); 
+        this._varCount =
+            (this._func.varList ? this._func.varList.length : 0) +
+            (this._func.flattenValue
+                ? this.calcLocalVarCount(this._func.flattenValue!)
+                : 0);
         this.pushLocalVars(this._func.varList);
     }
 
     pushLocalVars(varList?: VarDeclareNode[]) {
-      if (!varList)
-        return;
-      let start = 0;
-      if (this._localVarsStack.length > 0) {
-          const s = this._localVarsStack[this._localVarsStack.length - 1];
-          start = s.start + s.vars.length;
-      }
+        if (!varList) return;
+        let start = 0;
+        if (this._localVarsStack.length > 0) {
+            const s = this._localVarsStack[this._localVarsStack.length - 1];
+            start = s.start + s.vars.length;
+        }
 
-      this._localVarsStack.push(new LocalVars(start, varList!));
+        this._localVarsStack.push(new LocalVars(start, varList!));
     }
 
     get varCount(): number {
@@ -127,9 +131,9 @@ class Context {
     }
 
     getLocalVarIndex(value: VarDeclareNode): number {
-        for (let i = this._localVarsStack.length - 1; i >= 0; i --) {
-           const idx = this._localVarsStack[i].findVar(value);
-           if (idx >= 0) return idx;
+        for (let i = this._localVarsStack.length - 1; i >= 0; i--) {
+            const idx = this._localVarsStack[i].findVar(value);
+            if (idx >= 0) return idx;
         }
         return -1;
     }
@@ -166,23 +170,22 @@ class Context {
         return this._globalContext.module.dataPool.addString(s);
     }
 
-    private calcLocalVarCount(expr: SemanticsValue) : number {
-      let count = 0;
-      if (expr.kind != SemanticsValueKind.BLOCK) {
-          return 0; 
-      }
+    private calcLocalVarCount(expr: SemanticsValue): number {
+        let count = 0;
+        if (expr.kind != SemanticsValueKind.BLOCK) {
+            return 0;
+        }
 
-      const block = expr as BlockValue;
+        const block = expr as BlockValue;
 
-      if (block.varList) count += block.varList.length;
+        if (block.varList) count += block.varList.length;
 
-      let child_count = 0;
-      for (const v of block.values) {
-          const c = this.calcLocalVarCount(v);
-          if (c > child_count)
-            child_count = c;
-      }
-      return count + child_count;
+        let child_count = 0;
+        for (const v of block.values) {
+            const c = this.calcLocalVarCount(v);
+            if (c > child_count) child_count = c;
+        }
+        return count + child_count;
     }
 
     reset() {
@@ -232,7 +235,7 @@ class Context {
 
     popBlockVars(block: BlockValue) {
         if (block.varList) {
-          this._localVarsStack.pop();
+            this._localVarsStack.pop();
         }
     }
 }
@@ -317,7 +320,9 @@ export class IRFunction extends IRBlock {
         }
 
         if (!code) {
-            throw Error(`buildVar Field, cannot found ${var_decl} in function: ${this.funcNode}`);
+            throw Error(
+                `buildVar Field, cannot found ${var_decl} in function: ${this.funcNode}`,
+            );
         }
 
         context.pushCode(code!);
