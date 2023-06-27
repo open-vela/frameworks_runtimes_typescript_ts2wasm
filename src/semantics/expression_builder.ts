@@ -1608,8 +1608,6 @@ function buildCallExpression(
                 func = new ClosureCallValue(f_type.returnType, func, f_type);
             }
         }
-    } else if (func.type.kind === ValueTypeKind.ANY) {
-        throw Error(`need to handle any call`);
     } else if (!isMemberCallValue(func.kind)) {
         throw Error(
             `unkown type for function call func kind: ${
