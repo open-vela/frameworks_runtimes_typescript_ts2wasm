@@ -545,10 +545,10 @@ bool dyntype_is_string(dyn_ctx_t ctx, dyn_value_t obj) {
 
 int dyntype_to_cstring(dyn_ctx_t ctx, dyn_value_t str_obj, char **pres) {
     JSValue *ptr = (JSValue *)str_obj;
-    if (!JS_IsString(*ptr)) {
-        return -DYNTYPE_TYPEERR;
-    }
     *pres = (char*)JS_ToCString(ctx->js_ctx, *ptr);
+    if (*pres == NULL) {
+        return -DYNTYPE_EXCEPTION;
+    }
     return DYNTYPE_SUCCESS;
 }
 

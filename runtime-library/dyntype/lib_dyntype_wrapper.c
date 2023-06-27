@@ -319,6 +319,45 @@ dyntype_is_falsy_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     return dyntype_is_falsy(UNBOX_ANYREF(ctx), UNBOX_ANYREF(value));
 }
 
+void *
+dyntype_toString_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
+                         dyn_value_t value) {
+    char *str;
+    dyn_type_t type;
+    wasm_struct_obj_t res;
+    void *table_elem;
+    int32_t table_index;
+    dyn_value_t dyn_ctx, dyn_value;
+
+    dyn_ctx = UNBOX_ANYREF(ctx);
+    dyn_value = UNBOX_ANYREF(value);
+
+    if (dyntype_is_extref(dyn_ctx, dyn_value)) {
+        type = dyntype_typeof(dyn_ctx, dyn_value);
+        if (type != DynExtRefArray) {
+            value = "[object Object]";
+            if (type == DynExtRefFunc) {
+                value = "[wasm Function]";
+            }
+            res = create_wasm_string(exec_env, value);
+        } else {
+            dyntype_to_extref(dyn_ctx, dyn_value, &table_elem);
+            table_index = (int32_t)(intptr_t)table_elem;
+            table_elem = wamr_utils_get_table_element(exec_env, table_index);
+            res = array_to_string(exec_env, dyn_ctx, table_elem, NULL);
+        }
+    } else {
+        dyntype_to_cstring(dyn_ctx, dyn_value, &str);
+        if (str == NULL) {
+            return NULL;
+        }
+        res = create_wasm_string(exec_env, str);
+        dyntype_free_cstring(dyn_ctx, str);
+    }
+
+    return res;
+}
+
 /******************* Type equivalence *******************/
 /* for typeof keyword*/
 void *
@@ -654,6 +693,7 @@ static NativeSymbol native_symbols[] = {
     REG_NATIVE_FUNC(dyntype_typeof, "(rr)r"),
     REG_NATIVE_FUNC(dyntype_typeof1, "(rr)i"),
     REG_NATIVE_FUNC(dyntype_type_eq, "(rrr)i"),
+    REG_NATIVE_FUNC(dyntype_toString, "(rr)r"),
     REG_NATIVE_FUNC(dyntype_cmp, "(rrri)i"),
 
     REG_NATIVE_FUNC(dyntype_instanceof, "(rrr)i"),

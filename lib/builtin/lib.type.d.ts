@@ -202,3 +202,12 @@ declare var JSON: any;
 declare var NaN: number;
 // eslint-disable-next-line no-shadow-restricted-names
 declare var Infinity: number;
+
+interface Number {
+    toString(radix?: number): string;
+}
+
+interface Object {
+    /** Returns a string representation of an object. */
+    toString(): string;
+}

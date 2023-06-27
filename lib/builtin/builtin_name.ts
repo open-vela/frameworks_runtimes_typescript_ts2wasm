@@ -248,6 +248,8 @@ export namespace BuiltinNames {
                 return mangledName + '_anyref';
         }
     }
+    export const ObjectToStringMethod = 'toString';
+    export const ObjectBuiltinMethods = [ObjectToStringMethod];
 }
 
 export namespace ArgNames {

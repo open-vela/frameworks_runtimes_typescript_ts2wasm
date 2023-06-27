@@ -151,7 +151,7 @@ export class ObjectDescription {
         this._inited = true;
     }
 
-    get isBuiltin() : boolean {
+    get isBuiltin(): boolean {
         return this._builtin;
     }
     setBuiltin() {

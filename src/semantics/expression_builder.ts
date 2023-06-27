@@ -186,6 +186,7 @@ import {
 } from './runtime.js';
 import { processEscape } from '../utils.js';
 import { createObjectDescriptionShapes } from './type_creator.js';
+import { BuiltinNames } from '../../lib/builtin/builtin_name.js';
 
 function isInt(n: number): boolean {
     /* TODO: currently we treat all numbers as f64, we can make some analysis and optimize some number to int */
@@ -362,6 +363,12 @@ function createDynamicAccess(
     name: string,
     is_write: boolean,
 ): SemanticsValue {
+    /* iff call Object builtin methods */
+    if (BuiltinNames.ObjectBuiltinMethods.includes(name)) {
+        if (name === BuiltinNames.ObjectToStringMethod) {
+            return new ToStringValue(SemanticsValueKind.VALUE_TO_STRING, own);
+        }
+    }
     if (is_write) return new DynamicSetValue(own, name);
 
     return new DynamicGetValue(own, name);
@@ -1510,7 +1517,9 @@ function buildCallExpression(
     context.pushReference(ValueReferenceKind.RIGHT);
     let func = buildExpression(expr.callExpr, context);
     context.popReference();
-
+    if (func instanceof ToStringValue) {
+        return func;
+    }
     if (func.kind === SemanticsValueKind.DYNAMIC_GET) {
         const p = func as MemberGetValue;
         if (

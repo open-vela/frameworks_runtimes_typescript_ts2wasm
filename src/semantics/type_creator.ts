@@ -1075,8 +1075,7 @@ function specializeObjectDescription(
 
     const self_meta = new ObjectDescription(meta!.name, meta!.type, meta!);
 
-    if (meta.isBuiltin)
-      self_meta.setBuiltin();
+    if (meta.isBuiltin) self_meta.setBuiltin();
 
     if (meta.isInited && meta.originShape)
         initSpecializeObjectDescription(mapper, meta!, self_meta);

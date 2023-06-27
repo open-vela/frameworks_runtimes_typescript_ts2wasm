@@ -2997,5 +2997,15 @@
                 "result": "number \nstring \nboolean \nobject \nobject \nobject \nobject \nobject \nundefined \nnumber \nobject \nobject \nnumber \nstring \nfunction \nobject"
             }
         ]
+    },
+    {
+        "module": "toString",
+        "entries": [
+            {
+                "name": "toStringTest",
+                "args": [],
+                "result": "true \ntrue \ntrue \n16 \ntrue \ntrue \ntrue \ntrue \n110 \n1[object Object] \n1undefined \n1null \n11,2 \n1[wasm Function] \n110 \n1[object Object]"
+            }
+        ]
     }
 ]
