@@ -47,7 +47,6 @@ const enum ErrorKind {
     OperateDiffTypes = 'operate between different types',
     InvokeAnyObj = 'invoke any object',
     VoidTypeAsVarType = 'void type as variable type',
-    CalleeError = 'callee is not function or any type',
 }
 
 const enum ErrorFlag {
@@ -61,7 +60,6 @@ const enum ErrorFlag {
     ArgsAndParamsTypesAreNominalClass,
     ArgsAndParamsTypesAreNonAnyAndAnyTypes,
     VoidTypeAsVarType,
-    CalleeError,
 }
 
 interface SematicError {
@@ -187,47 +185,36 @@ export default class SemanticChecker {
 
     // check arguments and parameters types
     private checkCallExpr(expr: CallExpression) {
-        const calleeType = expr.callExpr.exprType;
-        if (calleeType.kind === TypeKind.FUNCTION) {
-            const funcType = expr.callExpr.exprType as TSFunction;
-            let paramTypes = funcType.getParamTypes();
-            if (funcType.hasRest()) {
-                const restType = (<TSArray>paramTypes[paramTypes.length - 1])
-                    .elementType;
-                if (paramTypes.length <= expr.callArgs.length) {
-                    const restTypes = new Array<Type>(
-                        expr.callArgs.length - paramTypes.length + 1,
-                    ).fill(restType);
-                    paramTypes = paramTypes
-                        .slice(0, paramTypes.length - 1)
-                        .concat(restTypes);
-                }
+        const funcType = expr.callExpr.exprType as TSFunction;
+        let paramTypes = funcType.getParamTypes();
+        if (funcType.hasRest()) {
+            const restType = (<TSArray>paramTypes[paramTypes.length - 1])
+                .elementType;
+            if (paramTypes.length <= expr.callArgs.length) {
+                const restTypes = new Array<Type>(
+                    expr.callArgs.length - paramTypes.length + 1,
+                ).fill(restType);
+                paramTypes = paramTypes
+                    .slice(0, paramTypes.length - 1)
+                    .concat(restTypes);
             }
-            for (let i = 0; i < expr.callArgs.length; i++) {
-                const paramType = paramTypes[i];
-                const argExpr = expr.callArgs[i];
-                this.nominalClassCheck(
+        }
+
+        for (let i = 0; i < expr.callArgs.length; i++) {
+            const paramType = paramTypes[i];
+            const argExpr = expr.callArgs[i];
+            this.nominalClassCheck(
+                paramType,
+                argExpr.exprType,
+                ErrorFlag.ArgsAndParamsTypesAreNominalClass,
+                `argument type and parameter type are nominal class types`,
+            );
+            if (argExpr instanceof PropertyAccessExpression) {
+                this.invokeAnyObjCheck(
                     paramType,
-                    argExpr.exprType,
-                    ErrorFlag.ArgsAndParamsTypesAreNominalClass,
-                    `argument type and parameter type are nominal class types`,
+                    argExpr.propertyAccessExpr.exprType,
                 );
-                if (argExpr instanceof PropertyAccessExpression) {
-                    this.invokeAnyObjCheck(
-                        paramType,
-                        argExpr.propertyAccessExpr.exprType,
-                    );
-                }
             }
-        } else if (calleeType.kind === TypeKind.ANY) {
-            Logger.info('callee expr is any type');
-        } else {
-            this.errors.push({
-                errorKind: ErrorKind.CalleeError,
-                errorFlag: ErrorFlag.CalleeError,
-                message: `callee type is not function or any, can not be called`,
-                scopeName: this.getScopeName(this.curScope!),
-            });
         }
     }
 
