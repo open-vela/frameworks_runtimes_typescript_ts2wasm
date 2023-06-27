@@ -1435,7 +1435,7 @@ export class WASMExpressionGen {
                 }
             }
             case SemanticsValueKind.ANY_CAST_OBJECT: {
-                const toTypeRef = this.wasmTypeGen.getWASMType(toType);
+                const toTypeRef = this.wasmTypeGen.getWASMValueType(toType);
                 return FunctionalFuncs.unboxAnyToExtref(
                     this.module,
                     fromValueRef,
