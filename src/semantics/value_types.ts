@@ -119,9 +119,9 @@ export class ValueType {
 
     private _generic_owner?: ValueType;
 
-    private _builtin_type: boolean = false;
+    private _builtin_type = false;
 
-    get isBuiltin() : boolean {
+    get isBuiltin(): boolean {
         return this._builtin_type;
     }
 

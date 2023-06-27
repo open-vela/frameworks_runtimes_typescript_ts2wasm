@@ -52,3 +52,8 @@ is_infc(wasm_obj_t obj);
 /* try to get object that an interface point to */
 void *
 get_infc_obj(wasm_exec_env_t exec_env, wasm_obj_t obj);
+
+/* combine elements of an array to an string */
+void *
+array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
+                void *separator);
