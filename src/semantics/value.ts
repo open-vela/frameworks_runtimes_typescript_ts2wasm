@@ -173,13 +173,50 @@ export class ThisValue2 extends SemanticsValue {
     }
 }
 
-export class SuperValue2 extends SemanticsValue {
+/* When we use the ”super" keyword, there are two situations:
+    1. super(...), this means that the constructor of the base class needs to be called;
+        e.g.
+            class B extends A {
+                constructor(x: number, y: string) {
+                    super(x);
+                }
+            }
+    2. super.xxx, at this time, "super" represents the base class.
+        e.g.
+            class B extends A {
+                log() {
+                    super.log();
+                }
+            }
+
+   So, we use "SuperUsageFlag" to distinguish between these two situations.
+*/
+export enum SuperUsageFlag {
+    SUPER_CALL,
+    SUPER_LITERAL,
+}
+
+export class SuperValue extends SemanticsValue {
+    private _parameters: SemanticsValue[] | undefined;
+    private _usageFlag = SuperUsageFlag.SUPER_CALL;
+
     constructor(
         type: ObjectType,
-        public readonly parameters: SemanticsValue[],
+        usageFlag: SuperUsageFlag,
+        parameters?: SemanticsValue[],
     ) {
         super(SemanticsValueKind.SUPER, type);
         this.shape = type.instanceType!.meta.originShape;
+        this._parameters = parameters;
+        this._usageFlag = usageFlag;
+    }
+
+    get parameters(): SemanticsValue[] | undefined {
+        return this._parameters;
+    }
+
+    get usageFlag(): SuperUsageFlag {
+        return this._usageFlag;
     }
 }
 

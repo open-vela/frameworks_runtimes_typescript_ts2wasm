@@ -55,13 +55,14 @@ import {
     ShapeCallValue,
     ShapeGetValue,
     ShapeSetValue,
-    SuperValue2,
+    SuperValue,
     VarValue,
     VarValueKind,
     OffsetCallValue,
     VTableCallValue,
     TypeofValue,
     ToStringValue,
+    SuperUsageFlag,
 } from '../../semantics/value.js';
 import {
     ArrayType,
@@ -110,7 +111,7 @@ export class WASMExpressionGen {
 
         switch (value.kind) {
             case SemanticsValueKind.SUPER:
-                return this.wasmSuper(<SuperValue2>value);
+                return this.wasmSuper(<SuperValue>value);
             case SemanticsValueKind.LITERAL:
                 return this.wasmLiteral(<LiteralValue>value);
             case SemanticsValueKind.PARAM_VAR:
@@ -207,24 +208,28 @@ export class WASMExpressionGen {
         }
     }
 
-    private wasmSuper(value: SuperValue2): binaryen.ExpressionRef {
-        const constructor = value.shape?.meta.name + '|constructor';
-        const metaInfo = (value.type as ObjectType).meta;
-        const ctorFuncDecl = (
-            metaInfo.ctor!.methodOrAccessor!.method! as VarValue
-        ).ref as FunctionDeclareNode;
-        const thisRef = this.module.local.get(1, emptyStructType.typeRef);
-        return this.module.drop(
-            this.callFunc(
-                metaInfo.ctor!.valueType as FunctionType,
-                constructor,
-                binaryen.none,
-                value.parameters,
-                ctorFuncDecl,
-                undefined,
-                thisRef,
-            ),
-        );
+    private wasmSuper(value: SuperValue): binaryen.ExpressionRef {
+        if (value.usageFlag == SuperUsageFlag.SUPER_CALL) {
+            const constructor = value.shape?.meta.name + '|constructor';
+            const metaInfo = (value.type as ObjectType).meta;
+            const ctorFuncDecl = (
+                metaInfo.ctor!.methodOrAccessor!.method! as VarValue
+            ).ref as FunctionDeclareNode;
+            const thisRef = this.module.local.get(1, emptyStructType.typeRef);
+            return this.module.drop(
+                this.callFunc(
+                    metaInfo.ctor!.valueType as FunctionType,
+                    constructor,
+                    binaryen.none,
+                    value.parameters,
+                    ctorFuncDecl,
+                    undefined,
+                    thisRef,
+                ),
+            );
+        } else {
+            return this.module.local.get(1, emptyStructType.typeRef);
+        }
     }
 
     private wasmLiteral(value: LiteralValue): binaryen.ExpressionRef {
