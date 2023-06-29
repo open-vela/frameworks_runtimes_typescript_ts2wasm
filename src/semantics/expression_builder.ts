@@ -7,7 +7,6 @@ import ts from 'typescript';
 import {
     ValueType,
     ValueTypeKind,
-    CustomTypeId,
     PrimitiveType,
     Primitive,
     ArrayType,
@@ -16,13 +15,12 @@ import {
     UnionType,
     TypeParameterType,
     FunctionType,
-    PredefinedTypeId,
     ClosureContextType,
     EnumType,
     ObjectType,
     ValueTypeWithArguments,
 } from './value_types.js';
-
+import { PredefinedTypeId } from '../utils.js';
 import { Logger } from '../log.js';
 
 import {
