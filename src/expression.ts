@@ -637,12 +637,28 @@ export default class ExpressionProcessor {
                 const objLiteralNode = <ts.ObjectLiteralExpression>node;
                 const fields = new Array<IdentifierExpression>();
                 const values = new Array<Expression>();
+                let propertyAssign:
+                    | ts.PropertyAssignment
+                    | ts.ShorthandPropertyAssignment;
+
                 for (const property of objLiteralNode.properties) {
-                    const propertyAssign = <ts.PropertyAssignment>property;
+                    if (
+                        ts.isPropertyAssignment(property) ||
+                        ts.isShorthandPropertyAssignment(property)
+                    ) {
+                        propertyAssign = property;
+                    } else {
+                        throw new Error(
+                            `Unimpl accessing property of kind : ${property.kind}`,
+                        );
+                    }
                     fields.push(
                         new IdentifierExpression(propertyAssign.name.getText()),
                     );
-                    values.push(this.visitNode(propertyAssign.initializer));
+                    const init = ts.isPropertyAssignment(propertyAssign)
+                        ? propertyAssign.initializer
+                        : propertyAssign;
+                    values.push(this.visitNode(init));
                 }
                 res = new ObjectLiteralExpression(fields, values);
                 res.setExprType(this.typeResolver.generateNodeType(node));
@@ -667,6 +683,14 @@ export default class ExpressionProcessor {
                 const typeNode = asExprNode.type;
                 res = new AsExpression(expr);
                 res.setExprType(this.typeResolver.generateNodeType(typeNode));
+                break;
+            }
+            case ts.SyntaxKind.ShorthandPropertyAssignment: {
+                const ShorthandPropertyAssignNode = <
+                    ts.ShorthandPropertyAssignment
+                >node;
+                const name = ShorthandPropertyAssignNode.name;
+                res = this.visitNode(name);
                 break;
             }
             case ts.SyntaxKind.ElementAccessExpression: {

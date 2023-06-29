@@ -190,6 +190,9 @@ export class VariableScanner {
                 ) {
                     break;
                 }
+                if (ts.isIndexSignatureDeclaration(node.parent)) {
+                    break;
+                }
                 const parameterNode = <ts.ParameterDeclaration>node;
                 const functionScope = <FunctionScope>(
                     this.currentScope!.getNearestFunctionScope()
@@ -356,11 +359,15 @@ export class VariableInit {
                 ) {
                     break;
                 }
+                if (ts.isIndexSignatureDeclaration(node.parent)) {
+                    break;
+                }
                 const parameterNode = <ts.ParameterDeclaration>node;
                 const functionScope = <FunctionScope>(
                     this.currentScope!.getNearestFunctionScope()
                 );
                 const paramName = parameterNode.name.getText();
+
                 const paramObj = functionScope.findVariable(paramName);
                 if (!paramObj) {
                     throw new Error(
