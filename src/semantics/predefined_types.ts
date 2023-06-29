@@ -12,9 +12,8 @@ import {
     SetType,
     MapType,
     FunctionType,
-    PredefinedTypeId,
 } from './value_types.js';
-
+import { PredefinedTypeId } from '../utils.js';
 import { GetBuiltinObjectType } from './builtin.js';
 
 import { specializeBuiltinObjectType } from './type_creator.js';
