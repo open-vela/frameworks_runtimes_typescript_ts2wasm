@@ -226,15 +226,15 @@ export class CallExpression extends Expression {
     }
 }
 
-export class SuperCallExpression extends Expression {
-    private args: Expression[];
+export class SuperExpression extends Expression {
+    private args: Expression[] | undefined;
 
-    constructor(args: Expression[] = new Array<Expression>(0)) {
+    constructor(args?: Expression[]) {
         super(ts.SyntaxKind.SuperKeyword);
         this.args = args;
     }
 
-    get callArgs(): Expression[] {
+    get callArgs(): Expression[] | undefined {
         return this.args;
     }
 }
@@ -531,7 +531,7 @@ export default class ExpressionProcessor {
                 if (
                     callExprNode.expression.kind === ts.SyntaxKind.SuperKeyword
                 ) {
-                    res = new SuperCallExpression(args);
+                    res = new SuperExpression(args);
                     res.setExprType(this.typeResolver.generateNodeType(node));
                     break;
                 }
@@ -721,6 +721,11 @@ export default class ExpressionProcessor {
                     this.visitNode(typeofExpr.expression),
                 );
                 res.setExprType(this.typeResolver.generateNodeType(typeofExpr));
+                break;
+            }
+            case ts.SyntaxKind.SuperKeyword: {
+                res = new SuperExpression();
+                res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
             }
             default:

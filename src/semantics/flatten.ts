@@ -34,7 +34,7 @@ import {
     VarValue,
     VarValueKind,
     ThisValue2,
-    SuperValue2,
+    SuperValue,
     LiteralValue,
     BinaryExprValue,
     PrefixUnaryExprValue,
