@@ -2168,6 +2168,21 @@
         ]
     },
     {
+        "module": "import_expression",
+        "entries": [
+            {
+                "name": "defaultObjLiteral",
+                "args": [],
+                "result": "2:f64"
+            },
+            {
+                "name": "defaultNumberLiteral",
+                "args": [],
+                "result": "100:f64"
+            }
+        ]
+    },
+    {
         "module": "import_func",
         "entries": [
             {

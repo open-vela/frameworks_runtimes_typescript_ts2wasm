@@ -8,12 +8,14 @@ import path from 'path';
 
 import { ParserContext } from './frontend.js';
 import {
+    generateNodeExpression,
     getExportIdentifierName,
     getGlobalScopeByModuleName,
     getImportIdentifierName,
     getModulePath,
 } from './utils.js';
 import { GlobalScope, Scope } from './scope.js';
+import { Expression, IdentifierExpression } from './expression.js';
 
 export class ImportResolver {
     globalScopes: Array<GlobalScope>;
@@ -138,12 +140,19 @@ export class ImportResolver {
             case ts.SyntaxKind.ExportAssignment: {
                 const exportAssign = <ts.ExportAssignment>node;
                 const globalScope = this.currentScope!.getRootGloablScope()!;
-                const defaultIdentifier = <ts.Identifier>(
-                    exportAssign.expression
-                );
-                const defaultName = defaultIdentifier.getText()!;
-                globalScope.defaultNoun = defaultName;
-                globalScope.exportIdentifierList.push(defaultName);
+                let exportExpr: Expression;
+                if (ts.isIdentifier(exportAssign.expression)) {
+                    exportExpr = new IdentifierExpression(
+                        exportAssign.expression.getText(),
+                    );
+                } else {
+                    exportExpr = generateNodeExpression(
+                        this.parserCtx.expressionProcessor,
+                        exportAssign.expression,
+                    );
+                }
+                globalScope.defaultExpr = exportExpr;
+                globalScope.exportIdentifierList.push(exportExpr);
                 break;
             }
             case ts.SyntaxKind.FunctionDeclaration:
@@ -157,7 +166,9 @@ export class ImportResolver {
                             const globalScope =
                                 this.currentScope!.getRootGloablScope()!;
                             const defaultName = curNode.name!.getText()!;
-                            globalScope.defaultNoun = defaultName;
+                            globalScope.defaultExpr = new IdentifierExpression(
+                                defaultName,
+                            );
                             break;
                         }
                     }

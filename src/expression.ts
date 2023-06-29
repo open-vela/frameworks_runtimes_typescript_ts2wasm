@@ -467,7 +467,7 @@ export default class ExpressionProcessor {
                 /** in order to avoid there is narrowed type checking scope */
                 let declNode = node;
                 const symbol =
-                    this.typeResolver.typechecker!.getSymbolAtLocation(node);
+                    this.parserCtx.typeChecker!.getSymbolAtLocation(node);
                 if (symbol && symbol.valueDeclaration) {
                     declNode = symbol.valueDeclaration;
                 }
