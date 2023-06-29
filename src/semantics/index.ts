@@ -47,6 +47,7 @@ import {
 import {
     ValueType,
     ValueTypeKind,
+    CustomTypeId,
     PrimitiveType,
     Primitive,
     ArrayType,
@@ -54,10 +55,11 @@ import {
     MapType,
     UnionType,
     FunctionType,
+    PredefinedTypeId,
     ObjectType,
     EnumType,
 } from './value_types.js';
-import { PredefinedTypeId } from '../utils.js';
+
 import { GetPredefinedType } from './predefined_types.js';
 
 import { flattenFunction } from './flatten.js';
@@ -820,7 +822,7 @@ function processObjectDescriptions(context: BuildContext) {
 
 export function BuildModuleNode(parserContext: ParserContext): ModuleNode {
     const module = new ModuleNode();
-    const context = new BuildContext(parserContext.typeId, module);
+    const context = new BuildContext(module);
 
     processGlobals(context, parserContext);
 

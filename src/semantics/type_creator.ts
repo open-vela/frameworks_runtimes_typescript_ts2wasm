@@ -39,6 +39,7 @@ import { Logger } from '../log.js';
 import {
     ValueType,
     ValueTypeKind,
+    CustomTypeId,
     PrimitiveType,
     Primitive,
     ArrayType,
@@ -46,6 +47,7 @@ import {
     MapType,
     UnionType,
     FunctionType,
+    PredefinedTypeId,
     TypeParameterType,
     EnumType,
     ObjectType,
@@ -55,7 +57,13 @@ import {
     ValueTypeWithArguments,
 } from './value_types.js';
 
-import { BuildContext } from './builder_context.js';
+import {
+    BuildContext,
+    ValueReferenceKind,
+    SymbolKeyToString,
+    SymbolKey,
+    SymbolValue,
+} from './builder_context.js';
 
 import { SemanticsValue, VarValue, VarValueKind } from './value.js';
 
@@ -77,7 +85,6 @@ import {
     use_shape,
 } from './runtime.js';
 import { buildExpression, newCastValue } from './expression_builder.js';
-import { DefaultTypeId } from '../utils.js';
 
 export function isObjectType(kind: ValueTypeKind): boolean {
     return (
@@ -455,12 +462,9 @@ export function createObjectType(
         instance_type = ObjectDescriptionType.INTERFACE;
 
     const base_class = clazz.getBase();
-    const impl_infc = clazz.getImplInfc();
     let base_type: ObjectType | undefined = undefined;
-    let impl_type: ObjectType | undefined = undefined;
 
     if (base_class) base_type = createObjectType(base_class, context);
-    if (impl_infc) impl_type = createObjectType(impl_infc, context);
 
     // TODO use className as instanceName
     const inst_meta = new ObjectDescription(instName, instance_type);
@@ -471,11 +475,10 @@ export function createObjectType(
     context.objectDescriptions.set(inst_meta.name, inst_meta);
 
     const inst_type = new ObjectType(
-        clazz.typeId,
+        context.nextTypeId(),
         inst_meta,
         clazz.isLiteral ? ObjectTypeFlag.LITERAL : ObjectTypeFlag.OBJECT,
     );
-    inst_type.implId = clazz.implId;
 
     if (inst_meta.isObjectInstance) {
         clazz_meta = new ObjectDescription(
@@ -486,18 +489,16 @@ export function createObjectType(
             clazz_meta.base = base_type.classType!.meta;
             inst_type.super = base_type;
         }
-        inst_type.impl = impl_type ?? undefined;
 
         clazz_meta.instance = inst_meta;
         inst_meta.clazz = clazz_meta;
 
         context.objectDescriptions.set(clazzName, clazz_meta);
         const clazz_type = new ObjectType(
-            clazz.typeId + 1,
+            context.nextTypeId(),
             clazz_meta,
             ObjectTypeFlag.CLASS,
         );
-        inst_type.implId = clazz.implId;
 
         clazz_type.instanceType = inst_type;
         inst_type.classType = clazz_type;
@@ -1198,12 +1199,7 @@ export class SpecializeTypeMapper {
                         obj_type.meta.type,
                         obj_type.meta,
                     );
-                    const self = obj_type.clone(
-                        DefaultTypeId,
-                        self_meta,
-                        obj_type.flags,
-                        obj_type.implId,
-                    );
+                    const self = obj_type.clone(-1, self_meta, obj_type.flags);
                     // create instance
                     const self_inst_meta = new ObjectDescription(
                         obj_type.instanceType!.meta.name,
@@ -1211,10 +1207,9 @@ export class SpecializeTypeMapper {
                         obj_type.instanceType!.meta,
                     );
                     const inst = obj_type.instanceType!.clone(
-                        DefaultTypeId,
+                        -1,
                         self_inst_meta,
                         ObjectTypeFlag.OBJECT,
-                        obj_type.instanceType!.implId,
                     );
                     inst.classType = self;
                     self.instanceType = inst;
@@ -1250,10 +1245,9 @@ export class SpecializeTypeMapper {
                         obj_type.meta,
                     );
                     special_type = obj_type.clone(
-                        DefaultTypeId,
+                        -1,
                         self_meta,
                         obj_type.flags,
-                        obj_type.implId,
                     );
 
                     special_type.setGenericOwner(obj_type);

@@ -18,7 +18,7 @@ import {
 import { Parameter, Variable } from './variable.js';
 import { Expression } from './expression.js';
 import { Logger } from './log.js';
-import { DefaultTypeId, adjustPrimitiveNodeType } from './utils.js';
+import { adjustPrimitiveNodeType } from './utils.js';
 import { UnimplementError } from './error.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 
@@ -307,15 +307,13 @@ export class TSTypeWithArguments extends Type {
 
 export class TSClass extends TSTypeWithArguments {
     typeKind = TypeKind.CLASS;
-    private _typeId = DefaultTypeId;
-    private _implId = DefaultTypeId;
+    private _typeId = 0;
     private _name = '';
     private _mangledName = '';
     private _memberFields: Array<TsClassField> = [];
     private _staticFields: Array<TsClassField> = [];
     private _methods: Array<TsClassFunc> = [];
     private _baseClass: TSClass | null = null;
-    private implInfc: TSInterface | null = null;
     private _isLiteral = false;
     private _ctor: TSFunction | null = null;
     public hasDeclareCtor = true;
@@ -391,14 +389,6 @@ export class TSClass extends TSTypeWithArguments {
         return this._baseClass;
     }
 
-    setImplInfc(infc: TSInterface): void {
-        this.implInfc = infc;
-    }
-
-    getImplInfc(): TSInterface | null {
-        return this.implInfc;
-    }
-
     addMemberField(memberField: TsClassField): void {
         this._memberFields.push(memberField);
     }
@@ -469,20 +459,12 @@ export class TSClass extends TSTypeWithArguments {
         this._mangledName = name;
     }
 
-    set typeId(id: number) {
+    setTypeId(id: number) {
         this._typeId = id;
     }
 
     get typeId() {
         return this._typeId;
-    }
-
-    set implId(id: number) {
-        this._implId = id;
-    }
-
-    get implId() {
-        return this._implId;
     }
 
     set isLiteral(b: boolean) {
@@ -1105,7 +1087,7 @@ export class TypeResolver {
             });
             const typeString =
                 methodTypeStrs.join(', ') + ', ' + fieldTypeStrs.join(', ');
-            tsClass.typeId = this.generateTypeId(typeString);
+            tsClass.setTypeId(this.generateTypeId(typeString));
             Logger.info(
                 `Assign type id [${tsClass.typeId}] for object literal type: ${typeString}`,
             );
@@ -1336,42 +1318,36 @@ export class TypeResolver {
         classType.isDeclare = this.parseNestDeclare(node);
 
         const heritage = node.heritageClauses;
-        let baseClassType: TSClass | null = null;
-        let baseInfcType: TSInterface | null = null;
-        if (heritage) {
-            if (heritage.length > 1) {
-                throw new Error('unimpl multi inheritance');
-            }
+        let baseType: TSClass | null = null;
+        if (
+            heritage !== undefined &&
+            heritage[0].token !== ts.SyntaxKind.ImplementsKeyword
+        ) {
+            /* base class node, iff it really has the one */
             const heritageName = heritage[0].types[0].getText();
+
             const scope = this.currentScope!;
-            const heritageType = <TSClass>scope.findType(heritageName);
-            if (heritageType instanceof TSInterface) {
-                baseInfcType = heritageType;
-                classType.setImplInfc(baseInfcType);
-            } else {
-                baseClassType = heritageType;
-                classType.setBase(baseClassType);
-            }
-        }
-        if (baseClassType) {
             // TODO try resolve the template type
+            const heritageType = <TSClass>scope.findType(heritageName);
+            classType.setBase(heritageType);
             methodTypeStrs = this.methodShapeStr
-                .get(baseClassType.className)!
+                .get(heritageType.className)!
                 .split(', ');
             fieldTypeStrs = this.fieldShapeStr
-                .get(baseClassType.className)!
+                .get(heritageType.className)!
                 .split(', ');
-            classType.implId = baseClassType.implId;
-            for (const field of baseClassType.fields) {
+
+            baseType = heritageType;
+            for (const field of heritageType.fields) {
                 classType.addMemberField(field);
             }
-            for (const pair of baseClassType.staticFieldsInitValueMap) {
+            for (const pair of heritageType.staticFieldsInitValueMap) {
                 classType.staticFieldsInitValueMap.set(pair[0], pair[1]);
             }
-            for (const staticField of baseClassType.staticFields) {
+            for (const staticField of heritageType.staticFields) {
                 classType.addStaticMemberField(staticField);
             }
-            for (const method of baseClassType.memberFuncs) {
+            for (const method of heritageType.memberFuncs) {
                 classType.addMethod(method);
             }
         }
@@ -1404,8 +1380,8 @@ export class TypeResolver {
                 ctorScope.envParamLen = 2;
                 ctorScope.addVariable(new Variable('this', classType));
                 classType.hasDeclareCtor = false;
-                if (baseClassType) {
-                    const baseCtorType = baseClassType.ctorType;
+                if (baseType) {
+                    const baseCtorType = baseType.ctorType;
                     const paramTypes = baseCtorType.getParamTypes();
                     for (let i = 0; i < paramTypes.length; i++) {
                         ctorType.addParamType(paramTypes[i]);
@@ -1498,22 +1474,12 @@ export class TypeResolver {
             if (member.kind === ts.SyntaxKind.SetAccessor) {
                 const func = <ts.SetAccessorDeclaration>member;
                 methodTypeStrs.push(`${name}: ${typeString}`);
-                this.setMethod(
-                    func,
-                    baseClassType,
-                    classType,
-                    FunctionKind.SETTER,
-                );
+                this.setMethod(func, baseType, classType, FunctionKind.SETTER);
             }
             if (member.kind === ts.SyntaxKind.GetAccessor) {
                 const func = <ts.GetAccessorDeclaration>member;
                 methodTypeStrs.push(`${name}: ${typeString}`);
-                this.setMethod(
-                    func,
-                    baseClassType,
-                    classType,
-                    FunctionKind.GETTER,
-                );
+                this.setMethod(func, baseType, classType, FunctionKind.GETTER);
             }
             if (member.kind === ts.SyntaxKind.MethodDeclaration) {
                 const func = <ts.MethodDeclaration>member;
@@ -1523,48 +1489,16 @@ export class TypeResolver {
                     ? FunctionKind.STATIC
                     : FunctionKind.METHOD;
                 methodTypeStrs.push(`${name}: ${typeString}`);
-                this.setMethod(func, baseClassType, classType, kind);
+                this.setMethod(func, baseType, classType, kind);
             }
         }
-        /** reorder member orders for optimization */
-        if (baseInfcType) {
-            classType.implId = baseInfcType.typeId;
-            const baseFields = baseInfcType.fields;
-            for (let i = baseFields.length - 1; i >= 0; i--) {
-                const index = classType.fields.findIndex(
-                    (field) => field.name == baseFields[i].name,
-                );
-                if (index > -1) {
-                    const targetField = classType.fields[index];
-                    classType.fields.splice(index, 1);
-                    classType.fields.unshift(targetField);
-                    const targetFieldStr = fieldTypeStrs[index];
-                    fieldTypeStrs.splice(index, 1);
-                    fieldTypeStrs.unshift(targetFieldStr);
-                }
-            }
-            const baseMethods = baseInfcType.memberFuncs;
-            for (let i = baseMethods.length - 1; i >= 0; i--) {
-                const index = classType.getMethod(
-                    baseMethods[i].name,
-                    baseMethods[i].type.funcKind,
-                ).index;
-                if (index > -1) {
-                    const targetMethod = classType.memberFuncs[index];
-                    classType.memberFuncs.splice(index, 1);
-                    classType.memberFuncs.unshift(targetMethod);
-                    const targetMethodStr = methodTypeStrs[index];
-                    methodTypeStrs.splice(index, 1);
-                    methodTypeStrs.unshift(targetMethodStr);
-                }
-            }
-        }
+
         const methodType = methodTypeStrs.join(', ');
         const fieldType = fieldTypeStrs.join(', ');
         this.methodShapeStr.set(classType.className, methodType);
         this.fieldShapeStr.set(classType.className, fieldType);
         const typeString = methodType + ', ' + fieldType;
-        classType.typeId = this.generateTypeId(typeString);
+        classType.setTypeId(this.generateTypeId(typeString));
         Logger.info(
             `Assign type id [${classType.typeId}] for class [${classType.className}], type string: ${typeString}`,
         );
@@ -1665,7 +1599,6 @@ export class TypeResolver {
                     : member.name!.getText();
             if (fieldType instanceof TSFunction) {
                 fieldType.funcKind = funcKind;
-                fieldType.envParamLen = 2;
                 infc.addMethod({
                     name: fieldName,
                     type: fieldType,
@@ -1687,7 +1620,7 @@ export class TypeResolver {
         });
         const typeString =
             methodTypeStrs.join(', ') + ', ' + fieldTypeStrs.join(', ');
-        infc.typeId = this.generateTypeId(typeString);
+        infc.setTypeId(this.generateTypeId(typeString));
         Logger.info(
             `Assign type id [${infc.typeId}] for interface(${infc.className}): ${typeString}`,
         );
@@ -1739,8 +1672,7 @@ export class TypeResolver {
         if (this.parserCtx.typeIdMap.has(typeString)) {
             return this.parserCtx.typeIdMap.get(typeString)!;
         }
-        const id = this.parserCtx.typeId;
-        this.parserCtx.typeId += 2; // next typeid
+        const id = this.parserCtx.typeIdMap.size;
         this.parserCtx.typeIdMap.set(typeString, id);
         return id;
     }
@@ -1777,7 +1709,7 @@ export class TypeResolver {
 
     private setMethod(
         func: ts.AccessorDeclaration | ts.MethodDeclaration,
-        baseClassType: TSClass | null,
+        baseType: TSClass | null,
         classType: TSClass,
         funcKind: FunctionKind,
     ) {
@@ -1804,9 +1736,9 @@ export class TypeResolver {
         }
 
         let isOverride = false;
-        if (baseClassType) {
-            const baseFuncType = baseClassType.getMethod(methodName, funcKind)
-                .method?.type;
+        if (baseType) {
+            const baseFuncType = baseType.getMethod(methodName, funcKind).method
+                ?.type;
             if (baseFuncType) {
                 tsFuncType = baseFuncType;
                 isOverride = true;
