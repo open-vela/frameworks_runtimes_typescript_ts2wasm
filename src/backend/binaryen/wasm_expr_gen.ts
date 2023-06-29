@@ -2093,7 +2093,7 @@ export class WASMExpressionGen {
             case ObjectDescriptionType.OBJECT_CLASS:
             case ObjectDescriptionType.OBJECT_LITERAL: {
                 if (toValueType.meta.isInterface) {
-                    /* obj to instanceObj */
+                    /* obj to interface */
                     return this.boxObjToInfc(
                         oriValueRef,
                         oriValueType,
@@ -2101,7 +2101,21 @@ export class WASMExpressionGen {
                     );
                 } else {
                     /* obj to obj */
-                    return oriValueRef;
+                    /** check if it is upcasting  */
+                    let fromType: ObjectType | undefined = oriValueType;
+                    while (fromType) {
+                        if (fromType.equals(toValueType)) {
+                            return oriValueRef;
+                        }
+                        fromType = fromType.super;
+                    }
+                    const toValueWasmType =
+                        this.wasmTypeGen.getWASMType(toValueType);
+                    return binaryenCAPI._BinaryenRefCast(
+                        this.module.ptr,
+                        oriValueRef,
+                        toValueWasmType,
+                    );
                 }
             }
             case ObjectDescriptionType.INTERFACE: {
