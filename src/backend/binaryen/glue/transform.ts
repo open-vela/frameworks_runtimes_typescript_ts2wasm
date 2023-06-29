@@ -243,10 +243,10 @@ function genarateStringArrayTypeInfo(struct_wrap: boolean): typeInfo {
 
 function generateInfcTypeInfo(): typeInfo {
     return initStructType(
-        [binaryen.i32, binaryen.i32, binaryen.anyref],
-        [Pakced.Not, Pakced.Not, Pakced.Not],
-        [false, false, true],
-        3,
+        [binaryen.i32, binaryen.i32, binaryen.i32, binaryen.anyref],
+        [Pakced.Not, Pakced.Not, Pakced.Not, Pakced.Not],
+        [false, false, false, true],
+        4,
         true,
     );
 }
@@ -319,12 +319,20 @@ export function createSignatureTypeRefAndHeapTypeRef(
 
 export function createCondBlock(
     module: binaryen.Module,
-    l: binaryen.ExpressionRef,
-    r: binaryen.ExpressionRef,
+    infcTypeId: binaryen.ExpressionRef,
+    objTypeId: binaryen.ExpressionRef,
+    objImplId: binaryen.ExpressionRef,
     ifTrue: binaryen.ExpressionRef,
-    ifFalse: binaryen.ExpressionRef = module.unreachable(),
+    ifFalse: binaryen.ExpressionRef,
 ): binaryen.ExpressionRef {
-    const cond = module.if(module.i32.eq(l, r), ifTrue, ifFalse);
+    const cond = module.if(
+        module.i32.or(
+            module.i32.eq(infcTypeId, objTypeId),
+            module.i32.eq(infcTypeId, objImplId),
+        ),
+        ifTrue,
+        ifFalse,
+    );
     const resType = binaryen.getExpressionType(ifTrue);
     const condBlock = module.block(null, [cond], resType);
     return condBlock;
