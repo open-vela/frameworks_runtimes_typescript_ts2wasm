@@ -45,7 +45,7 @@ import {
     VarValue,
     VarValueKind,
     ThisValue2,
-    SuperValue2,
+    SuperValue,
     LiteralValue,
     BinaryExprValue,
     PrefixUnaryExprValue,
@@ -93,6 +93,7 @@ import {
     NewArrayValue,
     NewArrayLenValue,
     TypeofValue,
+    SuperUsageFlag,
 } from './value.js';
 
 import {
@@ -121,7 +122,7 @@ import {
     UnaryExpression,
     ConditionalExpression,
     CallExpression,
-    SuperCallExpression,
+    SuperExpression,
     PropertyAccessExpression,
     NewExpression,
     ParenthesizedExpression,
@@ -1578,7 +1579,7 @@ function buildCallExpression(
         //(func as MemberCallValue).funcType = f_type;
     } else if (func.kind == SemanticsValueKind.SUPER) {
         // create the super call
-        const super_value = func as SuperValue2;
+        const super_value = func as SuperValue;
         const ctr = getClassContructorType(super_value.type as ObjectType);
         func = new ConstructorCallValue(
             super_value,
@@ -1982,8 +1983,8 @@ function buildThisValue2(context: BuildContext): SemanticsValue {
     return this_value;
 }
 
-function buildSuperValue2(
-    expr: SuperCallExpression,
+function buildSuperValue(
+    expr: SuperExpression,
     context: BuildContext,
 ): SemanticsValue {
     const clazz = getCurrentClassType(context);
@@ -2007,10 +2008,21 @@ function buildSuperValue2(
             context.popReference();
             param_values.push(v);
         }
+        return new SuperValue(
+            super_type,
+            SuperUsageFlag.SUPER_CALL,
+            param_values,
+        );
+    } else {
+        return new SuperValue(super_type, SuperUsageFlag.SUPER_LITERAL);
     }
+}
 
-    const super_value = new SuperValue2(super_type, param_values);
-    return super_value;
+function buildSuperExpression(
+    expr: SuperExpression,
+    context: BuildContext,
+): SemanticsValue {
+    return buildSuperValue(expr, context);
 }
 
 function buildUnaryExpression(
@@ -2139,7 +2151,7 @@ export function buildExpression(
             case ts.SyntaxKind.CallExpression:
                 return buildCallExpression(expr as CallExpression, context);
             case ts.SyntaxKind.SuperKeyword:
-                return buildSuperValue2(expr as SuperCallExpression, context);
+                return buildSuperExpression(expr as SuperExpression, context);
             case ts.SyntaxKind.ThisKeyword:
                 return buildThisValue2(context);
             case ts.SyntaxKind.NewExpression:
