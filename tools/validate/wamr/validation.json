@@ -2259,6 +2259,11 @@
                 "name": "classAndInfc",
                 "args": [],
                 "result": "1:f64"
+            },
+            {
+                "name": "infcImpl",
+                "args": [],
+                "result": "21:f64"
             }
         ]
     },

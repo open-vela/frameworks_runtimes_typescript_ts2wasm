@@ -11,12 +11,11 @@ import {
     SetType,
     Primitive,
     FunctionType,
-    PredefinedTypeId,
     ObjectType,
     ObjectTypeFlag,
     TypeParameterType,
 } from './value_types.js';
-
+import { DefaultTypeId, PredefinedTypeId } from '../utils.js';
 import { ObjectDescription, ObjectDescriptionType, Shape } from './runtime.js';
 
 export function IsBuiltInObjectType(kind: ValueTypeKind): boolean {
