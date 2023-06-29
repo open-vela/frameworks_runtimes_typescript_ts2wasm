@@ -23,7 +23,7 @@ import { Type, TypeKind, TSClass } from '../type.js';
 
 import { SemanticsValue, SemanticsValueKind, VarValue } from './value.js';
 
-import { ValueType, CustomTypeId, ClosureContextType } from './value_types.js';
+import { ValueType, ClosureContextType } from './value_types.js';
 
 import {
     SemanticsNode,
@@ -34,6 +34,7 @@ import {
 
 import { ObjectDescriptionType, ObjectDescription } from './runtime.js';
 import { clearBuiltinTypes, clearSpecializeList } from './builtin.js';
+import { CustomTypeId } from '../utils.js';
 import { Expression } from '../expression.js';
 import { buildExpression } from './expression_builder.js';
 
@@ -82,7 +83,6 @@ export interface Task {
 
 export class BuildContext {
     globalSymbols: Map<SymbolKey, SymbolValue> = new Map();
-    private typeIdx: number = CustomTypeId;
 
     private tasks: Task[] = [];
 
@@ -122,11 +122,11 @@ export class BuildContext {
     stackEnv: BuildEnv[] = [];
     valueReferenceStack: ValueReferenceKind[] = [];
 
-    constructor(public module: ModuleNode) {}
+    constructor(private typeIdx: number, public module: ModuleNode) {}
 
     nextTypeId(): number {
         const typeId = this.typeIdx;
-        this.typeIdx += 2; // typeId for instance interface, typeId + 1 for class interface
+        this.typeIdx++;
         return typeId;
     }
 
