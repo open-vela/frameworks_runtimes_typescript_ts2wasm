@@ -1502,6 +1502,11 @@
                 "name": "testInheritGetter",
                 "args": [],
                 "result": "10:f64"
+            },
+            {
+                "name": "inheritCast",
+                "args": [],
+                "result": "foo \nbase \nfoo \nbar"
             }
         ]
     },

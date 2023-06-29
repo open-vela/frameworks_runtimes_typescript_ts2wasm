@@ -118,3 +118,49 @@ export function testInheritGetter() {
     const a = new InheritGetter(10);
     return a.a; // 10
 }
+
+
+/** class cast by using as keyword */
+class Baz {
+    constructor() {
+      //
+    }
+    base() {
+        console.log('base');
+    }
+}
+
+class Foo extends Baz {
+    constructor() {
+        super();
+    }
+    foo() {
+        console.log('foo');
+    }
+}
+
+class Bar extends Foo {
+    constructor() {
+        super();
+    }
+    bar() {
+        console.log('bar');
+    }
+}
+
+export function inheritCast() {
+    const b = new Bar();
+
+    // upcast
+    const f: Foo = b as Foo;
+    const bs: Baz = b as Baz;
+    f.foo();
+    bs.base();
+
+    // downcast
+    const f1 = bs as Foo;
+    const b1 = bs as Bar;
+
+    f1.foo();
+    b1.bar();
+}
