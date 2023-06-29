@@ -101,6 +101,7 @@ import {
     ForEachBuiltinObject,
 } from './builtin.js';
 import { ModDeclStatement, Statement } from '../statement.js';
+import { IdentifierExpression } from '../expression.js';
 
 function processTypes(context: BuildContext, globalScopes: Array<GlobalScope>) {
     for (const scope of globalScopes) {
@@ -736,9 +737,8 @@ function addExternItem(
             );
         return;
     } else {
-        throw Error(
-            `Type ${value} cannot export or import in module ${m.name}`,
-        );
+        Logger.info(`Type ${value} export or import in module ${m.name}`);
+        return;
     }
 
     Logger.debug(
@@ -763,14 +763,28 @@ function processImportsExports(
         if (exportList.length > 0) {
             const export_module = new ExternModule(g.moduleName, false);
             for (const id of exportList) {
+                let ret_val: SymbolValue | undefined;
+                let export_name: string;
                 // TODO process export xxx from '<module>';
-                const ret_val = context.findSymbol(id);
-                if (!ret_val) {
-                    throw Error(
-                        `Cannot find the export "${id}" in "${g.moduleName}"`,
-                    );
+                if (id instanceof IdentifierExpression) {
+                    ret_val = context.findSymbol(id.identifierName);
+                    export_name = id.identifierName;
+                    if (!ret_val) {
+                        throw Error(
+                            `Cannot find the export "${id}" in "${g.moduleName}"`,
+                        );
+                    }
+                } else {
+                    ret_val = buildExpression(id, context);
+                    export_name = id.expressionKind.toString();
                 }
-                addExternItem(context, export_module, id, ret_val!, false);
+                addExternItem(
+                    context,
+                    export_module,
+                    export_name,
+                    ret_val!,
+                    false,
+                );
             }
             exports.add(export_module);
         }

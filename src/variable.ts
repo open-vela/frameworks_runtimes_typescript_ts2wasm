@@ -4,7 +4,7 @@
  */
 
 import ts from 'typescript';
-import { Expression } from './expression.js';
+import { Expression, IdentifierExpression } from './expression.js';
 import { TypeResolver, Type, TSFunction } from './type.js';
 import { ParserContext } from './frontend.js';
 import {
@@ -294,8 +294,8 @@ export class VariableScanner {
                     true,
                 );
                 if (variable.isDefault()) {
-                    currentScope.getRootGloablScope()!.defaultNoun =
-                        variable.varName;
+                    currentScope.getRootGloablScope()!.defaultExpr =
+                        new IdentifierExpression(variable.varName);
                 }
 
                 /** Variables defined by var can be defined repeatedly */

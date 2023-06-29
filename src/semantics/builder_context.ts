@@ -34,8 +34,10 @@ import {
 
 import { ObjectDescriptionType, ObjectDescription } from './runtime.js';
 import { clearBuiltinTypes, clearSpecializeList } from './builtin.js';
+import { Expression } from '../expression.js';
+import { buildExpression } from './expression_builder.js';
 
-export type SymbolKey = Variable | Scope | Type;
+export type SymbolKey = Variable | Scope | Type | Expression;
 export type SymbolValue = SemanticsValue | ValueType | SemanticsNode;
 
 export interface BuildEnv {
@@ -295,6 +297,9 @@ export class BuildContext {
     }
 
     findSymbolKey(name: SymbolKey): SymbolValue | undefined {
+        if (name instanceof Expression) {
+            return buildExpression(name, this);
+        }
         let found: SymbolValue | undefined = undefined;
         const curFunc = this.currentFunction();
         for (let i = this.stackEnv.length - 1; i >= 0; i--) {
