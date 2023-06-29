@@ -13,7 +13,10 @@ import {
     NamespaceScope,
     Scope,
 } from './scope.js';
-import ExpressionProcessor, { Expression } from './expression.js';
+import ExpressionProcessor, {
+    Expression,
+    IdentifierExpression,
+} from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 import { builtinTypes, Type, TSInterface, TypeKind } from './type.js';
 import { UnimplementError } from './error.js';
@@ -336,7 +339,7 @@ export function getExportIdentifierName(
     exportDeclaration: ts.ExportDeclaration,
 ) {
     const nameAliasExportMap = new Map<string, string>();
-    const exportIdentifierList: string[] = [];
+    const exportIdentifierList: Expression[] = [];
     // only need to record export alias
     const exportClause = exportDeclaration.exportClause;
     if (!exportClause) {
@@ -346,16 +349,22 @@ export function getExportIdentifierName(
         const exportSpecifiers = exportClause.elements;
         for (const exportSpecifier of exportSpecifiers) {
             const specificIdentifier = <ts.Identifier>exportSpecifier.name;
+            const specificExpr = new IdentifierExpression(
+                specificIdentifier.getText(),
+            );
             const specificName = specificIdentifier.getText()!;
             const propertyIdentifier = exportSpecifier.propertyName;
             if (propertyIdentifier) {
+                const propertyExpr = new IdentifierExpression(
+                    propertyIdentifier.getText(),
+                );
                 const propertyName = (<ts.Identifier>(
                     propertyIdentifier
                 )).getText()!;
-                exportIdentifierList.push(propertyName);
+                exportIdentifierList.push(propertyExpr);
                 nameAliasExportMap.set(specificName, propertyName);
             } else {
-                exportIdentifierList.push(specificName);
+                exportIdentifierList.push(specificExpr);
             }
         }
     }
