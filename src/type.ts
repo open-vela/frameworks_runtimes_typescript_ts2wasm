@@ -847,6 +847,9 @@ export class TypeResolver {
     }
 
     generateNodeType(node: ts.Node): Type {
+        if (!this.typechecker) {
+            this.typechecker = this.parserCtx.typeChecker;
+        }
         const cached_type = this.nodeTypeCache.get(node);
         if (cached_type) return cached_type;
 

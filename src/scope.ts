@@ -19,7 +19,11 @@ import { parentIsFunctionLike, DebugLoc } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
 import { ArgNames, BuiltinNames } from '../lib/builtin/builtin_name.js';
-import { BinaryExpression } from './expression.js';
+import {
+    BinaryExpression,
+    Expression,
+    IdentifierExpression,
+} from './expression.js';
 import { Logger } from './log.js';
 
 export enum ScopeKind {
@@ -186,13 +190,20 @@ export class Scope {
         name: string,
         searchType: importSearchTypes = importSearchTypes.All,
     ) {
-        let res: Variable | Scope | Type | undefined;
+        let res: Variable | Scope | Type | undefined | Expression;
         let searchName: string;
         // judge if name is default name
         if (scope.defaultModuleImportMap.has(name)) {
             const defaultModule = scope.defaultModuleImportMap.get(name)!;
-            searchName = defaultModule.defaultNoun;
-            res = defaultModule.findIdentifier(searchName, true, searchType);
+            if (defaultModule.defaultExpr instanceof IdentifierExpression) {
+                res = defaultModule.findIdentifier(
+                    defaultModule.defaultExpr.identifierName,
+                    true,
+                    searchType,
+                );
+            } else {
+                res = defaultModule.defaultExpr;
+            }
         } else {
             if (
                 scope.identifierModuleImportMap.has(name) ||
@@ -316,11 +327,11 @@ export class Scope {
         nested = true,
         searchType: importSearchTypes = importSearchTypes.All,
         convertName = false,
-    ): Variable | Scope | Type | undefined {
+    ): Variable | Scope | Type | undefined | Expression {
         return this._nestFindScopeItem(
             name,
             (scope) => {
-                let res: Variable | Scope | Type | undefined;
+                let res: Variable | Scope | Type | undefined | Expression;
 
                 const matchStep = (type: importSearchTypes) => {
                     return (
@@ -445,7 +456,14 @@ export class Scope {
             !!this.modifiers.find((modifier) => {
                 return modifier.kind === ts.SyntaxKind.ExportKeyword;
             }) ||
-            this.getRootGloablScope()!.exportIdentifierList.includes(this.name)
+            this.getRootGloablScope()!.exportIdentifierList.some(
+                (exportExpr) => {
+                    return (
+                        exportExpr instanceof IdentifierExpression &&
+                        exportExpr.identifierName === this.name
+                    );
+                },
+            )
         );
     }
 
@@ -509,10 +527,10 @@ export class GlobalScope extends Scope {
     nameAliasImportMap = new Map<string, string>();
     // export alias, export { c as renamed_c }; store <renamed_c, c>
     nameAliasExportMap = new Map<string, string>();
-    exportIdentifierList: string[] = [];
+    exportIdentifierList: Expression[] = [];
     // default identifier map: import theDefault from "./export-case1"; import theOtherDefault from "./export-case2";
     defaultModuleImportMap = new Map<string, GlobalScope>();
-    defaultNoun = '';
+    defaultExpr: Expression | undefined = undefined;
     srcFilePath = '';
     node: ts.Node | null = null;
     debugLocations: DebugLoc[] = [];
@@ -579,7 +597,7 @@ export class GlobalScope extends Scope {
         }
     }
 
-    setExportIdentifierList(exportIdentifierList: string[]) {
+    setExportIdentifierList(exportIdentifierList: Expression[]) {
         this.exportIdentifierList.push(...exportIdentifierList);
     }
 }
