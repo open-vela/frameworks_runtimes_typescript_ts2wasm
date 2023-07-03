@@ -30,6 +30,7 @@ import {
 import {
     ValueType,
     ValueTypeKind,
+    CustomTypeId,
     PrimitiveType,
     Primitive,
     ArrayType,
@@ -37,12 +38,12 @@ import {
     MapType,
     UnionType,
     FunctionType,
+    PredefinedTypeId,
     EnumType,
     ObjectType,
 } from './value_types.js';
 
 import { GetPredefinedType } from './predefined_types.js';
-import { PredefinedTypeId } from '../utils.js';
 
 export enum SemanticsKind {
     EMPTY,

@@ -7,6 +7,7 @@ import ts from 'typescript';
 import {
     ValueType,
     ValueTypeKind,
+    CustomTypeId,
     PrimitiveType,
     Primitive,
     ArrayType,
@@ -15,6 +16,7 @@ import {
     UnionType,
     TypeParameterType,
     FunctionType,
+    PredefinedTypeId,
     EnumType,
     ObjectType,
 } from './value_types.js';
@@ -385,7 +387,7 @@ export function flatternStatement(
         case SemanticsKind.FOR: {
             /*
            for (initialize; condition; next) { body }
-
+           
            block $for
                initialize
                loop  $for_loop

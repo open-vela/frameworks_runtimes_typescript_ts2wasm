@@ -1494,11 +1494,3 @@ export function getCString(str: string) {
 export function clearWasmStringMap() {
     wasmStringMap.clear();
 }
-
-/** Describe the meaning of each field index of the infc type  */
-export const enum InfcFieldIndex {
-    ITABLE_INDEX,
-    TYPEID_INDEX,
-    IMPLID_INDEX,
-    DATA_INDEX,
-}

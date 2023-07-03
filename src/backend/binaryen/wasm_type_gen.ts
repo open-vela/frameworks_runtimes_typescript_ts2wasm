@@ -309,7 +309,6 @@ export class WASMTypeGen {
         const metaInfo = type.meta;
         if (metaInfo.isInterface) {
             this.createWASMInfcType(type);
-            this.createWASMClassType(type, true);
         } else {
             this.createWASMClassType(type);
             if (
@@ -465,28 +464,15 @@ export class WASMTypeGen {
             true,
         );
 
-        let baseVtableWasmType: binaryen.Type | undefined;
-        let baseWasmType: binaryen.Type | undefined;
         /* 2. generate needed structs */
-        /** TODO: Here we only support class extends class or class implement infc,
-         * but not support class extends class implement infc, when ref.cast, wasm require declare subtype relationship,
-         * So if both have, here we use super class as wasm suptype, that maybe cause error.
-         */
         /* vtable type */
-        if (type.super) {
-            baseVtableWasmType = this.getWASMVtableHeapType(type.super);
-            baseWasmType = this.getWASMObjOriHeapType(type.super);
-        } else if (type.impl) {
-            baseVtableWasmType = this.getWASMVtableHeapType(type.impl);
-            baseWasmType = this.getWASMObjOriHeapType(type.impl);
-        }
         const vtableType = initStructType(
             methodTypeRefs,
             methodPacked,
             methodMuts,
             methodTypeRefs.length,
             true,
-            baseVtableWasmType,
+            type.super ? this.getWASMVtableHeapType(type.super) : undefined,
         );
         this.createCustomTypeName(
             `vt-struct${this.structHeapTypeCnt++}`,
@@ -504,7 +490,7 @@ export class WASMTypeGen {
             fieldMuts,
             fieldTypeRefs.length,
             true,
-            baseWasmType,
+            type.super ? this.getWASMObjOriHeapType(type.super) : undefined,
         );
         if (wasmClassType.heapTypeRef === 0) {
             throw Error(`failed to create class type for ${type.meta.name}`);
@@ -547,29 +533,28 @@ export class WASMTypeGen {
             );
             this.staticFieldsUpdateMap.set(type, false);
         }
-
+        /* vtable instance */
+        const vtableInstance = binaryenCAPI._BinaryenStructNew(
+            this.wasmComp.module.ptr,
+            arrayToPtr(vtableFuncs).ptr,
+            vtableFuncs.length,
+            vtableType.heapTypeRef,
+        );
+        /* this instance */
+        classInitValues.unshift(vtableInstance);
+        const thisArg = binaryenCAPI._BinaryenStructNew(
+            this.wasmComp.module.ptr,
+            arrayToPtr(classInitValues).ptr,
+            classInitValues.length,
+            wasmClassType.heapTypeRef,
+        );
         /* put into map */
-        this.vtableTypeMap.set(type, vtableType.typeRef);
-        this.vtableHeapTypeMap.set(type, vtableType.heapTypeRef);
         if (isInfc) {
             this.infcObjTypeMap.set(type, wasmClassType.typeRef);
             this.infcObjHeapTypeMap.set(type, wasmClassType.heapTypeRef);
         } else {
-            /* vtable instance */
-            const vtableInstance = binaryenCAPI._BinaryenStructNew(
-                this.wasmComp.module.ptr,
-                arrayToPtr(vtableFuncs).ptr,
-                vtableFuncs.length,
-                vtableType.heapTypeRef,
-            );
-            /* this instance */
-            classInitValues.unshift(vtableInstance);
-            const thisArg = binaryenCAPI._BinaryenStructNew(
-                this.wasmComp.module.ptr,
-                arrayToPtr(classInitValues).ptr,
-                classInitValues.length,
-                wasmClassType.heapTypeRef,
-            );
+            this.vtableTypeMap.set(type, vtableType.typeRef);
+            this.vtableHeapTypeMap.set(type, vtableType.heapTypeRef);
             this.typeMap.set(type, wasmClassType.typeRef);
             this.heapTypeMap.set(type, wasmClassType.heapTypeRef);
             this.vtableInstMap.set(type, vtableInstance);

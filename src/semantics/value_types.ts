@@ -3,8 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-import { ObjectDescription, UnknownObjectDescription } from './runtime.js';
-import { DefaultTypeId, PredefinedTypeId } from '../utils.js';
+import { TSArray, TSClass, TSFunction, TSInterface } from '../type.js';
+import { DumpWriter, CreateDefaultDumpWriter } from './dump.js';
+import { FunctionOwnKind, VarDeclareNode } from './semantics_nodes.js';
+import {
+    ObjectDescription,
+    UnknownObjectDescription,
+    MemberDescription,
+    Shape,
+} from './runtime.js';
 
 export enum ValueTypeKind {
     PRIMITVE_BEGIN = 0,
@@ -34,6 +41,57 @@ export enum ValueTypeKind {
     TYPE_PARAMETER, // for template type parameter
     ENUM,
 }
+
+export enum PredefinedTypeId {
+    VOID = 1,
+    UNDEFINED,
+    NULL,
+    NEVER,
+    INT,
+    NUMBER,
+    BOOLEAN,
+    RAW_STRING,
+    STRING,
+    ANY,
+    GENERIC,
+    NAMESPACE,
+    CLOSURECONTEXT,
+    EMPTY,
+    ARRAY,
+    ARRAY_CONSTRUCTOR,
+    STRING_OBJECT,
+    STRING_CONSTRUCTOR,
+    MAP,
+    MAP_CONSTRUCTOR,
+    SET,
+    SET_CONSTRUCTOR,
+    FUNC_VOID_VOID_NONE,
+    FUNC_VOID_VOID_DEFAULT,
+    FUNC_VOID_ARRAY_ANY_DEFAULT,
+    FUNC_ANY_ARRAY_ANY_DEFAULT,
+    FUNC_VOID_VOID_METHOD,
+    FUNC_VOID_ARRAY_ANY_METHOD,
+    FUNC_ANY_ARRAY_ANY_METHOD,
+    ARRAY_ANY,
+    ARRAY_INT,
+    ARRAY_NUMBER,
+    ARRAY_BOOLEAN,
+    ARRAY_STRING,
+    SET_ANY,
+    SET_INT,
+    SET_NUMBER,
+    SET_BOOLEAN,
+    SET_STRING,
+    MAP_STRING_STRING,
+    MAP_STRING_ANY,
+    MAP_INT_STRING,
+    MAP_INT_ANY,
+    BUILTIN_TYPE_BEGIN,
+
+    CUSTOM_TYPE_BEGIN = BUILTIN_TYPE_BEGIN + 1000,
+}
+
+export const CustomTypeId = PredefinedTypeId.CUSTOM_TYPE_BEGIN;
 
 export class ValueType {
     constructor(public kind: ValueTypeKind, public typeId: number) {}
@@ -243,13 +301,10 @@ export enum ObjectTypeFlag {
 
 export class ObjectType extends ValueTypeWithArguments {
     public super?: ObjectType;
-    public impl?: ObjectType; // not undefined iff it implement an interface
     private _class_or_instance?: ObjectType;
     private _numberIndexType?: ValueType;
     private _stringIndexType?: ValueType;
     private _specialTypeArguments?: ValueType[];
-    private _implId = DefaultTypeId;
-
     constructor(
         typeId: number,
         public readonly meta: ObjectDescription,
@@ -308,23 +363,12 @@ export class ObjectType extends ValueTypeWithArguments {
         this._specialTypeArguments = types;
     }
 
-    public get implId() {
-        return this._implId;
-    }
-
-    public set implId(id: number) {
-        this._implId = id;
-    }
-
     public clone(
         typeId: number,
         meta: ObjectDescription,
         flags: number,
-        implId: number,
     ): ObjectType {
-        const res = new ObjectType(typeId, meta, flags);
-        res.implId = implId;
-        return res;
+        return new ObjectType(typeId, meta, flags);
     }
 
     equals(other: ValueType): boolean {
@@ -422,10 +466,7 @@ export class ArrayType extends ObjectType {
     }
 }
 
-export const UnknownObjectType = new ObjectType(
-    DefaultTypeId,
-    UnknownObjectDescription,
-);
+export const UnknownObjectType = new ObjectType(-1, UnknownObjectDescription);
 
 export class UnionType extends ValueType {
     constructor(

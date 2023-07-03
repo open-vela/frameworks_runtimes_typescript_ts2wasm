@@ -13,10 +13,7 @@ import {
     NamespaceScope,
     Scope,
 } from './scope.js';
-import ExpressionProcessor, {
-    Expression,
-    IdentifierExpression,
-} from './expression.js';
+import ExpressionProcessor, { Expression } from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 import { builtinTypes, Type, TSInterface, TypeKind } from './type.js';
 import { UnimplementError } from './error.js';
@@ -339,7 +336,7 @@ export function getExportIdentifierName(
     exportDeclaration: ts.ExportDeclaration,
 ) {
     const nameAliasExportMap = new Map<string, string>();
-    const exportIdentifierList: Expression[] = [];
+    const exportIdentifierList: string[] = [];
     // only need to record export alias
     const exportClause = exportDeclaration.exportClause;
     if (!exportClause) {
@@ -349,22 +346,16 @@ export function getExportIdentifierName(
         const exportSpecifiers = exportClause.elements;
         for (const exportSpecifier of exportSpecifiers) {
             const specificIdentifier = <ts.Identifier>exportSpecifier.name;
-            const specificExpr = new IdentifierExpression(
-                specificIdentifier.getText(),
-            );
             const specificName = specificIdentifier.getText()!;
             const propertyIdentifier = exportSpecifier.propertyName;
             if (propertyIdentifier) {
-                const propertyExpr = new IdentifierExpression(
-                    propertyIdentifier.getText(),
-                );
                 const propertyName = (<ts.Identifier>(
                     propertyIdentifier
                 )).getText()!;
-                exportIdentifierList.push(propertyExpr);
+                exportIdentifierList.push(propertyName);
                 nameAliasExportMap.set(specificName, propertyName);
             } else {
-                exportIdentifierList.push(specificExpr);
+                exportIdentifierList.push(specificName);
             }
         }
     }
@@ -573,54 +564,3 @@ export function processEscape(str: string) {
     }
     return newStr;
 }
-
-export enum PredefinedTypeId {
-    VOID = 1,
-    UNDEFINED,
-    NULL,
-    NEVER,
-    INT,
-    NUMBER,
-    BOOLEAN,
-    RAW_STRING,
-    STRING,
-    ANY,
-    GENERIC,
-    NAMESPACE,
-    CLOSURECONTEXT,
-    EMPTY,
-    ARRAY,
-    ARRAY_CONSTRUCTOR,
-    STRING_OBJECT,
-    STRING_CONSTRUCTOR,
-    MAP,
-    MAP_CONSTRUCTOR,
-    SET,
-    SET_CONSTRUCTOR,
-    FUNC_VOID_VOID_NONE,
-    FUNC_VOID_VOID_DEFAULT,
-    FUNC_VOID_ARRAY_ANY_DEFAULT,
-    FUNC_ANY_ARRAY_ANY_DEFAULT,
-    FUNC_VOID_VOID_METHOD,
-    FUNC_VOID_ARRAY_ANY_METHOD,
-    FUNC_ANY_ARRAY_ANY_METHOD,
-    ARRAY_ANY,
-    ARRAY_INT,
-    ARRAY_NUMBER,
-    ARRAY_BOOLEAN,
-    ARRAY_STRING,
-    SET_ANY,
-    SET_INT,
-    SET_NUMBER,
-    SET_BOOLEAN,
-    SET_STRING,
-    MAP_STRING_STRING,
-    MAP_STRING_ANY,
-    MAP_INT_STRING,
-    MAP_INT_ANY,
-    BUILTIN_TYPE_BEGIN,
-
-    CUSTOM_TYPE_BEGIN = BUILTIN_TYPE_BEGIN + 1000,
-}
-export const DefaultTypeId = -1;
-export const CustomTypeId = PredefinedTypeId.CUSTOM_TYPE_BEGIN;

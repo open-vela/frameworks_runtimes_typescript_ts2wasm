@@ -47,6 +47,7 @@ import {
 import {
     ValueType,
     ValueTypeKind,
+    CustomTypeId,
     PrimitiveType,
     Primitive,
     ArrayType,
@@ -54,10 +55,11 @@ import {
     MapType,
     UnionType,
     FunctionType,
+    PredefinedTypeId,
     ObjectType,
     EnumType,
 } from './value_types.js';
-import { PredefinedTypeId } from '../utils.js';
+
 import { GetPredefinedType } from './predefined_types.js';
 
 import { flattenFunction } from './flatten.js';
@@ -99,7 +101,6 @@ import {
     ForEachBuiltinObject,
 } from './builtin.js';
 import { ModDeclStatement, Statement } from '../statement.js';
-import { IdentifierExpression } from '../expression.js';
 
 function processTypes(context: BuildContext, globalScopes: Array<GlobalScope>) {
     for (const scope of globalScopes) {
@@ -735,8 +736,9 @@ function addExternItem(
             );
         return;
     } else {
-        Logger.info(`Type ${value} export or import in module ${m.name}`);
-        return;
+        throw Error(
+            `Type ${value} cannot export or import in module ${m.name}`,
+        );
     }
 
     Logger.debug(
@@ -761,28 +763,14 @@ function processImportsExports(
         if (exportList.length > 0) {
             const export_module = new ExternModule(g.moduleName, false);
             for (const id of exportList) {
-                let ret_val: SymbolValue | undefined;
-                let export_name: string;
                 // TODO process export xxx from '<module>';
-                if (id instanceof IdentifierExpression) {
-                    ret_val = context.findSymbol(id.identifierName);
-                    export_name = id.identifierName;
-                    if (!ret_val) {
-                        throw Error(
-                            `Cannot find the export "${id}" in "${g.moduleName}"`,
-                        );
-                    }
-                } else {
-                    ret_val = buildExpression(id, context);
-                    export_name = id.expressionKind.toString();
+                const ret_val = context.findSymbol(id);
+                if (!ret_val) {
+                    throw Error(
+                        `Cannot find the export "${id}" in "${g.moduleName}"`,
+                    );
                 }
-                addExternItem(
-                    context,
-                    export_module,
-                    export_name,
-                    ret_val!,
-                    false,
-                );
+                addExternItem(context, export_module, id, ret_val!, false);
             }
             exports.add(export_module);
         }
@@ -820,7 +808,7 @@ function processObjectDescriptions(context: BuildContext) {
 
 export function BuildModuleNode(parserContext: ParserContext): ModuleNode {
     const module = new ModuleNode();
-    const context = new BuildContext(parserContext.typeId, module);
+    const context = new BuildContext(module);
 
     processGlobals(context, parserContext);
 

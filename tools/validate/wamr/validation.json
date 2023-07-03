@@ -2168,21 +2168,6 @@
         ]
     },
     {
-        "module": "import_expression",
-        "entries": [
-            {
-                "name": "defaultObjLiteral",
-                "args": [],
-                "result": "2:f64"
-            },
-            {
-                "name": "defaultNumberLiteral",
-                "args": [],
-                "result": "100:f64"
-            }
-        ]
-    },
-    {
         "module": "import_func",
         "entries": [
             {
@@ -2259,11 +2244,6 @@
                 "name": "classAndInfc",
                 "args": [],
                 "result": "1:f64"
-            },
-            {
-                "name": "infcImpl",
-                "args": [],
-                "result": "21:f64"
             }
         ]
     },

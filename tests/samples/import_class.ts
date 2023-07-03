@@ -5,10 +5,6 @@
 
 import { ExportedClass } from './export_class';
 
-class A extends ExportedClass{
-    
-}
-
 export function importClass() {
     const ec = new ExportedClass();
     ec.a = 10;
