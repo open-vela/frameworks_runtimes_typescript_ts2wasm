@@ -797,8 +797,6 @@ export function newCastValue(
     value: SemanticsValue,
 ): SemanticsValue {
     if (type.equals(value.type)) return value;
-
-    if (type.kind == ValueTypeKind.UNION) type = (type as UnionType).wideType;
     else if (type.kind == ValueTypeKind.TYPE_PARAMETER)
         type = (type as TypeParameterType).wideType;
     else if (type.kind == ValueTypeKind.ENUM)
@@ -808,7 +806,41 @@ export function newCastValue(
     if (value_type.kind == ValueTypeKind.ENUM) {
         value_type = (value_type as EnumType).memberType;
     }
-
+    if (value_type.kind == ValueTypeKind.UNION) {
+        const types = (value_type as UnionType).types;
+        if (types.has(type)) {
+            if (isObjectType(type.kind)) {
+                return new CastValue(
+                    SemanticsValueKind.UNION_CAST_OBJECT,
+                    type,
+                    value,
+                );
+            }
+            return new CastValue(
+                SemanticsValueKind.UNION_CAST_VALUE,
+                type,
+                value,
+            );
+        } else {
+            // deal with the conditional judgment of the "if" statement
+            if (type.kind == ValueTypeKind.BOOLEAN) {
+                return new CastValue(
+                    SemanticsValueKind.UNION_CAST_VALUE,
+                    type,
+                    value,
+                );
+            } else if (type.kind == ValueTypeKind.ANY) {
+                return new CastValue(
+                    SemanticsValueKind.UNION_CAST_ANY,
+                    type,
+                    value,
+                );
+            }
+            throw Error(
+                `cannot make cast value from "${value_type}" to  "${type}"`,
+            );
+        }
+    }
     if (
         value_type.kind == ValueTypeKind.GENERIC ||
         type.kind == ValueTypeKind.GENERIC
@@ -963,6 +995,16 @@ export function newCastValue(
                 value,
             );
         return new CastValue(SemanticsValueKind.VALUE_CAST_ANY, type, value);
+    }
+
+    if (type.kind == ValueTypeKind.UNION) {
+        if (isObjectType(value_type.kind))
+            return new CastValue(
+                SemanticsValueKind.OBJECT_CAST_UNION,
+                type,
+                value,
+            );
+        return new CastValue(SemanticsValueKind.VALUE_CAST_UNION, type, value);
     }
 
     /////////
