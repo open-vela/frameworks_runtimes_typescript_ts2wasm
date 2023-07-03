@@ -7,17 +7,12 @@ import { FunctionKind, TSArray, TSClass, Type, TypeKind } from '../../type.js';
 import { dyntype, structdyn } from './lib/dyntype/utils.js';
 import { SemanticsKind } from '../../semantics/semantics_nodes.js';
 import {
-    ArrayType,
+    ObjectType,
     PrimitiveType,
     ValueType,
     ValueTypeKind,
 } from '../../semantics/value_types.js';
-import {
-    arrayToPtr,
-    createCondBlock,
-    emptyStructType,
-    generateArrayStructTypeInfo,
-} from './glue/transform.js';
+import { arrayToPtr, emptyStructType } from './glue/transform.js';
 import {
     infcTypeInfo,
     stringTypeInfo,
@@ -25,9 +20,9 @@ import {
     stringArrayTypeInfo,
     stringArrayStructTypeInfo,
 } from './glue/packType.js';
-import { assert } from 'console';
 import { getBuiltInFuncName } from '../../utils.js';
-import { SemanticsValueKind } from '../../semantics/value.js';
+import { SemanticsValue, SemanticsValueKind } from '../../semantics/value.js';
+import { ObjectDescriptionType } from '../../semantics/runtime.js';
 
 /** typeof an any type object */
 export const enum DynType {
@@ -436,7 +431,7 @@ export namespace FunctionalFuncs {
     ) {
         const obj = binaryenCAPI._BinaryenStructGet(
             module.ptr,
-            2,
+            InfcFieldIndex.DATA_INDEX,
             expr,
             infcTypeInfo.typeRef,
             false,
@@ -681,11 +676,47 @@ export namespace FunctionalFuncs {
             tableIndex,
             binaryen.anyref,
         );
-        const value = binaryenCAPI._BinaryenRefCast(
+        let value = binaryenCAPI._BinaryenRefCast(
             module.ptr,
             externalRef,
             wasmType,
         );
+        if (wasmType !== infcTypeInfo.typeRef && wasmType !== binaryen.anyref) {
+            /** try to get inteface
+             * const i: I = new A()
+             * const a: any = i;
+             * const b = a as A
+             */
+            const infc = binaryenCAPI._BinaryenRefCast(
+                module.ptr,
+                externalRef,
+                infcTypeInfo.typeRef,
+            );
+            const infcData = binaryenCAPI._BinaryenStructGet(
+                module.ptr,
+                InfcFieldIndex.DATA_INDEX,
+                infc,
+                infcTypeInfo.typeRef,
+                false,
+            );
+            const infcValue = binaryenCAPI._BinaryenRefCast(
+                module.ptr,
+                infcData,
+                wasmType,
+            );
+            value = module.if(
+                module.i32.eq(
+                    module.call(
+                        dyntype.dyntype_typeof1,
+                        [getDynContextRef(module), anyExprRef],
+                        dyntype.int,
+                    ),
+                    module.i32.const(DynType.DynExtRefInfc),
+                ),
+                infcValue,
+                value,
+            );
+        }
         // iff False
         const unreachableRef = module.unreachable();
 
@@ -696,9 +727,14 @@ export namespace FunctionalFuncs {
     export function boxToAny(
         module: binaryen.Module,
         valueRef: binaryen.ExpressionRef,
-        valueTypeKind: ValueTypeKind,
-        semanticsValueKind: SemanticsValueKind,
+        value: SemanticsValue,
     ) {
+        const valueTypeKind = value.type.kind;
+        const semanticsValueKind = value.kind;
+        let objDespType: ObjectDescriptionType | undefined = undefined;
+        if (value.type instanceof ObjectType) {
+            objDespType = value.type.meta.type;
+        }
         switch (valueTypeKind) {
             case ValueTypeKind.NUMBER:
             case ValueTypeKind.INT:
@@ -722,6 +758,7 @@ export namespace FunctionalFuncs {
                             module,
                             valueRef,
                             valueTypeKind,
+                            objDespType,
                         );
                     }
                 }
@@ -782,6 +819,7 @@ export namespace FunctionalFuncs {
         module: binaryen.Module,
         valueRef: binaryen.ExpressionRef,
         valueTypeKind: ValueTypeKind,
+        objDespType?: ObjectDescriptionType,
     ): binaryen.ExpressionRef {
         switch (valueTypeKind) {
             case ValueTypeKind.NUMBER:
@@ -795,8 +833,13 @@ export namespace FunctionalFuncs {
             case ValueTypeKind.INTERFACE:
             case ValueTypeKind.ARRAY:
             case ValueTypeKind.OBJECT:
-            case ValueTypeKind.FUNCTION:
-                return generateDynExtref(module, valueRef, valueTypeKind);
+            case ValueTypeKind.FUNCTION: {
+                let kind = valueTypeKind;
+                if (objDespType === ObjectDescriptionType.INTERFACE) {
+                    kind = ValueTypeKind.INTERFACE;
+                }
+                return generateDynExtref(module, valueRef, kind);
+            }
             default:
                 throw Error(`boxNonLiteralToAny: error kind  ${valueTypeKind}`);
         }
