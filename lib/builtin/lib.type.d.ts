@@ -219,3 +219,23 @@ interface Object {
     /** Returns a string representation of an object. */
     toString(): string;
 }
+
+interface ObjectConstructor {
+    new (value?: any): Object;
+    (): any;
+    (value: any): any;
+}
+
+declare var Object: ObjectConstructor;
+
+interface FunctionConstructor {
+    /**
+     * Creates a new function.
+     * @param args A list of arguments the function accepts.
+     */
+    new (...args: string[]): Function;
+    (...args: string[]): Function;
+    readonly prototype: Function;
+}
+
+declare var Function: FunctionConstructor;

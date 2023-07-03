@@ -256,6 +256,17 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.int,
     );
     module.addFunctionImport(
+        dyntype.dyntype_instanceof,
+        dyntype.module_name,
+        dyntype.dyntype_instanceof,
+        binaryen.createType([
+            dyntype.dyn_ctx_t,
+            dyntype.dyn_value_t,
+            dyntype.dyn_value_t,
+        ]),
+        dyntype.int,
+    );
+    module.addFunctionImport(
         dyntype.dyntype_is_object,
         dyntype.module_name,
         dyntype.dyntype_is_object,
