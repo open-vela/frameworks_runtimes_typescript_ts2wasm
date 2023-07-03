@@ -146,7 +146,12 @@ export class WASMExpressionGen {
                 return this.wasmVtableCall(<VTableCallValue>value);
             case SemanticsValueKind.ANY_CAST_VALUE:
             case SemanticsValueKind.VALUE_CAST_ANY:
+            case SemanticsValueKind.VALUE_CAST_UNION:
+            case SemanticsValueKind.UNION_CAST_VALUE:
             case SemanticsValueKind.OBJECT_CAST_ANY:
+            case SemanticsValueKind.OBJECT_CAST_UNION:
+            case SemanticsValueKind.UNION_CAST_OBJECT:
+            case SemanticsValueKind.UNION_CAST_ANY:
             case SemanticsValueKind.ANY_CAST_OBJECT:
             case SemanticsValueKind.OBJECT_CAST_VALUE:
                 return this.wasmAnyCast(<CastValue>value);
@@ -1326,21 +1331,25 @@ export class WASMExpressionGen {
         const fromType = fromValue.type;
         const toType = value.type;
         switch (value.kind) {
-            case SemanticsValueKind.ANY_CAST_VALUE: {
+            case SemanticsValueKind.ANY_CAST_VALUE:
+            case SemanticsValueKind.UNION_CAST_VALUE: {
                 return FunctionalFuncs.unboxAnyToBase(
                     this.module,
                     fromValueRef,
                     toType.kind,
                 );
             }
-            case SemanticsValueKind.VALUE_CAST_ANY: {
+            case SemanticsValueKind.VALUE_CAST_ANY:
+            case SemanticsValueKind.UNION_CAST_ANY:
+            case SemanticsValueKind.VALUE_CAST_UNION: {
                 return FunctionalFuncs.boxBaseTypeToAny(
                     this.module,
                     fromValueRef,
                     fromType.kind,
                 );
             }
-            case SemanticsValueKind.OBJECT_CAST_ANY: {
+            case SemanticsValueKind.OBJECT_CAST_ANY:
+            case SemanticsValueKind.OBJECT_CAST_UNION: {
                 const fromObjType = fromType as ObjectType;
 
                 /* Workaround: semantic tree treat Map/Set as ObjectType,
@@ -1446,7 +1455,8 @@ export class WASMExpressionGen {
                     );
                 }
             }
-            case SemanticsValueKind.ANY_CAST_OBJECT: {
+            case SemanticsValueKind.ANY_CAST_OBJECT:
+            case SemanticsValueKind.UNION_CAST_OBJECT: {
                 const toTypeRef = this.wasmTypeGen.getWASMValueType(toType);
                 return FunctionalFuncs.unboxAnyToExtref(
                     this.module,
