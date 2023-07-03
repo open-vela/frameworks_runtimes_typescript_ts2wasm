@@ -2410,6 +2410,16 @@
         ]
     },
     {
+        "module": "instanceof",
+        "entries": [
+            {
+                "name": "instanceofTest",
+                "args": [],
+                "result": "true \ntrue \nfalse \ntrue \nfalse \ntrue \nfalse \nfalse \na \nb \ntrue \ntrue \nfalse"
+            }
+        ]
+    },
+    {
         "module": "loop_do_while",
         "entries": [
             {

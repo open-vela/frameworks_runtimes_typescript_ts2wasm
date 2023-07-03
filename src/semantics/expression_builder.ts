@@ -807,37 +807,29 @@ export function newCastValue(
         value_type = (value_type as EnumType).memberType;
     }
     if (value_type.kind == ValueTypeKind.UNION) {
-        const types = (value_type as UnionType).types;
-        if (types.has(type)) {
-            if (isObjectType(type.kind)) {
-                return new CastValue(
-                    SemanticsValueKind.UNION_CAST_OBJECT,
-                    type,
-                    value,
-                );
-            }
+        if (type.kind == ValueTypeKind.ANY) {
+            return new CastValue(
+                SemanticsValueKind.UNION_CAST_ANY,
+                type,
+                value,
+            );
+        } else if (type.kind == ValueTypeKind.BOOLEAN) {
             return new CastValue(
                 SemanticsValueKind.UNION_CAST_VALUE,
                 type,
                 value,
             );
+        } else if (isObjectType(type.kind)) {
+            return new CastValue(
+                SemanticsValueKind.UNION_CAST_OBJECT,
+                type,
+                value,
+            );
         } else {
-            // deal with the conditional judgment of the "if" statement
-            if (type.kind == ValueTypeKind.BOOLEAN) {
-                return new CastValue(
-                    SemanticsValueKind.UNION_CAST_VALUE,
-                    type,
-                    value,
-                );
-            } else if (type.kind == ValueTypeKind.ANY) {
-                return new CastValue(
-                    SemanticsValueKind.UNION_CAST_ANY,
-                    type,
-                    value,
-                );
-            }
-            throw Error(
-                `cannot make cast value from "${value_type}" to  "${type}"`,
+            return new CastValue(
+                SemanticsValueKind.UNION_CAST_VALUE,
+                type,
+                value,
             );
         }
     }
@@ -1144,6 +1136,9 @@ export function newBinaryExprValue(
     if (is_equal && right_value.shape) left_value.shape = right_value.shape;
 
     if (isCompareOperator(opKind)) {
+        /** Adding instanceof to the comparison operator can result in type coercion to any,
+         * which prevents compile-time verification of the instanceof relationship.
+         */
         // TODO make fast compare: such as number compare, string compare ...
         left_value = newCastValue(Primitive.Any, left_value);
         right_value = newCastValue(Primitive.Any, right_value);
@@ -1172,7 +1167,7 @@ export function newBinaryExprValue(
                     return updateSetValue(left_value, right_value, opKind);
                 }
             }
-        } else {
+        } else if (opKind !== ts.SyntaxKind.InstanceOfKeyword) {
             const target_type = typeTranslate(
                 left_value.effectType,
                 right_value.effectType,
@@ -1190,6 +1185,9 @@ export function newBinaryExprValue(
 
     let result_type = type ?? left_value.effectType;
     if (isCompareOperator(opKind)) {
+        result_type = Primitive.Boolean;
+    }
+    if (opKind === ts.SyntaxKind.InstanceOfKeyword) {
         result_type = Primitive.Boolean;
     }
 
