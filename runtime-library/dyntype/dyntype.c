@@ -253,40 +253,6 @@ dyn_value_t dyntype_new_string_with_length(dyn_ctx_t ctx, const char *str, int l
     return dyntype_dup_value(ctx->js_ctx, v);
 }
 
-static JSValue WasmCallBackDataForJS(JSContext *ctx, JSValueConst this_obj,
-                       int argc, JSValueConst *argv,
-                       int magic, JSValue *func_data) {
-    void *vfunc = JS_GetOpaque(func_data[0], JS_CLASS_OBJECT);
-    void *exec_env = JS_GetOpaque(func_data[1], JS_CLASS_OBJECT);
-
-    dyn_value_t *args = malloc(sizeof(dyn_value_t) * argc);
-    if (!args) {
-        return JS_NULL;
-    }
-    for (int i = 0; i < argc; i++) {
-        args[i] = argv + i;
-    }
-
-    // the return value must be convert to JSValue
-    dyn_value_t ret = dyntype_callback_for_js(exec_env, vfunc, (dyn_value_t)&this_obj, argc, args);
-    free(args);
-    // return JS_UNDEFINED;
-    return *(JSValue*)ret; // return is depend on the callback
-}
-
-static JSValue new_function_wrapper(dyn_ctx_t ctx, void* vfunc, void* opaque) {
-    JSValue data_hold[2];
-    data_hold[0] = JS_NewObject(ctx->js_ctx);
-    JS_SetOpaque(data_hold[0], vfunc);
-    data_hold[1] = JS_NewObject(ctx->js_ctx);
-    JS_SetOpaque(data_hold[1], opaque);
-    JSValue func = JS_NewCFunctionData(ctx->js_ctx, WasmCallBackDataForJS, 
-                0, 0, 2, data_hold); // data will be dup inside qjs
-    dyntype_release(ctx, &data_hold[0]); // release 1 time here
-    dyntype_release(ctx, &data_hold[1]); // release 1 time here
-    return func;
-}
-
 dyn_value_t dyntype_new_undefined(dyn_ctx_t ctx) {
     return ctx->js_undefined;
 }
@@ -375,10 +341,6 @@ dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj
     JSClassCall *call_func = NULL;
     JSAtom atom = find_atom(ctx->js_ctx, name);
     JSValue func = JS_GetProperty(ctx->js_ctx, this_val, atom);
-    if (!JS_IsFunction(ctx->js_ctx, func)) {
-        return NULL;
-    }
-
     JSObject *func_obj = JS_VALUE_GET_OBJ(func);
     uint32_t class_id =  getClassIdFromObject(func_obj);
     JSValue argv[argc];
@@ -399,7 +361,7 @@ dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj
     return dyntype_dup_value(ctx->js_ctx, v);
 }
 
-dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, void* opaque)
+dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag)
 {
     JSValue tag_v, ref_v, v;
 
@@ -407,12 +369,7 @@ dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, v
         return NULL;
     }
 
-    if (tag == ExtFunc) {
-        v = new_function_wrapper(ctx, ptr, opaque);
-    } else {
-        v = JS_NewObject(ctx->js_ctx);
-    }
-
+    v = JS_NewObject(ctx->js_ctx);
     if (JS_IsException(v)) {
         return NULL;
     }
@@ -602,11 +559,6 @@ void dyntype_free_cstring(dyn_ctx_t ctx, char *str) {
 bool dyntype_is_object(dyn_ctx_t ctx, dyn_value_t obj) {
     JSValue *ptr = (JSValue *)obj;
     return (bool)JS_IsObject(*ptr);
-}
-
-bool dyntype_is_function(dyn_ctx_t ctx, dyn_value_t obj) {
-    JSValue *ptr = (JSValue *)obj;
-    return (bool)JS_IsFunction(ctx->js_ctx, *ptr);
 }
 
 bool dyntype_is_array(dyn_ctx_t ctx, dyn_value_t obj) {
