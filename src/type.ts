@@ -1066,13 +1066,19 @@ export class TypeResolver {
             const fieldTypeStrs: string[] = [];
             type.getProperties().map((prop) => {
                 const propertyKind = prop.valueDeclaration!.kind;
-                let property: ts.PropertyAssignment | ts.MethodDeclaration | ts.ShorthandPropertyAssignment;
+                let property:
+                    | ts.PropertyAssignment
+                    | ts.MethodDeclaration
+                    | ts.ShorthandPropertyAssignment;
                 if (propertyKind === ts.SyntaxKind.PropertyAssignment) {
                     property = prop.valueDeclaration as ts.PropertyAssignment;
                 } else if (propertyKind === ts.SyntaxKind.MethodDeclaration) {
                     property = prop.valueDeclaration as ts.MethodDeclaration;
-                } else if (propertyKind === ts.SyntaxKind.ShorthandPropertyAssignment) {
-                    property = prop.valueDeclaration as ts.ShorthandPropertyAssignment;
+                } else if (
+                    propertyKind === ts.SyntaxKind.ShorthandPropertyAssignment
+                ) {
+                    property =
+                        prop.valueDeclaration as ts.ShorthandPropertyAssignment;
                 } else {
                     throw new UnimplementError(
                         `unImplement propertyKind ${propertyKind} in objLiteral`,

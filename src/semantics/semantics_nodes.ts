@@ -63,6 +63,9 @@ export enum SemanticsKind {
     DEFAULT_CLAUSE,
     BREAK,
     CONTINUE,
+    TRY,
+    CATCH_CLAUSE,
+    THROW,
 }
 
 export interface SemanticsNodeVisitor {
@@ -581,6 +584,65 @@ export class BreakNode extends SemanticsNode {
 export class ContinueNode extends SemanticsNode {
     constructor() {
         super(SemanticsKind.CONTINUE);
+    }
+}
+
+export class ThrowNode extends SemanticsNode {
+    constructor(public throwExpr: SemanticsValue) {
+        super(SemanticsKind.THROW);
+    }
+
+    dump(writer: DumpWriter) {
+        writer.write('[THROW]');
+        this.throwExpr.dump(writer);
+    }
+}
+
+export class CatchClauseNode extends SemanticsNode {
+    public catchVar: SemanticsValue | undefined = undefined;
+    constructor(public body: SemanticsNode) {
+        super(SemanticsKind.CATCH_CLAUSE);
+    }
+
+    dump(writer: DumpWriter) {
+        writer.write('[CATCH]');
+        if (this.catchVar) {
+            this.catchVar.dump(writer);
+        }
+        this.body.dump(writer);
+    }
+
+    forEachChild(visitor: SemanticsNodeVisitor) {
+        visitor(this.body);
+    }
+}
+
+export class TryNode extends SemanticsNode {
+    constructor(
+        public label: string,
+        public body: SemanticsNode,
+        public catchClause?: CatchClauseNode,
+        public finallyBlock?: SemanticsNode,
+    ) {
+        super(SemanticsKind.TRY);
+    }
+
+    dump(writer: DumpWriter) {
+        writer.write('[TRY]');
+        this.body.dump(writer);
+        if (this.catchClause) {
+            this.catchClause.dump(writer);
+        }
+        if (this.finallyBlock) {
+            writer.write('[FINALLY]');
+            this.finallyBlock.dump(writer);
+        }
+    }
+
+    forEachChild(visitor: SemanticsNodeVisitor) {
+        visitor(this.body);
+        if (this.catchClause) visitor(this.catchClause);
+        if (this.finallyBlock) visitor(this.finallyBlock);
     }
 }
 
