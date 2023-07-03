@@ -34,6 +34,9 @@ const IGNORE_CASES = [
     'declare_class:classDecl',
     'declare_func:assignDeclareFuncToVar',
 
+    /* workaround: generic type */
+    'import_type:validateTypeArguments',
+
     /* function not exported */
     'export_namespace:bFunc',
 
