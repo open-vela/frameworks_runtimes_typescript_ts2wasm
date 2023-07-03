@@ -323,7 +323,7 @@ is_infc(wasm_obj_t obj) {
     wasm_ref_type_t field_type;
 
     fields_count = wasm_struct_type_get_field_count(struct_type);
-    if (fields_count != 4) {
+    if (fields_count != 3) {
         return false;
     }
     field_type = wasm_struct_type_get_field_type(struct_type, 0, &mut);
@@ -335,10 +335,6 @@ is_infc(wasm_obj_t obj) {
         return false;
     }
     field_type = wasm_struct_type_get_field_type(struct_type, 2, &mut);
-    if (field_type.value_type != VALUE_TYPE_I32 || mut) {
-        return false;
-    }
-    field_type = wasm_struct_type_get_field_type(struct_type, 3, &mut);
     if (field_type.value_type != VALUE_TYPE_ANYREF || !mut) {
         return false;
     }
@@ -355,7 +351,7 @@ get_infc_obj(wasm_exec_env_t exec_env, wasm_obj_t obj) {
         return NULL;
     }
     struct_obj = (wasm_struct_obj_t)obj;
-    wasm_struct_obj_get_field(struct_obj, 3, false, &res);
+    wasm_struct_obj_get_field(struct_obj, 2, false, &res);
 
     return res.gc_obj;
 }

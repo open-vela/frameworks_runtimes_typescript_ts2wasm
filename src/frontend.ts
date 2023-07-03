@@ -5,7 +5,7 @@
 
 import ts from 'typescript';
 import { TypeResolver, CustomTypeResolver } from './type.js';
-import { CustomTypeId, mangling, Stack } from './utils.js';
+import { mangling, Stack } from './utils.js';
 import { fileURLToPath } from 'url';
 import {
     FunctionScope,
@@ -57,7 +57,7 @@ export class ParserContext {
     nodeScopeMap = new Map<ts.Node, Scope>();
     currentScope: Scope | null = null;
 
-    typeId = CustomTypeId;
+    typeId = 0;
     /* mapping type_string to type id */
     typeIdMap = new Map<string, number>();
 

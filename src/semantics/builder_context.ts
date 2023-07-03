@@ -23,7 +23,7 @@ import { Type, TypeKind, TSClass } from '../type.js';
 
 import { SemanticsValue, SemanticsValueKind, VarValue } from './value.js';
 
-import { ValueType, ClosureContextType } from './value_types.js';
+import { ValueType, CustomTypeId, ClosureContextType } from './value_types.js';
 
 import {
     SemanticsNode,
@@ -34,11 +34,8 @@ import {
 
 import { ObjectDescriptionType, ObjectDescription } from './runtime.js';
 import { clearBuiltinTypes, clearSpecializeList } from './builtin.js';
-import { CustomTypeId } from '../utils.js';
-import { Expression } from '../expression.js';
-import { buildExpression } from './expression_builder.js';
 
-export type SymbolKey = Variable | Scope | Type | Expression;
+export type SymbolKey = Variable | Scope | Type;
 export type SymbolValue = SemanticsValue | ValueType | SemanticsNode;
 
 export interface BuildEnv {
@@ -83,6 +80,7 @@ export interface Task {
 
 export class BuildContext {
     globalSymbols: Map<SymbolKey, SymbolValue> = new Map();
+    private typeIdx: number = CustomTypeId;
 
     private tasks: Task[] = [];
 
@@ -122,11 +120,11 @@ export class BuildContext {
     stackEnv: BuildEnv[] = [];
     valueReferenceStack: ValueReferenceKind[] = [];
 
-    constructor(private typeIdx: number, public module: ModuleNode) {}
+    constructor(public module: ModuleNode) {}
 
     nextTypeId(): number {
         const typeId = this.typeIdx;
-        this.typeIdx++;
+        this.typeIdx += 2; // typeId for instance interface, typeId + 1 for class interface
         return typeId;
     }
 
@@ -297,9 +295,6 @@ export class BuildContext {
     }
 
     findSymbolKey(name: SymbolKey): SymbolValue | undefined {
-        if (name instanceof Expression) {
-            return buildExpression(name, this);
-        }
         let found: SymbolValue | undefined = undefined;
         const curFunc = this.currentFunction();
         for (let i = this.stackEnv.length - 1; i >= 0; i--) {
