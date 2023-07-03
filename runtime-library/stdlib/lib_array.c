@@ -1287,7 +1287,7 @@ array_find_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                 ex_ptr = element.gc_obj;
                 return wasm_anyref_obj_new(
                     exec_env,
-                    dyntype_new_extref(dyntype_get_context(), ex_ptr, ExtObj));
+                    dyntype_new_extref(dyntype_get_context(), ex_ptr, ExtObj, NULL));
             }
             break;
         }
