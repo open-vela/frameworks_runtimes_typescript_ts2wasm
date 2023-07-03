@@ -19,16 +19,11 @@ import {
     SemanticsKind,
     SemanticsNode,
     SwitchNode,
-    ThrowNode,
-    TryNode,
     VarDeclareNode,
     WhileNode,
 } from '../../semantics/semantics_nodes.js';
-import { ClosureContextType, Primitive } from '../../semantics/value_types.js';
+import { ClosureContextType } from '../../semantics/value_types.js';
 import ts from 'typescript';
-import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
-import { arrayToPtr, emptyStructType } from './glue/transform.js';
-import { VarValue } from '../../semantics/value.js';
 
 export class WASMStatementGen {
     private currentFuncCtx;
@@ -81,14 +76,6 @@ export class WASMStatementGen {
             }
             case SemanticsKind.BASIC_BLOCK: {
                 res = this.wasmBasicExpr(<BasicBlockNode>stmt);
-                break;
-            }
-            case SemanticsKind.TRY: {
-                res = this.wasmTry(<TryNode>stmt);
-                break;
-            }
-            case SemanticsKind.THROW: {
-                res = this.wasmThrow(<ThrowNode>stmt);
                 break;
             }
             default:
@@ -320,100 +307,5 @@ export class WASMStatementGen {
             basicStmts.push(exprRef);
         }
         return this.module.block(null, basicStmts);
-    }
-
-    wasmTry(stmt: TryNode): binaryen.ExpressionRef {
-        /* set tmp var */
-        const tmpNeedRethrow = this.currentFuncCtx!.insertTmpVar(
-            Primitive.Boolean,
-        );
-        const tmpException = this.currentFuncCtx!.insertTmpVar(Primitive.Any);
-        const getTmpExceptionRef = this.module.local.get(
-            tmpException.index,
-            this.wasmCompiler.wasmTypeComp.getWASMType(tmpException.type),
-        );
-        const setTmpExceptionRef = this.module.local.set(
-            tmpException.index,
-            this.module.anyref.pop(),
-        );
-
-        /* generate structure for one layer of ts try statement */
-        const tryTSLable = stmt.label;
-        const originTryRef = this.WASMStmtGen(stmt.body);
-        const tryInCatchRef = this.module.block(null, [
-            this.module.local.set(
-                tmpNeedRethrow.index,
-                this.module.i32.const(1),
-            ),
-            originTryRef,
-        ]);
-        const tryCatchLabel = tryTSLable.concat('_catch');
-        const catchRefs: binaryen.ExpressionRef[] = [setTmpExceptionRef];
-        if (stmt.catchClause) {
-            /* set tmpException value to e variable: catch (e) */
-            if (stmt.catchClause.catchVar) {
-                const catchVarValue = stmt.catchClause.catchVar as VarValue;
-                const catchVarDeclNode = catchVarValue.ref as VarDeclareNode;
-                catchRefs.push(
-                    this.module.local.set(
-                        catchVarDeclNode.index,
-                        getTmpExceptionRef,
-                    ),
-                );
-            }
-            const originCatchRef = this.WASMStmtGen(stmt.catchClause.body);
-            catchRefs.push(
-                this.module.local.set(
-                    tmpNeedRethrow.index,
-                    this.module.i32.const(0),
-                ),
-            );
-            catchRefs.push(originCatchRef);
-        }
-        catchRefs.push(
-            this.module.throw(BuiltinNames.finallyTag, [getTmpExceptionRef]),
-        );
-        const innerTryRef = this.module.try(
-            tryCatchLabel,
-            tryInCatchRef,
-            [BuiltinNames.errorTag],
-            [this.module.block(null, catchRefs)],
-        );
-        const tryFinallyLabel = tryTSLable.concat('_finally');
-        const finallyRefs: binaryen.ExpressionRef[] = [setTmpExceptionRef];
-        if (stmt.finallyBlock) {
-            const originFinallyRef = this.WASMStmtGen(stmt.finallyBlock);
-            finallyRefs.push(originFinallyRef);
-        }
-        finallyRefs.push(
-            this.module.if(
-                this.module.i32.eq(
-                    this.module.local.get(
-                        tmpNeedRethrow.index,
-                        this.wasmCompiler.wasmTypeComp.getWASMType(
-                            tmpNeedRethrow.type,
-                        ),
-                    ),
-                    this.module.i32.const(1),
-                ),
-                this.module.throw(BuiltinNames.errorTag, [getTmpExceptionRef]),
-            ),
-        );
-        const outerTryRef = this.module.try(
-            tryFinallyLabel,
-            innerTryRef,
-            [BuiltinNames.finallyTag],
-            [this.module.block(null, finallyRefs)],
-        );
-        return outerTryRef;
-    }
-
-    wasmThrow(stmt: ThrowNode): binaryen.ExpressionRef {
-        const throwExpr = stmt.throwExpr;
-        const exprRef = this.wasmCompiler.wasmExprComp.wasmExprGen(throwExpr);
-        /* workaround: only support anyref error in the first version */
-        return this.module.throw(BuiltinNames.errorTag, [
-            FunctionalFuncs.boxToAny(this.module, exprRef, throwExpr),
-        ]);
     }
 }

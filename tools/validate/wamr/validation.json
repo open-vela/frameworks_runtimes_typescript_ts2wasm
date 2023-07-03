@@ -1472,11 +1472,6 @@
                 "name": "classNestCall",
                 "args": [],
                 "result": "20:f64"
-            },
-            {
-                "name": "thisAsFreeVar",
-                "args": [],
-                "result": "22"
             }
         ]
     },
@@ -2238,31 +2233,6 @@
         ]
     },
     {
-        "module": "import_type",
-        "entries": [
-            {
-                "name": "validatePrimitiveType",
-                "args": [],
-                "result": "100 \nhi \ntrue"
-            },
-            {
-                "name": "validateObjType",
-                "args": [],
-                "result": "hello \n18"
-            },
-            {
-                "name": "validateFuncType",
-                "args": [],
-                "result": "19:f64"
-            },
-            {
-                "name": "validateTypeArguments",
-                "args": [],
-                "result": "10 \nfalse"
-            }
-        ]
-    },
-    {
         "module": "import_var",
         "entries": [
             {
@@ -2411,16 +2381,6 @@
                 "name": "infcWithArray",
                 "args": [],
                 "result": "12:f64"
-            }
-        ]
-    },
-    {
-        "module": "instanceof",
-        "entries": [
-            {
-                "name": "instanceofTest",
-                "args": [],
-                "result": "true \ntrue \nfalse \ntrue \nfalse \ntrue \nfalse \nfalse \na \nb \ntrue \ntrue \nfalse"
             }
         ]
     },
@@ -3069,37 +3029,7 @@
             {
                 "name": "toStringTest",
                 "args": [],
-                "result": "true \ntrue \ntrue \n16 \ntrue \ntrue \ntrue \ntrue \n110 \n1[object Object] \n1undefined \n1null \n11,2 \n1[wasm Function] \n110 \n1[object Object] \nstartmiddle \n2001: A Space Odyssey"
-            }
-        ]
-    },
-    {
-        "module": "base_function_call",
-        "entries": [
-            {
-                "name": "test",
-                "args": [],
-                "result": "constructor from A \nconstructor from B \ny:  hello \nx:  1"
-            }
-        ]
-    },
-    {
-        "module": "non_null_expression",
-        "entries": [
-            {
-                "name": "test_non_null_func",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "test_non_null_field",
-                "args": [],
-                "result": "4:f64"
-            },
-            {
-                "name": "test_non_null_any",
-                "args": [],
-                "result": "4 \nundefined"
+                "result": "true \ntrue \ntrue \n16 \ntrue \ntrue \ntrue \ntrue \n110 \n1[object Object] \n1undefined \n1null \n11,2 \n1[wasm Function] \n110 \n1[object Object]"
             }
         ]
     }

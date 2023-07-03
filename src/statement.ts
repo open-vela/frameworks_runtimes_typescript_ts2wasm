@@ -281,43 +281,10 @@ export class ImportDeclaration extends Statement {
     }
 }
 
-export class ThrowStatement extends Statement {
-    expr: Expression;
-
-    constructor(expr: Expression) {
-        super(ts.SyntaxKind.ThrowStatement);
-        this.expr = expr;
-    }
-}
-
-export class CatchClauseStatement extends Statement {
-    catchBlockStmt: BlockStatement;
-    catchVar: IdentifierExpression | undefined = undefined;
-
-    constructor(catchBlock: BlockStatement) {
-        super(ts.SyntaxKind.CatchClause);
-        this.catchBlockStmt = catchBlock;
-    }
-}
-
-export class TryStatement extends Statement {
-    label: string;
-    tryBlockStmt: BlockStatement;
-    catchClauseStmt: CatchClauseStatement | undefined = undefined;
-    finallyBlockStmt: BlockStatement | undefined = undefined;
-
-    constructor(tryLable: string, tryBlock: BlockStatement) {
-        super(ts.SyntaxKind.TryStatement);
-        this.label = tryLable;
-        this.tryBlockStmt = tryBlock;
-    }
-}
-
 export default class StatementProcessor {
     private loopLabelStack = new Stack<string>();
     private breakLabelsStack = new Stack<string>();
     private switchLabelStack = new Stack<number>();
-    private tryLabelStack = new Stack<number>();
     private currentScope: Scope | null = null;
     private emitSourceMap = false;
 
@@ -727,52 +694,6 @@ export default class StatementProcessor {
                     );
                 }
                 return new ModDeclStatement(scope);
-            }
-            case ts.SyntaxKind.ThrowStatement: {
-                const throwStmtNode = <ts.ThrowStatement>node;
-                const expr = this.parserCtx.expressionProcessor.visitNode(
-                    throwStmtNode.expression,
-                );
-                const throwStmt = new ThrowStatement(expr);
-                return throwStmt;
-            }
-            case ts.SyntaxKind.CatchClause: {
-                const catchClauseNode = <ts.CatchClause>node;
-                const catchBlockStmt = this.visitNode(catchClauseNode.block)!;
-                const catchClauseStmt = new CatchClauseStatement(
-                    catchBlockStmt,
-                );
-                if (catchClauseNode.variableDeclaration) {
-                    const varDecNode = <ts.VariableDeclaration>(
-                        catchClauseNode.variableDeclaration
-                    );
-                    const catchVarName = varDecNode.getText();
-                    catchClauseStmt.catchVar = new IdentifierExpression(
-                        catchVarName,
-                    );
-                }
-                return catchClauseStmt;
-            }
-            case ts.SyntaxKind.TryStatement: {
-                const tryNode = <ts.TryStatement>node;
-                const trySize = this.tryLabelStack.size();
-                this.tryLabelStack.push(trySize);
-                const tryBlockStmt = this.visitNode(tryNode.tryBlock)!;
-                const tryLable = 'try_' + trySize;
-                const tryStmt = new TryStatement(tryLable, tryBlockStmt);
-                if (tryNode.catchClause) {
-                    const catchClauseStmt = this.visitNode(
-                        tryNode.catchClause,
-                    )! as CatchClauseStatement;
-                    tryStmt.catchClauseStmt = catchClauseStmt;
-                }
-                if (tryNode.finallyBlock) {
-                    const finallyBlockStmt = this.visitNode(
-                        tryNode.finallyBlock,
-                    )! as BlockStatement;
-                    tryStmt.finallyBlockStmt = finallyBlockStmt;
-                }
-                return tryStmt;
             }
             default:
                 Logger.info(

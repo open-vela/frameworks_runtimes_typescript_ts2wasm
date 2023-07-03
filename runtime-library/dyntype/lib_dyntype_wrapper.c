@@ -525,40 +525,8 @@ int
 dyntype_instanceof_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            const dyn_value_t src_obj, const dyn_value_t dst_obj)
 {
-    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
-    wasm_module_t module = wasm_runtime_get_module(module_inst);
-    dyn_type_t obj_type;
-    dyn_ctx_t dyn_ctx;
-    dyn_value_t dyn_src;
-    void *table_elem;
-    int32_t table_idx;
-    wasm_obj_t obj;
-    wasm_obj_t inst_obj;
-    wasm_defined_type_t inst_type;
-
-    dyn_ctx = UNBOX_ANYREF(ctx);
-    dyn_src = UNBOX_ANYREF(src_obj);
-    obj_type = dyntype_typeof(dyn_ctx, dyn_src);
-
-    // if src is not an extref object, return false
-    if (obj_type < DynExtRefObj) {
-        return 0;
-    }
-    dyntype_to_extref(dyn_ctx, dyn_src, &table_elem);
-    table_idx = (int32_t)(intptr_t)table_elem;
-    table_elem = wamr_utils_get_table_element(exec_env, table_idx);
-    if (is_infc(table_elem)) {
-        table_elem = get_infc_obj(exec_env, table_elem);
-    }
-
-    obj = (wasm_obj_t)table_elem;
-    inst_obj = (wasm_obj_t)dst_obj;
-    if (!wasm_obj_is_struct_obj(inst_obj)) {
-        return 0;
-    }
-    inst_type = wasm_obj_get_defined_type(inst_obj);
-
-    return wasm_obj_is_instance_of_defined_type(obj, inst_type, module);
+    return dyntype_instanceof(UNBOX_ANYREF(ctx), UNBOX_ANYREF(src_obj),
+                              UNBOX_ANYREF(dst_obj));
 }
 
 /******************* Dumping *******************/

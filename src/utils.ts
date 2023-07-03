@@ -337,8 +337,6 @@ export function getImportIdentifierName(
 
 export function getExportIdentifierName(
     exportDeclaration: ts.ExportDeclaration,
-    curGlobalScope: GlobalScope,
-    importModuleScope: GlobalScope,
 ) {
     const nameAliasExportMap = new Map<string, string>();
     const exportIdentifierList: Expression[] = [];
@@ -351,18 +349,10 @@ export function getExportIdentifierName(
         const exportSpecifiers = exportClause.elements;
         for (const exportSpecifier of exportSpecifiers) {
             const specificIdentifier = <ts.Identifier>exportSpecifier.name;
-            let specificName = specificIdentifier.getText()!;
-            if (specificName === 'default') {
-                specificName = (
-                    importModuleScope!.defaultExpr as IdentifierExpression
-                ).identifierName;
-                curGlobalScope.addImportDefaultName(
-                    specificName,
-                    importModuleScope,
-                );
-            }
-            const specificExpr = new IdentifierExpression(specificName);
-
+            const specificExpr = new IdentifierExpression(
+                specificIdentifier.getText(),
+            );
+            const specificName = specificIdentifier.getText()!;
             const propertyIdentifier = exportSpecifier.propertyName;
             if (propertyIdentifier) {
                 const propertyExpr = new IdentifierExpression(
@@ -628,8 +618,6 @@ export enum PredefinedTypeId {
     MAP_STRING_ANY,
     MAP_INT_STRING,
     MAP_INT_ANY,
-    ERROR,
-    ERROR_CONSTRUCTOR,
     BUILTIN_TYPE_BEGIN,
 
     CUSTOM_TYPE_BEGIN = BUILTIN_TYPE_BEGIN + 1000,

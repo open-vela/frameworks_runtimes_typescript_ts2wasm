@@ -35,9 +35,6 @@ import {
     ReturnNode,
     BreakNode,
     ContinueNode,
-    CatchClauseNode,
-    TryNode,
-    ThrowNode,
 } from './semantics_nodes.js';
 
 import { Variable, ModifierKind } from '../variable.js';
@@ -60,9 +57,6 @@ import {
     BreakStatement,
     VariableStatement,
     FunctionDeclarationStatement,
-    CatchClauseStatement,
-    TryStatement,
-    ThrowStatement,
 } from '../statement.js';
 
 import {
@@ -532,51 +526,6 @@ function buildBreakStatement(statement: BreakStatement): SemanticsNode {
     return new BreakNode(statement.breakLabel);
 }
 
-function buildThrowStatement(
-    statement: ThrowStatement,
-    context: BuildContext,
-): SemanticsNode {
-    const throw_expr = buildExpression(statement.expr, context);
-    return new ThrowNode(throw_expr);
-}
-
-function buildCatchClauseStatement(
-    statement: CatchClauseStatement,
-    context: BuildContext,
-): SemanticsNode {
-    const catch_block_node = buildBlock(statement.catchBlockStmt, context);
-    const catch_clause_node = new CatchClauseNode(catch_block_node);
-    if (statement.catchVar) {
-        const catch_var_value = buildExpression(statement.catchVar, context);
-        catch_clause_node.catchVar = catch_var_value;
-    }
-    return catch_clause_node;
-}
-
-function buildTryStatement(
-    statement: TryStatement,
-    context: BuildContext,
-): SemanticsNode {
-    const try_block_node = buildBlock(statement.tryBlockStmt, context);
-    let catch_clause_node = undefined;
-    if (statement.catchClauseStmt) {
-        catch_clause_node = buildCatchClauseStatement(
-            statement.catchClauseStmt,
-            context,
-        );
-    }
-    let finally_block_node = undefined;
-    if (statement.finallyBlockStmt) {
-        finally_block_node = buildBlock(statement.finallyBlockStmt, context);
-    }
-    return new TryNode(
-        statement.label,
-        try_block_node,
-        catch_clause_node as CatchClauseNode,
-        finally_block_node,
-    );
-}
-
 export function buildStatement(
     statement: Statement,
     context: BuildContext,
@@ -657,13 +606,6 @@ export function buildStatement(
                     new_closure,
                 );
             }
-            case ts.SyntaxKind.ThrowStatement:
-                return buildThrowStatement(
-                    statement as ThrowStatement,
-                    context,
-                );
-            case ts.SyntaxKind.TryStatement:
-                return buildTryStatement(statement as TryStatement, context);
             case ts.SyntaxKind.EmptyStatement:
                 return new EmptyNode();
             /* falls through */

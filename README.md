@@ -55,7 +55,11 @@
 
     Refer to [iwasm_gc](./runtime-library/README.md)
 
-### Source debugging (browser only)
+- Execute on browser
+
+    Refer to [ts2wasm playground](./tools/playground/README.md)
+
+### Source debuggin (browser only)
 
 To debug the generated wasm module, use `--debug --sourceMap` command line options to generate wasm module containing source map.
 
@@ -79,6 +83,10 @@ npm run test
 
 See [validate/wamr](./tools/validate/wamr/README.md) for how to validate results on WAMR
 
+#### Validate execution on browser
+
+See [validate/browser](./tools/validate/browser/README.md) for how to validate results on browser
+
 > `ts2wasm-compiler` is under development, some test cases can't pass validation yet.
 
 ### Code Formatting
@@ -91,4 +99,6 @@ Changes to `ts2wasm-compiler` are managed through github [pull requests](https:/
 
 ## License
 
-`ts2wasm-compiler` uses the same license as LLVM: the Apache 2.0 license with the LLVM exception. See the [LICENSE](./LICENSE) file for details. Any contributions you make will be under the same license.
+`ts2wasm-compiler` uses the same license as LLVM: the Apache 2.0 license with the LLVM exception. See the [LICENSE](./LICENSE) file for details. This license allows you to freely use, modify, distribute and sell your own products based on WAMR. Any contributions you make will be under the same license.
+
+

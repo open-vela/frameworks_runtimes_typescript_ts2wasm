@@ -45,7 +45,7 @@ import {
     VarValue,
     VarValueKind,
     ThisValue2,
-    SuperValue,
+    SuperValue2,
     LiteralValue,
     BinaryExprValue,
     PrefixUnaryExprValue,
@@ -93,7 +93,6 @@ import {
     NewArrayValue,
     NewArrayLenValue,
     TypeofValue,
-    SuperUsageFlag,
 } from './value.js';
 
 import {
@@ -122,7 +121,7 @@ import {
     UnaryExpression,
     ConditionalExpression,
     CallExpression,
-    SuperExpression,
+    SuperCallExpression,
     PropertyAccessExpression,
     NewExpression,
     ParenthesizedExpression,
@@ -797,6 +796,8 @@ export function newCastValue(
     value: SemanticsValue,
 ): SemanticsValue {
     if (type.equals(value.type)) return value;
+
+    if (type.kind == ValueTypeKind.UNION) type = (type as UnionType).wideType;
     else if (type.kind == ValueTypeKind.TYPE_PARAMETER)
         type = (type as TypeParameterType).wideType;
     else if (type.kind == ValueTypeKind.ENUM)
@@ -806,33 +807,7 @@ export function newCastValue(
     if (value_type.kind == ValueTypeKind.ENUM) {
         value_type = (value_type as EnumType).memberType;
     }
-    if (value_type.kind == ValueTypeKind.UNION) {
-        if (type.kind == ValueTypeKind.ANY) {
-            return new CastValue(
-                SemanticsValueKind.UNION_CAST_ANY,
-                type,
-                value,
-            );
-        } else if (type.kind == ValueTypeKind.BOOLEAN) {
-            return new CastValue(
-                SemanticsValueKind.UNION_CAST_VALUE,
-                type,
-                value,
-            );
-        } else if (isObjectType(type.kind)) {
-            return new CastValue(
-                SemanticsValueKind.UNION_CAST_OBJECT,
-                type,
-                value,
-            );
-        } else {
-            return new CastValue(
-                SemanticsValueKind.UNION_CAST_VALUE,
-                type,
-                value,
-            );
-        }
-    }
+
     if (
         value_type.kind == ValueTypeKind.GENERIC ||
         type.kind == ValueTypeKind.GENERIC
@@ -989,16 +964,6 @@ export function newCastValue(
         return new CastValue(SemanticsValueKind.VALUE_CAST_ANY, type, value);
     }
 
-    if (type.kind == ValueTypeKind.UNION) {
-        if (isObjectType(value_type.kind))
-            return new CastValue(
-                SemanticsValueKind.OBJECT_CAST_UNION,
-                type,
-                value,
-            );
-        return new CastValue(SemanticsValueKind.VALUE_CAST_UNION, type, value);
-    }
-
     /////////
     // object shape translate
     if (
@@ -1136,9 +1101,6 @@ export function newBinaryExprValue(
     if (is_equal && right_value.shape) left_value.shape = right_value.shape;
 
     if (isCompareOperator(opKind)) {
-        /** Adding instanceof to the comparison operator can result in type coercion to any,
-         * which prevents compile-time verification of the instanceof relationship.
-         */
         // TODO make fast compare: such as number compare, string compare ...
         left_value = newCastValue(Primitive.Any, left_value);
         right_value = newCastValue(Primitive.Any, right_value);
@@ -1167,7 +1129,7 @@ export function newBinaryExprValue(
                     return updateSetValue(left_value, right_value, opKind);
                 }
             }
-        } else if (opKind !== ts.SyntaxKind.InstanceOfKeyword) {
+        } else {
             const target_type = typeTranslate(
                 left_value.effectType,
                 right_value.effectType,
@@ -1185,9 +1147,6 @@ export function newBinaryExprValue(
 
     let result_type = type ?? left_value.effectType;
     if (isCompareOperator(opKind)) {
-        result_type = Primitive.Boolean;
-    }
-    if (opKind === ts.SyntaxKind.InstanceOfKeyword) {
         result_type = Primitive.Boolean;
     }
 
@@ -1619,7 +1578,7 @@ function buildCallExpression(
         //(func as MemberCallValue).funcType = f_type;
     } else if (func.kind == SemanticsValueKind.SUPER) {
         // create the super call
-        const super_value = func as SuperValue;
+        const super_value = func as SuperValue2;
         const ctr = getClassContructorType(super_value.type as ObjectType);
         func = new ConstructorCallValue(
             super_value,
@@ -2023,8 +1982,8 @@ function buildThisValue2(context: BuildContext): SemanticsValue {
     return this_value;
 }
 
-function buildSuperValue(
-    expr: SuperExpression,
+function buildSuperValue2(
+    expr: SuperCallExpression,
     context: BuildContext,
 ): SemanticsValue {
     const clazz = getCurrentClassType(context);
@@ -2048,21 +2007,10 @@ function buildSuperValue(
             context.popReference();
             param_values.push(v);
         }
-        return new SuperValue(
-            super_type,
-            SuperUsageFlag.SUPER_CALL,
-            param_values,
-        );
-    } else {
-        return new SuperValue(super_type, SuperUsageFlag.SUPER_LITERAL);
     }
-}
 
-function buildSuperExpression(
-    expr: SuperExpression,
-    context: BuildContext,
-): SemanticsValue {
-    return buildSuperValue(expr, context);
+    const super_value = new SuperValue2(super_type, param_values);
+    return super_value;
 }
 
 function buildUnaryExpression(
@@ -2191,7 +2139,7 @@ export function buildExpression(
             case ts.SyntaxKind.CallExpression:
                 return buildCallExpression(expr as CallExpression, context);
             case ts.SyntaxKind.SuperKeyword:
-                return buildSuperExpression(expr as SuperExpression, context);
+                return buildSuperValue2(expr as SuperCallExpression, context);
             case ts.SyntaxKind.ThisKeyword:
                 return buildThisValue2(context);
             case ts.SyntaxKind.NewExpression:

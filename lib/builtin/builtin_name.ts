@@ -67,8 +67,6 @@ export namespace BuiltinNames {
     export const CONSOLE = 'console';
     export const MAP = 'Map';
     export const SET = 'Set';
-    export const OBJECTCONSTRUCTOR = 'ObjectConstructor';
-    export const FUNCTIONCONSTRCTOR = 'FunctionConstructor';
 
     export const builtinIdentifierArray = [
         MATH,
@@ -81,8 +79,6 @@ export namespace BuiltinNames {
         CONSOLE,
         MAP,
         SET,
-        OBJECTCONSTRUCTOR,
-        FUNCTIONCONSTRCTOR,
     ];
 
     // decorator name
@@ -111,9 +107,6 @@ export namespace BuiltinNames {
     export const anyrefCond = 'anyrefCond';
     export const newExternRef = 'newExtRef';
     export const extRefTableMaskArr = 'extRefTableMaskArr';
-
-    export const errorTag = 'error';
-    export const finallyTag = 'finally';
 
     export interface GenericFuncName {
         generic: string;
@@ -268,5 +261,4 @@ export namespace ArgNames {
     export const isBuiltIn = 'isBuiltIn';
     export const debug = 'debug';
     export const sourceMap = 'sourceMap';
-    export const enableException = 'enableException';
 }

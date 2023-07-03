@@ -216,8 +216,8 @@ export class ObjectDescription {
     }
 
     findConstructor(): MemberDescription | undefined {
-        return this.findMember(InternalNames.CONSTRUCTOR);
-        // return this.ctor;
+        // return this.findMember(InternalNames.CONSTRUCTOR);
+        return this.ctor;
     }
 
     updateMember(

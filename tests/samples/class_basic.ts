@@ -147,37 +147,3 @@ export function classNestCall() {
         Test.baz1()._arg
     ); // 20
 }
-
-/** this as free variable */
-class Foo {
-    id: number;
-    constructor(idd: number) {
-        this.id = idd;
-    }
-}
-
-class Bar extends Foo {
-    name: string;
-    constructor(idd: number, namee: string) {
-        super(idd);
-        this.name = namee;
-    }
-
-    test(addr: number) {
-        const b = () => {
-            if (this.name === 'foo') {
-                return this.id + addr;
-            }
-            this.id++;
-            return this.id;
-        };
-        this.id++;
-        return b;
-    }
-}
-
-export function thisAsFreeVar() {
-    const b = new Bar(11, 'foo');
-    const c = b.test(10);
-    console.log(c()); // 22
-}

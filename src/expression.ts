@@ -226,15 +226,15 @@ export class CallExpression extends Expression {
     }
 }
 
-export class SuperExpression extends Expression {
-    private args: Expression[] | undefined;
+export class SuperCallExpression extends Expression {
+    private args: Expression[];
 
-    constructor(args?: Expression[]) {
+    constructor(args: Expression[] = new Array<Expression>(0)) {
         super(ts.SyntaxKind.SuperKeyword);
         this.args = args;
     }
 
-    get callArgs(): Expression[] | undefined {
+    get callArgs(): Expression[] {
         return this.args;
     }
 }
@@ -519,13 +519,6 @@ export default class ExpressionProcessor {
                 res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
             }
-            case ts.SyntaxKind.NonNullExpression: {
-                const nonNullExprNode = <ts.NonNullExpression>node;
-                const expr = this.visitNode(nonNullExprNode.expression);
-                /* For non-null operation (!), just forward the target expression */
-                res = expr;
-                break;
-            }
             case ts.SyntaxKind.CallExpression: {
                 const callExprNode = <ts.CallExpression>node;
                 const expr = this.visitNode(callExprNode.expression);
@@ -538,7 +531,7 @@ export default class ExpressionProcessor {
                 if (
                     callExprNode.expression.kind === ts.SyntaxKind.SuperKeyword
                 ) {
-                    res = new SuperExpression(args);
+                    res = new SuperCallExpression(args);
                     res.setExprType(this.typeResolver.generateNodeType(node));
                     break;
                 }
@@ -728,11 +721,6 @@ export default class ExpressionProcessor {
                     this.visitNode(typeofExpr.expression),
                 );
                 res.setExprType(this.typeResolver.generateNodeType(typeofExpr));
-                break;
-            }
-            case ts.SyntaxKind.SuperKeyword: {
-                res = new SuperExpression();
-                res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
             }
             default:

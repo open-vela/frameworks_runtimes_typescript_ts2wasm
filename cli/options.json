@@ -72,10 +72,5 @@
         "category": "Compile",
         "description": "Specify source map information",
         "default": true
-    },
-    "enableException": {
-        "category": "Compile",
-        "description": "Enable exception feature",
-        "default": true
     }
 }

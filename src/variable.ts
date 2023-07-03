@@ -242,19 +242,14 @@ export class VariableScanner {
                 const currentScope = this.currentScope!;
 
                 let variableModifier = ModifierKind.default;
-                if (
-                    variableDeclarationNode.parent.kind ===
-                    ts.SyntaxKind.VariableDeclarationList
-                ) {
-                    const variableAssignText =
-                        variableDeclarationNode.parent.getText();
-                    if (variableAssignText.includes(ModifierKind.const)) {
-                        variableModifier = ModifierKind.const;
-                    } else if (variableAssignText.includes(ModifierKind.let)) {
-                        variableModifier = ModifierKind.let;
-                    } else if (variableAssignText.includes(ModifierKind.var)) {
-                        variableModifier = ModifierKind.var;
-                    }
+                const variableAssignText =
+                    variableDeclarationNode.parent.getText();
+                if (variableAssignText.includes(ModifierKind.const)) {
+                    variableModifier = ModifierKind.const;
+                } else if (variableAssignText.includes(ModifierKind.let)) {
+                    variableModifier = ModifierKind.let;
+                } else if (variableAssignText.includes(ModifierKind.var)) {
+                    variableModifier = ModifierKind.var;
                 }
                 const varModifiers = [];
                 varModifiers.push(variableModifier);

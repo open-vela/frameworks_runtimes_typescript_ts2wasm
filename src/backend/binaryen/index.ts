@@ -34,7 +34,6 @@ import { callBuiltInAPIs } from './lib/init_builtin_api.js';
 import {
     BlockNode,
     CaseClauseNode,
-    CatchClauseNode,
     DefaultClauseNode,
     ForInNode,
     ForNode,
@@ -44,7 +43,6 @@ import {
     ModuleNode,
     SemanticsNode,
     SwitchNode,
-    TryNode,
     VarDeclareNode,
     VarStorageType,
     WhileNode,
@@ -187,19 +185,10 @@ export class WASMFunctionContext {
             varNode instanceof ForOfNode ||
             varNode instanceof WhileNode ||
             varNode instanceof CaseClauseNode ||
-            varNode instanceof DefaultClauseNode ||
-            varNode instanceof TryNode
+            varNode instanceof DefaultClauseNode
         ) {
             if (varNode.body instanceof BlockNode) {
                 this.generateFuncVarsTypeRefs(varNode.body);
-            }
-            if (varNode instanceof TryNode) {
-                if (varNode.catchClause) {
-                    this.generateFuncVarsTypeRefs(varNode.catchClause.body);
-                }
-                if (varNode.finallyBlock) {
-                    this.generateFuncVarsTypeRefs(varNode.finallyBlock);
-                }
             }
         } else if (varNode instanceof SwitchNode) {
             varNode.caseClause.forEach((c) => {
@@ -386,20 +375,6 @@ export class WASMGen extends Ts2wasmBackend {
         if (!this.parserContext.compileArgs[ArgNames.disableInterface]) {
             importInfcLibAPI(this.module);
             addItableFunc(this.module);
-        }
-
-        if (this.parserContext.compileArgs[ArgNames.enableException]) {
-            /* add exception tags: anyref */
-            this.module.addTag(
-                BuiltinNames.errorTag,
-                binaryen.anyref,
-                binaryen.none,
-            );
-            this.module.addTag(
-                BuiltinNames.finallyTag,
-                binaryen.anyref,
-                binaryen.none,
-            );
         }
 
         /* add global vars */
@@ -834,25 +809,12 @@ export class WASMGen extends Ts2wasmBackend {
             const freeVarList: binaryen.ExpressionRef[] = [];
             freeVarList.push(initCtxVarRef);
             for (const f of freeVars) {
-                let value = this.module.local.get(
-                    f.index,
-                    this.wasmTypeComp.getWASMValueType(f.type),
+                freeVarList.push(
+                    this.module.local.get(
+                        f.index,
+                        this.wasmTypeComp.getWASMValueType(f.type),
+                    ),
                 );
-                /** if 'this' as free variable */
-                if (f.name === 'this') {
-                    const type = this.wasmTypeComp.getWASMValueType(f.type);
-                    // parameter `this` index
-                    const thisParamIndex = 1;
-                    value = binaryenCAPI._BinaryenRefCast(
-                        this.module.ptr,
-                        this.module.local.get(
-                            thisParamIndex,
-                            emptyStructType.typeRef,
-                        ),
-                        type,
-                    );
-                }
-                freeVarList.push(value);
             }
             const newCtxStruct = binaryenCAPI._BinaryenStructNew(
                 this.module.ptr,
