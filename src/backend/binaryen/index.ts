@@ -388,7 +388,7 @@ export class WASMGen extends Ts2wasmBackend {
             addItableFunc(this.module);
         }
 
-        if (!this.parserContext.compileArgs[ArgNames.disableException]) {
+        if (this.parserContext.compileArgs[ArgNames.enableException]) {
             /* add exception tags: anyref */
             this.module.addTag(
                 BuiltinNames.errorTag,
