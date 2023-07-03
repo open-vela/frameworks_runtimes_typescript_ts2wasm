@@ -3009,10 +3009,11 @@ export class WASMExpressionGen {
             ? this.wasmExprGen(args.splice(0, 1)[0])
             : undefined;
         const restArgs = args.map((a) => {
-            return FunctionalFuncs.boxNonLiteralToAny(
+            return FunctionalFuncs.boxToAny(
                 this.module,
                 this.wasmExprGen(a),
                 a.type.kind,
+                a.kind,
             );
         });
 
