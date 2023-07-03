@@ -67,6 +67,8 @@ export namespace BuiltinNames {
     export const CONSOLE = 'console';
     export const MAP = 'Map';
     export const SET = 'Set';
+    export const OBJECTCONSTRUCTOR = 'ObjectConstructor';
+    export const FUNCTIONCONSTRCTOR = 'FunctionConstructor';
 
     export const builtinIdentifierArray = [
         MATH,
@@ -79,6 +81,8 @@ export namespace BuiltinNames {
         CONSOLE,
         MAP,
         SET,
+        OBJECTCONSTRUCTOR,
+        FUNCTIONCONSTRCTOR,
     ];
 
     // decorator name
