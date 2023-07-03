@@ -239,6 +239,7 @@ export enum ObjectTypeFlag {
     OBJECT = 0, // normal object
     LITERAL,
     CLASS,
+    UNION,
 }
 
 export class ObjectType extends ValueTypeWithArguments {

@@ -56,13 +56,18 @@ export enum SemanticsValueKind {
 
     OBJECT_CAST_OBJECT,
     OBJECT_CAST_VALUE, // cast to boolean
+    OBJECT_CAST_UNION,
     VALUE_CAST_ANY,
+    VALUE_CAST_UNION,
     OBJECT_CAST_ANY,
     VALUE_CAST_VALUE,
     VALUE_CAST_OBJECT, // null/undefined to object
     ANY_CAST_VALUE,
     ANY_CAST_OBJECT,
     ANY_CAST_INTERFACE,
+    UNION_CAST_VALUE,
+    UNION_CAST_OBJECT,
+    UNION_CAST_ANY,
 
     VALUE_TO_STRING,
     OBJECT_TO_STRING,
@@ -136,9 +141,7 @@ export class SemanticsValue implements Value {
     }
 
     get effectType(): ValueType {
-        if (this.type.kind == ValueTypeKind.UNION)
-            return (this.type as UnionType).wideType;
-        else if (this.type.kind == ValueTypeKind.TYPE_PARAMETER)
+        if (this.type.kind == ValueTypeKind.TYPE_PARAMETER)
             return (this.type as TypeParameterType).wideType;
         return this.type;
     }
@@ -585,9 +588,14 @@ type CastValueKind =
     | SemanticsValueKind.VALUE_CAST_VALUE
     | SemanticsValueKind.VALUE_CAST_OBJECT
     | SemanticsValueKind.VALUE_CAST_ANY
+    | SemanticsValueKind.VALUE_CAST_UNION
     | SemanticsValueKind.OBJECT_CAST_OBJECT
     | SemanticsValueKind.OBJECT_CAST_VALUE
+    | SemanticsValueKind.OBJECT_CAST_UNION
     | SemanticsValueKind.OBJECT_CAST_ANY
+    | SemanticsValueKind.UNION_CAST_VALUE
+    | SemanticsValueKind.UNION_CAST_OBJECT
+    | SemanticsValueKind.UNION_CAST_ANY
     | SemanticsValueKind.ANY_CAST_INTERFACE
     | SemanticsValueKind.ANY_CAST_OBJECT
     | SemanticsValueKind.ANY_CAST_VALUE;
