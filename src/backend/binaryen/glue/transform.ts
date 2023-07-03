@@ -114,16 +114,8 @@ export function initArrayType(
     return arrayTypeInfo;
 }
 
-/** Object */
 export const emptyStructType = initStructType([], [], [], 0, true);
-/** Function */
-export const builtinFunctionType = initStructType(
-    [emptyStructType.typeRef, binaryenCAPI._BinaryenTypeFuncref()],
-    [Pakced.Not, Pakced.Not],
-    [true, false],
-    2,
-    true,
-);
+
 export function initStructType(
     fieldTypesList: Array<binaryenCAPI.TypeRef>,
     fieldPackedTypesList: Array<binaryenCAPI.PackedType>,

@@ -34,17 +34,11 @@ const IGNORE_CASES = [
     'declare_class:classDecl',
     'declare_func:assignDeclareFuncToVar',
 
-    /* workaround: generic type */
-    'import_type:validateTypeArguments',
-
     /* function not exported */
+    'export_func:subFunc',
+    'export_func:mulFunc',
+    'export_func:divFunc',
     'export_namespace:bFunc',
-
-    /* exception handling not support yet */
-    'exception_catch_error.ts',
-    'exception_custom_error.ts',
-    'exception_throw_error.ts',
-    'exception_try_structure.ts',
 ];
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));

@@ -56,18 +56,13 @@ export enum SemanticsValueKind {
 
     OBJECT_CAST_OBJECT,
     OBJECT_CAST_VALUE, // cast to boolean
-    OBJECT_CAST_UNION,
     VALUE_CAST_ANY,
-    VALUE_CAST_UNION,
     OBJECT_CAST_ANY,
     VALUE_CAST_VALUE,
     VALUE_CAST_OBJECT, // null/undefined to object
     ANY_CAST_VALUE,
     ANY_CAST_OBJECT,
     ANY_CAST_INTERFACE,
-    UNION_CAST_VALUE,
-    UNION_CAST_OBJECT,
-    UNION_CAST_ANY,
 
     VALUE_TO_STRING,
     OBJECT_TO_STRING,
@@ -141,7 +136,9 @@ export class SemanticsValue implements Value {
     }
 
     get effectType(): ValueType {
-        if (this.type.kind == ValueTypeKind.TYPE_PARAMETER)
+        if (this.type.kind == ValueTypeKind.UNION)
+            return (this.type as UnionType).wideType;
+        else if (this.type.kind == ValueTypeKind.TYPE_PARAMETER)
             return (this.type as TypeParameterType).wideType;
         return this.type;
     }
@@ -176,50 +173,13 @@ export class ThisValue2 extends SemanticsValue {
     }
 }
 
-/* When we use the ”super" keyword, there are two situations:
-    1. super(...), this means that the constructor of the base class needs to be called;
-        e.g.
-            class B extends A {
-                constructor(x: number, y: string) {
-                    super(x);
-                }
-            }
-    2. super.xxx, at this time, "super" represents the base class.
-        e.g.
-            class B extends A {
-                log() {
-                    super.log();
-                }
-            }
-
-   So, we use "SuperUsageFlag" to distinguish between these two situations.
-*/
-export enum SuperUsageFlag {
-    SUPER_CALL,
-    SUPER_LITERAL,
-}
-
-export class SuperValue extends SemanticsValue {
-    private _parameters: SemanticsValue[] | undefined;
-    private _usageFlag = SuperUsageFlag.SUPER_CALL;
-
+export class SuperValue2 extends SemanticsValue {
     constructor(
         type: ObjectType,
-        usageFlag: SuperUsageFlag,
-        parameters?: SemanticsValue[],
+        public readonly parameters: SemanticsValue[],
     ) {
         super(SemanticsValueKind.SUPER, type);
         this.shape = type.instanceType!.meta.originShape;
-        this._parameters = parameters;
-        this._usageFlag = usageFlag;
-    }
-
-    get parameters(): SemanticsValue[] | undefined {
-        return this._parameters;
-    }
-
-    get usageFlag(): SuperUsageFlag {
-        return this._usageFlag;
     }
 }
 
@@ -588,14 +548,9 @@ type CastValueKind =
     | SemanticsValueKind.VALUE_CAST_VALUE
     | SemanticsValueKind.VALUE_CAST_OBJECT
     | SemanticsValueKind.VALUE_CAST_ANY
-    | SemanticsValueKind.VALUE_CAST_UNION
     | SemanticsValueKind.OBJECT_CAST_OBJECT
     | SemanticsValueKind.OBJECT_CAST_VALUE
-    | SemanticsValueKind.OBJECT_CAST_UNION
     | SemanticsValueKind.OBJECT_CAST_ANY
-    | SemanticsValueKind.UNION_CAST_VALUE
-    | SemanticsValueKind.UNION_CAST_OBJECT
-    | SemanticsValueKind.UNION_CAST_ANY
     | SemanticsValueKind.ANY_CAST_INTERFACE
     | SemanticsValueKind.ANY_CAST_OBJECT
     | SemanticsValueKind.ANY_CAST_VALUE;

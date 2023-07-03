@@ -22,8 +22,6 @@ const IGNORE_LIST = [
     "global_generics_function.ts",
     "inner_generics_function.ts",
     "namespace_generics_function.ts",
-    "exception_custom_error.ts",
-    "exception_throw_error.ts",
 ]
 
 describe('basic_cases', function () {
