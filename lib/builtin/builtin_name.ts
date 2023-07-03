@@ -264,5 +264,5 @@ export namespace ArgNames {
     export const isBuiltIn = 'isBuiltIn';
     export const debug = 'debug';
     export const sourceMap = 'sourceMap';
-    export const disableException = 'disableException';
+    export const enableException = 'enableException';
 }
