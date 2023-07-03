@@ -13,6 +13,7 @@ import {
     createSignatureTypeRefAndHeapTypeRef,
     Pakced,
     generateArrayStructTypeInfo,
+    builtinFunctionType,
 } from './glue/transform.js';
 import { assert } from 'console';
 import { infcTypeInfo, stringTypeInfo } from './glue/packType.js';
@@ -28,14 +29,9 @@ import {
     ValueTypeKind,
 } from '../../semantics/value_types.js';
 import { UnimplementError } from '../../error.js';
-import {
-    MemberModifier,
-    MemberType,
-    ObjectDescription,
-} from '../../semantics/runtime.js';
+import { MemberModifier, MemberType } from '../../semantics/runtime.js';
 import { FunctionalFuncs, UtilFuncs, getCString } from './utils.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
-import { MemberDescription } from '../../semantics/runtime.js';
 import { VarValue } from '../../semantics/value.js';
 
 export class WASMTypeGen {
@@ -264,6 +260,7 @@ export class WASMTypeGen {
             [true, false],
             2,
             true,
+            builtinFunctionType.heapTypeRef,
         );
         this.createCustomTypeName(
             `closure${this.funcHeapTypeCnt++}`,
@@ -792,8 +789,7 @@ export class WASMTypeGen {
                     wasmInitvalue = FunctionalFuncs.boxToAny(
                         this.wasmComp.module,
                         wasmInitvalue,
-                        valueType.kind,
-                        initValue.kind,
+                        initValue,
                     );
                 }
                 if (
