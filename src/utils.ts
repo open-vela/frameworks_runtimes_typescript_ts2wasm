@@ -337,6 +337,8 @@ export function getImportIdentifierName(
 
 export function getExportIdentifierName(
     exportDeclaration: ts.ExportDeclaration,
+    curGlobalScope: GlobalScope,
+    importModuleScope: GlobalScope,
 ) {
     const nameAliasExportMap = new Map<string, string>();
     const exportIdentifierList: Expression[] = [];
@@ -349,10 +351,18 @@ export function getExportIdentifierName(
         const exportSpecifiers = exportClause.elements;
         for (const exportSpecifier of exportSpecifiers) {
             const specificIdentifier = <ts.Identifier>exportSpecifier.name;
-            const specificExpr = new IdentifierExpression(
-                specificIdentifier.getText(),
-            );
-            const specificName = specificIdentifier.getText()!;
+            let specificName = specificIdentifier.getText()!;
+            if (specificName === 'default') {
+                specificName = (
+                    importModuleScope!.defaultExpr as IdentifierExpression
+                ).identifierName;
+                curGlobalScope.addImportDefaultName(
+                    specificName,
+                    importModuleScope,
+                );
+            }
+            const specificExpr = new IdentifierExpression(specificName);
+
             const propertyIdentifier = exportSpecifier.propertyName;
             if (propertyIdentifier) {
                 const propertyExpr = new IdentifierExpression(

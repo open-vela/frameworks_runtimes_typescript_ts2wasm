@@ -16,7 +16,7 @@ import {
     ScopeKind,
 } from './scope.js';
 import { Parameter, Variable } from './variable.js';
-import { Expression } from './expression.js';
+import { Expression, IdentifierExpression } from './expression.js';
 import { Logger } from './log.js';
 import { DefaultTypeId, adjustPrimitiveNodeType } from './utils.js';
 import { UnimplementError } from './error.js';
@@ -833,6 +833,32 @@ export class TypeResolver {
                 this.addTypeToTypeMap(type, node);
                 break;
             }
+            case ts.SyntaxKind.TypeAliasDeclaration: {
+                const typeAliasNode = <ts.TypeAliasDeclaration>node;
+                const typeName = typeAliasNode.name.getText();
+                if (typeName === 'func') {
+                    console.log(typeName);
+                }
+                const type = this.generateNodeType(
+                    typeAliasNode.type,
+                    typeAliasNode,
+                );
+                this.currentScope!.addType(typeName, type);
+                if (typeAliasNode.modifiers) {
+                    if (
+                        typeAliasNode.modifiers.some((modifier) => {
+                            modifier.kind === ts.SyntaxKind.ExportKeyword;
+                        })
+                    ) {
+                        const typeIdentifierExpr = new IdentifierExpression(
+                            typeName,
+                        );
+                        this.currentScope!.getRootGloablScope()!.setExportIdentifierList(
+                            [typeIdentifierExpr],
+                        );
+                    }
+                }
+            }
         }
         ts.forEachChild(node, this.visitNode.bind(this));
     }
@@ -864,7 +890,10 @@ export class TypeResolver {
         }
     }
 
-    generateNodeType(node: ts.Node): Type {
+    generateNodeType(
+        node: ts.Node,
+        typeParameterNode?: ts.DeclarationWithTypeParameters,
+    ): Type {
         if (!this.typechecker) {
             this.typechecker = this.parserCtx.typeChecker;
         }
@@ -895,7 +924,8 @@ export class TypeResolver {
             /* For "this" keyword, tsc will inference the actual type */
             tsType = this.typechecker!.getDeclaredTypeOfSymbol(tsType.symbol);
         }
-        let type = this.tsTypeToType(tsType);
+
+        let type = this.tsTypeToType(tsType, typeParameterNode);
         type = adjustPrimitiveNodeType(type, node, this.currentScope)!;
         /* for example, a: string[] = new Array(), the type of new Array() should be string[]
          instead of any[]*/
@@ -920,7 +950,10 @@ export class TypeResolver {
         return type;
     }
 
-    public tsTypeToType(type: ts.Type): Type {
+    public tsTypeToType(
+        type: ts.Type,
+        typeParameterNode?: ts.DeclarationWithTypeParameters,
+    ): Type {
         const typeFlag = type.flags;
         // basic types
         if (
@@ -1054,76 +1087,20 @@ export class TypeResolver {
 
         // iff object literal type
         if (this.isObjectLiteral(type)) {
-            const decl = type.symbol.declarations![0];
-            const cached_type = this.nodeTypeCache.get(decl);
-            if (cached_type) return cached_type;
-
-            const tsClass = new TSClass();
-            tsClass.setClassName(this.generateObjectLiteralName());
-            tsClass.isLiteral = true;
-            this.nodeTypeCache.set(decl, tsClass);
-            const methodTypeStrs: string[] = [];
-            const fieldTypeStrs: string[] = [];
-            type.getProperties().map((prop) => {
-                const propertyKind = prop.valueDeclaration!.kind;
-                let property:
-                    | ts.PropertyAssignment
-                    | ts.MethodDeclaration
-                    | ts.ShorthandPropertyAssignment;
-                if (propertyKind === ts.SyntaxKind.PropertyAssignment) {
-                    property = prop.valueDeclaration as ts.PropertyAssignment;
-                } else if (propertyKind === ts.SyntaxKind.MethodDeclaration) {
-                    property = prop.valueDeclaration as ts.MethodDeclaration;
-                } else if (
-                    propertyKind === ts.SyntaxKind.ShorthandPropertyAssignment
-                ) {
-                    property =
-                        prop.valueDeclaration as ts.ShorthandPropertyAssignment;
-                } else {
-                    throw new UnimplementError(
-                        `unImplement propertyKind ${propertyKind} in objLiteral`,
-                    );
-                }
-                const propType = this.typechecker!.getTypeAtLocation(property);
-                let typeString = this.typeToString(property);
-                // ts.Type's intrinsicName is `true` or `false`, instead of `boolean`
-                if (typeString === 'true' || typeString === 'false') {
-                    typeString = 'boolean';
-                }
-                const propName = prop.name;
-                const tsType = this.tsTypeToType(propType);
-                /* functionType in objLiteral will always have 2 envParams */
-                // TODO: set objLiteral's envParamLen here, add a wrapper method in backend
-                // if (tsType instanceof TSFunction) {
-                //     tsType.envParamLen = 2;
-                // }
-                if (ts.isMethodDeclaration(property)) {
-                    tsClass.addMethod({
-                        name: propName,
-                        type: tsType as TSFunction,
-                    });
-                    methodTypeStrs.push(`${propName}: ${typeString}`);
-                } else {
-                    tsClass.addMemberField({
-                        name: propName,
-                        type: tsType,
-                    });
-                    fieldTypeStrs.push(`${propName}: ${typeString}`);
-                }
-            });
-            const typeString =
-                methodTypeStrs.join(', ') + ', ' + fieldTypeStrs.join(', ');
-            tsClass.typeId = this.generateTypeId(typeString);
-            Logger.info(
-                `Assign type id [${tsClass.typeId}] for object literal type: ${typeString}`,
-            );
-            return tsClass;
+            return this.parseObjLiteral(type);
         }
 
         // iff function type
         if (this.isFunction(type)) {
             const signature = type.getCallSignatures()[0];
             return this.parseSignature(signature);
+        }
+
+        /* must behind isFunction(type), since a type maybe both isFunction and isObjectType */
+        if (this.isAliasType(type)) {
+            if (this.isObjectType(type)) {
+                return this.parseObjLiteral(type, typeParameterNode);
+            }
         }
 
         Logger.debug(`Encounter un-processed type: ${type.flags}`);
@@ -1153,6 +1130,15 @@ export class TypeResolver {
         return this.isObject(type) && type.symbol.name === '__object';
     }
 
+    private isObjectType(type: ts.Type) {
+        return this.isObject(type) && type.symbol.name === '__type';
+    }
+
+    private isAliasType(type: ts.Type) {
+        const res = type.aliasSymbol ? true : false;
+        return res;
+    }
+
     private isArray(type: ts.Type): type is ts.TypeReference {
         return this.isTypeReference(type) && type.symbol.name === 'Array';
     }
@@ -1162,6 +1148,82 @@ export class TypeResolver {
             return type.getCallSignatures().length > 0;
         }
         return false;
+    }
+
+    private parseObjLiteral(
+        type: ts.Type,
+        node?: ts.DeclarationWithTypeParameters,
+    ) {
+        const decl = type.symbol.declarations![0];
+        const cached_type = this.nodeTypeCache.get(decl);
+        if (cached_type) return cached_type;
+
+        const tsClass = new TSClass();
+        this.nodeTypeCache.set(decl, tsClass);
+        tsClass.setClassName(this.generateObjectLiteralName());
+        tsClass.isLiteral = true;
+
+        if (node) {
+            this.typeParameterStack.push(tsClass);
+            this.parseTypeParameters(tsClass, node, this.currentScope);
+        }
+
+        const methodTypeStrs: string[] = [];
+        const fieldTypeStrs: string[] = [];
+        type.getProperties().map((prop) => {
+            const propertyKind = prop.valueDeclaration!.kind;
+            let property: ts.Node;
+            if (propertyKind === ts.SyntaxKind.PropertyAssignment) {
+                property = prop.valueDeclaration as ts.PropertyAssignment;
+            } else if (propertyKind === ts.SyntaxKind.MethodDeclaration) {
+                property = prop.valueDeclaration as ts.MethodDeclaration;
+            } else if (
+                propertyKind === ts.SyntaxKind.ShorthandPropertyAssignment
+            ) {
+                property =
+                    prop.valueDeclaration as ts.ShorthandPropertyAssignment;
+            } else if (propertyKind === ts.SyntaxKind.PropertySignature) {
+                property = prop.valueDeclaration as ts.PropertySignature;
+            } else {
+                throw new UnimplementError(
+                    `unImplement propertyKind ${propertyKind} in objLiteral`,
+                );
+            }
+            const propType = this.typechecker!.getTypeAtLocation(property);
+            let typeString = this.typeToString(property);
+            // ts.Type's intrinsicName is `true` or `false`, instead of `boolean`
+            if (typeString === 'true' || typeString === 'false') {
+                typeString = 'boolean';
+            }
+            const propName = prop.name;
+            const tsType = this.tsTypeToType(propType);
+            /* functionType in objLiteral will always have 2 envParams */
+            // TODO: set objLiteral's envParamLen here, add a wrapper method in backend
+            // if (tsType instanceof TSFunction) {
+            //     tsType.envParamLen = 2;
+            // }
+            if (ts.isMethodDeclaration(property)) {
+                tsClass.addMethod({
+                    name: propName,
+                    type: tsType as TSFunction,
+                });
+                methodTypeStrs.push(`${propName}: ${typeString}`);
+            } else {
+                tsClass.addMemberField({
+                    name: propName,
+                    type: tsType,
+                });
+                fieldTypeStrs.push(`${propName}: ${typeString}`);
+            }
+        });
+        const typeString =
+            methodTypeStrs.join(', ') + ', ' + fieldTypeStrs.join(', ');
+        tsClass.typeId = this.generateTypeId(typeString);
+        Logger.info(
+            `Assign type id [${tsClass.typeId}] for object literal type: ${typeString}`,
+        );
+
+        return tsClass;
     }
 
     private parseSignature(signature: ts.Signature | undefined) {
