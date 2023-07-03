@@ -413,12 +413,7 @@ export class WASMStatementGen {
         const exprRef = this.wasmCompiler.wasmExprComp.wasmExprGen(throwExpr);
         /* workaround: only support anyref error in the first version */
         return this.module.throw(BuiltinNames.errorTag, [
-            FunctionalFuncs.boxToAny(
-                this.module,
-                exprRef,
-                throwExpr.type.kind,
-                throwExpr.kind,
-            ),
+            FunctionalFuncs.boxToAny(this.module, exprRef, throwExpr),
         ]);
     }
 }

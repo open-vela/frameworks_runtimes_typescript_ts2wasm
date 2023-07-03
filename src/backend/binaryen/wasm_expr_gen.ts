@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-import ts, { Block } from 'typescript';
+import ts from 'typescript';
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
 import {
+    builtinFunctionType,
     arrayToPtr,
     createCondBlock,
     emptyStructType,
@@ -69,14 +70,15 @@ import {
     ClosureContextType,
     FunctionType,
     ObjectType,
+    ObjectTypeFlag,
     Primitive,
+    UnionType,
     ValueType,
     ValueTypeKind,
 } from '../../semantics/value_types.js';
 import { UnimplementError } from '../../error.js';
 import {
     FunctionDeclareNode,
-    FunctionOwnKind,
     VarDeclareNode,
 } from '../../semantics/semantics_nodes.js';
 import {
@@ -283,6 +285,10 @@ export class WASMExpressionGen {
     private wasmGetValue(value: VarValue): binaryen.ExpressionRef {
         const varNode = value.ref;
         const varTypeRef = this.wasmTypeGen.getWASMValueType(value.type);
+        /** when meeting a ValueType as value, return wasm type */
+        if (value.ref instanceof ValueType) {
+            return varTypeRef;
+        }
         switch (value.kind) {
             case SemanticsValueKind.PARAM_VAR:
             case SemanticsValueKind.LOCAL_VAR:
@@ -519,6 +525,9 @@ export class WASMExpressionGen {
                     rightValue,
                 );
                 return this.assignBinaryExpr(leftValue, tmpValue);
+            }
+            case ts.SyntaxKind.InstanceOfKeyword: {
+                return this.wasmInstanceOf(leftValue, rightValue);
             }
             default: {
                 return this.operateBinaryExpr(leftValue, rightValue, opKind);
@@ -829,6 +838,78 @@ export class WASMExpressionGen {
             'trueWASMExprType and falseWASMExprType are not equal in conditional expression ',
         );
         return this.module.select(condValueRef, trueValueRef, falseValueRef);
+    }
+
+    private wasmInstanceOf(
+        leftValue: SemanticsValue,
+        rightValue: SemanticsValue,
+    ) {
+        const leftValueType = leftValue.type;
+        const rightValueType = rightValue.type;
+        if (!(rightValueType instanceof ObjectType)) {
+            // Only support instanceof right-side is an ObjectType
+            throw new Error('wasmInstanceOf: rightValue is not ObjectType');
+        }
+        if (!rightValueType.instanceType) {
+            throw new Error(
+                'wasmInstanceOf: rightValue does not have ObjectType',
+            );
+        }
+        const rightValueInstType = (rightValueType as ObjectType).instanceType!;
+        /** try to determine the result in compile time */
+        if (leftValueType instanceof ObjectType) {
+            let type: ObjectType | undefined = leftValueType;
+            while (type) {
+                if (type.equals(rightValueInstType)) {
+                    return this.module.i32.const(1);
+                }
+                type = type.super;
+            }
+        }
+        /** if left-side is object, the instanceof relationship must be determined in the compile time */
+        if (
+            leftValueType instanceof ObjectType &&
+            !leftValueType.meta.isInterface &&
+            !rightValueType.meta.isInterface
+        ) {
+            return this.module.i32.const(0);
+        }
+        /** try to determine the result in runtime */
+
+        const leftValueRef = this.wasmExprGen(leftValue);
+        /** create a default inst of  rightValueInstType */
+        let rightWasmHeapType =
+            this.wasmTypeGen.getWASMHeapType(rightValueInstType);
+        if (
+            rightValueInstType.meta.name.includes(
+                BuiltinNames.OBJECTCONSTRUCTOR,
+            )
+        ) {
+            rightWasmHeapType = emptyStructType.heapTypeRef;
+        }
+        if (
+            rightValueInstType.meta.name.includes(
+                BuiltinNames.FUNCTIONCONSTRCTOR,
+            )
+        ) {
+            rightWasmHeapType = builtinFunctionType.heapTypeRef;
+        }
+        const defaultRightValue = binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr([]).ptr,
+            0,
+            rightWasmHeapType,
+        );
+        const res = this.module.call(
+            dyntype.dyntype_instanceof,
+            [
+                FunctionalFuncs.getDynContextRef(this.module),
+                FunctionalFuncs.boxToAny(this.module, leftValueRef, leftValue),
+                defaultRightValue,
+            ],
+            binaryen.i32,
+        );
+        return res;
     }
 
     private callClosureInternal(
@@ -1348,112 +1429,8 @@ export class WASMExpressionGen {
                     fromType.kind,
                 );
             }
-            case SemanticsValueKind.OBJECT_CAST_ANY:
-            case SemanticsValueKind.OBJECT_CAST_UNION: {
-                const fromObjType = fromType as ObjectType;
-
-                /* Workaround: semantic tree treat Map/Set as ObjectType,
-                    then they will be boxed to extref. Here we avoid this
-                    cast if we find the actual object should be fallbacked
-                    to libdyntype */
-                const fallbackConstructors = ['Map', 'Set'];
-                if (
-                    fromObjType.meta &&
-                    fallbackConstructors.includes(fromObjType.meta.name)
-                ) {
-                    return fromValueRef;
-                }
-
-                if (fromValue instanceof NewLiteralObjectValue) {
-                    /* created a temVar to store dynObjValue, then set dyn property */
-                    const tmpVar = this.currentFuncCtx!.insertTmpVar(
-                        Primitive.Any,
-                    );
-                    const tmpVarTypeRef = this.wasmTypeGen.getWASMType(
-                        tmpVar.type,
-                    );
-                    const createDynObjOps: binaryen.ExpressionRef[] = [];
-                    createDynObjOps.push(
-                        this.module.local.set(
-                            tmpVar.index,
-                            FunctionalFuncs.boxToAny(
-                                this.module,
-                                fromValueRef,
-                                fromType.kind,
-                                fromValue.kind,
-                            ),
-                        ),
-                    );
-                    for (let i = 0; i < fromValue.initValues.length; i++) {
-                        let initValue = fromValue.initValues[i];
-                        let isNestedLiteralObj = false;
-                        if (initValue instanceof NewLiteralObjectValue) {
-                            /* Workaround: semantic tree treat any typed object literal as
-                                casting object to any, in the backend, we firstly generate
-                                the static version of object literal, and then replace it
-                                with dynamic one during cast. And if there are nested literals,
-                                we need to insert this CastValue to ensure the inner literals
-                                are also replaced with dynamic version.
-                                e.g.
-
-                                export function boxNestedObj() {
-                                    let obj: any;
-                                    obj = {
-                                        a: 1,
-                                        c: true,
-                                        d: {
-                                            e: 1,
-                                        },
-                                    };
-                                    return obj.d.e as number;
-                                }
-
-                                Without this workaround, we will miss field 'e' of 'obj.d'
-                            */
-                            isNestedLiteralObj = true;
-                            initValue = new CastValue(
-                                SemanticsValueKind.OBJECT_CAST_ANY,
-                                initValue.type,
-                                initValue,
-                            );
-                        }
-                        const initValueRef = this.wasmExprGen(initValue);
-                        let initValueToAnyRef = initValueRef;
-                        if (!isNestedLiteralObj) {
-                            initValueToAnyRef = FunctionalFuncs.boxToAny(
-                                this.module,
-                                initValueRef,
-                                initValue.type.kind,
-                                initValue.kind,
-                            );
-                        }
-                        const propName = fromObjType.meta.members[i].name;
-                        const propNameRef = this.module.i32.const(
-                            this.wasmCompiler.generateRawString(propName),
-                        );
-                        createDynObjOps.push(
-                            FunctionalFuncs.setDynObjProp(
-                                this.module,
-                                this.module.local.get(
-                                    tmpVar.index,
-                                    tmpVarTypeRef,
-                                ),
-                                propNameRef,
-                                initValueToAnyRef,
-                            ),
-                        );
-                    }
-                    createDynObjOps.push(
-                        this.module.local.get(tmpVar.index, tmpVarTypeRef),
-                    );
-                    return this.module.block(null, createDynObjOps);
-                } else {
-                    return FunctionalFuncs.boxNonLiteralToAny(
-                        this.module,
-                        fromValueRef,
-                        fromType.kind,
-                    );
-                }
+            case SemanticsValueKind.OBJECT_CAST_ANY: {
+                return this.wasmObjTypeCastToAny(value);
             }
             case SemanticsValueKind.ANY_CAST_OBJECT:
             case SemanticsValueKind.UNION_CAST_OBJECT: {
@@ -1481,8 +1458,15 @@ export class WASMExpressionGen {
                     );
                 }
             }
+            case SemanticsValueKind.OBJECT_CAST_UNION: {
+                return FunctionalFuncs.boxToAny(
+                    this.module,
+                    fromValueRef,
+                    fromValue,
+                );
+            }
             default:
-                throw new UnimplementError('wasmCastValue: ${value}');
+                throw new UnimplementError(`wasmCastValue: ${value}`);
         }
     }
 
@@ -1563,8 +1547,7 @@ export class WASMExpressionGen {
                         defaultArg = FunctionalFuncs.boxToAny(
                             this.module,
                             defaultArg,
-                            initValue.type.kind,
-                            initValue.kind,
+                            initValue,
                         );
                     }
 
@@ -2110,6 +2093,17 @@ export class WASMExpressionGen {
         const oriValueRef = this.wasmExprGen(value.value);
         const oriValueType = value.value.type as ObjectType;
         const toValueType = value.type as ObjectType;
+        if (toValueType.flags === ObjectTypeFlag.UNION) {
+            return this.wasmObjTypeCastToAny(value);
+        }
+        if (oriValueType instanceof UnionType) {
+            const toTypeRef = this.wasmTypeGen.getWASMValueType(toValueType);
+            return FunctionalFuncs.unboxAnyToExtref(
+                this.module,
+                oriValueRef,
+                toTypeRef,
+            );
+        }
         switch (oriValueType.meta.type) {
             case ObjectDescriptionType.OBJECT_INSTANCE:
             case ObjectDescriptionType.OBJECT_CLASS:
@@ -2743,8 +2737,7 @@ export class WASMExpressionGen {
                 const initValueToAnyRef = FunctionalFuncs.boxToAny(
                     this.module,
                     oriValueRef,
-                    oriValue.type.kind,
-                    oriValue.kind,
+                    oriValue,
                 );
                 return this.module.drop(
                     FunctionalFuncs.setDynObjProp(
@@ -3009,11 +3002,15 @@ export class WASMExpressionGen {
             ? this.wasmExprGen(args.splice(0, 1)[0])
             : undefined;
         const restArgs = args.map((a) => {
-            return FunctionalFuncs.boxToAny(
+            let descType: ObjectDescriptionType | undefined = undefined;
+            if (a.type instanceof ObjectType) {
+                descType = a.type.meta.type;
+            }
+            return FunctionalFuncs.boxNonLiteralToAny(
                 this.module,
                 this.wasmExprGen(a),
                 a.type.kind,
-                a.kind,
+                descType,
             );
         });
 
@@ -3074,8 +3071,7 @@ export class WASMExpressionGen {
         const boxedExpr = FunctionalFuncs.boxToAny(
             this.module,
             expr,
-            value.value.type.kind,
-            value.value.kind,
+            value.value,
         );
         const res = this.module.call(
             dyntype.dyntype_toString,
@@ -3089,5 +3085,112 @@ export class WASMExpressionGen {
             stringTypeInfo.typeRef,
         );
         return res;
+    }
+
+    private wasmObjTypeCastToAny(value: CastValue) {
+        const fromValue = value.value;
+        const fromValueRef = this.wasmExprGen(fromValue);
+        const fromType = fromValue.type;
+
+        const fromObjType = fromType as ObjectType;
+
+        /* Workaround: semantic tree treat Map/Set as ObjectType,
+            then they will be boxed to extref. Here we avoid this
+            cast if we find the actual object should be fallbacked
+            to libdyntype */
+        const fallbackConstructors = ['Map', 'Set'];
+        if (
+            fromObjType.meta &&
+            fallbackConstructors.includes(fromObjType.meta.name)
+        ) {
+            return fromValueRef;
+        }
+
+        if (fromValue instanceof NewLiteralObjectValue) {
+            /* created a temVar to store dynObjValue, then set dyn property */
+            const tmpVar = this.currentFuncCtx!.insertTmpVar(Primitive.Any);
+            const tmpVarTypeRef = this.wasmTypeGen.getWASMType(tmpVar.type);
+            const createDynObjOps: binaryen.ExpressionRef[] = [];
+            createDynObjOps.push(
+                this.module.local.set(
+                    tmpVar.index,
+                    FunctionalFuncs.boxToAny(
+                        this.module,
+                        fromValueRef,
+                        fromValue,
+                    ),
+                ),
+            );
+            for (let i = 0; i < fromValue.initValues.length; i++) {
+                let initValue = fromValue.initValues[i];
+                let isNestedLiteralObj = false;
+                if (initValue instanceof NewLiteralObjectValue) {
+                    /* Workaround: semantic tree treat any typed object literal as
+                        casting object to any, in the backend, we firstly generate
+                        the static version of object literal, and then replace it
+                        with dynamic one during cast. And if there are nested literals,
+                        we need to insert this CastValue to ensure the inner literals
+                        are also replaced with dynamic version.
+                        e.g.
+
+                        export function boxNestedObj() {
+                            let obj: any;
+                            obj = {
+                                a: 1,
+                                c: true,
+                                d: {
+                                    e: 1,
+                                },
+                            };
+                            return obj.d.e as number;
+                        }
+
+                        Without this workaround, we will miss field 'e' of 'obj.d'
+                    */
+                    isNestedLiteralObj = true;
+                    initValue = new CastValue(
+                        SemanticsValueKind.OBJECT_CAST_ANY,
+                        initValue.type,
+                        initValue,
+                    );
+                }
+                const initValueRef = this.wasmExprGen(initValue);
+                let initValueToAnyRef = initValueRef;
+                if (!isNestedLiteralObj) {
+                    initValueToAnyRef = FunctionalFuncs.boxToAny(
+                        this.module,
+                        initValueRef,
+                        initValue,
+                    );
+                }
+                const propName = fromObjType.meta.members[i].name;
+                const propNameRef = this.module.i32.const(
+                    this.wasmCompiler.generateRawString(propName),
+                );
+                createDynObjOps.push(
+                    FunctionalFuncs.setDynObjProp(
+                        this.module,
+                        this.module.local.get(tmpVar.index, tmpVarTypeRef),
+                        propNameRef,
+                        initValueToAnyRef,
+                    ),
+                );
+            }
+            createDynObjOps.push(
+                this.module.local.get(tmpVar.index, tmpVarTypeRef),
+            );
+            return this.module.block(null, createDynObjOps);
+        } else {
+            let objDescType: ObjectDescriptionType | undefined = undefined;
+            if (fromValue.type instanceof ObjectType) {
+                objDescType = fromValue.type.meta.type;
+            }
+            return FunctionalFuncs.boxNonLiteralToAny(
+                this.module,
+                fromValueRef,
+                fromType.kind,
+                objDescType,
+            );
+        }
     }
 }
