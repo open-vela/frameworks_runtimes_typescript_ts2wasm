@@ -34,6 +34,7 @@ import { callBuiltInAPIs } from './lib/init_builtin_api.js';
 import {
     BlockNode,
     CaseClauseNode,
+    CatchClauseNode,
     DefaultClauseNode,
     ForInNode,
     ForNode,
@@ -43,6 +44,7 @@ import {
     ModuleNode,
     SemanticsNode,
     SwitchNode,
+    TryNode,
     VarDeclareNode,
     VarStorageType,
     WhileNode,
@@ -185,10 +187,19 @@ export class WASMFunctionContext {
             varNode instanceof ForOfNode ||
             varNode instanceof WhileNode ||
             varNode instanceof CaseClauseNode ||
-            varNode instanceof DefaultClauseNode
+            varNode instanceof DefaultClauseNode ||
+            varNode instanceof TryNode
         ) {
             if (varNode.body instanceof BlockNode) {
                 this.generateFuncVarsTypeRefs(varNode.body);
+            }
+            if (varNode instanceof TryNode) {
+                if (varNode.catchClause) {
+                    this.generateFuncVarsTypeRefs(varNode.catchClause.body);
+                }
+                if (varNode.finallyBlock) {
+                    this.generateFuncVarsTypeRefs(varNode.finallyBlock);
+                }
             }
         } else if (varNode instanceof SwitchNode) {
             varNode.caseClause.forEach((c) => {
@@ -375,6 +386,20 @@ export class WASMGen extends Ts2wasmBackend {
         if (!this.parserContext.compileArgs[ArgNames.disableInterface]) {
             importInfcLibAPI(this.module);
             addItableFunc(this.module);
+        }
+
+        if (!this.parserContext.compileArgs[ArgNames.disableException]) {
+            /* add exception tags: anyref */
+            this.module.addTag(
+                BuiltinNames.errorTag,
+                binaryen.anyref,
+                binaryen.none,
+            );
+            this.module.addTag(
+                BuiltinNames.finallyTag,
+                binaryen.anyref,
+                binaryen.none,
+            );
         }
 
         /* add global vars */

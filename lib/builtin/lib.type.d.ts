@@ -3,10 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-/* eslint-disable @typescript-eslint/no-empty-interface */
-/* eslint-disable @typescript-eslint/ban-types */
-/* eslint-disable no-var */
-
 type i32 = any;
 type i64 = any;
 type f32 = any;
@@ -198,10 +194,22 @@ interface JSON {
 /* JSON will fallback to libdyntype */
 declare var JSON: any;
 
-// eslint-disable-next-line no-shadow-restricted-names
 declare var NaN: number;
-// eslint-disable-next-line no-shadow-restricted-names
 declare var Infinity: number;
+
+interface Error {
+    name: string;
+    message: string;
+    stack?: string;
+}
+
+interface ErrorConstructor {
+    new (message?: string): Error;
+    (message?: string): Error;
+    readonly prototype: Error;
+}
+
+declare var Error: ErrorConstructor;
 
 interface Number {
     toString(radix?: number): string;
