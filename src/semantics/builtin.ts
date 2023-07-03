@@ -105,6 +105,19 @@ const builtin_objects: { [key: string]: ObjectInfo } = {
         inst_name: 'Set',
         class_name: 'SetConstructor',
     },
+    Error: {
+        type: ObjectDescriptionType.OBJECT_INSTANCE,
+        id: PredefinedTypeId.ERROR,
+        inst_name: 'Error',
+        class_name: 'ErrorConstructor',
+        has_generic: false,
+    },
+    ErrorConstructor: {
+        type: ObjectDescriptionType.OBJECT_CLASS,
+        id: PredefinedTypeId.ERROR_CONSTRUCTOR,
+        inst_name: 'Error',
+        class_name: 'ErrorConstructor',
+    },
 };
 
 export function IsBuiltinObject(name: string): boolean {

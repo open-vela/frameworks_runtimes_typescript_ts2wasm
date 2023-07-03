@@ -108,6 +108,9 @@ export namespace BuiltinNames {
     export const newExternRef = 'newExtRef';
     export const extRefTableMaskArr = 'extRefTableMaskArr';
 
+    export const errorTag = 'error';
+    export const finallyTag = 'finally';
+
     export interface GenericFuncName {
         generic: string;
         f64: string;
@@ -261,4 +264,5 @@ export namespace ArgNames {
     export const isBuiltIn = 'isBuiltIn';
     export const debug = 'debug';
     export const sourceMap = 'sourceMap';
+    export const disableException = 'disableException';
 }
