@@ -10,10 +10,12 @@
 #include "wamr_utils.h"
 
 /* Convert host pointer to anyref */
-#define BOX_ANYREF(ptr)                            \
+#define RETURN_BOX_ANYREF(ptr)                     \
     do {                                           \
         return wasm_anyref_obj_new(exec_env, ptr); \
     } while (0)
+
+#define BOX_ANYREF(ptr) wasm_anyref_obj_new(exec_env, ptr)
 
 /* Convert anyref to host pointer */
 #define UNBOX_ANYREF(anyref) \
@@ -23,14 +25,14 @@
 void *
 dyntype_context_init_wrapper(wasm_exec_env_t exec_env)
 {
-    BOX_ANYREF(dyntype_context_init());
+    RETURN_BOX_ANYREF(dyntype_context_init());
 }
 
 void *
 dyntype_context_init_with_opt_wrapper(wasm_exec_env_t exec_env,
                                       dyn_options_t *options)
 {
-    BOX_ANYREF(dyntype_context_init_with_opt(options));
+    RETURN_BOX_ANYREF(dyntype_context_init_with_opt(options));
 }
 
 void
@@ -44,13 +46,51 @@ dyn_value_t
 dyntype_new_number_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            double value)
 {
-    BOX_ANYREF(dyntype_new_number(UNBOX_ANYREF(ctx), value));
+    RETURN_BOX_ANYREF(dyntype_new_number(UNBOX_ANYREF(ctx), value));
+}
+
+dyn_value_t
+dyntype_callback_for_js(void* exec_env_v, void* vfunc, dyn_value_t this_obj, int argc,
+                        dyn_value_t* args)
+{
+    wasm_exec_env_t exec_env = exec_env_v;
+    wasm_func_type_t cb_func_type;
+    uint32_t func_id = (uint32_t)(uint64_t)vfunc;
+    void *closure = NULL;
+    wasm_value_t context = {0}, func_obj = {0};
+
+    closure = wamr_utils_get_table_element(exec_env, func_id);
+    wasm_struct_obj_get_field(closure, 0, false, &context);
+    wasm_struct_obj_get_field(closure, 1, false, &func_obj);
+    uint32 argv[10], occupied_slots = 0;
+    bh_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots, &context.gc_obj, sizeof(wasm_anyref_obj_t));
+    occupied_slots += sizeof(wasm_anyref_obj_t) / sizeof(uint32);
+
+    /* get callback func return type */
+    cb_func_type =
+        wasm_func_obj_get_func_type((wasm_func_obj_t)func_obj.gc_obj);
+    // cb_ret_ref_type = wasm_func_type_get_result_type(cb_func_type, 0);
+
+    for (int i = 0; i < argc; i++) {
+        wasm_anyref_obj_t argi = BOX_ANYREF(args[i]);
+        bh_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots, &argi, sizeof(wasm_anyref_obj_t));
+        occupied_slots += sizeof(wasm_anyref_obj_t) / sizeof(uint32);
+    }
+
+    wasm_runtime_call_func_ref(exec_env, (wasm_func_obj_t)func_obj.gc_obj,
+                               occupied_slots, argv);
+    if (cb_func_type) {
+        /* need cast uint64 before, otherwise error :cast to pointer from integer of different size*/
+        const void *res = wasm_anyref_obj_get_value((wasm_anyref_obj_t)(uint64)argv[0]);
+        RETURN_BOX_ANYREF(res);
+    }
+    return dyntype_new_undefined(dyntype_get_context());
 }
 
 dyn_value_t
 dyntype_new_boolean_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, bool value)
 {
-    BOX_ANYREF(dyntype_new_boolean(UNBOX_ANYREF(ctx), value));
+    RETURN_BOX_ANYREF(dyntype_new_boolean(UNBOX_ANYREF(ctx), value));
 }
 
 dyn_value_t
@@ -68,38 +108,38 @@ dyntype_new_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
             (wasm_array_obj_t)arr_obj.gc_obj);
     }
 
-    BOX_ANYREF(dyntype_new_string_with_length(UNBOX_ANYREF(ctx), str, arr_len));
+    RETURN_BOX_ANYREF(dyntype_new_string_with_length(UNBOX_ANYREF(ctx), str, arr_len));
 }
 
 dyn_value_t
 dyntype_new_undefined_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    BOX_ANYREF(dyntype_new_undefined(UNBOX_ANYREF(ctx)));
+    RETURN_BOX_ANYREF(dyntype_new_undefined(UNBOX_ANYREF(ctx)));
 }
 
 dyn_value_t
 dyntype_new_null_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    BOX_ANYREF(dyntype_new_null(UNBOX_ANYREF(ctx)));
+    RETURN_BOX_ANYREF(dyntype_new_null(UNBOX_ANYREF(ctx)));
 }
 
 dyn_value_t
 dyntype_new_object_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    BOX_ANYREF(dyntype_new_object(UNBOX_ANYREF(ctx)));
+    RETURN_BOX_ANYREF(dyntype_new_object(UNBOX_ANYREF(ctx)));
 }
 
 dyn_value_t
 dyntype_new_array_with_length_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                       int len)
 {
-    BOX_ANYREF(dyntype_new_array_with_length(UNBOX_ANYREF(ctx), len));
+    RETURN_BOX_ANYREF(dyntype_new_array_with_length(UNBOX_ANYREF(ctx), len));
 }
 
 dyn_value_t
 dyntype_new_array_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 {
-    BOX_ANYREF(dyntype_new_array(UNBOX_ANYREF(ctx)));
+    RETURN_BOX_ANYREF(dyntype_new_array(UNBOX_ANYREF(ctx)));
 }
 
 void
@@ -120,14 +160,14 @@ dyn_value_t
 dyntype_get_elem_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                          dyn_value_t obj, int index)
 {
-    BOX_ANYREF(dyntype_get_elem(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), index));
+    RETURN_BOX_ANYREF(dyntype_get_elem(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), index));
 }
 
 dyn_value_t
 dyntype_new_extref_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx, void *ptr,
                            external_ref_tag tag)
 {
-    BOX_ANYREF(dyntype_new_extref(UNBOX_ANYREF(ctx), ptr, tag));
+    RETURN_BOX_ANYREF(dyntype_new_extref(UNBOX_ANYREF(ctx), ptr, tag, (void *)exec_env));
 }
 
 int
@@ -152,7 +192,7 @@ dyn_value_t
 dyntype_get_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                              dyn_value_t obj, const char *prop)
 {
-    BOX_ANYREF(
+    RETURN_BOX_ANYREF(
         dyntype_get_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop));
 }
 
@@ -494,7 +534,7 @@ dyn_value_t
 dyntype_new_object_with_proto_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                       const dyn_value_t proto_obj)
 {
-    BOX_ANYREF(dyntype_new_object_with_proto(UNBOX_ANYREF(ctx),
+    RETURN_BOX_ANYREF(dyntype_new_object_with_proto(UNBOX_ANYREF(ctx),
                                              UNBOX_ANYREF(proto_obj)));
 }
 
@@ -510,14 +550,14 @@ const dyn_value_t
 dyntype_get_prototype_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                               dyn_value_t obj)
 {
-    BOX_ANYREF(dyntype_get_prototype(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj)));
+    RETURN_BOX_ANYREF(dyntype_get_prototype(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj)));
 }
 
 dyn_value_t
 dyntype_get_own_property_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                                  dyn_value_t obj, const char *prop)
 {
-    BOX_ANYREF(
+    RETURN_BOX_ANYREF(
         dyntype_get_own_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop));
 }
 
@@ -597,14 +637,14 @@ dyntype_invoke_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
         wasm_runtime_free(argv);
     }
 
-    BOX_ANYREF(ret);
+    RETURN_BOX_ANYREF(ret);
 }
 
 wasm_anyref_obj_t
 dyntype_get_global_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                            const char *name)
 {
-    BOX_ANYREF(dyntype_get_global(UNBOX_ANYREF(ctx), name));
+    RETURN_BOX_ANYREF(dyntype_get_global(UNBOX_ANYREF(ctx), name));
 }
 
 wasm_anyref_obj_t
@@ -637,7 +677,7 @@ dyntype_new_object_with_class_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
         wasm_runtime_free(argv);
     }
 
-    BOX_ANYREF(ret);
+    RETURN_BOX_ANYREF(ret);
 }
 
 /* clang-format off */
