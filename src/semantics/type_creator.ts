@@ -269,7 +269,11 @@ function createUnionInterfaceType(
     inst_meta.members = inst_members;
     createObjectDescriptionShapes(context, inst_meta);
 
-    return new ObjectType(context.nextTypeId(), inst_meta);
+    return new ObjectType(
+        context.nextTypeId(),
+        inst_meta,
+        ObjectTypeFlag.UNION,
+    );
 }
 
 export function createUnionType(
