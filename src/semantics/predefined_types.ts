@@ -102,6 +102,10 @@ function createPredefinedType(typeId: number): ValueType | undefined {
                 Primitive.Int,
                 Primitive.Any,
             ]);
+        case PredefinedTypeId.ERROR:
+            return GetBuiltinObjectType('Error');
+        case PredefinedTypeId.ERROR_CONSTRUCTOR:
+            return GetBuiltinObjectType('ErrorConstructor');
         case PredefinedTypeId.FUNC_VOID_VOID_NONE:
             return new FunctionType(
                 PredefinedTypeId.FUNC_VOID_VOID_NONE,
