@@ -226,15 +226,15 @@ export class CallExpression extends Expression {
     }
 }
 
-export class SuperExpression extends Expression {
-    private args: Expression[] | undefined;
+export class SuperCallExpression extends Expression {
+    private args: Expression[];
 
-    constructor(args?: Expression[]) {
+    constructor(args: Expression[] = new Array<Expression>(0)) {
         super(ts.SyntaxKind.SuperKeyword);
         this.args = args;
     }
 
-    get callArgs(): Expression[] | undefined {
+    get callArgs(): Expression[] {
         return this.args;
     }
 }
@@ -519,13 +519,6 @@ export default class ExpressionProcessor {
                 res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
             }
-            case ts.SyntaxKind.NonNullExpression: {
-                const nonNullExprNode = <ts.NonNullExpression>node;
-                const expr = this.visitNode(nonNullExprNode.expression);
-                /* For non-null operation (!), just forward the target expression */
-                res = expr;
-                break;
-            }
             case ts.SyntaxKind.CallExpression: {
                 const callExprNode = <ts.CallExpression>node;
                 const expr = this.visitNode(callExprNode.expression);
@@ -538,7 +531,7 @@ export default class ExpressionProcessor {
                 if (
                     callExprNode.expression.kind === ts.SyntaxKind.SuperKeyword
                 ) {
-                    res = new SuperExpression(args);
+                    res = new SuperCallExpression(args);
                     res.setExprType(this.typeResolver.generateNodeType(node));
                     break;
                 }
@@ -644,28 +637,12 @@ export default class ExpressionProcessor {
                 const objLiteralNode = <ts.ObjectLiteralExpression>node;
                 const fields = new Array<IdentifierExpression>();
                 const values = new Array<Expression>();
-                let propertyAssign:
-                    | ts.PropertyAssignment
-                    | ts.ShorthandPropertyAssignment;
-
                 for (const property of objLiteralNode.properties) {
-                    if (
-                        ts.isPropertyAssignment(property) ||
-                        ts.isShorthandPropertyAssignment(property)
-                    ) {
-                        propertyAssign = property;
-                    } else {
-                        throw new Error(
-                            `Unimpl accessing property of kind : ${property.kind}`,
-                        );
-                    }
+                    const propertyAssign = <ts.PropertyAssignment>property;
                     fields.push(
                         new IdentifierExpression(propertyAssign.name.getText()),
                     );
-                    const init = ts.isPropertyAssignment(propertyAssign)
-                        ? propertyAssign.initializer
-                        : propertyAssign;
-                    values.push(this.visitNode(init));
+                    values.push(this.visitNode(propertyAssign.initializer));
                 }
                 res = new ObjectLiteralExpression(fields, values);
                 res.setExprType(this.typeResolver.generateNodeType(node));
@@ -690,14 +667,6 @@ export default class ExpressionProcessor {
                 const typeNode = asExprNode.type;
                 res = new AsExpression(expr);
                 res.setExprType(this.typeResolver.generateNodeType(typeNode));
-                break;
-            }
-            case ts.SyntaxKind.ShorthandPropertyAssignment: {
-                const ShorthandPropertyAssignNode = <
-                    ts.ShorthandPropertyAssignment
-                >node;
-                const name = ShorthandPropertyAssignNode.name;
-                res = this.visitNode(name);
                 break;
             }
             case ts.SyntaxKind.ElementAccessExpression: {
@@ -728,11 +697,6 @@ export default class ExpressionProcessor {
                     this.visitNode(typeofExpr.expression),
                 );
                 res.setExprType(this.typeResolver.generateNodeType(typeofExpr));
-                break;
-            }
-            case ts.SyntaxKind.SuperKeyword: {
-                res = new SuperExpression();
-                res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
             }
             default:

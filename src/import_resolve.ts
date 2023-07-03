@@ -101,27 +101,20 @@ export class ImportResolver {
             case ts.SyntaxKind.ExportDeclaration: {
                 const exportDeclaration = <ts.ExportDeclaration>node;
                 const globalScope = this.currentScope!.getRootGloablScope()!;
+                const { nameAliasExportMap, exportIdentifierList } =
+                    getExportIdentifierName(exportDeclaration);
+                globalScope.setExportNameAlias(nameAliasExportMap);
+                globalScope.setExportIdentifierList(exportIdentifierList);
                 const exportModuleName = getModulePath(
                     exportDeclaration,
                     this.currentScope!.getRootGloablScope()!,
                 );
-                let importModuleScope: GlobalScope | undefined = undefined;
                 if (exportModuleName) {
-                    importModuleScope = getGlobalScopeByModuleName(
+                    const importModuleScope = getGlobalScopeByModuleName(
                         exportModuleName,
                         this.globalScopes,
                     );
-                }
-                const { nameAliasExportMap, exportIdentifierList } =
-                    getExportIdentifierName(
-                        exportDeclaration,
-                        globalScope,
-                        importModuleScope!,
-                    );
-                globalScope.setExportNameAlias(nameAliasExportMap);
-                globalScope.setExportIdentifierList(exportIdentifierList);
 
-                if (importModuleScope) {
                     const {
                         importIdentifierArray,
                         nameScopeImportName,

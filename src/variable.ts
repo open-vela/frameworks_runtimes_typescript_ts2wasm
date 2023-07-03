@@ -190,9 +190,6 @@ export class VariableScanner {
                 ) {
                     break;
                 }
-                if (ts.isIndexSignatureDeclaration(node.parent)) {
-                    break;
-                }
                 const parameterNode = <ts.ParameterDeclaration>node;
                 const functionScope = <FunctionScope>(
                     this.currentScope!.getNearestFunctionScope()
@@ -242,19 +239,14 @@ export class VariableScanner {
                 const currentScope = this.currentScope!;
 
                 let variableModifier = ModifierKind.default;
-                if (
-                    variableDeclarationNode.parent.kind ===
-                    ts.SyntaxKind.VariableDeclarationList
-                ) {
-                    const variableAssignText =
-                        variableDeclarationNode.parent.getText();
-                    if (variableAssignText.includes(ModifierKind.const)) {
-                        variableModifier = ModifierKind.const;
-                    } else if (variableAssignText.includes(ModifierKind.let)) {
-                        variableModifier = ModifierKind.let;
-                    } else if (variableAssignText.includes(ModifierKind.var)) {
-                        variableModifier = ModifierKind.var;
-                    }
+                const variableAssignText =
+                    variableDeclarationNode.parent.getText();
+                if (variableAssignText.includes(ModifierKind.const)) {
+                    variableModifier = ModifierKind.const;
+                } else if (variableAssignText.includes(ModifierKind.let)) {
+                    variableModifier = ModifierKind.let;
+                } else if (variableAssignText.includes(ModifierKind.var)) {
+                    variableModifier = ModifierKind.var;
                 }
                 const varModifiers = [];
                 varModifiers.push(variableModifier);
@@ -364,15 +356,11 @@ export class VariableInit {
                 ) {
                     break;
                 }
-                if (ts.isIndexSignatureDeclaration(node.parent)) {
-                    break;
-                }
                 const parameterNode = <ts.ParameterDeclaration>node;
                 const functionScope = <FunctionScope>(
                     this.currentScope!.getNearestFunctionScope()
                 );
                 const paramName = parameterNode.name.getText();
-
                 const paramObj = functionScope.findVariable(paramName);
                 if (!paramObj) {
                     throw new Error(
