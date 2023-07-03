@@ -62,4 +62,9 @@ export function toStringTest() {
 
     j = new A();
     console.log(a + j.toString());
+
+    const str1 = 'start';
+    const str2 = 'middle';
+    console.log(str1 + str2);
+    console.log(2001 + ': A Space Odyssey');
 }
