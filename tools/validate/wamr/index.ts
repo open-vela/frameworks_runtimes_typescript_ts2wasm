@@ -95,8 +95,7 @@ validationItems.forEach((item) => {
         const parserCtx = new ParserContext();
         console.log(`Validating [${item.module}] ...`);
 
-        /* workaround: wamr not support exception handling yet */
-        parserCtx.parse([sourceFile], { disableException: true });
+        parserCtx.parse([sourceFile]);
 
         const backend = new WASMGen(parserCtx);
         backend.codegen();
