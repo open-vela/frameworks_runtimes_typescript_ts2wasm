@@ -15,7 +15,7 @@ const doCompile = (filename: string) => {
 
     /* Compile to a temporary file */
     try {
-        compiler.parse([filename]);
+        compiler.parse([filename], { enableException: true });
     } catch (e) {
         console.log(e);
         return null;
