@@ -35,10 +35,13 @@ const IGNORE_CASES = [
     'declare_func:assignDeclareFuncToVar',
 
     /* function not exported */
-    'export_func:subFunc',
-    'export_func:mulFunc',
-    'export_func:divFunc',
     'export_namespace:bFunc',
+
+    /* exception handling not support yet */
+    'exception_catch_error.ts',
+    'exception_custom_error.ts',
+    'exception_throw_error.ts',
+    'exception_try_structure.ts',
 ];
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -89,7 +92,8 @@ validationItems.forEach((item) => {
         const parserCtx = new ParserContext();
         console.log(`Validating [${item.module}] ...`);
 
-        parserCtx.parse([sourceFile]);
+        /* workaround: wamr not support exception handling yet */
+        parserCtx.parse([sourceFile], { disableException: true });
 
         const backend = new WASMGen(parserCtx);
         backend.codegen();
