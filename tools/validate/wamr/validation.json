@@ -2233,6 +2233,31 @@
         ]
     },
     {
+        "module": "import_type",
+        "entries": [
+            {
+                "name": "validatePrimitiveType",
+                "args": [],
+                "result": "100 \nhi \ntrue"
+            },
+            {
+                "name": "validateObjType",
+                "args": [],
+                "result": "hello \n18"
+            },
+            {
+                "name": "validateFuncType",
+                "args": [],
+                "result": "19:f64"
+            },
+            {
+                "name": "validateTypeArguments",
+                "args": [],
+                "result": "10 \nfalse"
+            }
+        ]
+    },
+    {
         "module": "import_var",
         "entries": [
             {
