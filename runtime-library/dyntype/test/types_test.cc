@@ -237,7 +237,7 @@ TEST_F(TypesTest, create_extern_ref) {
     int data2 = 42;
 
     dyn_value_t extobj =
-        dyntype_new_extref(ctx, (void *)(uintptr_t)data, ExtObj);
+        dyntype_new_extref(ctx, (void *)(uintptr_t)data, ExtObj, NULL);
     EXPECT_NE(extobj, nullptr);
 
     EXPECT_EQ(dyntype_set_property(ctx, extobj, "prop",
@@ -254,7 +254,7 @@ TEST_F(TypesTest, create_extern_ref) {
     EXPECT_TRUE(dyntype_has_property(ctx, extobj, "@ref"));
 
     dyn_value_t extobj1 = dyntype_new_extref(ctx, (void *)(uintptr_t)data,
-                                             (external_ref_tag)(ExtArray + 1));
+                                             (external_ref_tag)(ExtArray + 1), NULL);
     EXPECT_EQ(extobj1, nullptr);
 
     EXPECT_FALSE(dyntype_is_number(ctx, extobj));
@@ -267,7 +267,7 @@ TEST_F(TypesTest, create_extern_ref) {
     EXPECT_TRUE(dyntype_is_extref(ctx, extobj));
 
     dyn_value_t extfunc =
-        dyntype_new_extref(ctx, (void *)(uintptr_t)data2, ExtFunc);
+        dyntype_new_extref(ctx, (void *)(uintptr_t)data2, ExtFunc, NULL);
     EXPECT_NE(extfunc, nullptr);
 
     EXPECT_FALSE(dyntype_is_number(ctx, extfunc));

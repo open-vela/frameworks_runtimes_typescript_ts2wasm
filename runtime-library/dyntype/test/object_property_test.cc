@@ -457,3 +457,48 @@ TEST_F(ObjectPropertyTest, map_function_test) {
 
     dyntype_release(ctx, obj);
 }
+
+TEST_F(ObjectPropertyTest, map_callback_test) {
+    dyn_value_t obj = dyntype_new_object_with_class(ctx, "Map", 0, NULL);
+
+    char str[] = { ' ', '\0' };
+    dyn_value_t argv[10];
+    dyn_value_t gkey;
+    dyn_value_t ret;
+    
+    for (int i = 0, j = '0'; i < 10; i++, j++) {
+        str[0] = j;
+        dyn_value_t key = dyntype_new_string(ctx, str);
+        dyn_value_t val = dyntype_new_number(ctx, i);
+        argv[0] = key;
+        argv[1] = val;
+        ret = dyntype_invoke(ctx, "set", obj, 2, argv); // set  num -> boolean
+        dyntype_release(ctx, ret);                      // release duplicate map
+        dyntype_release(ctx, key);
+        dyntype_release(ctx, val);
+    }
+
+    gkey = dyntype_new_string(ctx, str);
+    argv[0] = gkey;
+    ret = dyntype_invoke(ctx, "has", obj, 1, argv);
+    bool has;
+    dyntype_to_bool(ctx, ret, &has);
+    EXPECT_EQ(has, DYNTYPE_TRUE); // set success
+
+    ret = dyntype_get_property(ctx, obj, "size");
+    double sz;
+    dyntype_to_number(ctx, ret, &sz);
+    EXPECT_EQ(sz, 10.0); // size is 10
+
+    // compile error: undefine symbol dyntype_callback_for_js
+    // temp fix: Replace with printing a mock statement at the calling location.
+    dyn_value_t func = dyntype_new_extref(ctx, NULL, ExtFunc, NULL);
+    EXPECT_EQ(dyntype_is_function(ctx, func), DYNTYPE_TRUE);
+
+    argv[0] = func;
+    ret = dyntype_invoke(ctx, "forEach", obj, 1, argv); // forEach
+
+    dyntype_release(ctx, ret);
+    dyntype_release(ctx, func);
+    dyntype_release(ctx, obj);
+}
