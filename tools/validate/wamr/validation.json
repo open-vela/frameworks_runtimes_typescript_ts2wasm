@@ -1472,6 +1472,11 @@
                 "name": "classNestCall",
                 "args": [],
                 "result": "20:f64"
+            },
+            {
+                "name": "thisAsFreeVar",
+                "args": [],
+                "result": "22"
             }
         ]
     },

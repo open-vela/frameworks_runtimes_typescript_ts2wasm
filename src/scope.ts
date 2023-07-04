@@ -752,7 +752,9 @@ export class ScopeScanner {
         if (methodType !== FunctionKind.STATIC) {
             /* record '@this' as env param, add 'this' to varArray */
             functionScope.envParamLen++;
-            functionScope.addVariable(new Variable('this', new Type()));
+            const thisVar = new Variable('this', new Type());
+            thisVar.setVarIsClosure();
+            functionScope.addVariable(thisVar);
         }
 
         functionScope.setClassName((<ClassScope>parentScope).className);
