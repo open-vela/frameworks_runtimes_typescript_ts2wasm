@@ -239,3 +239,5 @@ interface FunctionConstructor {
 }
 
 declare var Function: FunctionConstructor;
+declare function setTimeout(callback: () => void, ms: number, ...args: any[]): number;
+declare function clearTimeout(timerid: number): void;
