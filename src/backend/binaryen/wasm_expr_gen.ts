@@ -3002,15 +3002,10 @@ export class WASMExpressionGen {
             ? this.wasmExprGen(args.splice(0, 1)[0])
             : undefined;
         const restArgs = args.map((a) => {
-            let descType: ObjectDescriptionType | undefined = undefined;
-            if (a.type instanceof ObjectType) {
-                descType = a.type.meta.type;
-            }
-            return FunctionalFuncs.boxNonLiteralToAny(
+            return FunctionalFuncs.boxToAny(
                 this.module,
                 this.wasmExprGen(a),
-                a.type.kind,
-                descType,
+                a,
             );
         });
 
