@@ -31,7 +31,7 @@ TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property) {
     dyn_value_t str = dyntype_new_string(ctx, "string");
     dyn_value_t array = dyntype_new_array(ctx);
     dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
-                                            external_ref_tag::ExtObj);
+                                            external_ref_tag::ExtObj, NULL);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop1", num), DYNTYPE_SUCCESS);
@@ -127,7 +127,7 @@ TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property) {
     dyn_value_t str = dyntype_new_string(ctx, "  ");
     dyn_value_t array = dyntype_new_array(ctx);
     dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
-                                            external_ref_tag::ExtObj);
+                                            external_ref_tag::ExtObj, NULL);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     dyn_value_t desc1 = dyntype_new_object(ctx);
@@ -259,7 +259,7 @@ TEST_F(ObjectPropertyTest, object_set_and_delete_property) {
     dyn_value_t array = dyntype_new_array(ctx);
     EXPECT_TRUE(dyntype_is_array(ctx, array));
     dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
-                                            external_ref_tag::ExtObj);
+                                            external_ref_tag::ExtObj, NULL);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop1", num), DYNTYPE_SUCCESS);
@@ -307,7 +307,7 @@ TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
     dyn_value_t str = dyntype_new_string(ctx, "  ");
     dyn_value_t array = dyntype_new_array(ctx);
     dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
-                                            external_ref_tag::ExtObj);
+                                            external_ref_tag::ExtObj, NULL);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     dyn_value_t desc1 = dyntype_new_object(ctx);

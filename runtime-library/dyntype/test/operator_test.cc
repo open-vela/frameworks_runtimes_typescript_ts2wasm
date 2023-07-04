@@ -37,9 +37,9 @@ TEST_F(OperatorTest, typeof) {
     dyn_value_t str = dyntype_new_string(ctx, "string");
     dyn_value_t array = dyntype_new_array(ctx);
     dyn_value_t extref_obj = dyntype_new_extref(
-        ctx, (void *)(uintptr_t)ext_data, external_ref_tag::ExtObj);
+        ctx, (void *)(uintptr_t)ext_data, external_ref_tag::ExtObj, NULL);
     dyn_value_t extref_func = dyntype_new_extref(
-        ctx, (void *)(uintptr_t)ext_data, external_ref_tag::ExtFunc);
+        ctx, (void *)(uintptr_t)ext_data, external_ref_tag::ExtFunc, NULL);
 
     EXPECT_EQ(dyntype_typeof(ctx, num), DynNumber);
     EXPECT_EQ(dyntype_typeof(ctx, boolean), DynBoolean);
@@ -67,9 +67,9 @@ TEST_F(OperatorTest, type_eq) {
         dyntype_new_undefined(ctx),
         dyntype_new_string(ctx, "string"),
         dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
-                           external_ref_tag::ExtObj),
+                           external_ref_tag::ExtObj, NULL),
         dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
-                           external_ref_tag::ExtFunc)
+                           external_ref_tag::ExtFunc, NULL)
     };
 
     dyn_value_t value2[] = {
@@ -78,9 +78,9 @@ TEST_F(OperatorTest, type_eq) {
         dyntype_new_undefined(ctx),
         dyntype_new_string(ctx, "test"),
         dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
-                           external_ref_tag::ExtObj),
+                           external_ref_tag::ExtObj, NULL),
         dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
-                           external_ref_tag::ExtFunc),
+                           external_ref_tag::ExtFunc, NULL),
         dyntype_new_null(ctx),
         dyntype_new_object(ctx),
         dyntype_new_array(ctx)
