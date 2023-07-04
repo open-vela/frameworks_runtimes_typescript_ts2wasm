@@ -3082,5 +3082,25 @@
                 "result": "constructor from A \nconstructor from B \ny:  hello \nx:  1"
             }
         ]
+    },
+    {
+        "module": "non_null_expression",
+        "entries": [
+            {
+                "name": "test_non_null_func",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "test_non_null_field",
+                "args": [],
+                "result": "4:f64"
+            },
+            {
+                "name": "test_non_null_any",
+                "args": [],
+                "result": "4 \nundefined"
+            }
+        ]
     }
 ]
