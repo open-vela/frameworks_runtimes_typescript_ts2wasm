@@ -834,12 +834,25 @@ export class WASMGen extends Ts2wasmBackend {
             const freeVarList: binaryen.ExpressionRef[] = [];
             freeVarList.push(initCtxVarRef);
             for (const f of freeVars) {
-                freeVarList.push(
-                    this.module.local.get(
-                        f.index,
-                        this.wasmTypeComp.getWASMValueType(f.type),
-                    ),
+                let value = this.module.local.get(
+                    f.index,
+                    this.wasmTypeComp.getWASMValueType(f.type),
                 );
+                /** if 'this' as free variable */
+                if (f.name === 'this') {
+                    const type = this.wasmTypeComp.getWASMValueType(f.type);
+                    // parameter `this` index
+                    const thisParamIndex = 1;
+                    value = binaryenCAPI._BinaryenRefCast(
+                        this.module.ptr,
+                        this.module.local.get(
+                            thisParamIndex,
+                            emptyStructType.typeRef,
+                        ),
+                        type,
+                    );
+                }
+                freeVarList.push(value);
             }
             const newCtxStruct = binaryenCAPI._BinaryenStructNew(
                 this.module.ptr,
