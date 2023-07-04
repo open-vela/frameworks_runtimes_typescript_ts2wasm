@@ -3102,5 +3102,20 @@
                 "result": "4 \nundefined"
             }
         ]
+    },
+    {
+        "module": "map_callback",
+        "entries": [
+            {
+                "name": "map_forEach",
+                "args": [],
+                "result": "0 3 [object Map] \n1 4 [object Map] \n2 5 [object Map]"
+            },
+            {
+                "name": "map_get",
+                "args": [],
+                "result": "Bob"
+            }
+        ]
     }
 ]

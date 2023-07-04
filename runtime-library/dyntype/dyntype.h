@@ -235,8 +235,10 @@ dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj, int argc,
  * @return dynamic value if success, NULL otherwise
  */
 dyn_value_t
-dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag);
+dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, void* opaque);
 
+dyn_value_t dyntype_callback_for_js(void* exec_env, void* vfunc,
+            dyn_value_t this_obj, int argc, dyn_value_t* argv);
 /* Modifying and testing */
 /**
  * @brief Set the property of a dynamic object
@@ -348,6 +350,9 @@ dyntype_free_cstring(dyn_ctx_t ctx, char *str);
 /* object */
 bool
 dyntype_is_object(dyn_ctx_t ctx, dyn_value_t obj);
+/* function */
+bool
+dyntype_is_function(dyn_ctx_t ctx, dyn_value_t obj);
 /* array */
 bool
 dyntype_is_array(dyn_ctx_t ctx, dyn_value_t obj);
