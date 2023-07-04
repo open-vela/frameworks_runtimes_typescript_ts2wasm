@@ -519,6 +519,13 @@ export default class ExpressionProcessor {
                 res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
             }
+            case ts.SyntaxKind.NonNullExpression: {
+                const nonNullExprNode = <ts.NonNullExpression>node;
+                const expr = this.visitNode(nonNullExprNode.expression);
+                /* For non-null operation (!), just forward the target expression */
+                res = expr;
+                break;
+            }
             case ts.SyntaxKind.CallExpression: {
                 const callExprNode = <ts.CallExpression>node;
                 const expr = this.visitNode(callExprNode.expression);
