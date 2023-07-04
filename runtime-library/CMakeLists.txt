@@ -47,6 +47,7 @@ include_directories(${STDLIB_DIR})
 set(STDLIB_SOURCE
     ${STDLIB_DIR}/lib_console.c
     ${STDLIB_DIR}/lib_array.c
+    ${STDLIB_DIR}/lib_timer.c
 )
 
 ## struct-dyn
