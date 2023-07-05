@@ -164,3 +164,72 @@ export function inheritCast() {
     f1.foo();
     b1.bar();
 }
+
+
+interface I {
+    x: number;
+    y: string;
+    func1: () => number;
+}
+
+interface IA {
+    z: boolean;
+    func2: () => boolean;
+}
+
+class A8 {
+    z: boolean;
+    constructor(zz: boolean) {
+        this.z = zz;
+    }
+}
+
+class C extends A8 implements I {
+    x: number;
+    z: boolean;
+    y: string;
+    constructor(xx: number, zz: string, yy: boolean) {
+        super(yy);
+        this.x = xx;
+        this.y = zz;
+        this.z = yy;
+    }
+    func1() {
+        return this.x;
+    }
+}
+
+export function extendsImpl() {
+    const c = new C(1, '23', true);
+    const i: I = c;
+    console.log(i.y === c.y);
+    console.log(i.func1());
+
+    const a: A8 = c;
+    console.log(a.z === c.z);
+}
+
+class D implements I, IA {
+    x: number;
+    y: string;
+    z: boolean;
+    constructor(xx: number, yy: string, zz: boolean) {
+        this.x = xx;
+        this.y = yy;
+        this.z = zz;
+    }
+    func1() {
+        return this.x;
+    }
+    func2() {
+        return this.z;
+    }
+}
+
+export function implInfc() {
+    const d = new D(1, '23', false);
+    const i: I = d;
+    console.log(i.func1());
+    const ia: IA = d;
+    console.log(ia.func2());
+}

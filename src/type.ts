@@ -391,7 +391,7 @@ export class TSClass extends TSTypeWithArguments {
         return this._baseClass;
     }
 
-    setImplInfc(infc: TSInterface): void {
+    setImplInfc(infc: TSInterface | null): void {
         this.implInfc = infc;
     }
 
@@ -1405,22 +1405,41 @@ export class TypeResolver {
 
         classType.isDeclare = this.parseNestDeclare(node);
 
-        const heritage = node.heritageClauses;
+        const heritages = node.heritageClauses;
         let baseClassType: TSClass | null = null;
         let baseInfcType: TSInterface | null = null;
-        if (heritage) {
-            if (heritage.length > 1) {
-                throw new Error('unimpl multi inheritance');
-            }
-            const heritageName = heritage[0].types[0].getText();
+        /** if extends more than two classes, an error will be thrown,
+         *  if extends a class, implements some interface, the subclass is subtype of supclass,
+         *  but do not guarantee that it will be a subtype of the interface either.
+         *  if implements more than one interface, the subclass is subtype of the first interface.
+         *  */
+        if (heritages) {
             const scope = this.currentScope!;
-            const heritageType = <TSClass>scope.findType(heritageName);
-            if (heritageType instanceof TSInterface) {
-                baseInfcType = heritageType;
-                classType.setImplInfc(baseInfcType);
-            } else {
-                baseClassType = heritageType;
-                classType.setBase(baseClassType);
+            const heritageTypes = heritages.map((heritage) => {
+                const name = heritage.types[0].getText();
+                const type = scope.findType(name);
+                if (!type) {
+                    throw new Error(`heritage type of ${name} not found`);
+                }
+                return type as TSClass;
+            });
+            for (const heritageType of heritageTypes) {
+                if (heritageType instanceof TSInterface) {
+                    if (!baseClassType && !baseInfcType) {
+                        baseInfcType = heritageType;
+                        classType.setImplInfc(baseInfcType);
+                    }
+                } else {
+                    if (baseInfcType) {
+                        baseInfcType = null;
+                        classType.setImplInfc(baseInfcType);
+                    }
+                    if (baseClassType) {
+                        throw new Error('unimpl multiple base classes');
+                    }
+                    baseClassType = heritageType;
+                    classType.setBase(baseClassType);
+                }
             }
         }
         if (baseClassType) {
