@@ -3079,7 +3079,7 @@
             {
                 "name": "test",
                 "args": [],
-                "result": "constructor from A \nconstructor from B \ny:  hello \nx:  1"
+                "result": "constructor from Base \nconstructor from A \nconstructor from B \ny:  hello \nx:  1"
             }
         ]
     },
