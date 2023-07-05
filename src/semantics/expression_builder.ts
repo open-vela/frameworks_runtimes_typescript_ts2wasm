@@ -2041,20 +2041,27 @@ function buildSuperValue(
 
     const super_type = context.findValueType(super_class!)! as ObjectType;
 
-    if (expr.callArgs && expr.callArgs.length > 0) {
-        for (const p of expr.callArgs) {
-            context.pushReference(ValueReferenceKind.RIGHT);
-            const v = buildExpression(p, context);
-            context.popReference();
-            param_values.push(v);
+    const ts_node = expr.tsNode;
+    if (ts_node == undefined) {
+        throw Error(`cannot find the context for using super`);
+    }
+    const context_kind = ts_node.parent.kind;
+    if (context_kind == ts.SyntaxKind.PropertyAccessExpression) {
+        return new SuperValue(super_type, SuperUsageFlag.SUPER_LITERAL);
+    } else {
+        if (expr.callArgs && expr.callArgs.length > 0) {
+            for (const p of expr.callArgs) {
+                context.pushReference(ValueReferenceKind.RIGHT);
+                const v = buildExpression(p, context);
+                context.popReference();
+                param_values.push(v);
+            }
         }
         return new SuperValue(
             super_type,
             SuperUsageFlag.SUPER_CALL,
             param_values,
         );
-    } else {
-        return new SuperValue(super_type, SuperUsageFlag.SUPER_LITERAL);
     }
 }
 
