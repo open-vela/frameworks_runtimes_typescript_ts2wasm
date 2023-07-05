@@ -2,11 +2,17 @@
  * Copyright (C) 2023 Xiaomi Corporation.  All rights reserved.
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
+class Base {
+  constructor() {
+    console.log("constructor from Base");
+  }
+}
 
-class A {
+class A extends Base {
   x: number;
 
   constructor(x: number) {
+    super()
     this.x = x;
     console.log("constructor from A");
   }
