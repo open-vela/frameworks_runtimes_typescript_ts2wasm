@@ -476,7 +476,10 @@ export namespace FunctionalFuncs {
         let condFuncName = '';
         let cvtFuncName = '';
         let binaryenType: binaryen.Type;
-        if (typeKind === ValueTypeKind.ANY) {
+        if (
+            typeKind === ValueTypeKind.ANY ||
+            typeKind === ValueTypeKind.UNION
+        ) {
             return anyExprRef;
         }
         if (typeKind === ValueTypeKind.NULL) {
