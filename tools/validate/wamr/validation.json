@@ -3054,6 +3054,16 @@
         ]
     },
     {
+        "module": "union_assign",
+        "entries": [
+            {
+                "name": "unionTypeAssign",
+                "args": [],
+                "result": "100:f64"
+            }
+        ]
+    },
+    {
         "module": "union_field_get",
         "entries": [
             {
