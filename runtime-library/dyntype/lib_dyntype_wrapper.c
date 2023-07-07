@@ -21,37 +21,12 @@
 #define UNBOX_ANYREF(anyref) \
     (dyn_value_t) wasm_anyref_obj_get_value((wasm_anyref_obj_t)anyref)
 
-/******************* Initialization and destroy *******************/
-void *
-dyntype_context_init_wrapper(wasm_exec_env_t exec_env)
-{
-    RETURN_BOX_ANYREF(dyntype_context_init());
-}
 
-void *
-dyntype_context_init_with_opt_wrapper(wasm_exec_env_t exec_env,
-                                      dyn_options_t *options)
-{
-    RETURN_BOX_ANYREF(dyntype_context_init_with_opt(options));
-}
-
-void
-dyntype_context_destroy_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
-{
-    return dyntype_context_destroy(UNBOX_ANYREF(ctx));
-}
-
-/******************* Field access *******************/
-dyn_value_t
-dyntype_new_number_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
-                           double value)
-{
-    RETURN_BOX_ANYREF(dyntype_new_number(UNBOX_ANYREF(ctx), value));
-}
-
-dyn_value_t
-dyntype_callback_for_js(void *exec_env_v, void *vfunc, dyn_value_t this_obj,
-                        int argc, dyn_value_t *args)
+/******************* Function callback *******************/
+static dyn_value_t
+dyntype_callback_wasm_dispatcher(void *exec_env_v, void *vfunc,
+                                 dyn_value_t this_obj, int argc,
+                                 dyn_value_t *args)
 {
     wasm_exec_env_t exec_env = exec_env_v;
     wasm_func_type_t cb_func_type;
@@ -113,6 +88,38 @@ dyntype_callback_for_js(void *exec_env_v, void *vfunc, dyn_value_t this_obj,
         }
     }
     return dyntype_new_undefined(dyntype_get_context());
+}
+
+/******************* Initialization and destroy *******************/
+void *
+dyntype_context_init_wrapper(wasm_exec_env_t exec_env)
+{
+    dyn_ctx_t ctx = dyntype_context_init();
+    dyntype_set_callback_dispatcher(ctx, dyntype_callback_wasm_dispatcher);
+    RETURN_BOX_ANYREF(ctx);
+}
+
+void *
+dyntype_context_init_with_opt_wrapper(wasm_exec_env_t exec_env,
+                                      dyn_options_t *options)
+{
+    dyn_ctx_t ctx = dyntype_context_init();
+    dyntype_set_callback_dispatcher(ctx, dyntype_callback_wasm_dispatcher);
+    RETURN_BOX_ANYREF(ctx);
+}
+
+void
+dyntype_context_destroy_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
+{
+    return dyntype_context_destroy(UNBOX_ANYREF(ctx));
+}
+
+/******************* Field access *******************/
+dyn_value_t
+dyntype_new_number_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
+                           double value)
+{
+    RETURN_BOX_ANYREF(dyntype_new_number(UNBOX_ANYREF(ctx), value));
 }
 
 dyn_value_t

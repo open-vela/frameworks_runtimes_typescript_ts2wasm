@@ -458,14 +458,22 @@ TEST_F(ObjectPropertyTest, map_function_test) {
     dyntype_release(ctx, obj);
 }
 
-TEST_F(ObjectPropertyTest, map_callback_test) {
+static dyn_value_t
+test_callback_dispatcher(void *exec_env_v, void *vfunc, dyn_value_t this_obj,
+                         int argc, dyn_value_t *args)
+{
+    return dyntype_new_boolean(dyntype_get_context(), true);
+}
+
+TEST_F(ObjectPropertyTest, map_callback_test)
+{
     dyn_value_t obj = dyntype_new_object_with_class(ctx, "Map", 0, NULL);
 
     char str[] = { ' ', '\0' };
     dyn_value_t argv[10];
     dyn_value_t gkey;
     dyn_value_t ret;
-    
+
     for (int i = 0, j = '0'; i < 10; i++, j++) {
         str[0] = j;
         dyn_value_t key = dyntype_new_string(ctx, str);
@@ -496,7 +504,17 @@ TEST_F(ObjectPropertyTest, map_callback_test) {
     EXPECT_EQ(dyntype_is_function(ctx, func), DYNTYPE_TRUE);
 
     argv[0] = func;
-    ret = dyntype_invoke(ctx, "forEach", obj, 1, argv); // forEach
+    ret = dyntype_invoke(ctx, "forEach", obj, 1, argv);
+
+    /* We didn't register a callback dispatcher, so the return value should be
+     * exception */
+    EXPECT_TRUE(dyntype_is_exception(ctx, ret));
+
+    dyntype_set_callback_dispatcher(ctx, test_callback_dispatcher);
+    ret = dyntype_invoke(ctx, "forEach", obj, 1, argv);
+    /* The forEach method should return undefined no matter what is returned by
+     * the callback */
+    EXPECT_TRUE(dyntype_is_undefined(ctx, ret));
 
     dyntype_release(ctx, ret);
     dyntype_release(ctx, func);

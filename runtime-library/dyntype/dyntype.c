@@ -15,6 +15,7 @@ typedef struct DynTypeContext {
   JSContext *js_ctx;
   JSValue *js_undefined;
   JSValue *js_null;
+  dyntype_callback_dispatcher_t cb_dispatcher;
 } DynTypeContext;
 
 static inline JSValue* dyntype_dup_value(JSContext *ctx, JSValue value) {
@@ -223,6 +224,13 @@ void dyntype_context_destroy(dyn_ctx_t ctx) {
     g_dynamic_context = NULL;
 }
 
+void
+dyntype_set_callback_dispatcher(dyn_ctx_t ctx,
+                                dyntype_callback_dispatcher_t callback)
+{
+    ctx->cb_dispatcher = callback;
+}
+
 dyn_ctx_t dyntype_get_context() {
     return g_dynamic_context;
 }
@@ -253,37 +261,50 @@ dyn_value_t dyntype_new_string_with_length(dyn_ctx_t ctx, const char *str, int l
     return dyntype_dup_value(ctx->js_ctx, v);
 }
 
-static JSValue WasmCallBackDataForJS(JSContext *ctx, JSValueConst this_obj,
-                       int argc, JSValueConst *argv,
-                       int magic, JSValue *func_data) {
+static JSValue
+WasmCallBackDataForJS(JSContext *ctx, JSValueConst this_obj, int argc,
+                      JSValueConst *argv, int magic, JSValue *func_data)
+{
+    JSValue ret;
     void *vfunc = JS_GetOpaque(func_data[0], JS_CLASS_OBJECT);
     void *exec_env = JS_GetOpaque(func_data[1], JS_CLASS_OBJECT);
-
+    dyn_ctx_t dyntype_ctx = JS_GetOpaque(func_data[2], JS_CLASS_OBJECT);
     dyn_value_t *args = malloc(sizeof(dyn_value_t) * argc);
+
     if (!args) {
         return JS_NULL;
     }
+
     for (int i = 0; i < argc; i++) {
         args[i] = argv + i;
     }
 
-    // the return value must be convert to JSValue
-    dyn_value_t ret = dyntype_callback_for_js(exec_env, vfunc, (dyn_value_t)&this_obj, argc, args);
+    if (dyntype_ctx->cb_dispatcher) {
+        ret = *(JSValue *)dyntype_ctx->cb_dispatcher(
+            exec_env, vfunc, (dyn_value_t)&this_obj, argc, args);
+    }
+    else {
+        ret = JS_ThrowInternalError(
+            ctx, "external callback dispatcher not registered");
+    }
+
     free(args);
-    // return JS_UNDEFINED;
-    return *(JSValue*)ret; // return is depend on the callback
+    return ret;
 }
 
 static JSValue new_function_wrapper(dyn_ctx_t ctx, void* vfunc, void* opaque) {
-    JSValue data_hold[2];
+    JSValue data_hold[3];
     data_hold[0] = JS_NewObject(ctx->js_ctx);
     JS_SetOpaque(data_hold[0], vfunc);
     data_hold[1] = JS_NewObject(ctx->js_ctx);
     JS_SetOpaque(data_hold[1], opaque);
-    JSValue func = JS_NewCFunctionData(ctx->js_ctx, WasmCallBackDataForJS, 
-                0, 0, 2, data_hold); // data will be dup inside qjs
+    data_hold[2] = JS_NewObject(ctx->js_ctx);
+    JS_SetOpaque(data_hold[2], ctx);
+    JSValue func = JS_NewCFunctionData(ctx->js_ctx, WasmCallBackDataForJS,
+                0, 0, 3, data_hold); // data will be dup inside qjs
     dyntype_release(ctx, &data_hold[0]); // release 1 time here
     dyntype_release(ctx, &data_hold[1]); // release 1 time here
+    dyntype_release(ctx, &data_hold[2]); // release 1 time here
     return func;
 }
 
@@ -664,6 +685,11 @@ bool dyntype_is_falsy(dyn_ctx_t ctx, dyn_value_t value) {
         res = false;
     }
     return res;
+}
+
+bool dyntype_is_exception(dyn_ctx_t ctx, dyn_value_t value) {
+    JSValue *ptr = (JSValue *)value;
+    return (bool)JS_IsException(*ptr);
 }
 
 dyn_type_t dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj) {

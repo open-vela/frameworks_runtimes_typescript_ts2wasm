@@ -26,6 +26,11 @@ typedef DynTypeContext *dyn_ctx_t;
 typedef void dyn_options_t;
 typedef void *dyn_value_t;
 
+typedef dyn_value_t (*dyntype_callback_dispatcher_t)(void *env, void *vfunc,
+                                                     dyn_value_t this_obj,
+                                                     int argc,
+                                                     dyn_value_t *args);
+
 typedef enum external_ref_tag {
     ExtObj,
     ExtFunc,
@@ -93,6 +98,24 @@ dyntype_context_init_with_opt(dyn_options_t *options);
  */
 void
 dyntype_context_destroy(dyn_ctx_t ctx);
+
+/**
+ * @brief Set the callback dispatcher for external functions. When calling
+ * dyntype_invoke API, the argument may contain external functions which may be
+ * invoked later (e.g. Map.forEach). Libdyntype doesn't know how to invoke the
+ * external functions since they are not raw native pointers. The callback
+ * dispatcher will be used as a common wrapper for calling all external
+ * functions from libdyntype, so the implementer can decide how to invoke the
+ * actual function.
+ *
+ * @note If another callback is set, the previous one will be overwrite.
+ *
+ * @param ctx the dynamic type system context
+ * @param callback the callback to set
+ */
+void
+dyntype_set_callback_dispatcher(dyn_ctx_t ctx,
+                                dyntype_callback_dispatcher_t callback);
 
 /******************* Field access *******************/
 /* Creation */
@@ -237,8 +260,6 @@ dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj, int argc,
 dyn_value_t
 dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, void* opaque);
 
-dyn_value_t dyntype_callback_for_js(void* exec_env, void* vfunc,
-            dyn_value_t this_obj, int argc, dyn_value_t* argv);
 /* Modifying and testing */
 /**
  * @brief Set the property of a dynamic object
@@ -371,11 +392,21 @@ int
 dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres);
 
 /**
-* @brief Get the value of any type as a bool condition
-* @param ctx the dynamic type system context
-* @param value dynamic object
-* @return TRUE if the value is falsy, FALSE otherwise
-*/
+ * @brief Check if a dynamic value is an exception
+ *
+ * @param ctx the dynamic type system context
+ * @param value dynamic object
+ * @return TRUE if the value is exception, FALSE otherwise
+ */
+bool dyntype_is_exception(dyn_ctx_t ctx, dyn_value_t value);
+
+/**
+ * @brief Get the value of any type as a bool condition
+ *
+ * @param ctx the dynamic type system context
+ * @param value dynamic object
+ * @return TRUE if the value is falsy, FALSE otherwise
+ */
 bool dyntype_is_falsy(dyn_ctx_t ctx, dyn_value_t value);
 
 /******************* Type equivalence *******************/
