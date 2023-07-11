@@ -340,6 +340,8 @@ export class WASMTypeGen {
                 default:
                     methodSuffix = '_anyref';
             }
+        } else {
+            methodSuffix = '_anyref';
         }
         return methodSuffix;
     }
