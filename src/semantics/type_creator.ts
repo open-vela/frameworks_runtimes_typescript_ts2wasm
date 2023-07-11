@@ -1392,3 +1392,13 @@ export function specializeBuiltinObjectType(
 
     return type;
 }
+
+export function needSpecialized(type: ValueType) {
+    if (type instanceof TypeParameterType && type.specialTypeArgument) {
+        return true;
+    }
+    if (type instanceof ValueTypeWithArguments && type.specialTypeArguments) {
+        return true;
+    }
+    return false;
+}

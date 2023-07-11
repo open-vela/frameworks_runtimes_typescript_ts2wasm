@@ -3024,6 +3024,31 @@
         "entries": []
     },
     {
+        "module": "generic_func",
+        "entries": [
+            {
+                "name": "numberFunc",
+                "args": [],
+                "result": "100"
+            },
+            {
+                "name": "booleanFunc",
+                "args": [],
+                "result": "true"
+            },
+            {
+                "name": "stringFunc",
+                "args": [],
+                "result": "hello"
+            },
+            {
+                "name": "stringArrayFunc",
+                "args": [],
+                "result": "hi"
+            }
+        ]
+    },
+    {
         "module": "generics_class",
         "entries": [
             {

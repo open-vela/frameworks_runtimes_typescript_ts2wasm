@@ -267,6 +267,7 @@ export class WASMGen extends Ts2wasmBackend {
     private wasmStringMap = new Map<string, number>();
     private debugInfoFileNames = new Map<string, number>();
     private map: string | null = null;
+    public generatedFuncNames: Array<string> = [];
 
     constructor(parserContext: ParserContext) {
         super(parserContext);
@@ -288,6 +289,12 @@ export class WASMGen extends Ts2wasmBackend {
 
     get wasmExprComp(): WASMExpressionGen {
         return this._wasmExprCompiler;
+    }
+
+    public hasFuncName(funcName: string) {
+        return this.generatedFuncNames.find((elem) => {
+            return funcName === elem;
+        });
     }
 
     public codegen(options?: any): void {
@@ -488,7 +495,10 @@ export class WASMGen extends Ts2wasmBackend {
         }
     }
 
-    private parseFunc(func: FunctionDeclareNode) {
+    public parseFunc(func: FunctionDeclareNode) {
+        if (this.hasFuncName(func.name)) {
+            return;
+        }
         if ((func.ownKind & FunctionOwnKind.DECORATOR) !== 0) {
             /* Function with @binaryen decorator is implemented directly
                 using binaryen API, don't generate code for them */
@@ -806,6 +816,8 @@ export class WASMGen extends Ts2wasmBackend {
             );
             this.module.addFunctionExport(wrapperName, importName);
         }
+
+        this.generatedFuncNames.push(func.name);
 
         /** set customize local var names iff debug mode*/
         // const debugMode = this.parserContext.compileArgs[ArgNames.debug];
