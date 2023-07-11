@@ -421,6 +421,11 @@ array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
 
     for (i = 0; i < len; i++) {
         wasm_array_obj_get_elem(arr_ref, i, 0, &value);
+        if (!value.gc_obj) {
+            string_lengths[i] = 0;
+            string_addrs[i] = "";
+            continue;
+        }
         wasm_struct_obj_get_field((wasm_struct_obj_t)value.gc_obj, 1, false,
                                   &field1);
         value_defined_type = wasm_obj_get_defined_type((wasm_obj_t)value.gc_obj);
