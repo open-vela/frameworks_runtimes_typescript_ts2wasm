@@ -1722,13 +1722,12 @@ function buildNewExpression2(
 
     let object_type = type as ObjectType;
     if (object_type.instanceType) object_type = object_type.instanceType;
-
-    object_type = expr.typeArguments
-        ? (updateValueTypeByTypeArguments(
-              object_type,
-              valueTypeArgs!,
-          ) as ObjectType)
-        : (type as ObjectType);
+    if (expr.typeArguments) {
+        object_type = updateValueTypeByTypeArguments(
+            object_type,
+            valueTypeArgs!,
+        ) as ObjectType;
+    }
     const clazz_type = object_type.classType;
 
     if (clazz_type && clazz_type.kind == ValueTypeKind.ARRAY) {
