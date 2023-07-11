@@ -1586,6 +1586,16 @@
         ]
     },
     {
+        "module": "class_vtable_call",
+        "entries": [
+            {
+                "name": "bar",
+                "args": [],
+                "result": "a \nb"
+            }
+        ]
+    },
+    {
         "module": "closure_basic",
         "entries": [
             {
