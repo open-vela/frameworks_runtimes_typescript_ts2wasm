@@ -33,6 +33,7 @@ import { MemberModifier, MemberType } from '../../semantics/runtime.js';
 import { FunctionalFuncs, UtilFuncs, getCString } from './utils.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { VarValue } from '../../semantics/value.js';
+import { needSpecialized } from '../../semantics/type_creator.js';
 
 export class WASMTypeGen {
     typeMap: Map<ValueType, binaryenCAPI.TypeRef> = new Map();
@@ -71,20 +72,6 @@ export class WASMTypeGen {
     constructor(private wasmComp: WASMGen) {}
 
     createWASMType(type: ValueType): void {
-        if (this.typeMap.has(type)) {
-            /* Workaround (array specialize issue): semantic tree may forget to specialize some
-                method type, we specialize it in background to fix the
-                type, but we may already cached the wasm type for the given
-                ArrayType.
-            So here we check if the type has type parameter, and ignore
-                the cache if it does.
-                let a : number[] = []; a.push(10);
-            */
-
-            if (!(type as ArrayType).specialTypeArguments?.length) {
-                return;
-            }
-        }
         switch (type.kind) {
             case ValueTypeKind.VOID:
             case ValueTypeKind.BOOLEAN:
@@ -96,7 +83,6 @@ export class WASMTypeGen {
             case ValueTypeKind.UNION:
             case ValueTypeKind.ANY:
             case ValueTypeKind.INT:
-            case ValueTypeKind.TYPE_PARAMETER:
                 this.createWASMBaseType(type);
                 break;
             case ValueTypeKind.EMPTY:
@@ -104,6 +90,9 @@ export class WASMTypeGen {
                 break;
             case ValueTypeKind.CLOSURECONTEXT:
                 this.createWASMContextType(<ClosureContextType>type);
+                break;
+            case ValueTypeKind.TYPE_PARAMETER:
+                this.createWASMSpecializeType(<TypeParameterType>type);
                 break;
             case ValueTypeKind.GENERIC:
                 this.createWASMGenericType(type);
@@ -160,7 +149,6 @@ export class WASMTypeGen {
             case ValueTypeKind.UNDEFINED:
             case ValueTypeKind.ANY:
             case ValueTypeKind.UNION:
-            case ValueTypeKind.TYPE_PARAMETER:
                 this.typeMap.set(type, binaryen.anyref);
                 break;
             default:
@@ -278,11 +266,21 @@ export class WASMTypeGen {
         if (
             arrayType.typeId === -1 &&
             arrayType.specialTypeArguments &&
-            arrayType.specialTypeArguments.length > 0 &&
-            !(arrayType.specialTypeArguments[0] instanceof TypeParameterType)
+            arrayType.specialTypeArguments.length > 0
         ) {
-            /* get specialTypeArgument of generic type */
-            elemType = arrayType.specialTypeArguments![0];
+            if (
+                !(
+                    arrayType.specialTypeArguments[0] instanceof
+                    TypeParameterType
+                ) ||
+                arrayType.specialTypeArguments[0].specialTypeArgument
+            ) {
+                /* workaround: non-builtin array will be specialized, so we can get the first elem in specialTypeArguments as elemType.
+                 * builtin array type (like array.map) may not be specialized, so we can not take it as elemType.
+                 */
+                /* get specialTypeArgument of generic type */
+                elemType = arrayType.specialTypeArguments![0];
+            }
         }
         const elemTypeRef = this.getWASMValueType(elemType);
         const arrayTypeInfo = initArrayType(
@@ -574,6 +572,21 @@ export class WASMTypeGen {
         }
     }
 
+    createWASMSpecializeType(type: TypeParameterType) {
+        const specialType = type.specialTypeArgument;
+        if (specialType) {
+            const specialTypeRef = this.getWASMValueType(specialType);
+            this.typeMap.set(type, specialTypeRef);
+            if (this.hasHeapType(specialType)) {
+                const specialHeapTypeRef =
+                    this.getWASMValueHeapType(specialType);
+                this.heapTypeMap.set(type, specialHeapTypeRef);
+            }
+        } else {
+            this.typeMap.set(type, binaryen.anyref);
+        }
+    }
+
     createWASMGenericType(type: ValueType, typeArg: ValueType | null = null) {
         /* We treat generic as any for most cases, but for some builtin
         methods (e.g. Array.push), we want the generic type to be
@@ -600,7 +613,7 @@ export class WASMTypeGen {
     }
 
     getWASMType(type: ValueType): binaryenCAPI.TypeRef {
-        if (!this.typeMap.has(type)) {
+        if (!this.typeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.typeMap.get(type) as binaryenCAPI.TypeRef;
@@ -608,14 +621,14 @@ export class WASMTypeGen {
 
     getWASMHeapType(type: ValueType): binaryenCAPI.HeapTypeRef {
         assert(this.hasHeapType(type), `${type} doesn't have heap type`);
-        if (!this.heapTypeMap.has(type)) {
+        if (!this.heapTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.heapTypeMap.get(type) as binaryenCAPI.HeapTypeRef;
     }
 
     getWASMValueType(type: ValueType): binaryenCAPI.TypeRef {
-        if (!this.typeMap.has(type)) {
+        if (!this.typeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         if (type instanceof FunctionType) {
@@ -626,7 +639,7 @@ export class WASMTypeGen {
     }
 
     getWASMValueHeapType(type: ValueType): binaryenCAPI.HeapTypeRef {
-        if (!this.typeMap.has(type)) {
+        if (!this.typeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         if (type instanceof FunctionType) {
@@ -639,21 +652,21 @@ export class WASMTypeGen {
     }
 
     getWASMFuncParamTypes(type: ValueType): binaryenCAPI.TypeRef[] {
-        if (!this.funcParamTypesMap.has(type)) {
+        if (!this.funcParamTypesMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.funcParamTypesMap.get(type)!;
     }
 
     getWASMFuncOriParamTypes(type: ValueType): binaryenCAPI.TypeRef[] {
-        if (!this.funcOriParamTypesMap.has(type)) {
+        if (!this.funcOriParamTypesMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.funcOriParamTypesMap.get(type)!;
     }
 
     getWASMArrayOriType(type: ValueType): binaryenCAPI.TypeRef {
-        if (!this.oriArrayTypeMap.has(type)) {
+        if (!this.oriArrayTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         /* Workaround (array specialize issue): semantic tree may forget to specialize some
@@ -673,49 +686,49 @@ export class WASMTypeGen {
     }
 
     getWASMArrayOriHeapType(type: ValueType): binaryenCAPI.HeapTypeRef {
-        if (!this.oriArrayHeapTypeMap.has(type)) {
+        if (!this.oriArrayHeapTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.oriArrayHeapTypeMap.get(type) as binaryenCAPI.HeapTypeRef;
     }
 
     getWASMObjOriType(type: ValueType): binaryenCAPI.TypeRef {
-        if (!this.infcObjTypeMap.has(type)) {
+        if (!this.infcObjTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMClassType(type as ObjectType, true);
         }
         return this.infcObjTypeMap.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMObjOriHeapType(type: ValueType): binaryenCAPI.HeapTypeRef {
-        if (!this.infcObjHeapTypeMap.has(type)) {
+        if (!this.infcObjHeapTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMClassType(type as ObjectType, true);
         }
         return this.infcObjHeapTypeMap.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMVtableType(type: ValueType): binaryenCAPI.TypeRef {
-        if (!this.vtableTypeMap.has(type)) {
+        if (!this.vtableTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.vtableTypeMap.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMVtableHeapType(type: ValueType): binaryenCAPI.HeapTypeRef {
-        if (!this.vtableHeapTypeMap.has(type)) {
+        if (!this.vtableHeapTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.vtableHeapTypeMap.get(type) as binaryenCAPI.HeapTypeRef;
     }
 
     getWASMStaticFieldsType(type: ValueType): binaryenCAPI.TypeRef {
-        if (!this.staticFieldsTypeMap.has(type)) {
+        if (!this.staticFieldsTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.staticFieldsTypeMap.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMStaticFieldsHeapType(type: ValueType): binaryenCAPI.HeapTypeRef {
-        if (!this.staticFieldsHeapTypeMap.has(type)) {
+        if (!this.staticFieldsHeapTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.staticFieldsHeapTypeMap.get(
@@ -724,14 +737,14 @@ export class WASMTypeGen {
     }
 
     getWASMVtableInst(type: ValueType): binaryen.ExpressionRef {
-        if (!this.vtableInstMap.has(type)) {
+        if (!this.vtableInstMap.has(type) || needSpecialized(type)) {
             this.createWASMObjectType(type as ObjectType);
         }
         return this.vtableInstMap.get(type) as binaryen.ExpressionRef;
     }
 
     getWASMThisInst(type: ValueType): binaryen.ExpressionRef {
-        if (!this.thisInstMap.has(type)) {
+        if (!this.thisInstMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
         return this.thisInstMap.get(type) as binaryen.ExpressionRef;

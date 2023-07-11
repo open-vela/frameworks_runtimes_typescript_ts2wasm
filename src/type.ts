@@ -836,9 +836,6 @@ export class TypeResolver {
             case ts.SyntaxKind.TypeAliasDeclaration: {
                 const typeAliasNode = <ts.TypeAliasDeclaration>node;
                 const typeName = typeAliasNode.name.getText();
-                if (typeName === 'func') {
-                    console.log(typeName);
-                }
                 const type = this.generateNodeType(
                     typeAliasNode.type,
                     typeAliasNode,
@@ -1349,7 +1346,7 @@ export class TypeResolver {
             tsFunction.returnType = this.tsTypeToType(returnType);
         }
 
-        this.typeParameterStack.pop();
+        // this.typeParameterStack.pop();
         this.nodeTypeCache.set(signature.getDeclaration(), tsFunction);
         return tsFunction;
     }
@@ -1657,7 +1654,7 @@ export class TypeResolver {
         Logger.info(
             `Assign type id [${classType.typeId}] for class [${classType.className}], type string: ${typeString}`,
         );
-        this.typeParameterStack.pop();
+        // this.typeParameterStack.pop();
         return classType;
     }
 
@@ -1781,7 +1778,7 @@ export class TypeResolver {
             `Assign type id [${infc.typeId}] for interface(${infc.className}): ${typeString}`,
         );
 
-        this.typeParameterStack.pop();
+        // this.typeParameterStack.pop();
         return infc;
     }
 

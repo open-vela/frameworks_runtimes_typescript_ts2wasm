@@ -153,6 +153,7 @@ export class ValueTypeWithArguments extends ValueType {
     }
 
     private _typeArguments?: TypeParameterType[];
+    private _specialTypeArguments?: ValueType[];
 
     get hasUninitedTypeArguments(): boolean {
         return (
@@ -182,6 +183,35 @@ export class ValueTypeWithArguments extends ValueType {
     inTypeArguments(valueType: ValueType): boolean {
         if (!this._typeArguments) return false;
         return !!this._typeArguments!.find((v) => v.equals(valueType));
+    }
+
+    setSpecialTypeArguments(types: ValueType[]) {
+        this._specialTypeArguments = types;
+    }
+
+    get specialTypeArguments(): ValueType[] | undefined {
+        return this._specialTypeArguments;
+    }
+
+    getSpecialTypeArg(type: TypeParameterType) {
+        let typeIdx = -1;
+        for (let i = 0; i < this.typeArguments!.length; i++) {
+            if (this.typeArguments![i].name === type.name) {
+                typeIdx = i;
+            }
+        }
+        if (this.specialTypeArguments) {
+            return this.specialTypeArguments![typeIdx];
+        }
+        return undefined;
+    }
+
+    getSpecialTypeArgs(types: TypeParameterType[]) {
+        const specialTypeArgs: ValueType[] = [];
+        for (const type of types) {
+            specialTypeArgs.push(this.getSpecialTypeArg(type)!);
+        }
+        return specialTypeArgs;
     }
 }
 
@@ -248,7 +278,6 @@ export class ObjectType extends ValueTypeWithArguments {
     private _class_or_instance?: ObjectType;
     private _numberIndexType?: ValueType;
     private _stringIndexType?: ValueType;
-    private _specialTypeArguments?: ValueType[];
     private _implId = DefaultTypeId;
 
     constructor(
@@ -300,13 +329,6 @@ export class ObjectType extends ValueTypeWithArguments {
     }
     public setStringIndexType(type: ValueType) {
         this._stringIndexType = type;
-    }
-
-    public get specialTypeArguments(): ValueType[] | undefined {
-        return this._specialTypeArguments;
-    }
-    public setSpecialTypeArguments(types: ValueType[]) {
-        this._specialTypeArguments = types;
     }
 
     public get implId() {
@@ -541,6 +563,8 @@ enum TypeParameterOwnerType {
 export class TypeParameterType extends ValueType {
     private _ownerType: TypeParameterOwnerType =
         TypeParameterOwnerType.FUNCTION;
+    private _specialTypeArgument?: ValueType;
+
     constructor(
         typeId: number,
         public readonly name: string,
@@ -549,6 +573,14 @@ export class TypeParameterType extends ValueType {
         public readonly defaultType?: ValueType,
     ) {
         super(ValueTypeKind.TYPE_PARAMETER, typeId);
+    }
+
+    setSpecialTypeArgument(type: ValueType) {
+        this._specialTypeArgument = type;
+    }
+
+    get specialTypeArgument(): ValueType | undefined {
+        return this._specialTypeArgument;
     }
 
     setOwnedByFunction() {

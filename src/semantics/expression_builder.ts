@@ -1491,7 +1491,7 @@ class GuessTypeArguments {
 
     updateTypeMap(typeType: TypeParameterType, valueType: ValueType) {
         const idx = this.typeArguments.indexOf(typeType);
-        if (idx >= 0) this.typeArgs[idx] = valueType;
+        if (idx >= 0 && !this.typeArgs[idx]) this.typeArgs[idx] = valueType;
     }
 
     guessObjectType(templateObjType: ObjectType, objType: ObjectType) {
@@ -1547,7 +1547,7 @@ class GuessTypeArguments {
     }
 }
 
-function guessFuncTypeArgumentsByArgs(
+function specializeFuncTypeArgumentsByArgs(
     context: BuildContext,
     func_type: FunctionType,
     args: Expression[],
@@ -1662,28 +1662,24 @@ function buildCallExpression(
 
     let func_type = (func as FunctionCallBaseValue).funcType;
 
-    if (expr.typeArguments) {
-        const specialTypeArgs = buildTypeArguments(
-            context,
-            expr.typeArguments!,
-        );
+    if (expr.typeArguments || func_type.typeArguments) {
+        let specialTypeArgs: ValueType[];
+        if (expr.typeArguments) {
+            specialTypeArgs = buildTypeArguments(context, expr.typeArguments!);
+        } else {
+            // specialize the typeArguments by callArgs and return type
+            specialTypeArgs = specializeFuncTypeArgumentsByArgs(
+                context,
+                func_type,
+                expr.callArgs,
+                expr.exprType,
+            );
+        }
         func_type = updateValueTypeByTypeArguments(
             func_type,
             specialTypeArgs,
         ) as FunctionType;
-        (func as FunctionCallBaseValue).funcType = func_type;
-    } else if (func_type.typeArguments) {
-        // guss the typeArguments by callArgs and return type
-        const specialTypeArgs = guessFuncTypeArgumentsByArgs(
-            context,
-            func_type,
-            expr.callArgs,
-            expr.exprType,
-        );
-        func_type = updateValueTypeByTypeArguments(
-            func_type,
-            specialTypeArgs,
-        ) as FunctionType;
+        func_type.setSpecialTypeArguments(specialTypeArgs);
         (func as FunctionCallBaseValue).funcType = func_type;
     }
 
