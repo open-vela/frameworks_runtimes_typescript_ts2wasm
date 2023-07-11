@@ -1183,34 +1183,41 @@ export class WASMExpressionGen {
     }
 
     private wasmVtableCall(value: VTableCallValue) {
-        /* workaround: arr.push is vtableCall */
         const owner = value.owner;
         const meta = owner.shape!.meta;
         const member = meta.members[value.index];
+        const methodIdx = this.getTruthIdx(meta, member);
         const ownerRef = this.wasmExprGen(owner);
-        /* workaround: method.valueType.returnType various from value.funcType.returnType */
-        const realReturnType = value.funcType.returnType;
-        let calledName = `${BuiltinNames.builtinModuleName}|${meta.name}|${member.name}`;
+        const ownerTypeRef = this.wasmTypeGen.getWASMValueType(owner.type);
         switch (owner.type.kind) {
             case ValueTypeKind.OBJECT: {
-                if (meta.base) {
-                    calledName = this.wasmCompiler.getMethodMangledName(
-                        member,
-                        meta,
-                    );
-                } else {
-                    calledName = `${meta.name}|${member.name}`;
-                }
+                const methodRef = this.getObjMethod(
+                    ownerRef,
+                    methodIdx,
+                    ownerTypeRef,
+                );
+                return this.callFuncRef(
+                    value.funcType,
+                    methodRef,
+                    value.parameters,
+                    ownerRef,
+                );
+            }
+            default: {
+                /* workaround: arr.push is vtableCall */
+                const calledName = `${BuiltinNames.builtinModuleName}|${meta.name}|${member.name}`;
+                /* workaround: method.valueType.returnType various from value.funcType.returnType */
+                const realReturnType = value.funcType.returnType;
+                return this.callClassMethod(
+                    member.valueType as FunctionType,
+                    realReturnType,
+                    calledName,
+                    ownerRef,
+                    owner.type,
+                    value.parameters,
+                );
             }
         }
-        return this.callClassMethod(
-            member.valueType as FunctionType,
-            realReturnType,
-            calledName,
-            ownerRef,
-            owner.type,
-            value.parameters,
-        );
     }
 
     private wasmDynamicCall(value: DynamicCallValue): binaryen.ExpressionRef {
