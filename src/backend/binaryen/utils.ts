@@ -76,6 +76,11 @@ export namespace UtilFuncs {
         return moduleName.concat(delimiter).concat(funcName);
     }
 
+    export function getLastElemOfBuiltinName(builtinName: string) {
+        const levelNames = builtinName.split(BuiltinNames.moduleDelimiter);
+        return levelNames[levelNames.length - 1];
+    }
+
     export function addWatFuncs(
         watModule: binaryen.Module,
         funcName: string,
