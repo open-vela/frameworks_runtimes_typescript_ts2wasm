@@ -1481,6 +1481,16 @@
         ]
     },
     {
+        "module": "class_direct_call",
+        "entries": [
+            {
+                "name": "foo",
+                "args": [],
+                "result": "a \nb"
+            }
+        ]
+    },
+    {
         "module": "class_extend",
         "entries": [
             {

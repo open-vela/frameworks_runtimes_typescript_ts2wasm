@@ -64,6 +64,7 @@ export class WASMTypeGen {
     private infcObjTypeMap: Map<ValueType, binaryenCAPI.TypeRef> = new Map();
     private infcObjHeapTypeMap: Map<ValueType, binaryenCAPI.HeapTypeRef> =
         new Map();
+    public objTypeMap: Map<string, binaryenCAPI.TypeRef> = new Map();
     private structHeapTypeCnt = 0;
     private arrayHeapTypeCnt = 0;
     private funcHeapTypeCnt = 0;
@@ -571,6 +572,7 @@ export class WASMTypeGen {
             this.heapTypeMap.set(type, wasmClassType.heapTypeRef);
             this.vtableInstMap.set(type, vtableInstance);
             this.thisInstMap.set(type, thisArg);
+            this.objTypeMap.set(metaInfo.name, wasmClassType.typeRef);
         }
     }
 

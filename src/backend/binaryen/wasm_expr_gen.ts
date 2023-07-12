@@ -1032,9 +1032,15 @@ export class WASMExpressionGen {
 
     private wasmDirectCall(value: DirectCallValue) {
         const owner = value.owner as VarValue;
+        const meta = owner.shape!.meta;
         const method = (value.method as VarValue).ref as FunctionDeclareNode;
         const returnTypeRef = this.wasmTypeGen.getWASMValueType(value.type);
+        const member = meta.findMember(
+            UtilFuncs.getLastElemOfBuiltinName(method.name),
+        )!;
+        const methodIdx = this.getTruthIdx(meta, member);
         let thisArg = this.wasmExprGen(owner);
+        let ownerTypeRef = this.wasmTypeGen.getWASMValueType(owner.type);
 
         if ((owner.type as ObjectType).meta.isInterface) {
             /* This is a resolved interface access, "this" should be the object hold by the interface */
@@ -1043,22 +1049,40 @@ export class WASMExpressionGen {
                 infcTypeInfo.typeRef,
                 InfcFieldIndex.DATA_INDEX,
             );
+            /* workaround: need to get the actual typeRef based on owner.shape */
+            ownerTypeRef = this.wasmTypeGen.objTypeMap.get(meta.name)!;
             thisArg = binaryenCAPI._BinaryenRefCast(
                 this.module.ptr,
                 thisArg,
-                emptyStructType.typeRef,
+                ownerTypeRef,
             );
         }
 
-        return this.callFunc(
-            method.funcType as FunctionType,
-            method.name,
-            returnTypeRef,
-            value.parameters,
-            method,
-            undefined,
-            thisArg,
-        );
+        if (owner.kind === SemanticsValueKind.SUPER) {
+            return this.callFunc(
+                method.funcType as FunctionType,
+                method.name,
+                returnTypeRef,
+                value.parameters,
+                method,
+                undefined,
+                thisArg,
+            );
+        } else {
+            const methodRef = this.getObjMethod(
+                thisArg,
+                methodIdx,
+                ownerTypeRef,
+            );
+            return this.callFuncRef(
+                method.funcType as FunctionType,
+                methodRef,
+                value.parameters,
+                thisArg,
+                undefined,
+                method,
+            );
+        }
     }
 
     private wasmFunctionCall(value: FunctionCallValue): binaryen.ExpressionRef {
