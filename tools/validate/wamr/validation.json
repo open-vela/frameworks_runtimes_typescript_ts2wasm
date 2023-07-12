@@ -2394,6 +2394,11 @@
                 "name": "infcNestMethod",
                 "args": [],
                 "result": "6:f64"
+            },
+            {
+                "name": "infcMethodWithAnyInst",
+                "args": [],
+                "result": "1:f64"
             }
         ]
     },

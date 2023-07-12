@@ -2091,6 +2091,8 @@ export class WASMExpressionGen {
                 memberValueType,
                 member.type,
                 true,
+                false,
+                memberIdx,
             );
             if (
                 member.type === MemberType.ACCESSOR ||
