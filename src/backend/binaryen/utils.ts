@@ -9,6 +9,7 @@ import { SemanticsKind } from '../../semantics/semantics_nodes.js';
 import {
     ObjectType,
     PrimitiveType,
+    TypeParameterType,
     ValueType,
     ValueTypeKind,
 } from '../../semantics/value_types.js';
@@ -737,7 +738,17 @@ export namespace FunctionalFuncs {
         valueRef: binaryen.ExpressionRef,
         value: SemanticsValue,
     ) {
-        const valueTypeKind = value.type.kind;
+        let valueTypeKind = value.type.kind;
+        /* value.type may be specialized, we should update the specialized type kind */
+        if (value.type instanceof TypeParameterType) {
+            const specializedType = (<TypeParameterType>value.type)
+                .specialTypeArgument;
+            if (specializedType) {
+                valueTypeKind = specializedType.kind;
+            } else {
+                valueTypeKind = ValueTypeKind.ANY;
+            }
+        }
         const semanticsValueKind = value.kind;
         let objDespType: ObjectDescriptionType | undefined = undefined;
         if (value.type instanceof ObjectType) {

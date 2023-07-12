@@ -834,7 +834,7 @@ export function newCastValue(
         }
     }
     if (
-        value_type.kind == ValueTypeKind.GENERIC ||
+        value_type.kind == ValueTypeKind.GENERIC &&
         type.kind == ValueTypeKind.GENERIC
     ) {
         // it's template type
@@ -858,11 +858,11 @@ export function newCastValue(
         if (arr_type.element.equals(arr_value_type.element)) return value;
 
         if (
-            arr_type.element.kind == ValueTypeKind.ANY ||
+            arr_type.element.kind == ValueTypeKind.ANY &&
             arr_value_type.element.kind == ValueTypeKind.ANY
         )
             return value;
-
+        /* TODO: need to create new CastValue from Array<NUMBER(6)(OBJECT)> to  Array<ANY(10)(OBJECT)> */
         if (
             isObjectType(arr_type.element.kind) &&
             isObjectType(arr_value_type.element.kind)
