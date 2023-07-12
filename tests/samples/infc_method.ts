@@ -80,3 +80,24 @@ export function infcNestMethod() {
     const f = i.y()._x + (i.y().test() ? 1 : 2) + i.x(1)(2);
     return f; //6
 }
+
+interface I5 {
+    func1: () => boolean;
+    func2: () => number;
+}
+
+class C5 {
+    func1() {
+        return false;
+    }
+    func2() {
+        return 1;
+    }
+}
+
+export function infcMethodWithAnyInst() {
+    const i: I5 = new C5;
+    const a: any = i;
+    return (a as I5).func2();
+
+}
