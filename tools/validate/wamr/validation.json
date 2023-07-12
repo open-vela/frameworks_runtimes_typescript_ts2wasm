@@ -3059,6 +3059,16 @@
         ]
     },
     {
+        "module": "generic_param",
+        "entries": [
+            {
+                "name": "testGenericParam",
+                "args": [],
+                "result": "hi"
+            }
+        ]
+    },
+    {
         "module": "generics_class",
         "entries": [
             {

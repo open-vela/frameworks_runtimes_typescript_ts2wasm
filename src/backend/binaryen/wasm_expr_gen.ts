@@ -1456,10 +1456,10 @@ export class WASMExpressionGen {
             case SemanticsValueKind.VALUE_CAST_ANY:
             case SemanticsValueKind.UNION_CAST_ANY:
             case SemanticsValueKind.VALUE_CAST_UNION: {
-                return FunctionalFuncs.boxBaseTypeToAny(
+                return FunctionalFuncs.boxToAny(
                     this.module,
                     fromValueRef,
-                    fromType.kind,
+                    fromValue,
                 );
             }
             case SemanticsValueKind.OBJECT_CAST_ANY: {
