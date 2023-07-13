@@ -63,6 +63,7 @@ import {
     VTableCallValue,
     TypeofValue,
     ToStringValue,
+    AnyCallValue,
     SuperUsageFlag,
 } from '../../semantics/value.js';
 import {
@@ -148,6 +149,8 @@ export class WASMExpressionGen {
                 return this.wasmDynamicCall(<DynamicCallValue>value);
             case SemanticsValueKind.VTABLE_CALL:
                 return this.wasmVtableCall(<VTableCallValue>value);
+            case SemanticsValueKind.ANY_CALL:
+                return this.wasmAnyCall(<AnyCallValue>value);
             case SemanticsValueKind.ANY_CAST_VALUE:
             case SemanticsValueKind.VALUE_CAST_ANY:
             case SemanticsValueKind.VALUE_CAST_UNION:
@@ -1206,6 +1209,27 @@ export class WASMExpressionGen {
             funcType.returnType,
         );
         return this.callFunc(funcType, methodMangledName, returnTypeRef, args);
+    }
+
+    private wasmAnyCall(value: AnyCallValue) {
+        /* any function call */
+        const anyFuncRef = this.wasmExprGen(value.anyFunc);
+        const oriFuncRefWithAnyType = FunctionalFuncs.unboxAny(
+            this.module,
+            anyFuncRef,
+            ValueTypeKind.FUNCTION,
+            binaryen.anyref,
+        );
+        const argStruct = this.generateArgStruct(value.parameters);
+        return this.module.call(
+            dyntype.invoke_func,
+            [
+                FunctionalFuncs.getDynContextRef(this.module),
+                oriFuncRefWithAnyType,
+                argStruct,
+            ],
+            binaryen.anyref,
+        );
     }
 
     private wasmVtableCall(value: VTableCallValue) {
@@ -3090,6 +3114,32 @@ export class WASMExpressionGen {
         }
     }
 
+    private generateArgStruct(args?: Array<SemanticsValue>) {
+        const restArgs = args
+            ? args.map((a) => {
+                  return FunctionalFuncs.boxToAny(
+                      this.module,
+                      this.wasmExprGen(a),
+                      a,
+                  );
+              })
+            : [];
+        const argArray = binaryenCAPI._BinaryenArrayNewFixed(
+            this.module.ptr,
+            anyArrayTypeInfo.heapTypeRef,
+            arrayToPtr(restArgs).ptr,
+            restArgs.length,
+        );
+        const arrayStructType = generateArrayStructTypeInfo(anyArrayTypeInfo);
+        const arrayStruct = binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr([argArray, this.module.i32.const(restArgs.length)]).ptr,
+            2,
+            arrayStructType.heapTypeRef,
+        );
+        return arrayStruct;
+    }
+
     /** the dynamic object will fallback to libdyntype */
     private dyntypeInvoke(
         name: string,
@@ -3100,29 +3150,7 @@ export class WASMExpressionGen {
         const thisArg = !isNew
             ? this.wasmExprGen(args.splice(0, 1)[0])
             : undefined;
-        const restArgs = args.map((a) => {
-            return FunctionalFuncs.boxToAny(
-                this.module,
-                this.wasmExprGen(a),
-                a,
-            );
-        });
-
-        const argArray = binaryenCAPI._BinaryenArrayNewFixed(
-            this.module.ptr,
-            anyArrayTypeInfo.heapTypeRef,
-            arrayToPtr(restArgs).ptr,
-            restArgs.length,
-        );
-
-        const arrayStructType = generateArrayStructTypeInfo(anyArrayTypeInfo);
-        const arrayStruct = binaryenCAPI._BinaryenStructNew(
-            this.module.ptr,
-            arrayToPtr([argArray, this.module.i32.const(restArgs.length)]).ptr,
-            2,
-            arrayStructType.heapTypeRef,
-        );
-
+        const arrayStruct = this.generateArgStruct(args);
         const finalArgs = [
             FunctionalFuncs.getDynContextRef(this.module),
             this.module.i32.const(namePointer),

@@ -685,11 +685,19 @@ export namespace FunctionalFuncs {
             tableIndex,
             binaryen.anyref,
         );
-        let value = binaryenCAPI._BinaryenRefCast(
-            module.ptr,
-            externalRef,
-            wasmType,
-        );
+        let value = externalRef;
+        /*
+         * When handling any_func_call, we need to get the function from table.
+         * But we don't know the real wasmType, so we will pass wasmType as anyref.
+         * When wasmType is anyref, we should avoid type cast.
+         */
+        if (wasmType !== binaryen.anyref) {
+            value = binaryenCAPI._BinaryenRefCast(
+                module.ptr,
+                externalRef,
+                wasmType,
+            );
+        }
         if (wasmType !== infcTypeInfo.typeRef && wasmType !== binaryen.anyref) {
             /** try to get inteface
              * const i: I = new A()

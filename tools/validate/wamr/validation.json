@@ -150,6 +150,51 @@
         ]
     },
     {
+        "module": "any_func_call",
+        "entries": [
+            {
+                "name": "anyFuncCallWithNumber",
+                "args": [],
+                "result": "20 \n110"
+            },
+            {
+                "name": "anyFuncCallWithBoolean",
+                "args": [],
+                "result": "true \n11"
+            },
+            {
+                "name": "anyFuncCallWithString",
+                "args": [],
+                "result": "hi \nhello, world"
+            },
+            {
+                "name": "anyFuncCallWithAny",
+                "args": [],
+                "result": "100 \nworld"
+            },
+            {
+                "name": "anyFuncCallWithFunc",
+                "args": [],
+                "result": "8"
+            },
+            {
+                "name": "anyFuncCallWithObj",
+                "args": [],
+                "result": "3 \ntrue"
+            },
+            {
+                "name": "anyFuncCallWithInfc",
+                "args": [],
+                "result": "3 \ntrue"
+            },
+            {
+                "name": "anyFuncCallWithArray",
+                "args": [],
+                "result": "9 \n2"
+            }
+        ]
+    },
+    {
         "module": "any_obj_prop_get",
         "entries": [
             {

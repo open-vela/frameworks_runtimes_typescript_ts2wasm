@@ -93,6 +93,7 @@ import {
     NewArrayValue,
     NewArrayLenValue,
     TypeofValue,
+    AnyCallValue,
     SuperUsageFlag,
 } from './value.js';
 
@@ -1651,7 +1652,12 @@ function buildCallExpression(
         func instanceof VarValue &&
         func.type.kind === ValueTypeKind.ANY
     ) {
-        throw Error(`need to handle any call`);
+        /* any value's functype can not be ensure, return value type will always be any  */
+        let parameters: SemanticsValue[] | undefined = undefined;
+        if (expr.callArgs.length > 0) {
+            parameters = buildParameters(context, expr.callArgs);
+        }
+        return new AnyCallValue(Primitive.Any, func, parameters);
     } else if (!isMemberCallValue(func.kind)) {
         throw Error(
             `unkown type for function call func kind: ${

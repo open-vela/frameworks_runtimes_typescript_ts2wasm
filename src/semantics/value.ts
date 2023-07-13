@@ -50,6 +50,7 @@ export enum SemanticsValueKind {
     FUNCTION_CALL,
     CLOSURE_CALL,
     CONSTRUCTOR_CALL,
+    ANY_CALL,
 
     NEW_CLASS,
     NEW_CLOSURE_FUNCTION,
@@ -478,13 +479,13 @@ export class ClosureCallValue extends FunctionCallBaseValue {
         type: ValueType,
         public func: SemanticsValue,
         funcType?: FunctionType,
-        paramters?: SemanticsValue[],
+        parameters?: SemanticsValue[],
     ) {
         super(
             SemanticsValueKind.CLOSURE_CALL,
             type,
             funcType ? funcType : (func.type as FunctionType),
-            paramters,
+            parameters,
         );
     }
 
@@ -499,18 +500,33 @@ export class ConstructorCallValue extends FunctionCallBaseValue {
         public self: SemanticsValue,
         public ctr: SemanticsValue,
         funcType: FunctionType,
-        paramters?: SemanticsValue[],
+        parameters?: SemanticsValue[],
     ) {
         super(
             SemanticsValueKind.CONSTRUCTOR_CALL,
             Primitive.Void,
             funcType,
-            paramters,
+            parameters,
         );
     }
 
     forEachChild(visitor: SemanticsValueVisitor) {
         visitor(this.self);
+        if (this.parameters) this.parameters.forEach((p) => visitor(p));
+    }
+}
+
+export class AnyCallValue extends SemanticsValue {
+    constructor(
+        type: ValueType,
+        public anyFunc: SemanticsValue,
+        public parameters?: SemanticsValue[],
+    ) {
+        super(SemanticsValueKind.ANY_CALL, type);
+    }
+
+    forEachChild(visitor: SemanticsValueVisitor) {
+        visitor(this.anyFunc);
         if (this.parameters) this.parameters.forEach((p) => visitor(p));
     }
 }

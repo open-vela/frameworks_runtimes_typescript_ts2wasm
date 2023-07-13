@@ -5,6 +5,14 @@
 
 #include "gc_export.h"
 
+/* whether the type is struct(struct_func) */
+bool
+is_ts_closure_type(wasm_module_t wasm_module, wasm_defined_type_t type);
+
+/* whether the type is struct(array_i32) */
+bool
+is_ts_array_type(wasm_module_t wasm_module, wasm_defined_type_t type);
+
 /* Helper to get common used fields */
 int
 get_array_length(wasm_struct_obj_t obj);

@@ -45,6 +45,12 @@ const IGNORE_CASES = [
     'exception_custom_error.ts',
     'exception_throw_error.ts',
     'exception_try_structure.ts',
+
+    /* workaround: any func call to return extref */
+    'any_func_call:anyFuncCallWithFunc',
+    'any_func_call:anyFuncCallWithObj',
+    'any_func_call:anyFuncCallWithInfc',
+    'any_func_call:anyFuncCallWithArray',
 ];
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
