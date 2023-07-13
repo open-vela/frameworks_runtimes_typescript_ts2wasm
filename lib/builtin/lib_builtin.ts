@@ -44,3 +44,13 @@ export class Math {
         return res;
     }
 }
+
+export function percent(x: number, y: number): number {
+    while (x >= y) {
+        x -= y;
+    }
+    while (x <= -y) {
+        x += y;
+    }
+    return x;
+}

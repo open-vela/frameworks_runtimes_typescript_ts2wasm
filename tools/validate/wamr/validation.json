@@ -3197,5 +3197,15 @@
                 "result": "Bob"
             }
         ]
+    },
+    {
+        "module": "percentToken",
+        "entries": [
+            {
+                "name": "percentToken",
+                "args": [],
+                "result": "1 \n-1 \n-3 \n-3:f64"
+            }
+        ]
     }
 ]
