@@ -949,6 +949,20 @@ export namespace FunctionalFuncs {
                     binaryen.i64,
                 );
             }
+            case ts.SyntaxKind.PercentToken: {
+                return module.call(
+                    getBuiltInFuncName(BuiltinNames.percent),
+                    [
+                        binaryenCAPI._BinaryenRefNull(
+                            module.ptr,
+                            binaryenCAPI._BinaryenTypeStructref(),
+                        ),
+                        leftValueRef,
+                        rightValueRef,
+                    ],
+                    binaryen.f64,
+                );
+            }
             default:
                 throw new Error(`operateF64F64: ${opKind}`);
         }
