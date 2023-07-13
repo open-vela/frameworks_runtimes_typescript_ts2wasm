@@ -111,6 +111,7 @@ export namespace BuiltinNames {
     export const anyrefCond = 'anyrefCond';
     export const newExternRef = 'newExtRef';
     export const extRefTableMaskArr = 'extRefTableMaskArr';
+    export const percent = 'percent';
 
     export const errorTag = 'error';
     export const finallyTag = 'finally';
