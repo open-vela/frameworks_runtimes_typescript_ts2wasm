@@ -98,6 +98,7 @@ export namespace dyntype {
     export const dyntype_hold = 'dyntype_hold';
     export const dyntype_release = 'dyntype_release';
     export const dyntype_collect = 'dyntype_collect';
+    export const invoke_func = 'invoke_func';
 }
 
 export namespace structdyn {

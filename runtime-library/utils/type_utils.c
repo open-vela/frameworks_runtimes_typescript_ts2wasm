@@ -11,6 +11,54 @@
 #include "dyntype.h"
 
 /*
+    utilities for closure object
+
+    * closure struct (WasmGC struct)
+    +----------+      +---------------------------+
+    | 0:context|----->|           context         |
+    +----------+      +---------------------------+
+    |  1:func  |      |            func           |
+    +----------+      +---------------------------+
+*/
+bool
+is_ts_closure_type(wasm_module_t wasm_module, wasm_defined_type_t type)
+{
+    bool is_struct_type;
+    wasm_struct_type_t struct_type;
+    uint32 field_count;
+    bool mut;
+    wasm_ref_type_t field_type;
+    uint32 field_type_idx = 0;
+    wasm_defined_type_t field_defined_type;
+
+    is_struct_type = wasm_defined_type_is_struct_type(type);
+    if (!is_struct_type) {
+        return false;
+    }
+
+    struct_type = (wasm_struct_type_t)type;
+    field_count = wasm_struct_type_get_field_count(struct_type);
+
+    if (field_count != 2) {
+        return false;
+    }
+    field_type = wasm_struct_type_get_field_type(struct_type, 0, &mut);
+    field_type_idx = field_type.heap_type;
+    field_defined_type = wasm_get_defined_type(wasm_module, field_type_idx);
+    if (!wasm_defined_type_is_struct_type(field_defined_type)) {
+        return false;
+    }
+    field_type = wasm_struct_type_get_field_type(struct_type, 1, &mut);
+    field_type_idx = field_type.heap_type;
+    field_defined_type = wasm_get_defined_type(wasm_module, field_type_idx);
+    if (!wasm_defined_type_is_func_type(field_defined_type)) {
+        return false;
+    }
+
+    return true;
+}
+
+/*
     utilities for array object
 
     * array struct (WasmGC struct)
@@ -20,6 +68,42 @@
     |  1:size  |      ^                           ^
     +----------+      |<-------  capacity  ------>|
 */
+bool
+is_ts_array_type(wasm_module_t wasm_module, wasm_defined_type_t type)
+{
+    bool is_struct_type;
+    wasm_struct_type_t struct_type;
+    uint32 field_count;
+    bool mut;
+    wasm_ref_type_t field_type;
+    uint32 array_type_idx = 0;
+    wasm_defined_type_t array_type;
+
+    is_struct_type = wasm_defined_type_is_struct_type(type);
+    if (!is_struct_type) {
+        return false;
+    }
+
+    struct_type = (wasm_struct_type_t)type;
+    field_count = wasm_struct_type_get_field_count(struct_type);
+
+    if (field_count != 2) {
+        return false;
+    }
+    field_type = wasm_struct_type_get_field_type(struct_type, 1, &mut);
+    if (field_type.value_type != VALUE_TYPE_I32 || !mut) {
+        return false;
+    }
+    field_type = wasm_struct_type_get_field_type(struct_type, 0, &mut);
+    array_type_idx = field_type.heap_type;
+    array_type = wasm_get_defined_type(wasm_module, array_type_idx);
+    if (!mut || !wasm_defined_type_is_array_type(array_type)) {
+        return false;
+    }
+
+    return true;
+}
+
 int
 get_array_length(wasm_struct_obj_t obj)
 {

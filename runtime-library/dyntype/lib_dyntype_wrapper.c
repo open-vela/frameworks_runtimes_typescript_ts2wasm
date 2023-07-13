@@ -8,6 +8,7 @@
 #include "bh_platform.h"
 #include "type_utils.h"
 #include "wamr_utils.h"
+#include "wasm.h"
 
 /* Convert host pointer to anyref */
 #define RETURN_BOX_ANYREF(ptr)                     \
@@ -747,6 +748,224 @@ dyntype_new_object_with_class_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
     RETURN_BOX_ANYREF(ret);
 }
 
+static void *
+box_value_to_dyntype(wasm_exec_env_t exec_env, dyn_ctx_t ctx, uint32 *value,
+                     wasm_ref_type_t type, uint32 *slot_count)
+{
+    void *ret = NULL;
+    wasm_defined_type_t ret_defined_type = { 0 };
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
+    wasm_module_t module = wasm_runtime_get_module(module_inst);
+    int tag = 0;
+    uint32 table_idx = 0;
+
+    if (type.value_type == VALUE_TYPE_I32) {
+        bool ori_value;
+        bh_memcpy_s(&ori_value, (*slot_count) * sizeof(uint32), value,
+                    (*slot_count) * sizeof(uint32));
+        ret = dyntype_new_boolean_wrapper(exec_env, ctx, ori_value);
+    }
+    else if (type.value_type == VALUE_TYPE_F64) {
+        double ori_value;
+        bh_memcpy_s(&ori_value, (*slot_count) * sizeof(uint32), value,
+                    (*slot_count) * sizeof(uint32));
+        ret = dyntype_new_number_wrapper(exec_env, ctx, ori_value);
+    }
+    else if (type.value_type == REF_TYPE_ANYREF) {
+        void *ori_value;
+        bh_memcpy_s(&ori_value, (*slot_count) * sizeof(uint32), value,
+                    (*slot_count) * sizeof(uint32));
+        ret = ori_value;
+    }
+    else {
+        void *ori_value;
+        bh_memcpy_s(&ori_value, (*slot_count) * sizeof(uint32), value,
+                    (*slot_count) * sizeof(uint32));
+        ret_defined_type = wasm_get_defined_type(module, type.heap_type);
+        if (wasm_defined_type_is_struct_type(ret_defined_type)) {
+            if (is_ts_string_type(module, ret_defined_type)) {
+                ret = dyntype_new_string_wrapper(exec_env, ctx,
+                                                 (wasm_struct_obj_t)ori_value);
+            }
+            else {
+                wasm_runtime_set_exception(
+                    wasm_runtime_get_module_inst(exec_env),
+                    "Not support box to extref in native yet");
+                // TODO: put value into table
+                // TODO: get table idx
+                if (is_infc((wasm_obj_t)ori_value)) {
+                    tag = ExtInfc;
+                }
+                else if (is_ts_array_type(module, ret_defined_type)) {
+                    tag = ExtArray;
+                }
+                else if (is_ts_closure_type(module, ret_defined_type)) {
+                    tag = ExtFunc;
+                }
+                else {
+                    tag = ExtObj;
+                }
+                ret = dyntype_new_extref_wrapper(
+                    exec_env, ctx, (void *)(uintptr_t)table_idx, tag);
+            }
+        }
+    }
+
+    return ret;
+}
+
+static void
+unbox_value_from_dyntype(wasm_exec_env_t exec_env, dyn_ctx_t ctx, void *obj,
+                         wasm_ref_type_t type, uint32 *unboxed_value,
+                         uint32 *slot_count)
+{
+    uint32 table_idx = 0;
+    wasm_defined_type_t ret_defined_type = { 0 };
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
+    wasm_module_t module = wasm_runtime_get_module(module_inst);
+
+    if (type.value_type == VALUE_TYPE_I32) {
+        int ret_value = dyntype_to_bool_wrapper(exec_env, ctx, obj);
+        bh_memcpy_s(unboxed_value, (*slot_count) * sizeof(uint32), &ret_value,
+                    (*slot_count) * sizeof(uint32));
+    }
+    else if (type.value_type == VALUE_TYPE_F64) {
+        double ret_value = dyntype_to_number_wrapper(exec_env, ctx, obj);
+        bh_memcpy_s(unboxed_value, (*slot_count) * sizeof(uint32), &ret_value,
+                    (*slot_count) * sizeof(uint32));
+    }
+    else if (type.value_type == REF_TYPE_ANYREF) {
+        bh_memcpy_s(unboxed_value, (*slot_count) * sizeof(uint32), &obj,
+                    (*slot_count) * sizeof(uint32));
+    }
+    else {
+        ret_defined_type = wasm_get_defined_type(module, type.heap_type);
+        if (wasm_defined_type_is_struct_type(ret_defined_type)) {
+            if (is_ts_string_type(module, ret_defined_type)) {
+                void *ret_value = dyntype_to_string_wrapper(exec_env, ctx, obj);
+                bh_memcpy_s(unboxed_value, (*slot_count) * sizeof(uint32),
+                            &ret_value, (*slot_count) * sizeof(uint32));
+            }
+            else {
+                table_idx = (uint32)(uintptr_t)dyntype_to_extref_wrapper(
+                    exec_env, ctx, obj);
+                void *ret_value =
+                    wamr_utils_get_table_element(exec_env, table_idx);
+                bh_memcpy_s(unboxed_value, (*slot_count) * sizeof(uint32),
+                            &ret_value, (*slot_count) * sizeof(uint32));
+            }
+        }
+    }
+}
+
+static void
+get_slot_count(wasm_ref_type_t type, uint32 *slot_count)
+{
+    if (type.value_type == VALUE_TYPE_I32) {
+        *slot_count = sizeof(uint32) / sizeof(uint32);
+    }
+    else if (type.value_type == VALUE_TYPE_F64) {
+        *slot_count = sizeof(double) / sizeof(uint32);
+    }
+    else {
+        *slot_count = sizeof(void *) / sizeof(uint32);
+    }
+}
+
+void *
+invoke_func_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
+            wasm_anyref_obj_t closure_any_obj, wasm_struct_obj_t args_array)
+{
+    void *ret = NULL;
+    wasm_value_t context = { 0 };
+    wasm_value_t func_ref = { 0 };
+    wasm_func_obj_t func_obj = { 0 };
+    wasm_func_type_t func_type = { 0 };
+    wasm_ref_type_t result_type = { 0 };
+    wasm_ref_type_t tmp_param_type = { 0 };
+    uint32 *tmp_param = NULL;
+    wasm_value_t tmp_elem = { 0 };
+    uint32 *tmp_result = NULL;
+    uint32 *slot_count = NULL;
+    uint32 occupied_slots = 0;
+    uint32 argc = 0;
+    uint32 *argv = NULL;
+    uint bsize = 0;
+    uint32 result_count = 0;
+    uint32 param_count = 0;
+    wasm_struct_obj_t closure_obj = { 0 };
+    wasm_array_obj_t arr_ref = { 0 };
+    bool is_successful = false;
+
+    argc = get_array_length(args_array);
+    arr_ref = get_array_ref(args_array);
+    closure_obj = (wasm_struct_obj_t)closure_any_obj;
+    bh_assert(wasm_obj_is_struct_obj((wasm_obj_t)closure_obj));
+    wasm_struct_obj_get_field(closure_obj, 0, false, &context);
+    wasm_struct_obj_get_field(closure_obj, 1, false, &func_ref);
+    func_obj = (wasm_func_obj_t)(func_ref.gc_obj);
+    func_type = wasm_func_obj_get_func_type(func_obj);
+    result_count = wasm_func_type_get_result_count(func_type);
+    param_count = wasm_func_type_get_param_count(func_type);
+
+    if (param_count != argc + 1) {
+        wasm_runtime_set_exception(
+            wasm_runtime_get_module_inst(exec_env),
+            "function param count not equal with the real param");
+    }
+
+    /* must add one length to store context */
+    bsize = sizeof(uint64) * (argc + 1);
+    argv = wasm_runtime_malloc(bsize);
+    /* reserve space for the biggest slots */
+    tmp_param = wasm_runtime_malloc(sizeof(double));
+    tmp_result = wasm_runtime_malloc(sizeof(double));
+    bh_memcpy_s(argv, bsize - occupied_slots, &(context.gc_obj),
+                sizeof(wasm_anyref_obj_t));
+    occupied_slots += sizeof(wasm_anyref_obj_t) / sizeof(uint32);
+    slot_count = wasm_runtime_malloc(sizeof(uint32));
+
+    for (int i = 0; i < argc; i++) {
+        wasm_array_obj_get_elem(arr_ref, i, false, &tmp_elem);
+        tmp_param_type = wasm_func_type_get_param_type(func_type, i + 1);
+        get_slot_count(tmp_param_type, slot_count);
+        unbox_value_from_dyntype(exec_env, ctx, tmp_elem.gc_obj, tmp_param_type,
+                                 tmp_param, slot_count);
+        bh_memcpy_s(argv + occupied_slots, (*slot_count) * sizeof(uint32),
+                    tmp_param, (*slot_count) * sizeof(uint32));
+        occupied_slots += (*slot_count);
+    }
+    is_successful = wasm_runtime_call_func_ref(exec_env, func_obj, bsize, argv);
+    if (!is_successful) {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
+                                   "Call wasm func failed");
+    }
+
+    if (result_count > 0) {
+        result_type = wasm_func_type_get_result_type(func_type, 0);
+        get_slot_count(result_type, slot_count);
+        bh_memcpy_s(tmp_result, (*slot_count) * sizeof(uint32), argv,
+                    (*slot_count) * sizeof(uint32));
+        ret = box_value_to_dyntype(exec_env, ctx, tmp_result, result_type,
+                                   slot_count);
+    }
+
+    if (tmp_param) {
+        wasm_runtime_free(tmp_param);
+    }
+    if (tmp_result) {
+        wasm_runtime_free(tmp_result);
+    }
+    if (argv) {
+        wasm_runtime_free(argv);
+    }
+    if (slot_count) {
+        wasm_runtime_free(slot_count);
+    }
+
+    return ret;
+}
+
 /* clang-format off */
 #define REG_NATIVE_FUNC(func_name, signature) \
     { #func_name, func_name##_wrapper, signature, NULL }
@@ -809,6 +1028,8 @@ static NativeSymbol native_symbols[] = {
     REG_NATIVE_FUNC(dyntype_invoke, "(r$rr)r"),
 
     REG_NATIVE_FUNC(dyntype_get_global, "(r$)r"),
+
+    REG_NATIVE_FUNC(invoke_func, "(rrr)r"),
 
     /* TODO */
 };
