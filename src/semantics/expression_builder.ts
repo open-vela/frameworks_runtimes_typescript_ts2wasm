@@ -1650,7 +1650,8 @@ function buildCallExpression(
         }
     } else if (
         func instanceof VarValue &&
-        func.type.kind === ValueTypeKind.ANY
+        (func.type.kind === ValueTypeKind.ANY ||
+            func.type.kind === ValueTypeKind.UNION)
     ) {
         /* any value's functype can not be ensure, return value type will always be any  */
         let parameters: SemanticsValue[] | undefined = undefined;

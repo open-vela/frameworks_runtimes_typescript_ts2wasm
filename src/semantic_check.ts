@@ -47,7 +47,7 @@ const enum ErrorKind {
     OperateDiffTypes = 'operate between different types',
     InvokeAnyObj = 'invoke any object',
     VoidTypeAsVarType = 'void type as variable type',
-    CalleeError = 'callee is not function or any type',
+    CalleeError = 'callee is not function or any or union type',
 }
 
 const enum ErrorFlag {
@@ -221,11 +221,13 @@ export default class SemanticChecker {
             }
         } else if (calleeType.kind === TypeKind.ANY) {
             Logger.info('callee expr is any type');
+        } else if (calleeType.kind === TypeKind.UNION) {
+            Logger.info('callee expr is union type');
         } else {
             this.errors.push({
                 errorKind: ErrorKind.CalleeError,
                 errorFlag: ErrorFlag.CalleeError,
-                message: `callee type is not function or any, can not be called`,
+                message: `callee type is not function or any or union, can not be called`,
                 scopeName: this.getScopeName(this.curScope!),
             });
         }
