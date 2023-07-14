@@ -15,4 +15,11 @@ if (NOT DEFINED WAMR_BUILD_TARGET)
     set (WAMR_BUILD_TARGET X86_64)
 endif()
 
+if (NOT DEFINED WAMR_BUILD_FAST_INTERP)
+    set (WAMR_BUILD_FAST_INTERP 1)
+endif()
+
+# Force GC in every allocation during testing
+add_definitions(-DGC_IN_EVERY_ALLOCATION=1)
+
 include(${WAMR_DIR}/build-scripts/runtime_lib.cmake)

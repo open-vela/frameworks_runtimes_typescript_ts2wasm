@@ -738,14 +738,14 @@ bool dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator o
 
     switch (type) {
         case DynBoolean: {
-            bool lhs_b, rhs_b;
+            bool lhs_b = 0, rhs_b = 0;
             dyntype_to_bool(ctx, lhs, &lhs_b);
             dyntype_to_bool(ctx, rhs, &rhs_b);
             res = bool_cmp(lhs_b, rhs_b, operator_kind);
             break;
         }
         case DynNumber: {
-            double lhs_n, rhs_n;
+            double lhs_n = 0, rhs_n = 0;
             dyntype_to_number(ctx, lhs, &lhs_n);
             dyntype_to_number(ctx, rhs, &rhs_n);
             res = number_cmp(lhs_n, rhs_n, operator_kind);

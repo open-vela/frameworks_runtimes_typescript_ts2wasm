@@ -10,6 +10,8 @@
 #include "bh_platform.h"
 #include "type_utils.h"
 
+#include "gc_object.h"
+
 /* When growing an array, allocate more slots to avoid frequent allocation */
 #define ARRAY_GROW_REDUNDANCE 16
 
@@ -124,6 +126,8 @@ array_concat_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_struct_obj_t new_arr_struct = NULL;
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
     wasm_value_t init = { .gc_obj = NULL }, tmp_val = { 0 };
+    wasm_local_obj_ref_t local_ref;
+    bool create_new_array = false;
 
     len = get_array_length(obj);
     value_len = get_array_length(value);
@@ -150,20 +154,33 @@ array_concat_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
             wasm_runtime_set_exception(module_inst, "alloc memory failed");
             return NULL;
         }
+
+        wasm_runtime_push_local_object_ref(exec_env, &local_ref);
+        local_ref.val = (wasm_obj_t)new_arr;
+        create_new_array = true;
+
         wasm_array_obj_copy(new_arr, 0, arr_ref, 0, len);
         wasm_array_obj_copy(new_arr, len, value_arr_ref, 0, value_len);
     }
+
     /* wrap with struct */
     new_arr_struct = wasm_struct_obj_new_with_type(exec_env, struct_type);
     if (!new_arr_struct) {
         wasm_runtime_set_exception(module_inst, "alloc memory failed");
-        return NULL;
+        goto fail;
     }
+
     /* use new_arr_struct warp new array, and no change orginal array_struct. */
     tmp_val.gc_obj = (wasm_obj_t)new_arr;
     wasm_struct_obj_set_field(new_arr_struct, 0, &tmp_val);
     tmp_val.u32 = new_length;
     wasm_struct_obj_set_field(new_arr_struct, 1, &tmp_val);
+
+fail:
+    if (create_new_array) {
+        wasm_runtime_pop_local_object_ref(exec_env);
+    }
+
     return new_arr_struct;
 }
 
@@ -311,47 +328,70 @@ void
 quick_sort(wasm_exec_env_t exec_env, wasm_array_obj_t arr, int l, int r,
            wasm_func_obj_t closure_func, wasm_value_t context)
 {
-
-    if (l >= r)
-        return;
     int i = l - 1, j = r + 1, pivot_idx = (l + r) >> 1;
     double cmp_res;
     wasm_value_t pivot_elem, elem, tmp_elem, left_elem, right_elem;
+    uint32 argv[6], argc = 0, occupied_slots = 0;
+    uint32 argv_bytes = sizeof(argv), pointer_slots = sizeof(void *) / sizeof(uint32);
+    uint32 elem_size, elem_slot;
 
+    if (l >= r)
+        return;
+
+    elem_size = 1 << wasm_array_obj_elem_size_log(arr);
+    elem_slot = (elem_size + sizeof(uint32) - 1) / sizeof(uint32);
     wasm_array_obj_get_elem(arr, pivot_idx, false, &pivot_elem);
-    uint32 argv[6], argc = 6;
-    /* argc should be 6 means 3 args*/
-    uint bsize = sizeof(argv); // actual byte size of argv
+
+    /* context */
+    argc += pointer_slots;
+    /* pivot elem */
+    argc += elem_slot;
+    /* elem */
+    argc += elem_slot;
+
     while (i < j) {
         do {
+            occupied_slots = 0;
             i++;
             /* arg0: context */
-            bh_memcpy_s(argv, bsize, &(context.gc_obj), sizeof(void *));
-            /* arg1: pivot elem*/
-            bh_memcpy_s(argv + 2, bsize - 2 * sizeof(uint32),
-                        &pivot_elem.gc_obj, sizeof(void *));
+            bh_memcpy_s(argv, argv_bytes, &(context.gc_obj), sizeof(void *));
+            occupied_slots += pointer_slots;
+            /* arg1: pivot elem */
+            bh_memcpy_s(argv + occupied_slots, argv_bytes - occupied_slots,
+                        &pivot_elem.gc_obj, elem_slot * sizeof(uint32));
+            occupied_slots += elem_slot;
             /* arg2: elem*/
             wasm_array_obj_get_elem(arr, i, false, &elem);
-            bh_memcpy_s(argv + 4, bsize - 4 * sizeof(uint32), &elem.gc_obj,
-                        sizeof(void *));
+            bh_memcpy_s(argv + occupied_slots, argv_bytes - occupied_slots,
+                        &elem.gc_obj, elem_slot * sizeof(uint32));
+            occupied_slots += elem_slot;
+
             wasm_runtime_call_func_ref(exec_env, closure_func, argc, argv);
+
             bh_memcpy_s(&cmp_res, sizeof(cmp_res), argv, sizeof(double));
-        } while (cmp_res > 0.0);
+        } while ((i < j) && (cmp_res > 0.0));
 
         do {
+            occupied_slots = 0;
             j--;
+
             /* arg0: context */
-            bh_memcpy_s(argv, bsize, &(context.gc_obj), sizeof(void *));
+            bh_memcpy_s(argv, argv_bytes, &(context.gc_obj), sizeof(void *));
+            occupied_slots += pointer_slots;
             /* arg1: pivot elem*/
-            bh_memcpy_s(argv + 2, bsize - 2 * sizeof(uint32),
-                        &pivot_elem.gc_obj, sizeof(void *));
+            bh_memcpy_s(argv + occupied_slots, argv_bytes - occupied_slots,
+                        &pivot_elem.gc_obj, elem_slot * sizeof(uint32));
+            occupied_slots += elem_slot;
             /* arg2: elem*/
             wasm_array_obj_get_elem(arr, j, false, &elem);
-            bh_memcpy_s(argv + 4, bsize - 4 * sizeof(uint32), &elem.gc_obj,
-                        sizeof(void *));
+            bh_memcpy_s(argv + occupied_slots, argv_bytes - occupied_slots,
+                        &elem.gc_obj, elem_slot * sizeof(uint32));
+            occupied_slots += elem_slot;
+
             wasm_runtime_call_func_ref(exec_env, closure_func, argc, argv);
+
             bh_memcpy_s(&cmp_res, sizeof(cmp_res), argv, sizeof(double));
-        } while (cmp_res < 0.0);
+        } while ((i < j) && (cmp_res < 0.0));
 
         if (i < j) {
             wasm_array_obj_get_elem(arr, i, false, &left_elem);
@@ -373,12 +413,16 @@ array_sort_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     uint32 len;
     wasm_value_t context = { 0 }, func_obj = { 0 };
     wasm_array_obj_t arr_ref = get_array_ref(obj);
+
     len = get_array_length(obj);
+
     /* get closure context and func ref */
     wasm_struct_obj_get_field(closure, 0, false, &context);
     wasm_struct_obj_get_field(closure, 1, false, &func_obj);
+
     quick_sort(exec_env, arr_ref, 0, len - 1, (wasm_func_obj_t)func_obj.gc_obj,
                context);
+
     return obj;
 }
 
@@ -658,7 +702,8 @@ array_indexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
         wasm_array_obj_get_elem(arr_ref, i, 0, &tmp_val);
         wasm_struct_obj_get_field((wasm_struct_obj_t)tmp_val.gc_obj, 1, false,
                                   &field1);
-        value_defined_type = wasm_obj_get_defined_type((wasm_obj_t)tmp_val.gc_obj);
+        value_defined_type =
+            wasm_obj_get_defined_type((wasm_obj_t)tmp_val.gc_obj);
         if (is_ts_string_type(module, value_defined_type)) {
             wasm_array_obj_t arr2 = (wasm_array_obj_t)field1.gc_obj;
             uint32 array_element_len = wasm_array_obj_length(arr2);
@@ -765,7 +810,8 @@ array_lastIndexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
         wasm_array_obj_get_elem(arr_ref, i, 0, &tmp_val);
         wasm_struct_obj_get_field((wasm_struct_obj_t)tmp_val.gc_obj, 1, false,
                                   &field1);
-        value_defined_type = wasm_obj_get_defined_type((wasm_obj_t)tmp_val.gc_obj);
+        value_defined_type =
+            wasm_obj_get_defined_type((wasm_obj_t)tmp_val.gc_obj);
 
         if (is_ts_string_type(module, value_defined_type)) {
             wasm_array_obj_t arr2 = (wasm_array_obj_t)field1.gc_obj;
@@ -1113,79 +1159,69 @@ end1:
     return new_arr_struct;
 }
 
-#define ARRAY_REDUCE_COMMON_API(elem_type, wasm_type, wasm_field, is_right,    \
-                                underline, name)                               \
-    elem_type array_##name##underline##wasm_type(                              \
-        wasm_exec_env_t exec_env, void *ctx, void *obj, void *closure,         \
-        elem_type initial_value)                                               \
-    {                                                                          \
-        uint32 i, len, elem_size;                                              \
-        wasm_array_type_t arr_type;                                            \
-        wasm_array_obj_t arr_ref = get_array_ref(obj);                         \
-        wasm_value_t previous_value = { 0 };                                   \
-        wasm_value_t current_value = { 0 };                                    \
-        wasm_value_t context = { 0 }, func_obj = { 0 };                        \
-                                                                               \
-        len = get_array_length(obj);                                           \
-        arr_type =                                                             \
-            (wasm_array_type_t)wasm_obj_get_defined_type((wasm_obj_t)arr_ref); \
-        wasm_value_t init = { .gc_obj = NULL };                                \
-        /* Use an array to store the return value of callback function*/       \
-        wasm_array_obj_t arr_tmp =                                             \
-            wasm_array_obj_new_with_type(exec_env, arr_type, 1, &init);        \
-        if (!arr_tmp) {                                                        \
-            wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env), \
-                                       "alloc memory failed");                 \
-            return previous_value.wasm_field;                                  \
-        }                                                                      \
-                                                                               \
-        previous_value.wasm_field = initial_value;                             \
-        if (len == 0) {                                                        \
-            return initial_value;                                              \
-        }                                                                      \
-                                                                               \
-        /* get current array element size */                                   \
-        elem_size = get_array_element_size(arr_ref);                           \
-        /* get closure context and func ref */                                 \
-        wasm_struct_obj_get_field(closure, 0, false, &context);                \
-        wasm_struct_obj_get_field(closure, 1, false, &func_obj);               \
-                                                                               \
-        for (i = 0; i < len; ++i) {                                            \
-            uint32 idx = i, occupied_slots = 0;                                \
-            uint32 argv[10];                                                   \
-            uint32 argc = 10;                                                  \
-                                                                               \
-            if (is_right) {                                                    \
-                idx = len - 1 - i;                                             \
-            }                                                                  \
-                                                                               \
-            wasm_array_obj_get_elem(arr_ref, idx, false, &current_value);      \
-                                                                               \
-            /* prepare args to callback */                                     \
-            /* arg0: context */                                                \
-            bh_memcpy_s(argv, sizeof(argv), &context.gc_obj, sizeof(void *));  \
-            occupied_slots += sizeof(void *) / sizeof(uint32);                 \
-            /* arg1: previous_value */                                         \
-            bh_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots,  \
-                        &previous_value, elem_size);                           \
-            occupied_slots += elem_size / sizeof(uint32);                      \
-            /* arg2: current_value */                                          \
-            bh_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots,  \
-                        &current_value, elem_size);                            \
-            occupied_slots += elem_size / sizeof(uint32);                      \
-            /* arg3: the index of current value */                             \
-            *(double *)(argv + occupied_slots) = idx;                          \
-            occupied_slots += sizeof(double) / sizeof(uint32);                 \
-            /* arg4: arr */                                                    \
-            bh_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots,  \
-                        &obj, sizeof(void *));                                 \
-            wasm_runtime_call_func_ref(                                        \
-                exec_env, (wasm_func_obj_t)func_obj.gc_obj, argc, argv);       \
-            wasm_array_obj_set_elem(arr_tmp, 0, (wasm_value_t *)argv);         \
-            /* update previous_value */                                        \
-            wasm_array_obj_get_elem(arr_tmp, 0, false, &previous_value);       \
-        }                                                                      \
-        return previous_value.wasm_field;                                      \
+#define ARRAY_REDUCE_COMMON_API(elem_type, wasm_type, wasm_field, is_right,   \
+                                underline, name)                              \
+    elem_type array_##name##underline##wasm_type(                             \
+        wasm_exec_env_t exec_env, void *ctx, void *obj, void *closure,        \
+        elem_type initial_value)                                              \
+    {                                                                         \
+        uint32 i, len, elem_size;                                             \
+        wasm_array_obj_t arr_ref = get_array_ref(obj);                        \
+        wasm_value_t previous_value = { 0 };                                  \
+        wasm_value_t current_value = { 0 };                                   \
+        wasm_value_t context = { 0 }, func_obj = { 0 };                       \
+                                                                              \
+        len = get_array_length(obj);                                          \
+        if (len == 0) {                                                       \
+            return initial_value;                                             \
+        }                                                                     \
+                                                                              \
+        previous_value.wasm_field = initial_value;                            \
+                                                                              \
+        /* get current array element size */                                  \
+        elem_size = get_array_element_size(arr_ref);                          \
+        /* get closure context and func ref */                                \
+        wasm_struct_obj_get_field(closure, 0, false, &context);               \
+        wasm_struct_obj_get_field(closure, 1, false, &func_obj);              \
+                                                                              \
+        for (i = 0; i < len; ++i) {                                           \
+            uint32 idx = i, occupied_slots = 0;                               \
+            uint32 argv[10];                                                  \
+            uint32 argc = 10;                                                 \
+                                                                              \
+            if (is_right) {                                                   \
+                idx = len - 1 - i;                                            \
+            }                                                                 \
+                                                                              \
+            wasm_array_obj_get_elem(arr_ref, idx, false, &current_value);     \
+                                                                              \
+            /* prepare args to callback */                                    \
+            /* arg0: context */                                               \
+            bh_memcpy_s(argv, sizeof(argv), &context.gc_obj, sizeof(void *)); \
+            occupied_slots += sizeof(void *) / sizeof(uint32);                \
+            /* arg1: previous_value */                                        \
+            bh_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots, \
+                        &previous_value, elem_size);                          \
+            occupied_slots += elem_size / sizeof(uint32);                     \
+            /* arg2: current_value */                                         \
+            bh_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots, \
+                        &current_value, elem_size);                           \
+            occupied_slots += elem_size / sizeof(uint32);                     \
+            /* arg3: the index of current value */                            \
+            *(double *)(argv + occupied_slots) = idx;                         \
+            occupied_slots += sizeof(double) / sizeof(uint32);                \
+            /* arg4: arr */                                                   \
+            bh_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots, \
+                        &obj, sizeof(void *));                                \
+            wasm_runtime_call_func_ref(                                       \
+                exec_env, (wasm_func_obj_t)func_obj.gc_obj, argc, argv);      \
+                                                                              \
+            /* update accumulator */                                          \
+            bh_memcpy_s(&previous_value, sizeof(wasm_value_t), argv,          \
+                        sizeof(wasm_value_t));                                \
+        }                                                                     \
+                                                                              \
+        return previous_value.wasm_field;                                     \
     }
 
 #define ARRAY_REDUCE_API(elem_type, wasm_type, wasm_field) \
@@ -1274,7 +1310,8 @@ array_find_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                     dyntype_new_boolean(dyntype_get_context(), element.i32));
             }
             else if (is_ts_string_type(module,
-                     wasm_obj_get_defined_type((wasm_obj_t)element.gc_obj))) {
+                                       wasm_obj_get_defined_type(
+                                           (wasm_obj_t)element.gc_obj))) {
                 wasm_struct_obj_get_field((wasm_struct_obj_t)element.gc_obj, 1,
                                           false, &field1);
                 wasm_array_obj_t a_ref = (wasm_array_obj_t)(field1.gc_obj);
@@ -1286,8 +1323,8 @@ array_find_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
             else {
                 ex_ptr = element.gc_obj;
                 return wasm_anyref_obj_new(
-                    exec_env,
-                    dyntype_new_extref(dyntype_get_context(), ex_ptr, ExtObj, NULL));
+                    exec_env, dyntype_new_extref(dyntype_get_context(), ex_ptr,
+                                                 ExtObj, NULL));
             }
             break;
         }
@@ -1556,8 +1593,8 @@ array_includes_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     }
 
     wasm_array_obj_get_elem(arr_ref, from_idx, false, &value);
-    elem_is_string = is_ts_string_type(module,
-                                       wasm_obj_get_defined_type(value.gc_obj));
+    elem_is_string =
+        is_ts_string_type(module, wasm_obj_get_defined_type(value.gc_obj));
 
     for (int i = from_idx; i < len; ++i) {
         wasm_array_obj_get_elem(arr_ref, i, 0, &value);

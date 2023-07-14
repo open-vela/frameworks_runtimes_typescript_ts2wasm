@@ -32,9 +32,9 @@ dyntype_callback_wasm_dispatcher(void *exec_env_v, void *vfunc,
     wasm_exec_env_t exec_env = exec_env_v;
     wasm_func_type_t cb_func_type;
     uint32_t cb_count = 0;
-    int len = 0;
+    int i, len = 0;
     uint32_t argv[10], occupied_slots = 0;
-    uint32_t func_id = (uint32_t)(uint64_t)vfunc;
+    uint32_t func_id = (uint32_t)(uintptr_t)vfunc;
     void *closure = NULL;
     void *ptr = NULL;
     wasm_ref_type_t cb_ret_ref_type;
@@ -42,6 +42,7 @@ dyntype_callback_wasm_dispatcher(void *exec_env_v, void *vfunc,
     wasm_value_t context = { 0 }, func_obj = { 0 };
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
     wasm_module_t module = wasm_runtime_get_module(module_inst);
+    wasm_local_obj_ref_t local_refs[10];
 
     closure = wamr_utils_get_table_element(exec_env, func_id);
     wasm_struct_obj_get_field(closure, 0, false, &context);
@@ -54,17 +55,26 @@ dyntype_callback_wasm_dispatcher(void *exec_env_v, void *vfunc,
     cb_func_type =
         wasm_func_obj_get_func_type((wasm_func_obj_t)func_obj.gc_obj);
     cb_count = wasm_func_type_get_result_count(cb_func_type);
-    cb_ret_ref_type = wasm_func_type_get_result_type(cb_func_type, 0);
+    if (cb_count) {
+        cb_ret_ref_type = wasm_func_type_get_result_type(cb_func_type, 0);
+    }
 
-    for (int i = 0; i < argc; i++) {
+    for (i = 0; i < argc; i++) {
         wasm_anyref_obj_t argi = BOX_ANYREF(args[i]);
+
+        wasm_runtime_push_local_object_ref(exec_env, &local_refs[i]);
+        local_refs[i].val = (wasm_obj_t)argi;
+
         bh_memcpy_s(argv + occupied_slots, sizeof(argv) - occupied_slots, &argi,
                     sizeof(wasm_anyref_obj_t));
         occupied_slots += sizeof(wasm_anyref_obj_t) / sizeof(uint32);
     }
 
+    wasm_runtime_pop_local_object_refs(exec_env, argc);
+
     wasm_runtime_call_func_ref(exec_env, (wasm_func_obj_t)func_obj.gc_obj,
                                occupied_slots, argv);
+
     if (cb_count) {
         /* need cast uintptr_t before, otherwise error :cast to pointer from
          * integer of different size*/
