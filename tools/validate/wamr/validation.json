@@ -191,6 +191,11 @@
                 "name": "anyFuncCallWithArray",
                 "args": [],
                 "result": "9 \n2"
+            },
+            {
+                "name": "anyFuncCallInMap",
+                "args": [],
+                "result": "10"
             }
         ]
     },
@@ -3175,6 +3180,16 @@
                 "name": "test_func_return_any_null",
                 "args": [],
                 "result": "is null"
+            }
+        ]
+    },
+    {
+        "module": "union_func_call",
+        "entries": [
+            {
+                "name": "unionFuncCall",
+                "args": [],
+                "result": "10"
             }
         ]
     },

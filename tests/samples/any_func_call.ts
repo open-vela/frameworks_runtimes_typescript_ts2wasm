@@ -105,3 +105,11 @@ export function anyFuncCallWithArray() {
     const len = a.length;
     console.log(len);
 }
+
+export function anyFuncCallInMap() {
+    const m:any = new Map();
+    m.set(1, funcWithBoolean);
+    const fn = m.get(1);
+    const res = fn(true);
+    console.log(res);
+}
