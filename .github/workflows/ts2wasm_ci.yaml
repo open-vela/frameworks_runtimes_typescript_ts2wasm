@@ -33,7 +33,6 @@ jobs:
         #   - lts/*
         #   - lts/-1
         node-version: [16.x]
-
     steps:
       - uses: actions/checkout@v3
         with:
@@ -63,11 +62,28 @@ jobs:
     needs:
       [install_dependencies]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [
+          "X86_64", "X86_32"
+        ]
 
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 5
+
+      - name: download dependencies
+        run: |
+          ./download.sh
+          sudo apt update && sudo apt install g++-multilib -y
+        working-directory: runtime-library/deps
+
+      - name: Build runtime
+        run: |
+          mkdir build && cd build
+          cmake .. -DWAMR_BUILD_TARGET=${{ matrix.target }} && make -j$(nproc)
+        working-directory: runtime-library/
 
       - name: Validate execution
         run:
