@@ -25,13 +25,23 @@ interface HelpMessageCategory {
     Other: string[];
 }
 
-function parseOptions(optionPath: string) {
+function parseOptions() {
+    const dirname = path.dirname(fileURLToPath(import.meta.url));
+    const optionPath = path.join(dirname, '..', '..', 'cli', 'options.json');
+    if (!fs.existsSync(optionPath)) {
+        throw new Error('help file not exist');
+    }
     const helpFile = fs.readFileSync(optionPath, 'utf8');
     const helpConfig = JSON.parse(helpFile);
     return helpConfig;
 }
 
-function showVersion(packagePath: string) {
+function showVersion() {
+    const dirname = path.dirname(fileURLToPath(import.meta.url));
+    const packagePath = path.join(dirname, '..', '..', 'package.json');
+    if (!fs.existsSync(packagePath)) {
+        throw new Error('package.json file not exist');
+    }
     const packageFile = fs.readFileSync(packagePath, 'utf8');
     const packageConfig = JSON.parse(packageFile);
     const version = packageConfig.version;
@@ -121,17 +131,39 @@ function showHelp(helpConfig: any) {
     process.exit(0);
 }
 
-export function writeFile(filename: string, contents: any, baseDir = '') {
-    const dirPath = path.resolve(baseDir, path.dirname(filename));
-    const filePath = path.join(dirPath, path.basename(filename));
+export function writeFile(filename: string, contents: any, baseDir = '.') {
+    if (!contents) {
+        throw new Error('content is not valid');
+    }
+    const dirPath = path.normalize(
+        path.resolve(baseDir, path.dirname(filename)),
+    );
+    const filePath = path.normalize(
+        path.join(dirPath, path.basename(filename)),
+    );
     fs.mkdirSync(dirPath, { recursive: true });
     fs.writeFileSync(filePath, contents);
 }
 
 function getAbsolutePath(filename: string, baseDir = '') {
-    const dirPath = path.resolve(baseDir, path.dirname(filename));
-    const filePath = path.join(dirPath, path.basename(filename));
+    const dirPath = path.normalize(
+        path.resolve(baseDir, path.dirname(filename)),
+    );
+    const filePath = path.normalize(
+        path.join(dirPath, path.basename(filename)),
+    );
     return filePath;
+}
+
+function validateByWAMR(cmdArgs: string[]) {
+    const dirname = path.dirname(fileURLToPath(import.meta.url));
+    const iwasm = path.join(dirname, 'iwasm_gc');
+    if (!fs.existsSync(iwasm)) {
+        throw new Error('iwasm_gc exec file not exist');
+    }
+
+    const result = cp.execFileSync(iwasm, cmdArgs).toString();
+    console.log('WebAssembly output is: ' + result);
 }
 
 function createBackend(args: any, parserCtx: ParserContext): Ts2wasmBackend {
@@ -141,16 +173,7 @@ function createBackend(args: any, parserCtx: ParserContext): Ts2wasmBackend {
 function main() {
     try {
         const args = minimist(process.argv.slice(2));
-        const dirname = path.dirname(fileURLToPath(import.meta.url));
-        const optionPath = path.join(
-            dirname,
-            '..',
-            '..',
-            'cli',
-            'options.json',
-        );
-        const packagePath = path.join(dirname, '..', '..', 'package.json');
-        const optionConfig = parseOptions(optionPath);
+        const optionConfig = parseOptions();
         const optionKey: string[] = [];
         const compileArgs: CompileArgs = {};
 
@@ -177,22 +200,21 @@ function main() {
             showHelp(optionConfig);
         }
         if (args.version || args.v) {
-            showVersion(packagePath);
+            showVersion();
         }
         const sourceFileList: string[] = [];
-        let paramString = '';
+        const params: string[] = [];
         for (let i = 0; i < args._.length; i++) {
             const arg = args._[i];
             if (typeof arg === 'string' && fs.statSync(arg).isFile()) {
                 fs.accessSync(arg, constants.R_OK);
                 sourceFileList.push(arg);
             } else {
-                paramString += arg.toString();
-                paramString += ' ';
+                params.push(arg);
             }
         }
 
-        if (!sourceFileList.length && !paramString) {
+        if (!sourceFileList.length) {
             showHelp(optionConfig);
         }
 
@@ -223,6 +245,9 @@ function main() {
             if (args.o) {
                 generatedWasmFile = args.o;
             }
+            if (!generatedWasmFile.endsWith('.wasm')) {
+                throw new Error('output must be a wasm file');
+            }
             const sourceMapCfg = {
                 sourceMap: args.sourceMap,
                 name: generatedWasmFile.split('.')[0], // file name
@@ -240,11 +265,12 @@ function main() {
                 );
             }
             if (args.validate) {
-                const cmd = `iwasm -f ${args.validate} ${getAbsolutePath(
-                    generatedWasmFile,
-                )} ${paramString}`;
-                const ret = cp.execSync(cmd);
-                console.log('WebAssembly output is: ' + ret);
+                const validateArgs: string[] = [
+                    '-f',
+                    args.validate,
+                    getAbsolutePath(generatedWasmFile),
+                ];
+                validateByWAMR(validateArgs.concat(params));
             }
             if (args.wat) {
                 let generatedWatFile = '';
