@@ -835,10 +835,14 @@ fail3:
 
 fail2:
     /* free the file buffer */
-    if (!is_xip_file)
+    if (!is_xip_file) {
         wasm_runtime_free(wasm_file_buf);
-    else
+    }
+#if WASM_ENABLE_AOT != 0
+    else {
         os_munmap(wasm_file_buf, wasm_file_size);
+    }
+#endif
 
 fail1:
 #if BH_HAS_DLFCN

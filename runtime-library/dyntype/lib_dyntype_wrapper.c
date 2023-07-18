@@ -348,6 +348,7 @@ dyntype_to_string_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
         }
         wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
                                    "libdyntype: failed to convert to cstring");
+        return NULL;
     }
 
     new_string_struct = create_wasm_string(exec_env, value);

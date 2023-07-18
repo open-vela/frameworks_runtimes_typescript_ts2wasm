@@ -11,6 +11,7 @@
 #include "type_utils.h"
 
 #include "gc_object.h"
+#include "wasm_export.h"
 
 /* When growing an array, allocate more slots to avoid frequent allocation */
 #define ARRAY_GROW_REDUNDANCE 16
@@ -23,6 +24,7 @@ array_push_generic(wasm_exec_env_t exec_env, void *ctx, void *obj, void *value)
     wasm_array_obj_t new_arr;
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     wasm_array_obj_t value_arr_ref = get_array_ref(value);
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
     wasm_value_t init = { .gc_obj = NULL }, tmp_val = { 0 };
 
     len = get_array_length(obj);
@@ -38,6 +40,11 @@ array_push_generic(wasm_exec_env_t exec_env, void *ctx, void *obj, void *value)
         uint32 new_len = len + value_len + ARRAY_GROW_REDUNDANCE;
         new_arr =
             wasm_array_obj_new_with_type(exec_env, arr_type, new_len, &init);
+        if (!new_arr) {
+            wasm_runtime_set_exception(module_inst, "allocate memory failed");
+            return 0;
+        }
+
         wasm_array_obj_copy(new_arr, 0, arr_ref, 0, len);
         wasm_array_obj_copy(new_arr, len, value_arr_ref, 0, value_len);
 
@@ -252,7 +259,8 @@ void *
 array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                     void *start_obj, void *end_obj)
 {
-    uint32 i, len, new_len, start, end;
+    uint32 i;
+    int32 len, new_len, start, end;
     wasm_struct_obj_t new_arr_struct = NULL;
     wasm_array_obj_t new_arr, arr_ref = get_array_ref(obj);
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
@@ -275,7 +283,7 @@ array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     if (dyntype_is_number(dyntype_get_context(), start_idx)) {
         double temp;
         dyntype_to_number(dyntype_get_context(), start_idx, &temp);
-        start = (uint32)temp;
+        start = (int32)temp;
         start = start < 0 ? start + len : start;
         start = start < 0 ? 0 : start;
     }
@@ -283,7 +291,7 @@ array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     if (dyntype_is_number(dyntype_get_context(), end_idx)) {
         double temp;
         dyntype_to_number(dyntype_get_context(), end_idx, &temp);
-        end = (uint32)temp;
+        end = (int32)temp;
         end = end < 0 ? end + len : end;
         end = end < 0 ? 0 : end;
         end = end > len ? len : end;
@@ -733,8 +741,7 @@ array_indexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
                                          void *obj, elem_type element,        \
                                          void *from_index_obj)                \
     {                                                                         \
-        int32 len, idx = 0;                                                   \
-        uint32 i;                                                             \
+        int32 i, len, idx = 0;                                                \
         wasm_value_t tmp_val = { 0 };                                         \
         wasm_array_obj_t arr_ref = get_array_ref(obj);                        \
         len = get_array_length(obj);                                          \
@@ -772,8 +779,7 @@ double
 array_lastIndexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
                          void *element, void *from_index_obj)
 {
-    int32 len, idx = 0;
-    uint32 i;
+    int32 i, len, idx = 0;
     wasm_value_t tmp_val = { 0 }, field1 = { 0 }, search_string = { 0 };
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
