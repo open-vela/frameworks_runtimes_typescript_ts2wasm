@@ -457,7 +457,7 @@ array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_local_obj_ref_t local_ref = { 0 };
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
     wasm_module_t module = wasm_runtime_get_module(module_inst);
-    char **string_addrs, *p, *p_end;
+    char **string_addrs = NULL, *p, *p_end;
     char *sep = NULL;
     wasm_defined_type_t value_defined_type;
 
@@ -483,25 +483,6 @@ array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
             dyntype_to_cstring(dyntype_get_context(), js_value, &sep);
         }
     }
-
-    /* get struct_string_type */
-    get_string_struct_type(module, &string_struct_type);
-    bh_assert(string_struct_type != NULL);
-    bh_assert(wasm_defined_type_is_struct_type(
-        (wasm_defined_type_t)string_struct_type));
-
-    /* wrap with string struct */
-    new_string_struct =
-        wasm_struct_obj_new_with_type(exec_env, string_struct_type);
-    if (!new_string_struct) {
-        wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
-                                   "alloc memory failed");
-        goto fail;
-    }
-
-    /* Push object to local ref to avoid being freed at next allocation */
-    wasm_runtime_push_local_object_ref(exec_env, &local_ref);
-    local_ref.val = (wasm_obj_t)new_string_struct;
 
     for (i = 0; i < len; i++) {
         wasm_array_obj_get_elem(arr_ref, i, 0, &value);
@@ -545,6 +526,11 @@ array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
         wasm_runtime_set_exception(module_inst, "alloc memory failed");
         goto fail;
     }
+
+    /* Push object to local ref to avoid being freed at next allocation */
+    wasm_runtime_push_local_object_ref(exec_env, &local_ref);
+    local_ref.val = (wasm_obj_t)new_arr;
+
     p = (char *)wasm_array_obj_first_elem_addr(new_arr);
     p_end = p + result_len;
     bh_assert(p);
@@ -554,19 +540,30 @@ array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
         uint32 cur_string_len = string_lengths[i];
         bh_memcpy_s(p, p_end - p, string_addrs[i], cur_string_len);
         p += cur_string_len;
-        ;
         if (i < len - 1) {
             bh_memcpy_s(p, p_end - p, sep ? sep : ",", sep_len);
             p += sep_len;
         }
     }
-
     bh_assert(p == p_end);
+
+    /* get struct_string_type */
+    get_string_struct_type(module, &string_struct_type);
+    bh_assert(string_struct_type != NULL);
+    bh_assert(wasm_defined_type_is_struct_type(
+        (wasm_defined_type_t)string_struct_type));
+
+    /* wrap with string struct */
+    new_string_struct =
+        wasm_struct_obj_new_with_type(exec_env, string_struct_type);
+    if (!new_string_struct) {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
+                                   "alloc memory failed");
+        goto fail;
+    }
 
     value.gc_obj = (wasm_obj_t)new_arr;
     wasm_struct_obj_set_field(new_string_struct, 1, &value);
-    wasm_runtime_pop_local_object_ref(exec_env);
-    return new_string_struct;
 
 fail:
     if (string_lengths) {
@@ -584,5 +581,6 @@ fail:
     if (sep) {
         dyntype_free_cstring(dyntype_get_context(), sep);
     }
-    return NULL;
+
+    return new_string_struct;
 }
