@@ -280,8 +280,7 @@ export class FunctionDeclareNode extends SemanticsNode {
 
     findParameterIndex(v: VarDeclareNode): number {
         if (!this.parameters) return -1;
-        let i = 0;
-        for (i; i < this.parameters!.length; i++) {
+        for (let i = 0; i < this.parameters!.length; i++) {
             const p = this.parameters![i];
             if (p === v || p.name == v.name) return i;
         }
