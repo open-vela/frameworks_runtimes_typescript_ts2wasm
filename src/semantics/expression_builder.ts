@@ -241,7 +241,6 @@ function getValueFromNamespace(
     if (result) return result;
 
     throw Error(`cannot create value "${member}" in ${ns}(${name})`);
-    return new NopValue();
 }
 
 function buildPropertyAccessExpression(
@@ -419,9 +418,6 @@ function createDirectAccess(
     } else {
         return createDirectGet(own, shape_member, member, isThisShape);
     }
-
-    throw Error(`wrong access`);
-    return new NopValue();
 }
 
 function createDirectGet(
@@ -477,7 +473,6 @@ function createDirectGet(
     }
 
     throw Error(`wrong access`);
-    return new NopValue();
 }
 
 function createDirectSet(
@@ -520,7 +515,6 @@ function createDirectSet(
     }
 
     throw Error(`wrong access`);
-    return new NopValue();
 }
 
 function SymbolValueToSemanticsValue(
@@ -1029,7 +1023,7 @@ export function newCastValue(
             for (const to_member of to_meta.members) {
                 if (
                     from_obj_type.meta.members.find((from_member) => {
-                        from_member.name === to_member.name;
+                        return from_member.name === to_member.name;
                     })
                 ) {
                     continue;
@@ -1083,7 +1077,6 @@ export function newCastValue(
     }
 
     throw Error(`cannot make cast value from "${value_type}" to  "${type}"`);
-    return new NopValue();
 }
 
 function typeUp(up: ValueType, down: ValueType): boolean {
@@ -1776,7 +1769,6 @@ function buildNewExpression2(
     }
 
     throw Error(`${class_value} is not a class or class interface`);
-    return new NopValue();
 }
 
 function buildNewClass(
@@ -2247,6 +2239,4 @@ export function buildExpression(
         Logger.error(`Source: ${tsNode.getFullText(sourceFile)}`);
         throw Error(e);
     }
-
-    return new NopValue();
 }

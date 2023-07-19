@@ -1504,8 +1504,7 @@ export class TypeResolver {
         } else {
             const func = <ts.ConstructorDeclaration>constructor;
             ctorType = this.generateNodeType(func) as TSFunction;
-            ctorScope =
-                <FunctionScope>this.parserCtx.getScopeByNode(func) || undefined;
+            ctorScope = <FunctionScope>this.parserCtx.getScopeByNode(func)!;
         }
         ctorType.returnType = classType;
         ctorType.funcKind = FunctionKind.CONSTRUCTOR;
@@ -2013,7 +2012,6 @@ export class TypeResolver {
             default:
                 throw Error(`EnumMember don't support dynamic expression`);
         }
-        return 0;
     }
 
     public static maybeBuiltinWasmType(node: ts.Node) {
@@ -2165,7 +2163,6 @@ export class TypeResolver {
                 throw new UnimplementError('Not implemented type: ${type}');
             }
         }
-        return builtinTypes.get('any')!;
     }
 
     public arrayTypeCheck(node: ts.Node): boolean {

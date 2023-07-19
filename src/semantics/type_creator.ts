@@ -219,7 +219,7 @@ function collectWideTypes(types: Set<ValueType>): ValueType[] {
     if (wideType.kind == ValueTypeKind.ANY) return [Primitive.Any];
 
     if (objectTypes.length == 0) {
-        return [wideType ?? Primitive.Any];
+        return [wideType];
     }
 
     return objectTypes;

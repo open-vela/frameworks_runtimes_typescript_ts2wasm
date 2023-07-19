@@ -200,7 +200,7 @@ class BlockHeader {
 
     write(dataPool: DataPool) {
         dataPool.addInt32(
-            ((this.type << 28) & 0xf) | (this.count & 0x0fffffff),
+            ((this.type << 28) & 0xf0000000) | (this.count & 0x0fffffff),
         );
         dataPool.addInt32(this.size);
     }
@@ -208,7 +208,7 @@ class BlockHeader {
     update(dataPool: DataPool, start: number) {
         dataPool.setInt32(
             start,
-            ((this.type << 28) & 0xf) | (this.count & 0x0fffffff),
+            ((this.type << 28) & 0xf0000000) | (this.count & 0x0fffffff),
         );
         dataPool.setInt32(start + 4, this.size);
     }

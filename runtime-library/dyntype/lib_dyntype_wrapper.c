@@ -778,8 +778,8 @@ box_value_to_dyntype(wasm_exec_env_t exec_env, dyn_ctx_t ctx, uint32 *value,
     }
     else if (type.value_type == VALUE_TYPE_F64) {
         double ori_value;
-        bh_memcpy_s(&ori_value, (*slot_count) * sizeof(uint32), value,
-                    (*slot_count) * sizeof(uint32));
+        bh_memcpy_s(&ori_value, (*slot_count) * sizeof(double), value,
+                    (*slot_count) * sizeof(double));
         ret = dyntype_new_number_wrapper(exec_env, ctx, ori_value);
     }
     else if (type.value_type == REF_TYPE_ANYREF) {

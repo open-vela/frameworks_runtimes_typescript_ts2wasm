@@ -437,6 +437,13 @@ export default class ExpressionProcessor {
                 const targetIdentifier = (<ts.Identifier>node).getText();
                 res = new IdentifierExpression(targetIdentifier);
                 let scope = this.parserCtx.getScopeByNode(node) || null;
+
+                if (!scope) {
+                    throw new Error(
+                        `identifier [${targetIdentifier}] doesn't belong to any scope`,
+                    );
+                }
+
                 const varReferenceScope = scope!.getNearestFunctionScope();
                 let variable: Variable | undefined = undefined;
                 let maybeClosureVar = false;
