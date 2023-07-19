@@ -8,5 +8,5 @@ cd ${SCRIPTPATH}/deps
 cd ${SCRIPTPATH}
 
 mkdir -p ${SCRIPTPATH}/build && cd ${SCRIPTPATH}/build
-cmake ..
+cmake .. $1
 make -j$(nproc)
