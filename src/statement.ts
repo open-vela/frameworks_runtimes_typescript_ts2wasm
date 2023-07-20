@@ -23,7 +23,7 @@ import {
     getCurScope,
 } from './utils.js';
 import { Variable } from './variable.js';
-import { TSClass, Type } from './type.js';
+import { TSClass, Type, TypeKind } from './type.js';
 import { Logger } from './log.js';
 
 type StatementKind = ts.SyntaxKind;
@@ -335,7 +335,12 @@ export default class StatementProcessor {
                 const expr = this.parserCtx.expressionProcessor.visitNode(
                     node.body,
                 );
-                scope.addStatement(new ReturnStatement(expr));
+                const returnType = (scope as FunctionScope).funcType.returnType;
+                const stmt =
+                    returnType.kind === TypeKind.VOID
+                        ? new ExpressionStatement(expr)
+                        : new ReturnStatement(expr);
+                scope.addStatement(stmt);
             }
             /* During the traverse, it will enter the inner
             block scope, so we skip BlockScope here */
