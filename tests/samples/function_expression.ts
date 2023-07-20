@@ -20,7 +20,9 @@ export function arrowFunction() {
 }
 
 const arrowFuncNoReturn = (a: number) => a + 1;
+const arrowFuncNoReturn1 = (a: number) => console.log(a);
 
 export function arrowFunctionWithoutReturn() {
+    arrowFuncNoReturn1(1);
     return arrowFuncNoReturn(1);
 }

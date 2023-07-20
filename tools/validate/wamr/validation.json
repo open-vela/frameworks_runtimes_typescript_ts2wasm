@@ -2106,7 +2106,7 @@
             {
                 "name": "arrowFunctionWithoutReturn",
                 "args": [],
-                "result": "2:f64"
+                "result": "1 \n2:f64"
             }
         ]
     },
