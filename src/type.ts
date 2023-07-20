@@ -841,20 +841,6 @@ export class TypeResolver {
                     typeAliasNode,
                 );
                 this.currentScope!.addType(typeName, type);
-                if (typeAliasNode.modifiers) {
-                    if (
-                        typeAliasNode.modifiers.some((modifier) => {
-                            modifier.kind === ts.SyntaxKind.ExportKeyword;
-                        })
-                    ) {
-                        const typeIdentifierExpr = new IdentifierExpression(
-                            typeName,
-                        );
-                        this.currentScope!.getRootGloablScope()!.setExportIdentifierList(
-                            [typeIdentifierExpr],
-                        );
-                    }
-                }
             }
         }
         ts.forEachChild(node, this.visitNode.bind(this));
