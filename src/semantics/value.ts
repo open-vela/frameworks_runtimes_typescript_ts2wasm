@@ -46,6 +46,7 @@ export enum SemanticsValueKind {
     POST_UNARY_EXPR,
     PRE_UNARY_EXPR,
     CONDITION_EXPR,
+    COMMA_EXPR,
 
     FUNCTION_CALL,
     CLOSURE_CALL,
@@ -392,6 +393,25 @@ export class ConditionExprValue extends SemanticsValue {
         visitor(this.condition);
         visitor(this.trueExpr);
         visitor(this.falseExpr);
+    }
+}
+
+export class CommaExprValue extends SemanticsValue {
+    constructor(type: ValueType, public exprs: SemanticsValue[]) {
+        super(SemanticsValueKind.COMMA_EXPR, type);
+    }
+    dump(writer: DumpWriter) {
+        writer.write(`[CommaExpr]`);
+        writer.shift();
+        for (const expr of this.exprs) {
+            expr.dump(writer);
+            writer.write(', ');
+        }
+        writer.unshift();
+    }
+
+    forEachChild(visitor: SemanticsValueVisitor) {
+        this.exprs.forEach((expr) => visitor(expr));
     }
 }
 
