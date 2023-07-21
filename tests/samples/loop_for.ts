@@ -81,3 +81,15 @@ export function multipleForLoop(): number {
     }
     return c;
 }
+
+export function loopWithCommaToken() {
+    let sum = 0;
+    let str = '';
+    for (let i = 0, j = 4; i < 10; i++, j += 2) {
+        sum += i;
+        sum += j;
+    }
+    sum++, str = '123', --sum;
+
+    return sum + (str == '123' ? 1 : 2); // 176
+}

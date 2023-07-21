@@ -65,6 +65,7 @@ import {
     ToStringValue,
     AnyCallValue,
     SuperUsageFlag,
+    CommaExprValue,
 } from '../../semantics/value.js';
 import {
     ArrayType,
@@ -131,6 +132,8 @@ export class WASMExpressionGen {
                 return this.wasmGetClosure(<NewClosureFunction>value);
             case SemanticsValueKind.BINARY_EXPR:
                 return this.wasmBinaryExpr(<BinaryExprValue>value);
+            case SemanticsValueKind.COMMA_EXPR:
+                return this.wasmCommaExpr(<CommaExprValue>value);
             case SemanticsValueKind.POST_UNARY_EXPR:
                 return this.wasmPostUnaryExpr(<PostUnaryExprValue>value);
             case SemanticsValueKind.PRE_UNARY_EXPR:
@@ -538,6 +541,15 @@ export class WASMExpressionGen {
                 return this.operateBinaryExpr(leftValue, rightValue, opKind);
             }
         }
+    }
+
+    private wasmCommaExpr(value: CommaExprValue): binaryen.ExpressionRef {
+        const exprs: binaryen.ExpressionRef[] = [];
+        for (const expr of value.exprs) {
+            exprs.push(this.wasmExprGen(expr));
+        }
+
+        return this.module.block(null, exprs);
     }
 
     private wasmAnyGen(expr: SemanticsValue): binaryen.ExpressionRef {
