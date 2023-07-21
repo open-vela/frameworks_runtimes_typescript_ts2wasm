@@ -154,6 +154,21 @@ export class BinaryExpression extends Expression {
     }
 }
 
+/** if we treat binary expression with comma token as BinaryExpression,
+ * we need to apply special handling for this  expression in the semantic tree and backend, and
+ * it maybe generate nested block as well
+ *  */
+export class CommaExpression extends Expression {
+    private _exprs: Expression[];
+    constructor(exprs: Expression[]) {
+        super(ts.SyntaxKind.CommaToken);
+        this._exprs = exprs;
+    }
+    get exprs() {
+        return this._exprs;
+    }
+}
+
 export class UnaryExpression extends Expression {
     private operator: OperatorKind;
     private _operand: Expression;
@@ -485,12 +500,28 @@ export default class ExpressionProcessor {
                 const binaryExprNode = <ts.BinaryExpression>node;
                 const leftExpr = this.visitNode(binaryExprNode.left);
                 const rightExpr = this.visitNode(binaryExprNode.right);
-                const expr: Expression = new BinaryExpression(
+                let expr: Expression = new BinaryExpression(
                     binaryExprNode.operatorToken.kind,
                     leftExpr,
                     rightExpr,
                 );
-
+                if (
+                    binaryExprNode.operatorToken.kind ===
+                    ts.SyntaxKind.CommaToken
+                ) {
+                    let exprs: Expression[] = [];
+                    if (leftExpr instanceof CommaExpression) {
+                        exprs = exprs.concat(leftExpr.exprs);
+                    } else {
+                        exprs.push(leftExpr);
+                    }
+                    if (rightExpr instanceof CommaExpression) {
+                        exprs = exprs.concat(rightExpr.exprs);
+                    } else {
+                        exprs.push(rightExpr);
+                    }
+                    expr = new CommaExpression(exprs);
+                }
                 expr.setExprType(this.typeResolver.generateNodeType(node));
                 res = expr;
                 break;

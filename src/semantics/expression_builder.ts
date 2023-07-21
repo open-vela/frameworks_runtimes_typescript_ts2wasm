@@ -95,6 +95,7 @@ import {
     TypeofValue,
     AnyCallValue,
     SuperUsageFlag,
+    CommaExprValue,
 } from './value.js';
 
 import {
@@ -131,6 +132,7 @@ import {
     AsExpression,
     FunctionExpression,
     TypeOfExpression,
+    CommaExpression,
 } from '../expression.js';
 
 import {
@@ -1301,6 +1303,20 @@ function buildBinaryExpression(
     );
 }
 
+function buildCommaExpression(
+    commaExpr: CommaExpression,
+    context: BuildContext,
+): SemanticsValue {
+    const exprs: SemanticsValue[] = [];
+    for (const e of commaExpr.exprs) {
+        context.pushReference(ValueReferenceKind.RIGHT);
+        exprs.push(buildExpression(e, context));
+        context.popReference();
+    }
+    const type = context.findValueType(commaExpr.exprType)!;
+    return new CommaExprValue(type, exprs);
+}
+
 function buildConditionalExpression(
     expr: ConditionalExpression,
     context: BuildContext,
@@ -2184,6 +2200,8 @@ export function buildExpression(
                 );
             case ts.SyntaxKind.BinaryExpression:
                 return buildBinaryExpression(expr as BinaryExpression, context);
+            case ts.SyntaxKind.CommaToken:
+                return buildCommaExpression(expr as CommaExpression, context);
             case ts.SyntaxKind.ConditionalExpression:
                 return buildConditionalExpression(
                     expr as ConditionalExpression,

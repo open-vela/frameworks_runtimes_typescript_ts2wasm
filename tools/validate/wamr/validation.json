@@ -2581,6 +2581,11 @@
                 "name": "multipleForLoop",
                 "args": [],
                 "result": "115:f64"
+            },
+            {
+                "name": "loopWithCommaToken",
+                "args": [],
+                "result": "176:f64"
             }
         ]
     },

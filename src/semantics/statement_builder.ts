@@ -88,7 +88,6 @@ import {
     ValueReferenceKind,
 } from './builder_context.js';
 import { createType } from './type_creator.js';
-import { IdentifierExpression } from '../expression.js';
 
 export function createFromVariable(
     v: Variable,
