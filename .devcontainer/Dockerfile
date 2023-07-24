@@ -34,11 +34,11 @@ RUN ln -s wasm-micro-runtime/product-mini/platforms/linux/build/iwasm  \
     /usr/local/bin/iwasm
 
 # Add binaryen
-RUN wget https://github.com/WebAssembly/binaryen/releases/download/version_113/binaryen-version_113-x86_64-linux.tar.gz
-RUN tar zxvf binaryen-version_113-x86_64-linux.tar.gz
-RUN ln -s binaryen-version_113/bin/wasm-as /usr/local/bin/wasm-as
-RUN ln -s binaryen-version_113/bin/wasm-opt /usr/local/bin/wasm-opt
-RUN ln -s binaryen-version_113/bin/wasm-shell /usr/local/bin/wasm-shell
+RUN wget https://github.com/WebAssembly/binaryen/releases/download/version_114/binaryen-version_114-x86_64-linux.tar.gz
+RUN tar zxvf binaryen-version_114-x86_64-linux.tar.gz
+RUN ln -s binaryen-version_114/bin/wasm-as /usr/local/bin/wasm-as
+RUN ln -s binaryen-version_114/bin/wasm-opt /usr/local/bin/wasm-opt
+RUN ln -s binaryen-version_114/bin/wasm-shell /usr/local/bin/wasm-shell
 
 # Create the non-root user
 RUN userdel -r -f node  \
