@@ -818,16 +818,33 @@ function processObjectDescriptions(context: BuildContext) {
     ProcessBuiltinObjectSpecializeList();
 }
 
+function setRecArraySize(recClass: TSClass[][], recObjectType: ObjectType[][]) {
+    if (recClass.length == 0) {
+        return recObjectType;
+    }
+    recObjectType = new Array<ObjectType[]>(recClass.length);
+
+    for (let i = 0; i < recClass.length; ++i) {
+        recObjectType[i] = new Array<ObjectType>(recClass[i].length);
+    }
+    return recObjectType;
+}
+
 export function BuildModuleNode(parserContext: ParserContext): ModuleNode {
     const module = new ModuleNode();
     const context = new BuildContext(parserContext.typeId, module);
-
+    context.recClassTypeGroup = parserContext.recGroupTypes;
+    parserContext.recGroupTypes = [];
+    context.module.recObjectTypeGroup = setRecArraySize(
+        context.recClassTypeGroup,
+        context.module.recObjectTypeGroup,
+    );
     processGlobals(context, parserContext);
 
     context.finishBuild();
 
     // module.dump(CreateDefaultDumpWriter());
     // module.dumpCodeTrees(CreateDefaultDumpWriter());
-
+    context.recClassTypeGroup = [];
     return module;
 }

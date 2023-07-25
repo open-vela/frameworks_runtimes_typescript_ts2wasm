@@ -90,15 +90,28 @@ export function initArrayType(
     elementPackedType: binaryenCAPI.PackedType,
     elementMutable: binaryenCAPI.bool,
     nullable: binaryenCAPI.bool,
+    buildIndex: number,
+    tb: binaryenCAPI.TypeBuilderRef,
 ): typeInfo {
-    const tb: binaryenCAPI.TypeBuilderRef = binaryenCAPI._TypeBuilderCreate(1);
     binaryenCAPI._TypeBuilderSetArrayType(
         tb,
-        0,
+        buildIndex < 0 ? 0 : buildIndex,
         elementType,
         elementPackedType,
         elementMutable,
     );
+    if (buildIndex >= 0) {
+        const heapType = binaryenCAPI._TypeBuilderGetTempHeapType(
+            tb,
+            buildIndex,
+        );
+        const refType = binaryenCAPI._TypeBuilderGetTempRefType(
+            tb,
+            heapType,
+            nullable,
+        );
+        return { typeRef: refType, heapTypeRef: heapType };
+    }
     const builtHeapType: binaryenCAPI.HeapTypeRef[] = new Array(1);
     const builtHeapTypePtr = arrayToPtr(builtHeapType);
     binaryenCAPI._TypeBuilderBuildAndDispose(tb, builtHeapTypePtr.ptr, 0, 0);
@@ -115,30 +128,44 @@ export function initArrayType(
 }
 
 /** Object */
-export const emptyStructType = initStructType([], [], [], 0, true);
-/** Function */
+export const emptyStructType = initStructType(
+    [],
+    [],
+    [],
+    0,
+    true,
+    -1,
+    binaryenCAPI._TypeBuilderCreate(1),
+);
+/** TS Function */
 export const builtinFunctionType = initStructType(
     [emptyStructType.typeRef, binaryenCAPI._BinaryenTypeFuncref()],
     [Pakced.Not, Pakced.Not],
     [true, false],
     2,
     true,
+    -1,
+    binaryenCAPI._TypeBuilderCreate(1),
 );
+
 export function initStructType(
     fieldTypesList: Array<binaryenCAPI.TypeRef>,
     fieldPackedTypesList: Array<binaryenCAPI.PackedType>,
     fieldMutablesList: Array<boolean>,
     numFields: binaryenCAPI.i32,
     nullable: binaryenCAPI.bool,
+    buildIndex: number,
+    tb: binaryenCAPI.TypeBuilderRef,
     baseType?: binaryenCAPI.HeapTypeRef,
 ): typeInfo {
     const fieldTypes = arrayToPtr(fieldTypesList).ptr;
     const fieldPackedTypes = allocU32Array(fieldPackedTypesList);
     const fieldMutables = allocU8Array(fieldMutablesList);
-    const tb: binaryenCAPI.TypeBuilderRef = binaryenCAPI._TypeBuilderCreate(1);
+    // const tb: binaryenCAPI.TypeBuilderRef = binaryenCAPI._TypeBuilderCreate(1);
+    const index = buildIndex < 0 ? 0 : buildIndex;
     binaryenCAPI._TypeBuilderSetStructType(
         tb,
-        0,
+        index,
         fieldTypes,
         fieldPackedTypes,
         fieldMutables,
@@ -146,7 +173,16 @@ export function initStructType(
     );
     if (fieldTypesList.length > 0) {
         const subType = baseType ? baseType : emptyStructType.heapTypeRef;
-        binaryenCAPI._TypeBuilderSetSubType(tb, 0, subType);
+        binaryenCAPI._TypeBuilderSetSubType(tb, index, subType);
+    }
+    if (buildIndex !== -1) {
+        const heapType = binaryenCAPI._TypeBuilderGetTempHeapType(tb, index);
+        const refType = binaryenCAPI._TypeBuilderGetTempRefType(
+            tb,
+            heapType,
+            nullable,
+        );
+        return { typeRef: refType, heapTypeRef: heapType };
     }
     const builtHeapType: binaryenCAPI.HeapTypeRef[] = new Array(1);
     const builtHeapTypePtr = arrayToPtr(builtHeapType);
@@ -187,6 +223,25 @@ export function generateArrayStructTypeInfo(arrayTypeInfo: typeInfo): typeInfo {
         [true, true],
         2,
         true,
+        -1,
+        binaryenCAPI._TypeBuilderCreate(1),
+    );
+    return arrayStructTypeInfo;
+}
+
+export function generateArrayStructTypeForRec(
+    arrayTypeInfo: typeInfo,
+    buildIndex: number,
+    tb: binaryenCAPI.TypeBuilderRef,
+): typeInfo {
+    const arrayStructTypeInfo = initStructType(
+        [arrayTypeInfo.typeRef, BinaryenType.I32],
+        [Pakced.Not, Pakced.Not],
+        [true, true],
+        2,
+        true,
+        buildIndex,
+        tb,
     );
     return arrayStructTypeInfo;
 }
@@ -198,6 +253,8 @@ function genarateCharArrayTypeInfo(): typeInfo {
         Pakced.I8,
         true,
         true,
+        -1,
+        binaryenCAPI._TypeBuilderCreate(1),
     );
     return charArrayTypeInfo;
 }
@@ -217,6 +274,8 @@ function generateStringTypeInfo(): typeInfo {
         [true, true],
         2,
         true,
+        -1,
+        binaryenCAPI._TypeBuilderCreate(1),
     );
     return stringTypeInfo;
 }
@@ -228,6 +287,8 @@ function genarateNumberArrayTypeInfo(): typeInfo {
         Pakced.Not,
         true,
         true,
+        -1,
+        binaryenCAPI._TypeBuilderCreate(1),
     );
     return numberArrayTypeInfo;
 }
@@ -240,6 +301,8 @@ function genarateStringArrayTypeInfo(struct_wrap: boolean): typeInfo {
         Pakced.Not,
         true,
         true,
+        -1,
+        binaryenCAPI._TypeBuilderCreate(1),
     );
 
     if (struct_wrap) {
@@ -256,6 +319,8 @@ function generateInfcTypeInfo(): typeInfo {
         [false, false, false, true],
         4,
         true,
+        -1,
+        binaryenCAPI._TypeBuilderCreate(1),
     );
 }
 
@@ -266,6 +331,8 @@ function genarateBoolArrayTypeInfo(): typeInfo {
         Pakced.Not,
         true,
         true,
+        -1,
+        binaryenCAPI._TypeBuilderCreate(1),
     );
     return boolArrayTypeInfo;
 }
@@ -277,6 +344,8 @@ function genarateAnyArrayTypeInfo(): typeInfo {
         Pakced.Not,
         true,
         true,
+        -1,
+        binaryenCAPI._TypeBuilderCreate(1),
     );
     return anyArrayTypeInfo;
 }
@@ -284,34 +353,43 @@ function genarateAnyArrayTypeInfo(): typeInfo {
 export function createSignatureTypeRefAndHeapTypeRef(
     parameterTypes: Array<binaryenCAPI.TypeRef>,
     returnType: binaryenCAPI.TypeRef,
+    buildIndex: number,
+    tb: binaryenCAPI.TypeBuilderRef,
 ): typeInfo {
     const parameterLen = parameterTypes.length;
-    const builder = binaryenCAPI._TypeBuilderCreate(1);
-    const tempSignatureIndex = 0;
+    const tempSignatureIndex = buildIndex < 0 ? 0 : buildIndex;
     let tempParamTypes = !parameterLen ? binaryen.none : parameterTypes[0];
     if (parameterLen > 1) {
         const tempPtr = arrayToPtr(parameterTypes).ptr;
         tempParamTypes = binaryenCAPI._TypeBuilderGetTempTupleType(
-            builder,
+            tb,
             tempPtr,
             parameterLen,
         );
         binaryenCAPI._free(tempPtr);
     }
     binaryenCAPI._TypeBuilderSetSignatureType(
-        builder,
+        tb,
         tempSignatureIndex,
         tempParamTypes,
         returnType,
     );
+    if (buildIndex !== -1) {
+        const heapType = binaryenCAPI._TypeBuilderGetTempHeapType(
+            tb,
+            buildIndex,
+        );
+        const refType = binaryenCAPI._TypeBuilderGetTempRefType(
+            tb,
+            heapType,
+            true,
+        );
+        return { typeRef: refType, heapTypeRef: heapType };
+    }
     const builtHeapType: binaryenCAPI.HeapTypeRef[] = new Array(1);
     const builtHeapTypePtr = arrayToPtr(builtHeapType);
-    binaryenCAPI._TypeBuilderBuildAndDispose(
-        builder,
-        builtHeapTypePtr.ptr,
-        0,
-        0,
-    );
+
+    binaryenCAPI._TypeBuilderBuildAndDispose(tb, builtHeapTypePtr.ptr, 0, 0);
     const signatureType = binaryenCAPI._BinaryenTypeFromHeapType(
         ptrToArray(builtHeapTypePtr)[0],
         true,

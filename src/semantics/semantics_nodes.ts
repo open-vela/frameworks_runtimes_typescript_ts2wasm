@@ -695,7 +695,7 @@ export class ModuleNode extends SemanticsNode {
     public globalValues: VarValue[] = [];
     public objectDescriptions: ObjectDescription[] = [];
     public namedTypes = new Map<string, ValueType>(); // save the named object type
-
+    public recObjectTypeGroup = new Array<ObjectType[]>();
     public readonly exports = new ExternModuleManager(false);
     public readonly imports = new ExternModuleManager(true);
 
@@ -898,6 +898,18 @@ export class ModuleNode extends SemanticsNode {
                 (t as ArrayType).element.equals(elementType)
             ) {
                 return t;
+            }
+        }
+        return undefined;
+    }
+
+    findObjectValueType(tsclass: TSClass): ValueType | undefined {
+        for (const t of this.types.keys()) {
+            if (!(t instanceof TSClass)) {
+                continue;
+            }
+            if (t === tsclass) {
+                return this.types.get(t);
             }
         }
         return undefined;

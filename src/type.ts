@@ -153,6 +153,9 @@ export class Primitive extends Type {
             }
         }
     }
+    toString(): string {
+        return this.type;
+    }
 }
 
 export class TSContext extends Type {
@@ -305,10 +308,16 @@ export class TSTypeWithArguments extends Type {
     }
 }
 
+const enum TraverseStatus {
+    NOTVISITTED,
+    VISITTED,
+    PROCESSED,
+}
+
 export class TSClass extends TSTypeWithArguments {
     typeKind = TypeKind.CLASS;
+    traverseStatus = TraverseStatus.NOTVISITTED;
     private _typeId = DefaultTypeId;
-    private _implId = DefaultTypeId;
     private _name = '';
     private _mangledName = '';
     private _memberFields: Array<TsClassField> = [];
@@ -320,7 +329,6 @@ export class TSClass extends TSTypeWithArguments {
     private _ctor: TSFunction | null = null;
     public hasDeclareCtor = true;
     private _isDeclare = false;
-
     private _numberIndexType?: Type;
     private _stringIndexType?: Type;
 
@@ -475,14 +483,6 @@ export class TSClass extends TSTypeWithArguments {
 
     get typeId() {
         return this._typeId;
-    }
-
-    set implId(id: number) {
-        this._implId = id;
-    }
-
-    get implId() {
-        return this._implId;
     }
 
     set isLiteral(b: boolean) {
@@ -736,53 +736,17 @@ export class TypeResolver {
     globalScopes: Array<GlobalScope>;
     currentScope: Scope | null = null;
     nodeScopeMap: Map<ts.Node, Scope>;
-    // cache class shape layout string, <class name, type string>
-    methodShapeStr = new Map<string, string>();
-    fieldShapeStr = new Map<string, string>();
-    // cache node & type
-    /*
-       e.g : interface Array<T> {
-               ...
-               filter(predicate: (value: T, index: number, array: T[]) => boolean): T[];
-               ..
-             }
-
-       if some code:
-       ```
-             arr.filter((value, indx, arr) => { ... });
-       ```
-       when build 'arr.filter' in src/expression.ts build PropertyAccessExpression:
-       ```
-           propAccessExpr.setExprType(
-                this.typeResolver.generateNodeType(node),   <--- node is 'arr.filter'
-           );
-       ```
-        TypeResolver try to parse the type of 'arr.filter', call generateNodeType:
-       ```
-           let tsType = this.typechecker!.getTypeAtLocation(node);
-       ```
-       the 'tsType' is AST of 'filter(predicate: (value: T, index: number, array: T[]) => boolean): T[]'
-
-       But, 'T' is defined in 'Array<T>', 'T' cannot be resolved becasue generateNodeType lost the context of 'Array';
-
-       So, We must cache the 'node' and 'type' in 'nodeTypeCache', so that,
-       TypeResolve just parse the type when it's declared, don't need to parse it EVERYTIME.
-     */
+    tsTypeMap = new Map<ts.Type, Type>();
+    tsDeclTypeMap = new Map<ts.Declaration, Type>();
+    tsArrayTypeMap = new Map<ts.Type, Type>();
+    builtInTsTypeMap = new Map<ts.Type, Type>();
+    private symbolTypeMap = new Map<ts.Node, Type>();
     nodeTypeCache = new Map<ts.Node, Type>();
-    // for TypeParameter
-    /*
-        interface Array<T> {
-           ....
-            map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[];
-           ...
-        }
 
-        T is type of interface
-        U is type of map
-        the parameter callbackfn use T & U
-        we must put the owner of T, U into the typeParameterStack,
-        so that callbackfn can find them
-     */
+    private loopEntry: TSClass | null = null;
+    private typeRefsMap = new Map<TSClass, Set<TSClass>>();
+    /** when parsing class type, its base type must be already parsed */
+    private parsedClassTypes = new Set<TSClass>();
     typeParameterStack: TSTypeWithArguments[] = [];
 
     constructor(private parserCtx: ParserContext) {
@@ -790,41 +754,141 @@ export class TypeResolver {
         this.globalScopes = this.parserCtx.globalScopes;
     }
 
-    visit() {
+    visitSymbolNode(fileList: ts.SourceFile[]) {
         this.typechecker = this.parserCtx.typeChecker;
+        for (const file of fileList) {
+            ts.forEachChild(file, (node) => {
+                this.visitObjectSymbolNode(node);
+            });
+        }
+    }
+
+    visit() {
+        /** create Type and add it to scope */
         this.nodeScopeMap.forEach((scope, node) => {
             ts.forEachChild(node, this.visitNode.bind(this));
         });
+
+        /** parse reference relationship */
+        this.symbolTypeMap.forEach((type, symbolNode) => {
+            if (type instanceof TSClass) {
+                this.parseTypeRefRelationship(type as TSClass);
+            }
+        });
+
+        /** allocate type id for Class/Interface */
+        this.symbolTypeMap.forEach((type, symbolNode) => {
+            if (type instanceof TSClass) {
+                this.typeIdAllocate(type as TSClass);
+            }
+        });
     }
 
-    private visitNode(node: ts.Node): void {
+    /** parse types with symbol value for TSClass */
+    private visitObjectSymbolNode(node: ts.Node) {
+        let type: Type | undefined = undefined;
+        let symbolNode = node;
+
+        if (ts.isClassDeclaration(node)) {
+            type = new TSClass();
+        } else if (ts.isInterfaceDeclaration(node)) {
+            type = new TSInterface();
+        } else if (ts.isObjectLiteralExpression(node)) {
+            type = new TSClass();
+        } else if (
+            ts.isVariableDeclaration(node) ||
+            ts.isParameter(node) ||
+            ts.isTypeLiteralNode(node)
+        ) {
+            const tsType = this.typechecker!.getTypeAtLocation(node);
+            if (this.isObjectLiteral(tsType) || this.isObjectType(tsType)) {
+                const symbol = tsType.symbol;
+                if (symbol && symbol.declarations) {
+                    symbolNode = symbol.declarations[0];
+                    type = new TSClass();
+                }
+            }
+        }
+        if (type && !this.symbolTypeMap.has(symbolNode)) {
+            this.symbolTypeMap.set(symbolNode, type);
+        }
+
+        ts.forEachChild(node, this.visitObjectSymbolNode.bind(this));
+    }
+
+    private visitNode(node: ts.Node) {
         this.currentScope = this.parserCtx.getScopeByNode(node)!;
 
         switch (node.kind) {
             case ts.SyntaxKind.VariableDeclaration:
             case ts.SyntaxKind.Parameter:
-            case ts.SyntaxKind.FunctionDeclaration:
-            case ts.SyntaxKind.FunctionExpression:
-            case ts.SyntaxKind.ArrowFunction: {
-                const type = this.generateNodeType(node);
+            case ts.SyntaxKind.TypeLiteral: {
+                const tsType = this.typechecker!.getTypeAtLocation(node);
+                let type: Type;
+                let symbolNode = node;
+                if (
+                    (this.isObjectLiteral(tsType) ||
+                        this.isObjectType(tsType)) &&
+                    tsType.symbol &&
+                    tsType.symbol.declarations
+                ) {
+                    symbolNode = tsType.symbol.declarations[0];
+                    type = this.symbolTypeMap.get(symbolNode)!;
+                    this.parseObjectType(symbolNode, type as TSClass);
+                    if (
+                        tsType.aliasTypeArguments &&
+                        this.noTypeParmeters(tsType.aliasTypeArguments)
+                    ) {
+                        const aliasTypes = tsType.aliasTypeArguments.map(
+                            (t) => {
+                                return this.tsTypeToType(t);
+                            },
+                        );
+                        const specificType = TypeResolver.createSpecializedType(
+                            type,
+                            aliasTypes,
+                            type as TSClass,
+                        ) as TSClass;
+                        specificType.isLiteral = true;
+                        this.symbolTypeMap.set(node, specificType);
+                        this.parsedClassTypes.add(specificType);
+                        this.addTypeToTypeMap(specificType, node);
+                    }
+                } else {
+                    type = this.generateNodeType(symbolNode);
+                }
+                this.addTypeToTypeMap(type, symbolNode);
+                break;
+            }
+            case ts.SyntaxKind.ObjectLiteralExpression: {
+                const type = this.symbolTypeMap.get(node)!;
+                this.parseObjectType(node, type as TSClass);
                 this.addTypeToTypeMap(type, node);
                 break;
             }
             case ts.SyntaxKind.ClassDeclaration: {
-                const type = this.parseClassDecl(node as ts.ClassDeclaration);
-                this.addTypeToTypeMap(type, node);
+                const classType = this.symbolTypeMap.get(node)!;
+                this.parseClassType(
+                    node as ts.ClassDeclaration,
+                    classType as TSClass,
+                );
+                this.addTypeToTypeMap(classType, node);
                 break;
             }
             case ts.SyntaxKind.InterfaceDeclaration: {
-                const type = this.parseInfcDecl(
+                const infcType = this.symbolTypeMap.get(node)!;
+                this.parseInfcType(
                     node as ts.InterfaceDeclaration,
+                    infcType as TSInterface,
                 );
-                this.addTypeToTypeMap(type, node);
-                //break;
-                return; // dno't visit it's children, parseInfDecl do all things
+                this.addTypeToTypeMap(infcType, node);
+                return;
             }
             case ts.SyntaxKind.UnionType: {
-                const type = this.parseUnionTypeNode(node as ts.UnionTypeNode);
+                const tsType = this.typechecker!.getTypeFromTypeNode(
+                    node as ts.UnionTypeNode,
+                );
+                const type = this.parseUnionType(tsType as ts.UnionType);
                 this.addTypeToTypeMap(type, node);
                 break;
             }
@@ -833,15 +897,22 @@ export class TypeResolver {
                 this.addTypeToTypeMap(type, node);
                 break;
             }
+            case ts.SyntaxKind.FunctionDeclaration:
+            case ts.SyntaxKind.FunctionExpression:
+            case ts.SyntaxKind.ArrowFunction: {
+                const type = this.generateNodeType(node);
+                this.addTypeToTypeMap(type, node);
+                break;
+            }
             case ts.SyntaxKind.TypeAliasDeclaration: {
                 const typeAliasNode = <ts.TypeAliasDeclaration>node;
                 const typeName = typeAliasNode.name.getText();
-                const type = this.generateNodeType(
-                    typeAliasNode.type,
-                    typeAliasNode,
-                );
+                const type = this.generateNodeType(typeAliasNode.type);
                 this.currentScope!.addType(typeName, type);
+                break;
             }
+            default:
+                break;
         }
         ts.forEachChild(node, this.visitNode.bind(this));
     }
@@ -873,43 +944,35 @@ export class TypeResolver {
         }
     }
 
-    generateNodeType(
-        node: ts.Node,
-        typeParameterNode?: ts.DeclarationWithTypeParameters,
-    ): Type {
+    generateNodeType(node: ts.Node): Type {
         if (!this.typechecker) {
             this.typechecker = this.parserCtx.typeChecker;
-        }
-        const cached_type = this.nodeTypeCache.get(node);
-        if (cached_type) return cached_type;
-
-        if (ts.isConstructorDeclaration(node)) {
-            return this.parseSignature(
-                this.typechecker!.getSignatureFromDeclaration(node)!,
-            );
-        }
-
-        if (node.kind == ts.SyntaxKind.ConstructSignature) {
-            return this.parseSignature(
-                this.typechecker!.getSignatureFromDeclaration(
-                    node as ts.ConstructSignatureDeclaration,
-                )!,
-            );
         }
         /* Resolve wasm specific type */
         const maybeWasmType = TypeResolver.maybeBuiltinWasmType(node);
         if (maybeWasmType) {
             return maybeWasmType;
         }
-
+        const cached_type = this.nodeTypeCache.get(node);
+        if (cached_type) {
+            return cached_type;
+        }
+        if (ts.isConstructSignatureDeclaration(node)) {
+            return this.parseSignature(
+                this.typechecker!.getSignatureFromDeclaration(
+                    node as ts.ConstructSignatureDeclaration,
+                )!,
+            );
+        }
         let tsType = this.typechecker!.getTypeAtLocation(node);
         if ('isThisType' in tsType && (tsType as any).isThisType) {
             /* For "this" keyword, tsc will inference the actual type */
             tsType = this.typechecker!.getDeclaredTypeOfSymbol(tsType.symbol);
         }
 
-        let type = this.tsTypeToType(tsType, typeParameterNode);
+        let type = this.tsTypeToType(tsType);
         type = adjustPrimitiveNodeType(type, node, this.currentScope)!;
+
         /* for example, a: string[] = new Array(), the type of new Array() should be string[]
          instead of any[]*/
         if (type instanceof TSArray) {
@@ -933,43 +996,53 @@ export class TypeResolver {
         return type;
     }
 
-    public tsTypeToType(
-        type: ts.Type,
-        typeParameterNode?: ts.DeclarationWithTypeParameters,
-    ): Type {
+    public tsTypeToType(type: ts.Type): Type {
+        let res: Type | undefined;
+
         const typeFlag = type.flags;
-        // basic types
-        if (
-            typeFlag & ts.TypeFlags.Number ||
-            typeFlag & ts.TypeFlags.NumberLiteral
-        ) {
-            return builtinTypes.get('number')!;
+        let mask = ts.TypeFlags.Number;
+
+        if (typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('number');
         }
-        if (
-            typeFlag & ts.TypeFlags.String ||
-            typeFlag & ts.TypeFlags.StringLiteral
-        ) {
-            return builtinTypes.get('string')!;
+        mask = ts.TypeFlags.NumberLiteral;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('number');
         }
-        if (
-            typeFlag & ts.TypeFlags.Boolean ||
-            typeFlag & ts.TypeFlags.BooleanLiteral
-        ) {
-            return builtinTypes.get('boolean')!;
+        mask = ts.TypeFlags.String;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('string');
         }
-        if (typeFlag & ts.TypeFlags.Void) {
-            return builtinTypes.get('void')!;
+        mask = ts.TypeFlags.StringLiteral;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('string');
         }
-        if (typeFlag & ts.TypeFlags.Any) {
-            return builtinTypes.get('any')!;
+        mask = ts.TypeFlags.Boolean;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('boolean');
         }
-        if (typeFlag & ts.TypeFlags.Undefined) {
-            return builtinTypes.get('undefined')!;
+        mask = ts.TypeFlags.BooleanLiteral;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('boolean');
         }
-        if (typeFlag & ts.TypeFlags.Null) {
-            return builtinTypes.get('null')!;
+        mask = ts.TypeFlags.Void;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('void');
         }
-        if (typeFlag & ts.TypeFlags.TypeParameter) {
+        mask = ts.TypeFlags.Any;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('any');
+        }
+        mask = ts.TypeFlags.Undefined;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('undefined');
+        }
+        mask = ts.TypeFlags.Null;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
+            res = builtinTypes.get('null');
+        }
+        mask = ts.TypeFlags.TypeParameter;
+        if (!res && typeFlag & mask && !(~typeFlag & mask)) {
             const type_name = type.symbol.getName();
             for (let i = this.typeParameterStack.length - 1; i >= 0; i--) {
                 const typeWithArgs = this.typeParameterStack[i];
@@ -986,109 +1059,133 @@ export class TypeResolver {
             return type_param!;
             //return builtinTypes.get('generic')!;
         }
-        // union type ==> type of first elem, iff all types are same, otherwise, any
-        if (type.isUnion()) {
-            if (this.parserCtx.compileArgs.buildWASM) {
-                const nodeTypeArray = type.types.map((elem) => {
-                    return this.tsTypeToType(elem);
-                });
-                let res = builtinTypes.get('any')!;
-                // iff there is at least one null type
-                if (nodeTypeArray.find((type) => type.kind === TypeKind.NULL)) {
-                    const nonNullTypes = nodeTypeArray.filter(
-                        (type) => type.kind !== TypeKind.NULL,
-                    );
-                    // iff A | null => ref.null A, otherwise => any
-                    if (
-                        nonNullTypes.length > 0 &&
-                        nonNullTypes.every(
-                            (type) => type === nonNullTypes[0],
-                        ) &&
-                        !nonNullTypes[0].isPrimitive
-                    ) {
-                        res = nonNullTypes[0];
-                    }
-                } else {
-                    if (
-                        nodeTypeArray.every((type) => type === nodeTypeArray[0])
-                    ) {
-                        res = nodeTypeArray[0];
-                    }
-                }
-                return res;
-            } else {
-                const typeArray = type.types.map((elem) => {
-                    return this.tsTypeToType(elem);
-                });
-                // iff there is at least one null type
-                if (typeArray.find((type) => type.kind === TypeKind.NULL)) {
-                    const nonNullTypes = typeArray.filter(
-                        (type) => type.kind !== TypeKind.NULL,
-                    );
-                    // iff Class | null => Class, otherwise => UnionType
-                    if (
-                        nonNullTypes.length == 1 &&
-                        nonNullTypes[0] instanceof TSClass
-                    ) {
-                        return nonNullTypes[0];
-                    }
-                } else {
-                    // iff all types are same
-                    if (typeArray.every((type) => type === typeArray[0])) {
-                        return typeArray[0];
-                    }
-                }
-                return this.parseUnionType(type as ts.UnionType);
-            }
+        if (!res && type.isUnion()) {
+            res = this.parseUnionType(type);
         }
-        // sophisticated types
-        //               object
-        //           /    \         \
-        // typereference objliteral function
-        //    / \
-        // array class/infc
-
-        // iff array type
-        if (this.isArray(type)) {
+        if (!res && this.isArray(type)) {
             if (!type.typeArguments) {
                 throw new Error('array type has no type arguments');
             }
             const elemType = this.tsTypeToType(type.typeArguments![0]);
-            return new TSArray(elemType);
+            res = new TSArray(elemType);
         }
-        // iff class/infc
-        if (this.isTypeReference(type) || this.isInterface(type)) {
+        if (
+            !res &&
+            (this.isTypeReference(type) ||
+                this.isInterface(type) ||
+                this.isObjectLiteral(type) ||
+                this.isObjectType(type))
+        ) {
             const decl = type.symbol.declarations![0];
-            const tsType = this.nodeTypeCache.get(decl);
+            const tsType = this.symbolTypeMap.get(decl);
             if (!tsType) {
                 throw new Error(
-                    `class/interface not found, type name <${type.symbol.name}>. `,
+                    `class/interface/object type not found, type name <${type.symbol.name}>. `,
                 );
             }
-            return tsType;
+            res = tsType;
         }
-
-        // iff object literal type
-        if (this.isObjectLiteral(type)) {
-            return this.parseObjLiteral(type);
-        }
-
-        // iff function type
-        if (this.isFunction(type)) {
+        if (!res && this.isFunction(type)) {
             const signature = type.getCallSignatures()[0];
-            return this.parseSignature(signature);
+            res = this.parseSignature(signature);
         }
 
-        /* must behind isFunction(type), since a type maybe both isFunction and isObjectType */
-        if (this.isAliasType(type)) {
-            if (this.isObjectType(type)) {
-                return this.parseObjLiteral(type, typeParameterNode);
+        if (!res) {
+            Logger.debug(`Encounter un-processed type: ${type.flags}`);
+            res = new Type();
+        }
+        return res;
+    }
+
+    private parseUnionType(type: ts.UnionType): Type {
+        const union_type = new TSUnion();
+
+        if (!type.types) {
+            return builtinTypes.get('any')!;
+        }
+
+        for (const tstype of type.types) {
+            union_type.addType(this.tsTypeToType(tstype));
+        }
+
+        const types = union_type.types;
+        if (types.every((type) => type === types[0])) {
+            return types[0];
+        }
+
+        // T | null will be treated as nullable T type
+        if (types.find((type) => type.kind === TypeKind.NULL)) {
+            const nonNullTypes = types.filter(
+                (type) => type.kind !== TypeKind.NULL,
+            );
+            if (
+                nonNullTypes.length > 0 &&
+                nonNullTypes.every((type) => type === nonNullTypes[0]) &&
+                !nonNullTypes[0].isPrimitive
+            ) {
+                return nonNullTypes[0];
             }
         }
 
-        Logger.debug(`Encounter un-processed type: ${type.flags}`);
-        /* cases have not been considered or covered yet... */
-        return new Type();
+        return union_type;
+    }
+
+    private parseEnumType(node: ts.EnumDeclaration): Type {
+        const scope = this.currentScope!;
+
+        let start = 0;
+        const enumType = new TSEnum(node.name.getText());
+        for (const member of node.members) {
+            const name = member.name.getText();
+            let value: number | string = start;
+            if (member.initializer) {
+                value = this.parseEnumMemberValue(enumType, member.initializer);
+            } else {
+                start++;
+            }
+            enumType.addMember(name, value);
+        }
+        scope.addType(node.name.getText(), enumType);
+        return enumType;
+    }
+
+    private parseEnumMemberValue(
+        enumType: TSEnum,
+        expr: ts.Expression,
+    ): number | string {
+        switch (expr.kind) {
+            case ts.SyntaxKind.StringLiteral:
+                return (expr as ts.StringLiteral).text; // return the string value without \' or \"
+            case ts.SyntaxKind.NumericLiteral:
+                return parseInt((expr as ts.NumericLiteral).getText());
+            case ts.SyntaxKind.Identifier: {
+                const name = (expr as ts.Identifier).getText();
+                const value = enumType.getMember(name);
+                if (!value) {
+                    throw Error(`EnumMember cannot find ${name}`);
+                }
+                return value;
+            }
+            case ts.SyntaxKind.BinaryExpression: {
+                const bnode = expr as ts.BinaryExpression;
+                const left = this.parseEnumMemberValue(enumType, bnode.left);
+                const right = this.parseEnumMemberValue(enumType, bnode.right);
+                switch (bnode.operatorToken.kind) {
+                    case ts.SyntaxKind.PlusToken:
+                        if (typeof left == 'string' || typeof right == 'string')
+                            return `${left}${right}`;
+                        else return (left as number) + (right as number);
+                    default:
+                        throw Error(
+                            `EnumMember cannot support the operator ${
+                                ts.SyntaxKind[bnode.operatorToken.kind]
+                            }`,
+                        );
+                }
+            }
+            default:
+                throw Error(`EnumMember don't support dynamic expression`);
+        }
     }
 
     private isObject(type: ts.Type): type is ts.ObjectType {
@@ -1113,13 +1210,13 @@ export class TypeResolver {
         return this.isObject(type) && type.symbol.name === '__object';
     }
 
+    // in most cases, the type has Anonymous ObjectTypeFlag
     private isObjectType(type: ts.Type) {
-        return this.isObject(type) && type.symbol.name === '__type';
-    }
-
-    private isAliasType(type: ts.Type) {
-        const res = type.aliasSymbol ? true : false;
-        return res;
+        return (
+            this.isObject(type) &&
+            type.symbol.name === '__type' &&
+            !this.isFunction(type)
+        );
     }
 
     private isArray(type: ts.Type): type is ts.TypeReference {
@@ -1133,79 +1230,41 @@ export class TypeResolver {
         return false;
     }
 
-    private parseObjLiteral(
-        type: ts.Type,
-        node?: ts.DeclarationWithTypeParameters,
-    ) {
-        const decl = type.symbol.declarations![0];
-        const cached_type = this.nodeTypeCache.get(decl);
-        if (cached_type) return cached_type;
-
-        const tsClass = new TSClass();
-        this.nodeTypeCache.set(decl, tsClass);
-        tsClass.setClassName(this.generateObjectLiteralName());
+    private parseObjectType(node: ts.Node, tsClass: TSClass) {
+        const cached_type = this.nodeTypeCache.get(node);
+        /** for TypeLiteral, it might be putted into cache before parsing */
+        if (cached_type && this.parsedClassTypes.has(tsClass))
+            return cached_type;
         tsClass.isLiteral = true;
+        this.nodeTypeCache.set(node, tsClass);
 
-        if (node) {
+        if (ts.isTypeAliasDeclaration(node.parent)) {
             this.typeParameterStack.push(tsClass);
-            this.parseTypeParameters(tsClass, node, this.currentScope);
+            this.parseTypeParameters(tsClass, node.parent, this.currentScope);
         }
-
-        const methodTypeStrs: string[] = [];
-        const fieldTypeStrs: string[] = [];
+        const type = this.typechecker!.getTypeAtLocation(node);
         type.getProperties().map((prop) => {
-            const propertyKind = prop.valueDeclaration!.kind;
-            let property: ts.Node;
-            if (propertyKind === ts.SyntaxKind.PropertyAssignment) {
-                property = prop.valueDeclaration as ts.PropertyAssignment;
-            } else if (propertyKind === ts.SyntaxKind.MethodDeclaration) {
-                property = prop.valueDeclaration as ts.MethodDeclaration;
-            } else if (
-                propertyKind === ts.SyntaxKind.ShorthandPropertyAssignment
-            ) {
-                property =
-                    prop.valueDeclaration as ts.ShorthandPropertyAssignment;
-            } else if (propertyKind === ts.SyntaxKind.PropertySignature) {
-                property = prop.valueDeclaration as ts.PropertySignature;
-            } else {
-                throw new UnimplementError(
-                    `unImplement propertyKind ${propertyKind} in objLiteral`,
+            const propName = prop.name;
+            const valueDecl = prop.valueDeclaration;
+            if (!valueDecl) {
+                throw new Error(
+                    `property ${propName} has no declaration when parsing object type`,
                 );
             }
-            const propType = this.typechecker!.getTypeAtLocation(property);
-            let typeString = this.typeToString(property);
-            // ts.Type's intrinsicName is `true` or `false`, instead of `boolean`
-            if (typeString === 'true' || typeString === 'false') {
-                typeString = 'boolean';
-            }
-            const propName = prop.name;
+            const propType = this.typechecker!.getTypeAtLocation(valueDecl);
             const tsType = this.tsTypeToType(propType);
-            /* functionType in objLiteral will always have 2 envParams */
-            // TODO: set objLiteral's envParamLen here, add a wrapper method in backend
-            // if (tsType instanceof TSFunction) {
-            //     tsType.envParamLen = 2;
-            // }
-            if (ts.isMethodDeclaration(property)) {
+
+            if (propType instanceof TSFunction) {
                 tsClass.addMethod({
                     name: propName,
                     type: tsType as TSFunction,
                 });
-                methodTypeStrs.push(`${propName}: ${typeString}`);
             } else {
-                tsClass.addMemberField({
-                    name: propName,
-                    type: tsType,
-                });
-                fieldTypeStrs.push(`${propName}: ${typeString}`);
+                tsClass.addMemberField({ name: propName, type: tsType });
             }
         });
-        const typeString =
-            methodTypeStrs.join(', ') + ', ' + fieldTypeStrs.join(', ');
-        tsClass.typeId = this.generateTypeId(typeString);
-        Logger.info(
-            `Assign type id [${tsClass.typeId}] for object literal type: ${typeString}`,
-        );
 
+        this.parsedClassTypes.add(tsClass);
         return tsClass;
     }
 
@@ -1213,8 +1272,8 @@ export class TypeResolver {
         if (!signature) {
             throw new Error('signature is undefined');
         }
-
-        const cached_type = this.nodeTypeCache.get(signature.getDeclaration());
+        const decl = signature.getDeclaration();
+        const cached_type = this.nodeTypeCache.get(decl);
         if (cached_type) return cached_type as TSFunction;
 
         const tsFunction = new TSFunction();
@@ -1247,44 +1306,19 @@ export class TypeResolver {
             (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
         );
 
-        tsFunction.isMethod = !!(
-            signature.declaration &&
-            ((
-                signature.declaration as
-                    | ts.ConstructSignatureDeclaration
-                    | ts.MethodSignature
-                    | ts.ConstructorDeclaration
-                    | ts.MethodDeclaration
-            ).kind === ts.SyntaxKind.ConstructSignature ||
-                (
-                    signature.declaration as
-                        | ts.ConstructSignatureDeclaration
-                        | ts.MethodSignature
-                        | ts.ConstructorDeclaration
-                        | ts.MethodDeclaration
-                ).kind === ts.SyntaxKind.MethodSignature ||
-                (
-                    signature.declaration as
-                        | ts.ConstructSignatureDeclaration
-                        | ts.MethodSignature
-                        | ts.ConstructorDeclaration
-                        | ts.MethodDeclaration
-                ).kind === ts.SyntaxKind.Constructor ||
-                (
-                    signature.declaration as
-                        | ts.ConstructSignatureDeclaration
-                        | ts.MethodSignature
-                        | ts.ConstructorDeclaration
-                        | ts.MethodDeclaration
-                ).kind === ts.SyntaxKind.MethodDeclaration)
-        );
+        tsFunction.isMethod =
+            tsFunction.isMethod ||
+            ts.isConstructorDeclaration(decl) ||
+            ts.isMethodDeclaration(decl) ||
+            ts.isConstructSignatureDeclaration(decl) ||
+            ts.isMethodSignature(decl) ||
+            ts.isAccessor(decl);
 
         /* get env type length: @context & @this */
-        let envTypeLen = 1;
-        if (tsFunction.isMethod && !tsFunction.isStatic) {
-            envTypeLen++;
+        if (tsFunction.envParamLen === 0) {
+            tsFunction.envParamLen =
+                tsFunction.isMethod && !tsFunction.isStatic ? 2 : 1;
         }
-        tsFunction.envParamLen = envTypeLen;
 
         /* parse original parameters type */
         this.typeParameterStack.push(tsFunction);
@@ -1325,18 +1359,11 @@ export class TypeResolver {
         /* parse return type */
         const returnType =
             this.typechecker!.getReturnTypeOfSignature(signature);
-        if (
-            !signature.declaration ||
-            !ts.isConstructorDeclaration(signature.declaration)
-        ) {
-            tsFunction.returnType = this.tsTypeToType(returnType);
-        }
+        tsFunction.returnType = this.tsTypeToType(returnType);
 
-        // this.typeParameterStack.pop();
-        this.nodeTypeCache.set(signature.getDeclaration(), tsFunction);
+        this.nodeTypeCache.set(decl, tsFunction);
         return tsFunction;
     }
-
     private parseNestDeclare(
         node:
             | ts.FunctionLikeDeclaration
@@ -1361,286 +1388,6 @@ export class TypeResolver {
             res = this.parseNestDeclare(<ts.ModuleDeclaration>node.parent);
         }
         return res;
-    }
-
-    private parseStatic(node: ts.FunctionLikeDeclaration): boolean {
-        let res = false;
-        if (node.modifiers) {
-            const hasStaticKeyword = node.modifiers.find((modifier) => {
-                return modifier.kind === ts.SyntaxKind.StaticKeyword;
-            });
-            if (hasStaticKeyword) {
-                res = true;
-            }
-        }
-        return res;
-    }
-
-    private parseClassDecl(node: ts.ClassDeclaration): TSClass {
-        const classType = new TSClass();
-        this.nodeTypeCache.set(node, classType);
-        classType.setClassName(node.name!.getText());
-        let methodTypeStrs: string[] = [];
-        let fieldTypeStrs: string[] = [];
-
-        this.parseTypeParameters(classType, node, this.currentScope);
-        this.typeParameterStack.push(classType);
-
-        classType.isDeclare = this.parseNestDeclare(node);
-
-        const heritages = node.heritageClauses;
-        let baseClassType: TSClass | null = null;
-        let baseInfcType: TSInterface | null = null;
-        /** if extends more than two classes, an error will be thrown,
-         *  if extends a class, implements some interface, the subclass is subtype of supclass,
-         *  but do not guarantee that it will be a subtype of the interface either.
-         *  if implements more than one interface, the subclass is subtype of the first interface.
-         *  */
-        if (heritages) {
-            const scope = this.currentScope!;
-            const heritageTypes = heritages.map((heritage) => {
-                const name = heritage.types[0].getText();
-                const type = scope.findType(name);
-                if (!type) {
-                    throw new Error(`heritage type of ${name} not found`);
-                }
-                return type as TSClass;
-            });
-            for (const heritageType of heritageTypes) {
-                if (heritageType instanceof TSInterface) {
-                    if (!baseClassType && !baseInfcType) {
-                        baseInfcType = heritageType;
-                        classType.setImplInfc(baseInfcType);
-                    }
-                } else {
-                    if (baseInfcType) {
-                        baseInfcType = null;
-                        classType.setImplInfc(baseInfcType);
-                    }
-                    if (baseClassType) {
-                        throw new Error('unimpl multiple base classes');
-                    }
-                    baseClassType = heritageType;
-                    classType.setBase(baseClassType);
-                }
-            }
-        }
-        if (baseClassType) {
-            // TODO try resolve the template type
-            methodTypeStrs = this.methodShapeStr
-                .get(baseClassType.className)!
-                .split(', ');
-            fieldTypeStrs = this.fieldShapeStr
-                .get(baseClassType.className)!
-                .split(', ');
-            classType.implId = baseClassType.implId;
-            for (const field of baseClassType.fields) {
-                classType.addMemberField(field);
-            }
-            for (const pair of baseClassType.staticFieldsInitValueMap) {
-                classType.staticFieldsInitValueMap.set(pair[0], pair[1]);
-            }
-            for (const staticField of baseClassType.staticFields) {
-                classType.addStaticMemberField(staticField);
-            }
-            for (const method of baseClassType.memberFuncs) {
-                classType.addMethod(method);
-            }
-        }
-        // 1. parse constructor
-        const constructor = node.members.find((member) => {
-            return ts.isConstructorDeclaration(member);
-        });
-        let ctorScope: FunctionScope;
-        let ctorType: TSFunction;
-        // iff not, add a default constructor
-        const defaultCtor = this.currentScope!.children.find((child) => {
-            if (child instanceof FunctionScope) {
-                return child.funcName === 'constructor';
-            }
-            return false;
-        });
-        if (!constructor) {
-            if (defaultCtor) {
-                ctorScope = <FunctionScope>defaultCtor;
-                ctorType = ctorScope.funcType;
-            } else {
-                /* create scope & type manually */
-                ctorScope = new FunctionScope(this.currentScope!);
-                ctorType = new TSFunction(FunctionKind.CONSTRUCTOR);
-                ctorScope.setFuncName('constructor');
-                ctorScope.setClassName(node.name!.getText());
-                ctorType.isMethod = true;
-                /* insert params, variables, types */
-                ctorType.envParamLen = 2;
-                ctorScope.envParamLen = 2;
-                ctorScope.addVariable(new Variable('this', classType));
-                classType.hasDeclareCtor = false;
-                if (baseClassType) {
-                    const baseCtorType = baseClassType.ctorType;
-                    const paramTypes = baseCtorType.getParamTypes();
-                    for (let i = 0; i < paramTypes.length; i++) {
-                        ctorType.addParamType(paramTypes[i]);
-                        ctorScope.addParameter(
-                            new Parameter(`@anonymous${i}`, paramTypes[i]),
-                        );
-                    }
-                }
-            }
-        } else {
-            const func = <ts.ConstructorDeclaration>constructor;
-            ctorType = this.generateNodeType(func) as TSFunction;
-            ctorScope = <FunctionScope>this.parserCtx.getScopeByNode(func)!;
-        }
-        ctorType.returnType = classType;
-        ctorType.funcKind = FunctionKind.CONSTRUCTOR;
-        ctorScope.setFuncType(ctorType);
-        classType.ctorType = ctorType;
-
-        // 2. parse other fields
-        for (const member of node.members) {
-            if (ts.isSemicolonClassElement(member)) {
-                /* ES6 allows Semicolon as class elements, we just skip them */
-                continue;
-            }
-            const name = ts.isConstructorDeclaration(member)
-                ? 'constructor'
-                : member.name!.getText();
-
-            const typeString = this.typeToString(member);
-            if (member.kind === ts.SyntaxKind.PropertyDeclaration) {
-                const field = <ts.PropertyDeclaration>member;
-                const type = this.generateNodeType(field);
-                const modifier = field.modifiers?.find((m) => {
-                    return m.kind === ts.SyntaxKind.ReadonlyKeyword;
-                })
-                    ? 'readonly'
-                    : undefined;
-                const staticModifier = field.modifiers?.find((m) => {
-                    return m.kind === ts.SyntaxKind.StaticKeyword;
-                })
-                    ? 'static'
-                    : undefined;
-                const classField: TsClassField = {
-                    name: name,
-                    type: type,
-                    modifier: modifier,
-                    visibility: 'public',
-                    static: staticModifier,
-                };
-                if (field.initializer) {
-                    let index = classType.getStaticFieldIndex(name);
-                    if (index === -1) {
-                        index = classType.staticFields.length;
-                    }
-                    if (classField.static) {
-                        classType.staticFieldsInitValueMap.set(
-                            index,
-                            this.parserCtx.expressionProcessor.visitNode(
-                                field.initializer,
-                            ),
-                        );
-                    } else {
-                        ctorScope.addStatement(
-                            this.parserCtx.statementProcessor.createFieldAssignStmt(
-                                field.initializer,
-                                classType,
-                                type,
-                                name,
-                            ),
-                        );
-                    }
-                }
-                if (!classField.static) {
-                    fieldTypeStrs.push(`${name}: ${typeString}`);
-                }
-                if (
-                    classType.getMemberField(name) ||
-                    classType.getStaticMemberField(name)
-                ) {
-                    continue;
-                }
-                if (!classField.static) {
-                    classType.addMemberField(classField);
-                } else {
-                    classType.addStaticMemberField(classField);
-                }
-            }
-            if (member.kind === ts.SyntaxKind.SetAccessor) {
-                const func = <ts.SetAccessorDeclaration>member;
-                methodTypeStrs.push(`${name}: ${typeString}`);
-                this.setMethod(
-                    func,
-                    baseClassType,
-                    classType,
-                    FunctionKind.SETTER,
-                );
-            }
-            if (member.kind === ts.SyntaxKind.GetAccessor) {
-                const func = <ts.GetAccessorDeclaration>member;
-                methodTypeStrs.push(`${name}: ${typeString}`);
-                this.setMethod(
-                    func,
-                    baseClassType,
-                    classType,
-                    FunctionKind.GETTER,
-                );
-            }
-            if (member.kind === ts.SyntaxKind.MethodDeclaration) {
-                const func = <ts.MethodDeclaration>member;
-                const kind = func.modifiers?.find((m) => {
-                    return m.kind === ts.SyntaxKind.StaticKeyword;
-                })
-                    ? FunctionKind.STATIC
-                    : FunctionKind.METHOD;
-                methodTypeStrs.push(`${name}: ${typeString}`);
-                this.setMethod(func, baseClassType, classType, kind);
-            }
-        }
-        /** reorder member orders for optimization */
-        if (baseInfcType) {
-            classType.implId = baseInfcType.typeId;
-            const baseFields = baseInfcType.fields;
-            for (let i = baseFields.length - 1; i >= 0; i--) {
-                const index = classType.fields.findIndex(
-                    (field) => field.name == baseFields[i].name,
-                );
-                if (index > -1) {
-                    const targetField = classType.fields[index];
-                    classType.fields.splice(index, 1);
-                    classType.fields.unshift(targetField);
-                    const targetFieldStr = fieldTypeStrs[index];
-                    fieldTypeStrs.splice(index, 1);
-                    fieldTypeStrs.unshift(targetFieldStr);
-                }
-            }
-            const baseMethods = baseInfcType.memberFuncs;
-            for (let i = baseMethods.length - 1; i >= 0; i--) {
-                const index = classType.getMethod(
-                    baseMethods[i].name,
-                    baseMethods[i].type.funcKind,
-                ).index;
-                if (index > -1) {
-                    const targetMethod = classType.memberFuncs[index];
-                    classType.memberFuncs.splice(index, 1);
-                    classType.memberFuncs.unshift(targetMethod);
-                    const targetMethodStr = methodTypeStrs[index];
-                    methodTypeStrs.splice(index, 1);
-                    methodTypeStrs.unshift(targetMethodStr);
-                }
-            }
-        }
-        const methodType = methodTypeStrs.join(', ');
-        const fieldType = fieldTypeStrs.join(', ');
-        this.methodShapeStr.set(classType.className, methodType);
-        this.fieldShapeStr.set(classType.className, fieldType);
-        const typeString = methodType + ', ' + fieldType;
-        classType.typeId = this.generateTypeId(typeString);
-        Logger.info(
-            `Assign type id [${classType.typeId}] for class [${classType.className}], type string: ${typeString}`,
-        );
-        // this.typeParameterStack.pop();
-        return classType;
     }
 
     private parseIndexSignature(
@@ -1672,18 +1419,17 @@ export class TypeResolver {
         );
     }
 
-    private parseInfcDecl(node: ts.InterfaceDeclaration): TSInterface {
-        const infc = new TSInterface();
+    private parseInfcType(node: ts.InterfaceDeclaration, infc: TSInterface) {
         this.nodeTypeCache.set(node, infc);
         infc.setClassName(node.name!.getText());
-        const methodTypeStrs: string[] = [];
-        const fieldTypeStrs: string[] = [];
 
+        // if (node.typeParameters) {
+        //     this.parseTypeParameterIndex(node.typeParameters, infc);
+        // }
         this.parseTypeParameters(infc, node, this.currentScope);
         this.typeParameterStack.push(infc);
 
         infc.isDeclare = this.parseNestDeclare(node);
-
         node.members.map((member) => {
             if (member.kind == ts.SyntaxKind.IndexSignature) {
                 this.parseIndexSignature(
@@ -1703,7 +1449,6 @@ export class TypeResolver {
                 return;
             }
             let fieldType = this.generateNodeType(member);
-            const typeString = this.typeToString(member);
             let funcKind =
                 member.kind == ts.SyntaxKind.ConstructSignature
                     ? FunctionKind.CONSTRUCTOR
@@ -1741,7 +1486,6 @@ export class TypeResolver {
                     name: fieldName,
                     type: fieldType,
                 });
-                methodTypeStrs.push(`${fieldName}: ${typeString}`);
                 this.parseTypeParameters(
                     fieldType as TSFunction,
                     member as ts.DeclarationWithTypeParameters,
@@ -1753,97 +1497,253 @@ export class TypeResolver {
                     name: fieldName,
                     type: fieldType,
                 });
-                fieldTypeStrs.push(`${fieldName}: ${typeString}`);
             }
         });
-        const typeString =
-            methodTypeStrs.join(', ') + ', ' + fieldTypeStrs.join(', ');
-        infc.typeId = this.generateTypeId(typeString);
-        Logger.info(
-            `Assign type id [${infc.typeId}] for interface(${infc.className}): ${typeString}`,
-        );
 
-        // this.typeParameterStack.pop();
+        this.parsedClassTypes.add(infc);
         return infc;
     }
 
-    private parseUnionTypeNode(unionType: ts.UnionTypeNode): Type {
-        return this.parseUnionType(
-            this.typechecker!.getTypeFromTypeNode(unionType) as ts.UnionType,
-        );
-    }
+    private parseClassType(node: ts.ClassDeclaration, classType: TSClass) {
+        this.nodeTypeCache.set(node, classType);
+        classType.setClassName(node.name!.getText());
 
-    private parseUnionType(type: ts.UnionType): Type {
-        const union_type = new TSUnion();
+        const scope = this.parserCtx.nodeScopeMap.get(node)!;
+        this.parseTypeParameters(classType, node, scope);
+        this.typeParameterStack.push(classType);
 
-        if (!type.types) {
-            return builtinTypes.get('any')!;
+        classType.isDeclare = this.parseNestDeclare(node);
+
+        const heritages = node.heritageClauses;
+        let baseClassType: TSClass | null = null;
+        let baseInfcType: TSInterface | null = null;
+        /** if extends more than two classes, an error will be thrown,
+         *  if extends a class, implements some interface, the subclass is subtype of supclass,
+         *  but do not guarantee that it will be a subtype of the interface either.
+         *  if implements more than one interface, the subclass is subtype of the first interface.
+         *  */
+        if (heritages) {
+            const heritageTypes: TSClass[] = [];
+            for (const h of heritages) {
+                for (const type of h.types) {
+                    const baseTsType = this.typechecker!.getTypeAtLocation(
+                        type.expression,
+                    );
+                    const symbol = baseTsType.symbol;
+                    const baseDecl = symbol.declarations![0];
+                    const baseType = this.symbolTypeMap.get(baseDecl);
+                    if (!this.parsedClassTypes.has(baseType as TSClass)) {
+                        if (baseType instanceof TSInterface) {
+                            this.parseInfcType(
+                                baseDecl as ts.InterfaceDeclaration,
+                                baseType,
+                            );
+                        } else if (baseType instanceof TSClass) {
+                            this.parseClassType(
+                                baseDecl as ts.ClassDeclaration,
+                                baseType,
+                            );
+                        }
+                    }
+                    heritageTypes.push(baseType as TSClass);
+                }
+            }
+            for (const h of heritageTypes) {
+                if (h instanceof TSInterface) {
+                    if (!baseClassType && !baseInfcType) {
+                        baseInfcType = h;
+                        classType.setImplInfc(baseInfcType);
+                    }
+                } else {
+                    if (baseInfcType) {
+                        baseInfcType = null;
+                        classType.setImplInfc(baseInfcType);
+                    }
+                    if (baseClassType) {
+                        throw new Error('unimpl multiple base classes');
+                    }
+                    baseClassType = h;
+                    classType.setBase(baseClassType);
+                }
+            }
         }
-
-        for (const tstype of type.types) {
-            union_type.addType(this.tsTypeToType(tstype));
-        }
-
-        const types = union_type.types;
-        if (types.every((type) => type === types[0])) {
-            return types[0];
-        }
-
-        // T | null will be treated as nullable T type
-        if (types.find((type) => type.kind === TypeKind.NULL)) {
-            const nonNullTypes = types.filter(
-                (type) => type.kind !== TypeKind.NULL,
-            );
-            if (
-                nonNullTypes.length > 0 &&
-                nonNullTypes.every((type) => type === nonNullTypes[0]) &&
-                !nonNullTypes[0].isPrimitive
-            ) {
-                return nonNullTypes[0];
+        if (baseClassType) {
+            // TODO try resolve the template type
+            for (const field of baseClassType.fields) {
+                classType.addMemberField(field);
+            }
+            for (const pair of baseClassType.staticFieldsInitValueMap) {
+                classType.staticFieldsInitValueMap.set(pair[0], pair[1]);
+            }
+            for (const staticField of baseClassType.staticFields) {
+                classType.addStaticMemberField(staticField);
+            }
+            for (const method of baseClassType.memberFuncs) {
+                classType.addMethod(method);
             }
         }
 
-        return union_type;
-    }
+        // 1. parse constructor
+        let ctorScope: FunctionScope;
+        const constructor = node.members.find((member) => {
+            return ts.isConstructorDeclaration(member);
+        });
+        if (constructor) {
+            ctorScope = this.nodeScopeMap.get(constructor)! as FunctionScope;
+        } else {
+            const classScope = this.nodeScopeMap.get(node)! as ClassScope;
+            ctorScope = new FunctionScope(classScope);
+            ctorScope.setFuncName('constructor');
+            ctorScope.setClassName(node.name!.getText());
+            ctorScope.addVariable(new Variable('this', classType));
+            ctorScope.envParamLen = 2;
 
-    private generateTypeId(typeString: string): number {
-        if (this.parserCtx.typeIdMap.has(typeString)) {
-            return this.parserCtx.typeIdMap.get(typeString)!;
+            const ctorType = new TSFunction(FunctionKind.CONSTRUCTOR);
+            ctorType.returnType = classType;
+            ctorType.isMethod = true;
+            classType.hasDeclareCtor = false;
+            /* insert params, variables, types */
+            ctorType.envParamLen = 2;
+            ctorScope.setFuncType(ctorType);
+            classType.ctorType = ctorType;
+
+            if (baseClassType) {
+                const baseCtorType = baseClassType.ctorType;
+                const paramTypes = baseCtorType.getParamTypes();
+                for (let i = 0; i < paramTypes.length; i++) {
+                    ctorType.addParamType(paramTypes[i]);
+                    ctorScope.addParameter(
+                        new Parameter(`@anonymous${i}`, paramTypes[i]),
+                    );
+                }
+            }
         }
-        const id = this.parserCtx.typeId;
-        this.parserCtx.typeId += 2; // next typeid
-        this.parserCtx.typeIdMap.set(typeString, id);
-        return id;
-    }
 
-    private generateObjectLiteralName(): string {
-        const id = this.parserCtx.typeIdMap.size;
-        const name = `@object_literal${id}`;
-        this.generateTypeId(name);
-        return name;
-    }
+        // 2. parse other fields
+        for (const member of node.members) {
+            if (ts.isSemicolonClassElement(member)) {
+                /* ES6 allows Semicolon as class elements, we just skip them */
+                continue;
+            }
+            const name = ts.isConstructorDeclaration(member)
+                ? 'constructor'
+                : member.name!.getText();
 
-    private typeToString(node: ts.Node) {
-        const type = this.typechecker!.getTypeAtLocation(node);
-        let typeString = this.typechecker!.typeToString(type);
+            if (ts.isPropertyDeclaration(member)) {
+                const type = this.generateNodeType(member);
+                const modifier = member.modifiers?.find((m) => {
+                    return m.kind === ts.SyntaxKind.ReadonlyKeyword;
+                })
+                    ? 'readonly'
+                    : undefined;
+                const staticModifier = member.modifiers?.find((m) => {
+                    return m.kind === ts.SyntaxKind.StaticKeyword;
+                })
+                    ? 'static'
+                    : undefined;
+                const classField: TsClassField = {
+                    name: name,
+                    type: type,
+                    modifier: modifier,
+                    visibility: 'public',
+                    static: staticModifier,
+                };
+                if (member.initializer) {
+                    if (classField.static) {
+                        let index = classType.getStaticFieldIndex(name);
+                        if (index === -1) {
+                            index = classType.staticFields.length;
+                        }
+                        classType.staticFieldsInitValueMap.set(
+                            index,
+                            this.parserCtx.expressionProcessor.visitNode(
+                                member.initializer,
+                            ),
+                        );
+                    } else {
+                        ctorScope.addStatement(
+                            this.parserCtx.statementProcessor.createFieldAssignStmt(
+                                member.initializer,
+                                classType,
+                                type,
+                                name,
+                            ),
+                        );
+                    }
+                }
 
-        const maybeWasmType = TypeResolver.maybeBuiltinWasmType(node);
-        if (maybeWasmType) {
-            typeString = maybeWasmType.getName();
+                if (
+                    classType.getMemberField(name) ||
+                    classType.getStaticMemberField(name)
+                ) {
+                    continue;
+                }
+                if (!classField.static) {
+                    classType.addMemberField(classField);
+                } else {
+                    classType.addStaticMemberField(classField);
+                }
+            }
+            if (ts.isSetAccessor(member)) {
+                this.setMethod(
+                    member,
+                    baseClassType,
+                    classType,
+                    FunctionKind.SETTER,
+                );
+            }
+            if (ts.isGetAccessor(member)) {
+                this.setMethod(
+                    member,
+                    baseClassType,
+                    classType,
+                    FunctionKind.GETTER,
+                );
+            }
+            if (ts.isMethodDeclaration(member)) {
+                const kind = member.modifiers?.find((m) => {
+                    return m.kind === ts.SyntaxKind.StaticKeyword;
+                })
+                    ? FunctionKind.STATIC
+                    : FunctionKind.METHOD;
+                this.setMethod(member, baseClassType, classType, kind);
+            }
+            if (ts.isConstructorDeclaration(member)) {
+                const ctorType = this.parseConstructor(member);
+                ctorScope.setFuncType(ctorType);
+                classType.ctorType = ctorType;
+            }
         }
 
-        // setter : T ==> (x: T) => void
-        if (ts.isSetAccessor(node)) {
-            const paramName = node.parameters[0].getText();
-            typeString = `(${paramName}) => void`;
+        /** reorder member orders for optimization */
+        if (baseInfcType) {
+            const baseFields = baseInfcType.fields;
+            for (let i = baseFields.length - 1; i >= 0; i--) {
+                const index = classType.fields.findIndex(
+                    (field) => field.name == baseFields[i].name,
+                );
+                if (index > -1) {
+                    const targetField = classType.fields[index];
+                    classType.fields.splice(index, 1);
+                    classType.fields.unshift(targetField);
+                }
+            }
+            const baseMethods = baseInfcType.memberFuncs;
+            for (let i = baseMethods.length - 1; i >= 0; i--) {
+                const index = classType.getMethod(
+                    baseMethods[i].name,
+                    baseMethods[i].type.funcKind,
+                ).index;
+                if (index > -1) {
+                    const targetMethod = classType.memberFuncs[index];
+                    classType.memberFuncs.splice(index, 1);
+                    classType.memberFuncs.unshift(targetMethod);
+                }
+            }
         }
-        // getter : T ==> () => T
-        if (ts.isGetAccessor(node)) {
-            typeString = `() => ${typeString}`;
-        }
-        // typeReference: T ==> typeId
-        // TODO
-        return typeString;
+
+        this.parsedClassTypes.add(classType);
+        return classType;
     }
 
     private setMethod(
@@ -1853,13 +1753,16 @@ export class TypeResolver {
         funcKind: FunctionKind,
     ) {
         const methodName = func.name.getText();
-
         const type = this.generateNodeType(func);
         let tsFuncType = new TSFunction(funcKind);
         /* record tsFuncType envParamLen: @context. @this */
         tsFuncType.envParamLen = 2;
 
-        this.parseTypeParameters(tsFuncType, func, this.currentScope);
+        // if (func.typeParameters) {
+        //     this.parseTypeParameterIndex(func.typeParameters, tsFuncType);
+        // }
+        const scope = this.parserCtx.nodeScopeMap.get(func)!;
+        this.parseTypeParameters(tsFuncType, func, scope);
 
         const nameWithPrefix = getMethodPrefix(funcKind) + func.name.getText();
 
@@ -1942,61 +1845,162 @@ export class TypeResolver {
         }
     }
 
-    private parseEnumType(node: ts.EnumDeclaration): Type {
-        const scope = this.currentScope!;
-
-        let start = 0;
-        const enumType = new TSEnum(node.name.getText());
-        for (const member of node.members) {
-            const name = member.name.getText();
-            let value: number | string = start;
-            if (member.initializer) {
-                value = this.parseEnumMemberValue(enumType, member.initializer);
-            } else {
-                start++;
+    private parseStatic(node: ts.FunctionLikeDeclaration): boolean {
+        let res = false;
+        if (node.modifiers) {
+            const hasStaticKeyword = node.modifiers.find((modifier) => {
+                return modifier.kind === ts.SyntaxKind.StaticKeyword;
+            });
+            if (hasStaticKeyword) {
+                res = true;
             }
-            enumType.addMember(name, value);
         }
-        scope.addType(node.name.getText(), enumType);
-        return enumType;
+        return res;
     }
 
-    private parseEnumMemberValue(
-        enumType: TSEnum,
-        expr: ts.Expression,
-    ): number | string {
-        switch (expr.kind) {
-            case ts.SyntaxKind.StringLiteral:
-                return (expr as ts.StringLiteral).text; // return the string value without \' or \"
-            case ts.SyntaxKind.NumericLiteral:
-                return parseInt((expr as ts.NumericLiteral).getText());
-            case ts.SyntaxKind.Identifier: {
-                const name = (expr as ts.Identifier).getText();
-                const value = enumType.getMember(name);
-                if (!value) {
-                    throw Error(`EnumMember cannot find ${name}`);
-                }
-                return value;
+    private parseConstructor(ctor: ts.ConstructorDeclaration) {
+        const signature = this.typechecker!.getSignatureFromDeclaration(ctor);
+        const tsFunction = this.parseSignature(signature);
+        tsFunction.funcKind = FunctionKind.CONSTRUCTOR;
+        return tsFunction;
+    }
+
+    private parseTypeRefRelationship(type: TSClass) {
+        if (!this.typeRefsMap.has(type)) {
+            this.typeRefsMap.set(type, new Set<TSClass>());
+        }
+        const refs = this.typeRefsMap.get(type)!;
+        type.fields.map((field) => {
+            this.parseTypeRefRelationship2(field.type, refs);
+        });
+        type.memberFuncs.map((method) => {
+            this.parseTypeRefRelationship2(method.type, refs);
+        });
+    }
+
+    private parseTypeRefRelationship2(type: Type, refsSet: Set<TSClass>) {
+        if (type instanceof TSClass) {
+            refsSet.add(type);
+            return;
+        }
+        if (type instanceof TSArray) {
+            this.parseTypeRefRelationship2(type.elementType, refsSet);
+        }
+        if (type instanceof TSFunction) {
+            this.parseTypeRefRelationship2(type.returnType, refsSet);
+            for (const param of type.getParamTypes()) {
+                this.parseTypeRefRelationship2(param, refsSet);
             }
-            case ts.SyntaxKind.BinaryExpression: {
-                const bnode = expr as ts.BinaryExpression;
-                const left = this.parseEnumMemberValue(enumType, bnode.left);
-                const right = this.parseEnumMemberValue(enumType, bnode.right);
-                switch (bnode.operatorToken.kind) {
-                    case ts.SyntaxKind.PlusToken:
-                        if (typeof left == 'string' || typeof right == 'string')
-                            return `${left}${right}`;
-                        else return (left as number) + (right as number);
-                    default:
-                        throw Error(
-                            `EnumMember cannot support the operator ${
-                                ts.SyntaxKind[bnode.operatorToken.kind]
-                            }`,
-                        );
+        }
+    }
+
+    private typeIdAllocate(type: TSClass) {
+        if (type.traverseStatus === TraverseStatus.PROCESSED) {
+            return;
+        }
+        // meet a circular reference
+        if (type.traverseStatus === TraverseStatus.VISITTED) {
+            type.traverseStatus = TraverseStatus.PROCESSED;
+            type.typeId = this.parserCtx.typeId;
+            if (type.className === '') {
+                type.setClassName(`@object_type${type.typeId}`);
+            }
+            this.parserCtx.typeId += 2;
+            this.loopEntry = type;
+            this.parserCtx.recGroupTypes.push(new Array<TSClass>());
+            return;
+        }
+
+        type.traverseStatus = TraverseStatus.VISITTED;
+        const refArray = this.typeRefsMap.get(type);
+        if (refArray && refArray.size > 0) {
+            refArray.forEach((ref) => {
+                this.typeIdAllocate(ref);
+            });
+        }
+        if (type.traverseStatus === TraverseStatus.VISITTED) {
+            const shapeStr = this.getShapeDesc(type);
+            type.typeId = this.generateTypeId(shapeStr);
+            if (type.className === '') {
+                type.setClassName(`@object_type${type.typeId}`);
+            }
+            type.traverseStatus = TraverseStatus.PROCESSED;
+        }
+
+        if (this.loopEntry) {
+            const len = this.parserCtx.recGroupTypes.length;
+            this.parserCtx.recGroupTypes[len - 1].push(type);
+            if (type === this.loopEntry) {
+                this.loopEntry = null;
+            }
+        }
+    }
+
+    private generateTypeId(typeString: string): number {
+        if (this.parserCtx.typeIdMap.has(typeString)) {
+            return this.parserCtx.typeIdMap.get(typeString)!;
+        }
+        const id = this.parserCtx.typeId;
+        this.parserCtx.typeId += 2; // next typeid
+        this.parserCtx.typeIdMap.set(typeString, id);
+        return id;
+    }
+
+    private getShapeDesc(tsClass: TSClass) {
+        let str = '';
+        tsClass.fields.map((field) => {
+            str = str + field.name + this.getTypeString(field.type) + ',';
+        });
+        tsClass.memberFuncs
+            .filter((func) => {
+                return func.type.funcKind !== FunctionKind.STATIC;
+            })
+            .map((func) => (str = str + this.getTypeString(func.type) + ','));
+
+        return str;
+    }
+
+    private noTypeParmeters(type: readonly ts.Type[]) {
+        return (
+            type.length > 0 &&
+            type.every((t) => {
+                return !(t.flags & ts.TypeFlags.TypeParameter);
+            })
+        );
+    }
+
+    private getTypeString(type: Type): string {
+        if (type instanceof Primitive) {
+            return type.toString();
+        } else if (type instanceof TSUnion) {
+            return type._types.join('|');
+        } else if (type instanceof TSArray) {
+            return this.getTypeString(type.elementType) + '[]';
+        } else if (type instanceof TSClass) {
+            return type.typeId.toString();
+        } else if (type instanceof WasmType) {
+            return type.getName();
+        } else if (type instanceof TSFunction) {
+            let res = '(';
+            const len = type.getParamTypes().length;
+            const paramTypes: string[] = new Array<string>(len);
+            for (let i = 0; i < len - 1; i++) {
+                paramTypes[i] = this.getTypeString(type.getParamTypes()[i]);
+                if (type.isOptionalParams[i]) {
+                    paramTypes[i] = '?' + paramTypes[i];
                 }
             }
-            default:
-                throw Error(`EnumMember don't support dynamic expression`);
+            if (type.hasRest()) {
+                paramTypes[len - 1] =
+                    '...' + this.getTypeString(type.getParamTypes()[len - 1]);
+            }
+            res = res + paramTypes.join(',') + ')';
+            res = res + '=>' + this.getTypeString(type.returnType);
+            return res;
+        } else {
+            // types unimplemented
+            Logger.info(`types unimplemented ${type.kind}`);
+            return 'unknown';
         }
     }
 
@@ -2053,7 +2057,7 @@ export class TypeResolver {
                     })
                 );
             }
-            case TypeKind.GENERIC: {
+            case TypeKind.TYPE_PARAMETER: {
                 return true;
             }
             default: {
@@ -2063,7 +2067,11 @@ export class TypeResolver {
         return false;
     }
 
-    public static createSpecializedType(type: Type, typeArg: Type): Type {
+    public static createSpecializedType(
+        type: Type,
+        typeArg: Type[],
+        containType: TSTypeWithArguments,
+    ): Type {
         if (!this.isTypeGeneric(type)) {
             return type;
         }
@@ -2089,6 +2097,7 @@ export class TypeResolver {
                     this.createSpecializedType(
                         (type as TSArray).elementType,
                         typeArg,
+                        type as TSTypeWithArguments,
                     ),
                 );
             }
@@ -2097,12 +2106,17 @@ export class TypeResolver {
                 const newFuncType = new TSFunction(funcType.funcKind);
                 funcType.getParamTypes().forEach((paramType) => {
                     newFuncType.addParamType(
-                        this.createSpecializedType(paramType, typeArg),
+                        this.createSpecializedType(
+                            paramType,
+                            typeArg,
+                            type as TSTypeWithArguments,
+                        ),
                     );
                 });
                 newFuncType.returnType = this.createSpecializedType(
                     funcType.returnType,
                     typeArg,
+                    type as TSTypeWithArguments,
                 );
                 return newFuncType;
             }
@@ -2118,7 +2132,11 @@ export class TypeResolver {
                 classType.fields.forEach((field) => {
                     newType.addMemberField({
                         name: field.name,
-                        type: this.createSpecializedType(field.type, typeArg),
+                        type: this.createSpecializedType(
+                            field.type,
+                            typeArg,
+                            type as TSTypeWithArguments,
+                        ),
                     });
                 });
                 classType.memberFuncs.forEach((func) => {
@@ -2127,20 +2145,32 @@ export class TypeResolver {
                         type: this.createSpecializedType(
                             func.type,
                             typeArg,
+                            type as TSTypeWithArguments,
                         ) as TSFunction,
                     });
                 });
                 classType.staticFields.forEach((field) => {
                     newType.addStaticMemberField({
                         name: field.name,
-                        type: this.createSpecializedType(field.type, typeArg),
+                        type: this.createSpecializedType(
+                            field.type,
+                            typeArg,
+                            type as TSTypeWithArguments,
+                        ),
                     });
                 });
                 return newType;
             }
-            case TypeKind.GENERIC: {
-                if (typeArg) {
-                    return typeArg;
+            case TypeKind.TYPE_PARAMETER: {
+                const genericType = type as TSTypeParameter;
+                const typeArgs = containType.typeArguments;
+                if (typeArg && typeArgs) {
+                    for (let i = 0; i < typeArgs.length; i++) {
+                        if (typeArgs[i].name === genericType.name) {
+                            return typeArg[i];
+                        }
+                    }
+                    // return typeArg;
                 }
 
                 return builtinTypes.get('any')!;

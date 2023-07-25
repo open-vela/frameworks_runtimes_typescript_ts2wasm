@@ -4,7 +4,7 @@
  */
 
 import ts from 'typescript';
-import { TypeResolver, CustomTypeResolver } from './type.js';
+import { TypeResolver, CustomTypeResolver, TSClass } from './type.js';
 import { CustomTypeId, mangling, Stack } from './utils.js';
 import { fileURLToPath } from 'url';
 import {
@@ -51,6 +51,8 @@ export class ParserContext {
     private _stmtProcessor;
     private _sematicChecker;
     private _errorMessage: ts.Diagnostic[] | null = null;
+    /** These types form a circular reference and need to be created as wasm types using rec. */
+    private _recTypeGroups = new Array<TSClass[]>();
 
     typeChecker: ts.TypeChecker | undefined;
     globalScopes = new Array<GlobalScope>();
@@ -119,10 +121,11 @@ export class ParserContext {
 
         /* Step1: Resolve all scopes */
         this._scopeScanner.visit(sourceFileList);
-        /* Step2: Resolve all import and export */
-        this._importResolver.visit();
-        /* Step3: Resolve all type declarations */
+        /* Step2: Resolve all type declarations */
+        this._typeResolver.visitSymbolNode(sourceFileList);
         this._typeResolver.visit();
+        /* Step3: Resolve all import and export */
+        this._importResolver.visit();
         /* Step4: Add variables to scopes */
         this._variableScanner.visit();
         this._variableInit.visit();
@@ -173,6 +176,14 @@ export class ParserContext {
 
     get errorMessage() {
         return this._errorMessage;
+    }
+
+    set recGroupTypes(recs: TSClass[][]) {
+        this._recTypeGroups = recs;
+    }
+
+    get recGroupTypes() {
+        return this._recTypeGroups;
     }
 
     dumpScopes(

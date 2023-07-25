@@ -6,7 +6,7 @@
 import { ExportedClass } from './export_class';
 
 class A extends ExportedClass{
-    
+
 }
 
 export function importClass() {

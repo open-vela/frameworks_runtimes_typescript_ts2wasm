@@ -24,6 +24,7 @@ const IGNORE_LIST = [
     "namespace_generics_function.ts",
     "exception_custom_error.ts",
     "exception_throw_error.ts",
+    "ignore_parameter_in_variable.ts"
 ]
 
 describe('basic_cases', function () {

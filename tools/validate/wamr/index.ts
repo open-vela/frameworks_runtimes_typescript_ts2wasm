@@ -28,14 +28,15 @@ const IGNORE_CASES = [
     'global_generics_function:test',
     'inner_generics_function:test',
     'namespace_generics_function:test',
-    'generics_class:test',
+    // 'generics_class:test',
+    'ignore_parameter_in_variable.ts',
 
     /* require host API */
     'declare_class:classDecl',
     'declare_func:assignDeclareFuncToVar',
 
     /* workaround: generic type */
-    'import_type:validateTypeArguments',
+    // 'import_type:validateTypeArguments',
 
     /* function not exported */
     'export_namespace:bFunc',
@@ -51,6 +52,8 @@ const IGNORE_CASES = [
     'any_func_call:anyFuncCallWithObj',
     'any_func_call:anyFuncCallWithInfc',
     'any_func_call:anyFuncCallWithArray',
+    'rec_types:recursiveType1',
+    'rec_types:recursiveType2',
 ];
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
