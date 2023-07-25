@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-import ts from 'typescript';
-
 import {
     Type,
     TSClass,
@@ -39,11 +37,8 @@ import { Logger } from '../log.js';
 import {
     ValueType,
     ValueTypeKind,
-    PrimitiveType,
     Primitive,
     ArrayType,
-    SetType,
-    MapType,
     UnionType,
     FunctionType,
     TypeParameterType,
@@ -51,7 +46,6 @@ import {
     ObjectType,
     ObjectTypeFlag,
     ClosureContextType,
-    EmptyType,
     ValueTypeWithArguments,
 } from './value_types.js';
 
@@ -74,7 +68,6 @@ import {
     ShapeAccessor,
     Value,
     ShapeMemberStorage,
-    use_shape,
 } from './runtime.js';
 import { buildExpression, newCastValue } from './expression_builder.js';
 import { DefaultTypeId } from '../utils.js';
@@ -441,10 +434,13 @@ export function createObjectType(
     clazz: TSClass,
     context: BuildContext,
 ): ObjectType | undefined {
+    const objectType = context.module.findObjectValueType(clazz);
+    if (objectType) {
+        return objectType as ObjectType;
+    }
     if (IsBuiltinObject(clazz.className)) {
         return createBuiltinObjectType(clazz, context);
     }
-
     let mangledName = clazz.mangledName;
     if (mangledName.length == 0) mangledName = clazz.className;
     const instName = mangledName;
@@ -479,7 +475,20 @@ export function createObjectType(
         inst_meta,
         clazz.isLiteral ? ObjectTypeFlag.LITERAL : ObjectTypeFlag.OBJECT,
     );
-    inst_type.implId = clazz.implId;
+    inst_type.implId = DefaultTypeId;
+    if (impl_infc) {
+        inst_type.implId = impl_infc.typeId;
+    } else if (base_class) {
+        let sup_class: TSClass | null = base_class;
+        while (sup_class) {
+            const temp_impl_infc = sup_class.getImplInfc();
+            if (temp_impl_infc) {
+                inst_type.implId = temp_impl_infc.typeId;
+                break;
+            }
+            sup_class = sup_class.getBase();
+        }
+    }
 
     if (inst_meta.isObjectInstance) {
         clazz_meta = new ObjectDescription(
@@ -501,7 +510,7 @@ export function createObjectType(
             clazz_meta,
             ObjectTypeFlag.CLASS,
         );
-        inst_type.implId = clazz.implId;
+        clazz_type.implId = inst_type.implId;
 
         clazz_type.instanceType = inst_type;
         inst_type.classType = clazz_type;
@@ -524,7 +533,16 @@ export function createObjectType(
     context.pushTask(() =>
         updateMemberDescriptions(context, clazz, inst_meta, clazz_meta),
     );
-
+    /** the frontend will only generate single tsclass for object type, so here we can determine whether the type is
+     * belong to rec group
+     */
+    for (let i = 0; i < context.recClassTypeGroup.length; ++i) {
+        const row = context.recClassTypeGroup[i];
+        const col = row.indexOf(clazz);
+        if (col !== -1) {
+            context.module.recObjectTypeGroup[i][col] = inst_type;
+        }
+    }
     return inst_type;
 }
 

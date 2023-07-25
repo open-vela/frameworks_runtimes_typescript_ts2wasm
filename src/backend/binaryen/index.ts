@@ -271,11 +271,11 @@ export class WASMGen extends Ts2wasmBackend {
 
     constructor(parserContext: ParserContext) {
         super(parserContext);
+        this._semanticModule = BuildModuleNode(parserContext);
+        this._binaryenModule = new binaryen.Module();
         this._wasmTypeCompiler = new WASMTypeGen(this);
         this._wasmExprCompiler = new WASMExpressionGen(this);
         this._wasmStmtCompiler = new WASMStatementGen(this);
-        this._binaryenModule = new binaryen.Module();
-        this._semanticModule = BuildModuleNode(parserContext);
         this.dataSegmentContext = new DataSegmentContext();
     }
 
@@ -289,6 +289,10 @@ export class WASMGen extends Ts2wasmBackend {
 
     get wasmExprComp(): WASMExpressionGen {
         return this._wasmExprCompiler;
+    }
+
+    get semanticModule() {
+        return this._semanticModule;
     }
 
     public hasFuncName(funcName: string) {
@@ -731,18 +735,37 @@ export class WASMGen extends Ts2wasmBackend {
             );
             this.module.setStart(wasmStartFuncRef);
         }
-
-        this.module.addFunction(
-            func.name,
-            binaryen.createType(paramWASMTypes),
-            returnWASMType,
-            allVarsTypeRefs,
-            this.module.block(
-                null,
-                [bodyRef, this.currentFuncCtx.returnOp],
+        if (
+            func.ownKind & FunctionOwnKind.METHOD &&
+            this.wasmTypeComp.heapType.has(func.funcType)
+        ) {
+            const heap = this.wasmTypeComp.getWASMHeapType(func.funcType);
+            binaryenCAPI._BinaryenAddFunctionWithHeapType(
+                this.module.ptr,
+                getCString(func.name),
+                heap,
+                arrayToPtr(allVarsTypeRefs).ptr,
+                allVarsTypeRefs.length,
+                this.module.block(
+                    null,
+                    [bodyRef, this.currentFuncCtx.returnOp],
+                    returnWASMType,
+                ),
+            );
+        } else {
+            this.module.addFunction(
+                func.name,
+                binaryen.createType(paramWASMTypes),
                 returnWASMType,
-            ),
-        );
+                allVarsTypeRefs,
+                this.module.block(
+                    null,
+                    [bodyRef, this.currentFuncCtx.returnOp],
+                    returnWASMType,
+                ),
+            );
+        }
+
         if (
             (func.ownKind &
                 (FunctionOwnKind.EXPORT | FunctionOwnKind.DEFAULT)) ===

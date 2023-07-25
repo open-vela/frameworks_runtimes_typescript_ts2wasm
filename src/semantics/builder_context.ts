@@ -23,7 +23,7 @@ import { Type, TypeKind, TSClass } from '../type.js';
 
 import { SemanticsValue, SemanticsValueKind, VarValue } from './value.js';
 
-import { ValueType, ClosureContextType } from './value_types.js';
+import { ValueType } from './value_types.js';
 
 import {
     SemanticsNode,
@@ -91,6 +91,7 @@ export class BuildContext {
     public namedGlobalValues = new Map<string, SemanticsValue>();
     public enterScope: GlobalScope | undefined = undefined;
     public startStmts = new Map<GlobalScope, SemanticsNode[]>();
+    public recClassTypeGroup = new Array<TSClass[]>();
 
     addFunctionValue(var_func: VarValue) {
         this.namedGlobalValues.set(var_func.index as string, var_func);

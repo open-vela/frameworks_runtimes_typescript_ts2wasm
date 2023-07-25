@@ -3272,5 +3272,30 @@
                 "result": "1 \n-1 \n-3 \n-3:f64"
             }
         ]
+    },
+    {
+        "module": "typealias",
+        "entries": [
+            {
+                "name": "useTypeBeforeDefine",
+                "args": [],
+                "result": "A \nA"
+            }
+        ]
+    },
+    {
+        "module": "rec_types",
+        "entries": [
+            {
+                "name": "recursiveType1",
+                "args": [],
+                "result": "40:f64"
+            },
+            {
+                "name": "recursiveType2",
+                "args": [],
+                "result": "50:f64"
+            }
+        ]
     }
 ]
