@@ -2346,6 +2346,16 @@ export declare function _BinaryenAddFunction(
     numVarTypes: Index,
     body: ExpressionRef,
 ): FunctionRef;
+
+export declare function _BinaryenAddFunctionWithHeapType(
+    module: ModuleRef,
+    name: StringRef,
+    type: HeapTypeRef,
+    varTypes: ArrayRef<TypeRef>,
+    numVarTypes: Index,
+    body: ExpressionRef,
+): FunctionRef;
+
 export declare function _BinaryenGetFunction(
     module: ModuleRef,
     name: StringRef,

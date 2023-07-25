@@ -311,7 +311,7 @@ function buildPropertyAccessExpression(
     }
 
     const shape = own.shape;
-    if (!shape) {
+    if (!shape || own.type.kind == ValueTypeKind.ANY) {
         Logger.warn(`WARNING Type has null shape ${type}, use dynamic Access`);
         const dynamicAccess = createDynamicAccess(
             own,

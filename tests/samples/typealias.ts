@@ -38,3 +38,24 @@ function obj_test(o: obj) {
 function func_test(f: func) {
    f();
 }
+
+type newA = () => A;
+
+const a: newA = () => {
+    return new A();
+};
+
+function func() {
+    return new A();
+}
+
+export function useTypeBeforeDefine() {
+    a();
+    func();
+}
+
+class A {
+    constructor() {
+        console.log('A');
+    }
+}

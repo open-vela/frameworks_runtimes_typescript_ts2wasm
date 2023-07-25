@@ -713,6 +713,7 @@
    _BinaryenStringSliceIterSetNum,
 
    _BinaryenAddFunction,
+   _BinaryenAddFunctionWithHeapType,
    _BinaryenGetFunction,
    _BinaryenRemoveFunction,
    _BinaryenGetNumFunctions,
