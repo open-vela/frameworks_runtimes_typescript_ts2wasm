@@ -25,12 +25,25 @@ interface HelpMessageCategory {
     Other: string[];
 }
 
+function isRegularFile(filePath: string) {
+    fs.lstat(filePath, function (err, stats) {
+        if (stats.isSymbolicLink() || stats.nlink > 1) {
+            throw new Error(`${filePath} is not a regular file`);
+        }
+    });
+}
+
+function validateFilePath(filePath: string) {
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`${filePath} not exist`);
+    }
+    isRegularFile(filePath);
+}
+
 function parseOptions() {
     const dirname = path.dirname(fileURLToPath(import.meta.url));
     const optionPath = path.join(dirname, '..', '..', 'cli', 'options.json');
-    if (!fs.existsSync(optionPath)) {
-        throw new Error('help file not exist');
-    }
+    validateFilePath(optionPath);
     const helpFile = fs.readFileSync(optionPath, 'utf8');
     const helpConfig = JSON.parse(helpFile);
     return helpConfig;
@@ -39,9 +52,7 @@ function parseOptions() {
 function showVersion() {
     const dirname = path.dirname(fileURLToPath(import.meta.url));
     const packagePath = path.join(dirname, '..', '..', 'package.json');
-    if (!fs.existsSync(packagePath)) {
-        throw new Error('package.json file not exist');
-    }
+    validateFilePath(packagePath);
     const packageFile = fs.readFileSync(packagePath, 'utf8');
     const packageConfig = JSON.parse(packageFile);
     const version = packageConfig.version;
