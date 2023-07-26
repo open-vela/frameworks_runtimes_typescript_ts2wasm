@@ -8,6 +8,11 @@ interface I {
     y: boolean;
 }
 
+/** interface will a substitution field */
+interface I1 {
+    x: {};
+}
+
 export function objLiteralAndInfc() {
     const i: I = { x: 1, y: false };
     let o = { x: 10, y: true };
