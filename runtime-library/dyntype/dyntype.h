@@ -282,9 +282,9 @@ dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
  * @param obj dynamic object
  * @param index the index of the element to be set
  * @param elem the value to be set to the element
- * @return void
+ * @return 0: SUCCESS, -1: EXCEPTION, -2: TYPE ERROR
  */
-void
+int
 dyntype_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem);
 
 /**
