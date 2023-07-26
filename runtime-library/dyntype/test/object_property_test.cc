@@ -102,7 +102,6 @@ TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property) {
     dyntype_dump_value(ctx, obj);
     char *buffer = new char[1024 * 10];
     dyntype_dump_value_buffer(ctx, obj, buffer, 1024 * 10);
-    printf("%s\n", buffer);
 
     delete[] buffer;
 
