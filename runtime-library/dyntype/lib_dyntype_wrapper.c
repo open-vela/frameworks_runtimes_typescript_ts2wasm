@@ -198,8 +198,8 @@ void
 dyntype_set_elem_wrapper(wasm_exec_env_t exec_env, dyn_ctx_t ctx,
                          dyn_value_t obj, int index, dyn_value_t elem)
 {
-    return dyntype_set_elem(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), index,
-                            UNBOX_ANYREF(elem));
+    dyntype_set_elem(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), index,
+                     UNBOX_ANYREF(elem));
 }
 
 dyn_value_t

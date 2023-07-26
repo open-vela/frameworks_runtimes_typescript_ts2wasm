@@ -302,9 +302,9 @@ static JSValue new_function_wrapper(dyn_ctx_t ctx, void* vfunc, void* opaque) {
     JS_SetOpaque(data_hold[2], ctx);
     JSValue func = JS_NewCFunctionData(ctx->js_ctx, WasmCallBackDataForJS,
                 0, 0, 3, data_hold); // data will be dup inside qjs
-    dyntype_release(ctx, &data_hold[0]); // release 1 time here
-    dyntype_release(ctx, &data_hold[1]); // release 1 time here
-    dyntype_release(ctx, &data_hold[2]); // release 1 time here
+    JS_FreeValue(ctx->js_ctx, data_hold[0]);
+    JS_FreeValue(ctx->js_ctx, data_hold[1]);
+    JS_FreeValue(ctx->js_ctx, data_hold[2]);
     return func;
 }
 
@@ -448,16 +448,24 @@ dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, v
     return dyntype_dup_value(ctx->js_ctx, v);
 }
 
-void
+int
 dyntype_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem)
 {
     JSValue *obj_ptr = (JSValue *)obj;
     JSValue *elem_ptr = (JSValue *)elem;
+
     if (!JS_IsArray(ctx->js_ctx, *obj_ptr)) {
-        return;
+        return -DYNTYPE_TYPEERR;
     }
-    if (index < 0 ) return;
-    JS_SetPropertyUint32(ctx->js_ctx, *obj_ptr, index, *elem_ptr);
+    if (index < 0) {
+        return -DYNTYPE_TYPEERR;
+    }
+
+    if (JS_SetPropertyUint32(ctx->js_ctx, *obj_ptr, index, *elem_ptr) < 0) {
+        return -DYNTYPE_EXCEPTION;
+    }
+
+    return DYNTYPE_SUCCESS;
 }
 
 dyn_value_t
