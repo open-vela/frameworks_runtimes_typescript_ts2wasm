@@ -34,7 +34,7 @@ array_push_generic(wasm_exec_env_t exec_env, void *ctx, void *obj, void *value)
 
     arr_type =
         (wasm_array_type_t)wasm_obj_get_defined_type((wasm_obj_t)arr_ref);
-    if (len >= capacity - value_len) {
+    if (value_len >= capacity - len) {
         /* Current array space not enough, create new array */
         uint32 new_len = len + value_len + ARRAY_GROW_REDUNDANCE;
         new_arr =
@@ -600,7 +600,7 @@ array_unshift_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
         new_arr = arr_ref;
         new_length = len;
     }
-    else if (len >= capacity - value_len) {
+    else if (value_len >= capacity - len) {
         /* Current array space not enough, create new array */
         uint32 new_len = len + value_len + ARRAY_GROW_REDUNDANCE;
         new_arr =
