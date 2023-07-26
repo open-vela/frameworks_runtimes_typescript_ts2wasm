@@ -22,7 +22,9 @@ class TypesTest : public testing::Test {
 };
 
 TEST_F(TypesTest, create_number_object) {
-    double check_values[] = { 2147483649.1, 0, -5.48, 1111, -1, 1234.0 };
+    double check_values[] = { -1, 0, 0x100, 0x1000, 0x3fffffff, 0x7ffffffe, 0x7ffffff,
+        0x80000000, 0xfffffffe, 0xffffffff, 0x10000, 0x100000, 2147483649.1, -5.48,
+        1234.0};
 
     for (int i = 0; i < sizeof(check_values) / sizeof(check_values[0]); i++) {
         double raw_number = 0;
@@ -134,7 +136,9 @@ TEST_F(TypesTest, create_null) {
 }
 
 TEST_F(TypesTest, create_string) {
-    char const *check_values[] = {"", " ", "abcd", "123456", "字符串", "@#$%^&*)(*"};
+    char const *check_values[] = {"", " ", "abcd", "123456", "字符串", "@#$%^&*)(*", "terminal\0term"};
+    char const *validate_values[] = {"", " ", "abcd", "123456", "字符串", "@#$%^&*)(*", "terminal"};
+
 
     for (int i = 0; i < sizeof(check_values) / sizeof(check_values[0]); i++) {
         char *raw_value = nullptr;
@@ -153,7 +157,6 @@ TEST_F(TypesTest, create_string) {
         EXPECT_TRUE(dyntype_is_string(ctx, str));
         EXPECT_FALSE(dyntype_is_array(ctx, str));
         EXPECT_FALSE(dyntype_is_extref(ctx, str));
-
         dyntype_hold(ctx, str);
         dyntype_release(ctx, str);
 
@@ -163,7 +166,7 @@ TEST_F(TypesTest, create_string) {
         EXPECT_EQ(dyntype_to_number(ctx, str, &temp1), -DYNTYPE_TYPEERR);
 
         EXPECT_EQ(dyntype_to_cstring(ctx, str, &raw_value), DYNTYPE_SUCCESS);
-        EXPECT_STREQ(raw_value, check_values[i]);
+        EXPECT_STREQ(raw_value, validate_values[i]);
         dyntype_release(ctx, str);
         dyntype_free_cstring(ctx, raw_value);
     }
@@ -197,7 +200,6 @@ TEST_F(TypesTest, create_string) {
         EXPECT_EQ(dyntype_to_number(ctx, str, &temp1), -DYNTYPE_TYPEERR);
 
         EXPECT_EQ(dyntype_to_cstring(ctx, str, &raw_value), DYNTYPE_SUCCESS);
-        printf("raw_value %s\n", raw_value);
         EXPECT_STREQ(raw_value, cmp_values[i]);
         dyntype_release(ctx, str);
         dyntype_free_cstring(ctx, raw_value);
