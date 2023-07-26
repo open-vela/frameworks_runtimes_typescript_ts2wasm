@@ -43,6 +43,7 @@ import {
     TypeKind,
     TSFunction,
     TSArray,
+    TSInterface,
 } from '../type.js';
 import {
     ValueType,
@@ -830,10 +831,34 @@ function setRecArraySize(recClass: TSClass[][], recObjectType: ObjectType[][]) {
     return recObjectType;
 }
 
+/** to avoid interface in rec circles */
+function removeRecWhichHasInfc(recGroupTypes: TSClass[][]) {
+    const recGroupTypesNew: TSClass[][] = [];
+    if (recGroupTypes.length == 0) {
+        return recGroupTypesNew;
+    }
+
+    for (let i = 0; i < recGroupTypes.length; ++i) {
+        let hasInfc = false;
+        for (let j = 0; j < recGroupTypes[i].length; ++j) {
+            if (recGroupTypes[i][j] instanceof TSInterface) {
+                hasInfc = true;
+                break;
+            }
+        }
+        if (!hasInfc) {
+            recGroupTypesNew.push(recGroupTypes[i]);
+        }
+    }
+    return recGroupTypesNew;
+}
+
 export function BuildModuleNode(parserContext: ParserContext): ModuleNode {
     const module = new ModuleNode();
     const context = new BuildContext(parserContext.typeId, module);
-    context.recClassTypeGroup = parserContext.recGroupTypes;
+    context.recClassTypeGroup = removeRecWhichHasInfc(
+        parserContext.recGroupTypes,
+    );
     parserContext.recGroupTypes = [];
     context.module.recObjectTypeGroup = setRecArraySize(
         context.recClassTypeGroup,

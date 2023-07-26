@@ -60,3 +60,19 @@ export function infcImpl() {
     }
     return 0;
 }
+
+interface I1 {
+    x: number;
+    y: A1;
+}
+
+class A1 {
+    arr: I1[] = [];
+}
+
+/** when rec group contain infc, remove it from circle */
+export function removeInfcFromRecGroup() {
+    const a = new A1();
+    a.arr.push({ x: 1, y: new A1() });
+    return a.arr[0].x;
+}

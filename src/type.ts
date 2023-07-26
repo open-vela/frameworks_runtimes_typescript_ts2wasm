@@ -1076,14 +1076,27 @@ export class TypeResolver {
                 this.isObjectLiteral(type) ||
                 this.isObjectType(type))
         ) {
-            const decl = type.symbol.declarations![0];
-            const tsType = this.symbolTypeMap.get(decl);
-            if (!tsType) {
+            const decls = type.symbol.declarations;
+            if (decls) {
+                const decl = type.symbol.declarations![0];
+                const tsType = this.symbolTypeMap.get(decl);
+                if (!tsType) {
+                    throw new Error(
+                        `class/interface/object type not found, type name <${type.symbol.name}>. `,
+                    );
+                }
+                res = tsType;
+            } else if (type.symbol.flags & ts.TypeFlags.Substitution) {
+                /** TODO: symbol.declarations == undefined, means type always
+                 * has TypeFlags.Substitution flag??
+                 */
+                res = new TSClass();
+            } else {
                 throw new Error(
-                    `class/interface/object type not found, type name <${type.symbol.name}>. `,
+                    `class/interface/object type contains neither declarations
+                    nor Substitution flag, type name  <${type.symbol.name}>. `,
                 );
             }
-            res = tsType;
         }
         if (!res && this.isFunction(type)) {
             const signature = type.getCallSignatures()[0];
