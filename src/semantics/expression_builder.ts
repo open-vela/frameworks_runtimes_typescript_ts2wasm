@@ -2056,8 +2056,22 @@ function buildSuperValue(
         throw Error(`cannot find the context for using super`);
     }
     const context_kind = ts_node.parent.kind;
+    let isStaticFunc = false;
     if (context_kind == ts.SyntaxKind.PropertyAccessExpression) {
-        return new SuperValue(super_type, SuperUsageFlag.SUPER_LITERAL);
+        const propertyName = (
+            (ts_node.parent as ts.PropertyAccessExpression)
+                .name as ts.Identifier
+        ).escapedText;
+        super_class.memberFuncs.forEach((func) => {
+            if (func.name == propertyName) {
+                isStaticFunc = func.type.isStatic;
+            }
+        });
+        if (!isStaticFunc) {
+            return new SuperValue(super_type, SuperUsageFlag.SUPER_LITERAL);
+        } else {
+            return context.findSymbolKey(super_class) as VarValue;
+        }
     } else {
         if (expr.callArgs && expr.callArgs.length > 0) {
             for (const p of expr.callArgs) {
