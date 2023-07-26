@@ -14,7 +14,7 @@ const hooks = ['pre-commit'];
  * Based on:
  *   https://github.com/microsoft/TypeScript/blob/main/scripts/link-hooks.mjs
  */
-hooks.forEach(function (hook) {
+for (const hook of hooks) {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const hookInSourceControl = path.resolve(__dirname, 'hooks', hook);
@@ -24,7 +24,7 @@ hooks.forEach(function (hook) {
         const hookInHiddenDirectory = path.resolve(gitHookDirectory, hook);
 
         if (!fs.existsSync(gitHookDirectory)) {
-            return;
+            continue;
         }
 
         if (fs.existsSync(hookInHiddenDirectory)) {
@@ -33,4 +33,4 @@ hooks.forEach(function (hook) {
 
         fs.linkSync(hookInSourceControl, hookInHiddenDirectory);
     }
-});
+}
