@@ -390,6 +390,9 @@ dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
     return dyntype_dup_value(ctx->js_ctx, obj);
 }
 
+/** this_obj is void*, it comes from dyntype_dup_value(), so actually it has type JSValue*
+ * so the cast void* to JSValue* is safe.
+*/
 dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj,
                            int argc, dyn_value_t *args) {
     JSValue this_val = *(JSValue*)this_obj;
