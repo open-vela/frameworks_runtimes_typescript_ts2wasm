@@ -62,6 +62,7 @@ export class ValueType {
     private _generic_owner?: ValueType;
 
     private _builtin_type = false;
+    private _primitive_type = false;
 
     get isBuiltin(): boolean {
         return this._builtin_type;
@@ -69,6 +70,14 @@ export class ValueType {
 
     setBuiltin() {
         this._builtin_type = true;
+    }
+
+    get isPrimitive(): boolean {
+        return this._primitive_type;
+    }
+
+    setPrimitive() {
+        this._primitive_type = true;
     }
 
     setGenericOwner(vt: ValueType) {
@@ -99,6 +108,7 @@ export type PrimitiveValueType =
 export class PrimitiveType extends ValueType {
     constructor(kind: ValueTypeKind, typeId: number) {
         super(kind, typeId);
+        this.setPrimitive();
     }
 
     toString(): string {

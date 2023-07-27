@@ -1177,6 +1177,12 @@ export namespace FunctionalFuncs {
                     binaryen.i32,
                 );
             }
+            case ts.SyntaxKind.EqualsEqualsEqualsToken: {
+                return module.i32.eq(leftValueRef, rightValueRef);
+            }
+            case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
+                return module.i32.ne(leftValueRef, rightValueRef);
+            }
             default:
                 throw new Error(`operator doesn't support, ${opKind}`);
         }
