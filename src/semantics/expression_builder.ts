@@ -1135,9 +1135,14 @@ export function newBinaryExprValue(
         /** Adding instanceof to the comparison operator can result in type coercion to any,
          * which prevents compile-time verification of the instanceof relationship.
          */
-        // TODO make fast compare: such as number compare, string compare ...
-        left_value = newCastValue(Primitive.Any, left_value);
-        right_value = newCastValue(Primitive.Any, right_value);
+        /* TSC can guarantee that the types must be the same when both sides are primitive types.
+           And if the type of lvalue and rvalue are both primitive types,
+           there is no need to convert the type of lvalue and the type of rvalue to "any".
+        */
+        if (!left_value.type.isPrimitive || !right_value.type.isPrimitive) {
+            left_value = newCastValue(Primitive.Any, left_value);
+            right_value = newCastValue(Primitive.Any, right_value);
+        }
     } else if (
         left_value.type.isSpecialized() &&
         !right_value.type.isSpecialized() &&
