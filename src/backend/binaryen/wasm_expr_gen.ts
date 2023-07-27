@@ -651,15 +651,15 @@ export class WASMExpressionGen {
             );
         }
         if (
-            FunctionalFuncs.treatAsAny(leftValueType.kind) &&
             (rightValueType.kind === ValueTypeKind.NULL ||
-                rightValueType.kind === ValueTypeKind.UNDEFINED)
+                rightValueType.kind === ValueTypeKind.UNDEFINED) &&
+            !FunctionalFuncs.treatAsAny(leftValueType.kind)
         ) {
             return FunctionalFuncs.operateStaticNullUndefined(
                 this.module,
-                leftValueType,
-                leftValueRef,
-                rightValueType.kind,
+                rightValueType,
+                rightValueRef,
+                leftValueType.kind,
                 opKind,
             );
         }
