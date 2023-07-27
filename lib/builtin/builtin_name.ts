@@ -54,7 +54,8 @@ export namespace BuiltinNames {
 
     // Globals that should be fallbacked to libdyntype
     export const jsonName = `${builtinTypeManglePrefix}|JSON`;
-    export const fallbackGlobalNames = [jsonName];
+    export const promiseName = `${builtinTypeManglePrefix}|Promise`;
+    export const fallbackGlobalNames = [jsonName, promiseName];
 
     // builtin class name
     export const MATH = 'Math';
@@ -65,6 +66,7 @@ export namespace BuiltinNames {
     export const OBJECT = 'Object';
     export const FUNCTION = 'Function';
     export const CONSOLE = 'console';
+    export const PROMISE = 'Promise';
     export const MAP = 'Map';
     export const SET = 'Set';
     export const OBJECTCONSTRUCTOR = 'ObjectConstructor';
@@ -79,6 +81,7 @@ export namespace BuiltinNames {
         OBJECT,
         FUNCTION,
         CONSOLE,
+        PROMISE,
         MAP,
         SET,
         OBJECTCONSTRUCTOR,
@@ -235,7 +238,8 @@ export namespace BuiltinNames {
         `${builtinModuleName}|Array|includes`,
     ];
 
-    export const JSGlobalObjects: Map<string, boolean> = new Map();
+    export const JSGlobalObjects: Set<string> = new Set();
+    export const fallbackConstructors = ['Map', 'Set', 'Promise'];
 
     export function getSpecializedFuncName(
         mangledName: string,

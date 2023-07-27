@@ -423,6 +423,12 @@ dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj
     return dyntype_dup_value(ctx->js_ctx, v);
 }
 
+int dyntype_execute_pending_jobs(dyn_ctx_t ctx) {
+    JSContext *js_ctx1;
+    
+    return JS_ExecutePendingJob(JS_GetRuntime(ctx->js_ctx), &js_ctx1);
+}
+
 dyn_value_t dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, void* opaque)
 {
     JSValue tag_v, ref_v, v;

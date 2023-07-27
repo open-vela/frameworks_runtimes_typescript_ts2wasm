@@ -558,6 +558,12 @@ dyntype_release(dyn_ctx_t ctx, dyn_value_t obj);
 void
 dyntype_collect(dyn_ctx_t ctx);
 
+/**
+ * @brief execute pending jobs in micro-tasks of quickjs
+ * @param ctx the dynamic type system context
+*/
+int dyntype_execute_pending_jobs(dyn_ctx_t ctx);
+
 #ifdef __cplusplus
 }
 #endif

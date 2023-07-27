@@ -174,6 +174,20 @@ interface SetConstructor {
 }
 declare var Set: SetConstructor;
 
+interface PromiseConstructor {
+    new <T>(
+        executor: (
+            resolve: (value: T) => void,
+            reject: (reason?: any) => void,
+        ) => void,
+    ): Promise<T>;
+    reject<T = never>(reason?: any): Promise<T>;
+    resolve(): Promise<void>;
+    resolve<T>(value: T): Promise<T>;
+}
+
+declare var Promise: PromiseConstructor;
+
 interface JSON {
     parse(
         text: string,

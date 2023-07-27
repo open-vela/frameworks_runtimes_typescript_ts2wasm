@@ -253,6 +253,12 @@ function buildPropertyAccessExpression(
     let own = buildExpression(expr.propertyAccessExpr, context);
     context.popReference();
 
+    let own_name = '';
+    if (expr.propertyAccessExpr.expressionKind == ts.SyntaxKind.Identifier) {
+        const identifer = expr.propertyAccessExpr as IdentifierExpression;
+        own_name = identifer.identifierName;
+    }
+
     if (own.kind == SemanticsValueKind.NOP) {
         throw Error(`buildPropertyAccessExpression: Got NopValue`);
         return own;
@@ -338,8 +344,11 @@ function buildPropertyAccessExpression(
     const meta = shape!.meta;
     const isThisShape = meta.isObjectInstance;
     const member = meta.findMember(member_name);
-    if (!member) {
+    if (!member || BuiltinNames.fallbackConstructors.includes(own_name)) {
         Logger.warn(`WARNING Not found the member name, use dynamic Access`);
+        if (BuiltinNames.fallbackConstructors.includes(own_name)) {
+            own.type.kind = ValueTypeKind.ANY;
+        }
         return createDynamicAccess(own, member_name, member_as_write);
     }
 
