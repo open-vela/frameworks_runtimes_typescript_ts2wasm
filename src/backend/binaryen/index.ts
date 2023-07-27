@@ -439,7 +439,7 @@ export class WASMGen extends Ts2wasmBackend {
             generateGlobalContext(this.module);
             generateExtRefTableMaskArr(this.module);
         }
-        BuiltinNames.JSGlobalObjects.forEach((init, key) => {
+        BuiltinNames.JSGlobalObjects.forEach((key) => {
             generateGlobalJSObject(this.module, key);
             /* Insert at the second slot (right after dyntype context initialized) */
             this.globalInitArray.splice(
