@@ -79,6 +79,19 @@ const builtin_objects: { [key: string]: ObjectInfo } = {
         inst_name: 'String',
         class_name: 'StringConstructor',
     },
+    Promise: {
+        type: ObjectDescriptionType.OBJECT_INSTANCE,
+        id: PredefinedTypeId.PROMISE,
+        inst_name: 'Promise',
+        class_name: 'PromiseConstructor',
+        has_generic: true,
+    },
+    PromiseConstructor: {
+        type: ObjectDescriptionType.OBJECT_CLASS,
+        id: PredefinedTypeId.PROMISE_CONSTRUCTOR,
+        inst_name: 'Promise',
+        class_name: 'PromiseConstructor',
+    },
     Map: {
         type: ObjectDescriptionType.OBJECT_INSTANCE,
         id: PredefinedTypeId.MAP,

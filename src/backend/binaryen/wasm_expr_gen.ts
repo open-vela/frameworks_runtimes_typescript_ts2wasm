@@ -375,7 +375,7 @@ export class WASMExpressionGen {
                         const origName = varNode.name.split(
                             BuiltinNames.moduleDelimiter,
                         )[1];
-                        BuiltinNames.JSGlobalObjects.set(origName, false);
+                        BuiltinNames.JSGlobalObjects.add(origName);
                         return this.module.global.get(
                             origName,
                             binaryen.anyref,
@@ -3232,10 +3232,9 @@ export class WASMExpressionGen {
             then they will be boxed to extref. Here we avoid this
             cast if we find the actual object should be fallbacked
             to libdyntype */
-        const fallbackConstructors = ['Map', 'Set'];
         if (
             fromObjType.meta &&
-            fallbackConstructors.includes(fromObjType.meta.name)
+            BuiltinNames.fallbackConstructors.includes(fromObjType.meta.name)
         ) {
             return fromValueRef;
         }
