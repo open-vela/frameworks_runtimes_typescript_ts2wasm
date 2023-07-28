@@ -20,7 +20,7 @@ import {
     ObjectType,
     ValueTypeWithArguments,
 } from './value_types.js';
-import { PredefinedTypeId } from '../utils.js';
+import { PredefinedTypeId, getNodeLoc } from '../utils.js';
 import { Logger } from '../log.js';
 
 import {
@@ -187,7 +187,6 @@ import {
     use_shape,
 } from './runtime.js';
 import { processEscape } from '../utils.js';
-import { createObjectDescriptionShapes } from './type_creator.js';
 import { BuiltinNames } from '../../lib/builtin/builtin_name.js';
 
 function isInt(n: number): boolean {
@@ -2252,89 +2251,121 @@ export function buildExpression(
     Logger.debug(
         `======= buildExpression: ${ts.SyntaxKind[expr.expressionKind]}`,
     );
+    let res: SemanticsValue | null = null;
     try {
         switch (expr.expressionKind) {
             case ts.SyntaxKind.PropertyAccessExpression:
-                return buildPropertyAccessExpression(
+                res = buildPropertyAccessExpression(
                     expr as PropertyAccessExpression,
                     context,
                 );
+                break;
             case ts.SyntaxKind.Identifier:
-                return buildIdentiferExpression(
+                res = buildIdentiferExpression(
                     expr as IdentifierExpression,
                     context,
                 );
-
+                break;
             case ts.SyntaxKind.NullKeyword:
-                return new LiteralValue(Primitive.Null, null);
+                res = new LiteralValue(Primitive.Null, null);
+                break;
             case ts.SyntaxKind.UndefinedKeyword:
-                return new LiteralValue(Primitive.Undefined, undefined);
+                res = new LiteralValue(Primitive.Undefined, undefined);
+                break;
             case ts.SyntaxKind.NumericLiteral: {
                 const n = (expr as NumberLiteralExpression).expressionValue;
-                if (isInt(n)) return new LiteralValue(Primitive.Int, toInt(n));
-                return new LiteralValue(Primitive.Number, n);
+                if (isInt(n)) {
+                    res = new LiteralValue(Primitive.Int, toInt(n));
+                } else {
+                    res = new LiteralValue(Primitive.Number, n);
+                }
+                break;
             }
             case ts.SyntaxKind.StringLiteral:
-                return new LiteralValue(
+                res = new LiteralValue(
                     Primitive.RawString,
                     (expr as StringLiteralExpression).expressionValue,
                 );
+                break;
             case ts.SyntaxKind.TrueKeyword:
-                return new LiteralValue(Primitive.Boolean, true);
+                res = new LiteralValue(Primitive.Boolean, true);
+                break;
             case ts.SyntaxKind.FalseKeyword:
-                return new LiteralValue(Primitive.Boolean, false);
+                res = new LiteralValue(Primitive.Boolean, false);
+                break;
             case ts.SyntaxKind.ObjectLiteralExpression:
-                return buildObjectLiteralExpression(
+                res = buildObjectLiteralExpression(
                     expr as ObjectLiteralExpression,
                     context,
                 );
+                break;
             case ts.SyntaxKind.ArrayLiteralExpression:
-                return buildArrayLiteralExpression(
+                res = buildArrayLiteralExpression(
                     expr as ArrayLiteralExpression,
                     context,
                 );
+                break;
             case ts.SyntaxKind.BinaryExpression:
-                return buildBinaryExpression(expr as BinaryExpression, context);
+                res = buildBinaryExpression(expr as BinaryExpression, context);
+                break;
             case ts.SyntaxKind.CommaToken:
-                return buildCommaExpression(expr as CommaExpression, context);
+                res = buildCommaExpression(expr as CommaExpression, context);
+                break;
             case ts.SyntaxKind.ConditionalExpression:
-                return buildConditionalExpression(
+                res = buildConditionalExpression(
                     expr as ConditionalExpression,
                     context,
                 );
+                break;
             case ts.SyntaxKind.CallExpression:
-                return buildCallExpression(expr as CallExpression, context);
+                res = buildCallExpression(expr as CallExpression, context);
+                break;
             case ts.SyntaxKind.SuperKeyword:
-                return buildSuperExpression(expr as SuperExpression, context);
+                res = buildSuperExpression(expr as SuperExpression, context);
+                break;
             case ts.SyntaxKind.ThisKeyword:
-                return buildThisValue2(context);
+                res = buildThisValue2(context);
+                break;
             case ts.SyntaxKind.NewExpression:
-                return buildNewExpression2(expr as NewExpression, context);
+                res = buildNewExpression2(expr as NewExpression, context);
+                break;
             case ts.SyntaxKind.ElementAccessExpression:
-                return buildElementAccessExpression(
+                res = buildElementAccessExpression(
                     expr as ElementAccessExpression,
                     context,
                 );
+                break;
             case ts.SyntaxKind.AsExpression:
-                return buildAsExpression(expr as AsExpression, context);
+                res = buildAsExpression(expr as AsExpression, context);
+                break;
             case ts.SyntaxKind.FunctionExpression:
             case ts.SyntaxKind.ArrowFunction:
-                return buildFunctionExpression(
+                res = buildFunctionExpression(
                     (expr as FunctionExpression).funcScope,
                     context,
                 );
+                break;
             case ts.SyntaxKind.ParenthesizedExpression:
-                return buildExpression(
+                res = buildExpression(
                     (expr as ParenthesizedExpression).parentesizedExpr,
                     context,
                 );
+                break;
             case ts.SyntaxKind.PrefixUnaryExpression:
             case ts.SyntaxKind.PostfixUnaryExpression:
-                return buildUnaryExpression(expr as UnaryExpression, context);
+                res = buildUnaryExpression(expr as UnaryExpression, context);
+                break;
             case ts.SyntaxKind.TypeOfExpression:
-                return buildTypeOfExpression(expr as TypeOfExpression, context);
+                res = buildTypeOfExpression(expr as TypeOfExpression, context);
+                break;
         }
-        return new UnimplementValue(expr.tsNode!);
+        if (res == null) {
+            res = new UnimplementValue(expr.tsNode!);
+        }
+        if (context.enableSourceMap && expr.tsNode) {
+            res.location = getNodeLoc(expr.tsNode);
+        }
+        return res;
     } catch (e: any) {
         Logger.error(e.message);
         Logger.error(e.stack);

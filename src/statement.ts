@@ -18,7 +18,7 @@ import {
     Stack,
     getModulePath,
     getGlobalScopeByModuleName,
-    DebugLoc,
+    SourceLocation,
     addSourceMapLoc,
     getCurScope,
 } from './utils.js';
@@ -30,7 +30,7 @@ type StatementKind = ts.SyntaxKind;
 
 export class Statement {
     private _scope: Scope | null = null;
-    debugLoc: DebugLoc | null = null;
+    debugLoc: SourceLocation | null = null;
     public tsNode?: ts.Node;
 
     constructor(private kind: StatementKind) {}

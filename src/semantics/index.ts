@@ -173,6 +173,7 @@ function processGlobalStatements(context: BuildContext, g: GlobalScope) {
         GetPredefinedType(PredefinedTypeId.FUNC_VOID_VOID_NONE) as FunctionType,
         block,
     );
+    globalStart.debugFilePath = g.debugFilePath;
     if (g === context.enterScope) {
         globalStart.isInEnterScope = true;
     }
@@ -275,7 +276,6 @@ function createFunctionDeclareNode(
         f.parent instanceof ClosureEnvironment
             ? createFromVariable(f.parent.varArray[0], false, context)
             : undefined;
-
     const func = new FunctionDeclareNode(
         name,
         getFunctionOwnKind(f),
@@ -287,6 +287,7 @@ function createFunctionDeclareNode(
         f.envParamLen,
         this_type,
     );
+    func.debugFilePath = f.debugFilePath;
 
     return func;
 }
@@ -856,6 +857,9 @@ function removeRecWhichHasInfc(recGroupTypes: TSClass[][]) {
 export function BuildModuleNode(parserContext: ParserContext): ModuleNode {
     const module = new ModuleNode();
     const context = new BuildContext(parserContext.typeId, module);
+    if (parserContext.compileArgs.sourceMap) {
+        context.enableSourceMap = true;
+    }
     context.recClassTypeGroup = removeRecWhichHasInfc(
         parserContext.recGroupTypes,
     );

@@ -27,16 +27,17 @@ import {
 import { ClosureContextType, Primitive } from '../../semantics/value_types.js';
 import ts from 'typescript';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
-import { arrayToPtr, emptyStructType } from './glue/transform.js';
-import { VarValue } from '../../semantics/value.js';
+import { SemanticsValue, VarValue } from '../../semantics/value.js';
 
 export class WASMStatementGen {
     private currentFuncCtx;
     private module;
+    private enableSourceMap;
 
     constructor(private wasmCompiler: WASMGen) {
         this.currentFuncCtx = this.wasmCompiler.currentFuncCtx!;
         this.module = this.wasmCompiler.module;
+        this.enableSourceMap = this.wasmCompiler.enableSourceMap;
     }
 
     WASMStmtGen(stmt: SemanticsNode): binaryen.ExpressionRef {
@@ -94,7 +95,7 @@ export class WASMStatementGen {
             default:
                 throw new Error('unexpected stmt kind ' + stmt.kind);
         }
-        // this.wasmCompiler.addDebugInfoRef(stmt, res);
+        this.addDebugInfoRef(stmt, res);
         return res;
     }
 
@@ -106,7 +107,7 @@ export class WASMStatementGen {
             wasmCond,
             stmt.condition.type.kind,
         );
-        // this.WASMCompiler.addDebugInfoRef(stmt.ifCondition, wasmCond);
+        this.addDebugInfoRef(stmt.condition, wasmCond);
         const wasmIfTrue: binaryen.ExpressionRef = this.WASMStmtGen(
             stmt.trueNode,
         );
@@ -153,6 +154,8 @@ export class WASMStatementGen {
                 this.currentFuncCtx.returnIdx,
                 returnExprRef,
             );
+            this.addDebugInfoRef(stmt.expr, returnExprRef);
+            this.addDebugInfoRef(stmt, setReturnValue);
             this.currentFuncCtx.insert(setReturnValue);
         }
 
@@ -174,6 +177,7 @@ export class WASMStatementGen {
             WASMCond,
             stmt.condition.type.kind,
         );
+        this.addDebugInfoRef(stmt.condition, WASMCond);
         // this.WASMCompiler.addDebugInfoRef(stmt.loopCondtion, WASMCond);
         // (block $break
         //  (loop $loop_label
@@ -219,16 +223,13 @@ export class WASMStatementGen {
             WASMCond = this.wasmCompiler.wasmExprComp.wasmExprGen(
                 stmt.condition,
             );
-            // this.WASMCompiler.addDebugInfoRef(stmt.forLoopCondtion, WASMCond);
+            this.addDebugInfoRef(stmt.condition, WASMCond);
         }
         if (stmt.next) {
             WASMIncrementor = this.wasmCompiler.wasmExprComp.wasmExprGen(
                 stmt.next,
             );
-            // this.WASMCompiler.addDebugInfoRef(
-            //     stmt.forLoopIncrementor,
-            //     WASMIncrementor,
-            // );
+            this.addDebugInfoRef(stmt.next, WASMIncrementor);
         }
         if (stmt.body) {
             WASMStmts = this.WASMStmtGen(stmt.body);
@@ -317,6 +318,7 @@ export class WASMStatementGen {
         for (const exprStmt of stmt.valueNodes) {
             const exprRef =
                 this.wasmCompiler.wasmExprComp.wasmExprGen(exprStmt);
+            this.addDebugInfoRef(exprStmt, exprRef);
             basicStmts.push(exprRef);
         }
         return this.module.block(null, basicStmts);
@@ -411,9 +413,22 @@ export class WASMStatementGen {
     wasmThrow(stmt: ThrowNode): binaryen.ExpressionRef {
         const throwExpr = stmt.throwExpr;
         const exprRef = this.wasmCompiler.wasmExprComp.wasmExprGen(throwExpr);
+        this.addDebugInfoRef(throwExpr, exprRef);
         /* workaround: only support anyref error in the first version */
         return this.module.throw(BuiltinNames.errorTag, [
             FunctionalFuncs.boxToAny(this.module, exprRef, throwExpr),
         ]);
+    }
+
+    addDebugInfoRef(
+        irNode: SemanticsNode | SemanticsValue,
+        ref: binaryen.ExpressionRef,
+    ) {
+        if (this.enableSourceMap && irNode.location) {
+            this.currentFuncCtx.sourceMapLocs.push({
+                location: irNode.location,
+                ref: ref,
+            });
+        }
     }
 }
