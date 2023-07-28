@@ -7,10 +7,11 @@ import ts from 'typescript';
 import { ParserContext } from './frontend.js';
 import { ClosureEnvironment, FunctionScope } from './scope.js';
 import { Variable } from './variable.js';
-import { getCurScope, DebugLoc, addSourceMapLoc } from './utils.js';
+import { getCurScope, addSourceMapLoc } from './utils.js';
 import { TSFunction, Type, TypeKind } from './type.js';
 import { Logger } from './log.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
+import { SourceMapLoc } from './backend/binaryen/utils.js';
 
 type OperatorKind = ts.SyntaxKind;
 type ExpressionKind = ts.SyntaxKind;
@@ -18,7 +19,7 @@ type ExpressionKind = ts.SyntaxKind;
 export class Expression {
     private kind: ExpressionKind;
     private type: Type = new Type();
-    debugLoc: DebugLoc | null = null;
+    debugLoc: SourceMapLoc | null = null;
 
     public tsNode?: ts.Node;
 

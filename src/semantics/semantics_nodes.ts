@@ -42,7 +42,7 @@ import {
 } from './value_types.js';
 
 import { GetPredefinedType } from './predefined_types.js';
-import { PredefinedTypeId } from '../utils.js';
+import { PredefinedTypeId, SourceLocation } from '../utils.js';
 
 export enum SemanticsKind {
     EMPTY,
@@ -74,7 +74,7 @@ export interface SemanticsNodeVisitor {
 
 export class SemanticsNode {
     constructor(public kind: SemanticsKind) {}
-
+    location: SourceLocation | null = null;
     dump(writer: DumpWriter) {
         writer.write(SemanticsKind[this.kind]);
     }
@@ -236,6 +236,7 @@ export class FunctionDeclareNode extends SemanticsNode {
     private _closureVars?: VarDeclareNode[];
     public isInEnterScope = false;
     public importStartFuncNameList: string[] | undefined = undefined;
+    public debugFilePath = '';
     constructor(
         public name: string,
         public ownKind: FunctionOwnKind,

@@ -58,6 +58,7 @@ export class ParserContext {
     globalScopes = new Array<GlobalScope>();
     nodeScopeMap = new Map<ts.Node, Scope>();
     currentScope: Scope | null = null;
+    sourceFileLists: ts.SourceFile[] = [];
 
     typeId = CustomTypeId;
     /* mapping type_string to type id */
@@ -118,6 +119,7 @@ export class ParserContext {
         }
 
         const sourceFileList = Array.from(program.getSourceFiles());
+        this.sourceFileLists = sourceFileList;
 
         /* Step1: Resolve all scopes */
         this._scopeScanner.visit(sourceFileList);

@@ -21,7 +21,7 @@ import {
     stringArrayTypeInfo,
     stringArrayStructTypeInfo,
 } from './glue/packType.js';
-import { getBuiltInFuncName } from '../../utils.js';
+import { SourceLocation, getBuiltInFuncName } from '../../utils.js';
 import { SemanticsValue, SemanticsValueKind } from '../../semantics/value.js';
 import { ObjectDescriptionType } from '../../semantics/runtime.js';
 
@@ -1591,4 +1591,9 @@ export const enum InfcFieldIndex {
     TYPEID_INDEX,
     IMPLID_INDEX,
     DATA_INDEX,
+}
+
+export interface SourceMapLoc {
+    location: SourceLocation;
+    ref: binaryen.ExpressionRef;
 }

@@ -59,7 +59,13 @@ import {
     ValueTypeKind,
 } from '../../semantics/value_types.js';
 import { FunctionDeclareNode } from '../../semantics/semantics_nodes.js';
-import { FunctionalFuncs, ItableFlag, TmpVarInfo, UtilFuncs } from './utils.js';
+import {
+    FunctionalFuncs,
+    ItableFlag,
+    SourceMapLoc,
+    TmpVarInfo,
+    UtilFuncs,
+} from './utils.js';
 import {
     MemberDescription,
     MemberType,
@@ -68,6 +74,7 @@ import {
 import { dyntype } from './lib/dyntype/utils.js';
 import { clearWasmStringMap, getCString } from './utils.js';
 import { assert } from 'console';
+import ts from 'typescript';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -80,6 +87,8 @@ export class WASMFunctionContext {
     private tmpVarsTypeRefs: Array<binaryen.ExpressionRef> = [];
     private hasGenerateVarsTypeRefs = false;
     private tmpBackendVars: Array<TmpVarInfo> = [];
+    private _sourceMapLocs: SourceMapLoc[] = [];
+    public localVarIdxNameMap = new Map<string, number>();
 
     constructor(binaryenCtx: WASMGen, func: FunctionDeclareNode) {
         this.binaryenCtx = binaryenCtx;
@@ -99,6 +108,10 @@ export class WASMFunctionContext {
 
     get returnOp() {
         return this.returnOpcode;
+    }
+
+    get sourceMapLocs() {
+        return this._sourceMapLocs;
     }
 
     enterScope() {
@@ -149,12 +162,14 @@ export class WASMFunctionContext {
                                 variable.type,
                             ),
                         );
+                        this.setLocalVarName(variable.name, variable.index);
                     } else {
                         this.tmpVarsTypeRefs.push(
                             this.binaryenCtx.wasmTypeComp.getWASMValueType(
                                 variable.type,
                             ),
                         );
+                        this.setLocalVarName('tempVar', variable.index);
                     }
                 }
             }
@@ -169,12 +184,14 @@ export class WASMFunctionContext {
                                 variable.type,
                             ),
                         );
+                        this.setLocalVarName(variable.name, variable.index);
                     } else {
                         this.tmpVarsTypeRefs.push(
                             this.binaryenCtx.wasmTypeComp.getWASMValueType(
                                 variable.type,
                             ),
                         );
+                        this.setLocalVarName('tempVar', variable.index);
                     }
                 }
             }
@@ -244,8 +261,17 @@ export class WASMFunctionContext {
             backendVarsTypeRefs.push(
                 this.binaryenCtx.wasmTypeComp.getWASMValueType(value.type),
             );
+            this.setLocalVarName('tempVar', value.index);
         }
         return funcVarsTypeRefs.concat(backendVarsTypeRefs);
+    }
+
+    setLocalVarName(name: string, index: number) {
+        if (this.localVarIdxNameMap.has(name)) {
+            this.localVarIdxNameMap.set(`${name}_${index}`, index);
+        } else {
+            this.localVarIdxNameMap.set(name, index);
+        }
     }
 }
 
@@ -264,13 +290,24 @@ export class WASMGen extends Ts2wasmBackend {
     public globalInitArray: Array<binaryen.ExpressionRef> = [];
     private globalDestoryFuncName = 'global|destory|func';
     public globalDestoryArray: Array<binaryen.ExpressionRef> = [];
-    private wasmStringMap = new Map<string, number>();
-    private debugInfoFileNames = new Map<string, number>();
+    private debugFileIndex = new Map<string, number>();
+    /** source map file url */
     private map: string | null = null;
     public generatedFuncNames: Array<string> = [];
+    public enableSourceMap = false;
+    public debugMode = false;
+    public sourceFileLists: ts.SourceFile[] = [];
 
     constructor(parserContext: ParserContext) {
         super(parserContext);
+        if (parserContext.compileArgs.debug) {
+            this.debugMode = true;
+            binaryen.setDebugInfo(true);
+        }
+        if (parserContext.compileArgs.sourceMap) {
+            this.enableSourceMap = true;
+        }
+        this.sourceFileLists = parserContext.sourceFileLists;
         this._semanticModule = BuildModuleNode(parserContext);
         this._binaryenModule = new binaryen.Module();
         this._wasmTypeCompiler = new WASMTypeGen(this);
@@ -302,7 +339,7 @@ export class WASMGen extends Ts2wasmBackend {
     }
 
     public codegen(options?: any): void {
-        binaryen.setDebugInfo(options && options.debug ? true : false);
+        binaryen.setDebugInfo(this.debugMode);
         this._binaryenModule.setFeatures(binaryen.Features.All);
         this._binaryenModule.autoDrop();
         this.wasmGenerate();
@@ -339,10 +376,8 @@ export class WASMGen extends Ts2wasmBackend {
 
     public emitBinary(options?: any): Uint8Array {
         let res: Uint8Array = this._binaryenModule.emitBinary();
-        if (!options || !options.sourceMap) {
-            res = this._binaryenModule.emitBinary();
-        } else {
-            const name = `${options.name}.wasm.map`;
+        if (this.enableSourceMap) {
+            const name = `${options.name_prefix}.wasm.map`;
             const binaryInfo = this._binaryenModule.emitBinary(name);
             res = binaryInfo.binary;
             this.map = binaryInfo.sourceMap;
@@ -371,6 +406,11 @@ export class WASMGen extends Ts2wasmBackend {
         //         sourceCode.push(global.node!.getSourceFile().getFullText());
         //     }
         // }
+        for (const sourceFile of this.sourceFileLists) {
+            if (this.debugFileIndex.has(sourceFile.fileName)) {
+                sourceCode.push(sourceFile.getFullText());
+            }
+        }
         content.sourcesContent = sourceCode;
         this.map = null;
         return JSON.stringify(content);
@@ -524,6 +564,7 @@ export class WASMGen extends Ts2wasmBackend {
             importName = `${levelNames[levelNames.length - 2]}_${importName}`;
         }
 
+        /** declare functions */
         if ((func.ownKind & FunctionOwnKind.DECLARE) !== 0) {
             const internalFuncName = `${func.name}${BuiltinNames.declareSuffix}`;
             this.module.addFunctionImport(
@@ -663,7 +704,18 @@ export class WASMGen extends Ts2wasmBackend {
             }
         }
         this.parseBody(func.body);
-
+        if (func.envParamLen > 0) {
+            this.currentFuncCtx.localVarIdxNameMap.set('context', 0);
+            if (func.envParamLen === 2) {
+                this.currentFuncCtx.localVarIdxNameMap.set('this', 1);
+            }
+        }
+        if (func.parameters) {
+            for (const p of func.parameters) {
+                /** must no duplicate parameter name here */
+                this.currentFuncCtx.localVarIdxNameMap.set(p.name, p.index);
+            }
+        }
         /* get all vars wasm types, must behind the parseBody */
         const allVarsTypeRefs = this.currentFuncCtx.getAllFuncVarsTypeRefs();
 
@@ -735,12 +787,13 @@ export class WASMGen extends Ts2wasmBackend {
             );
             this.module.setStart(wasmStartFuncRef);
         }
+        let funcRef: binaryen.FunctionRef;
         if (
             func.ownKind & FunctionOwnKind.METHOD &&
             this.wasmTypeComp.heapType.has(func.funcType)
         ) {
             const heap = this.wasmTypeComp.getWASMHeapType(func.funcType);
-            binaryenCAPI._BinaryenAddFunctionWithHeapType(
+            funcRef = binaryenCAPI._BinaryenAddFunctionWithHeapType(
                 this.module.ptr,
                 getCString(func.name),
                 heap,
@@ -753,7 +806,7 @@ export class WASMGen extends Ts2wasmBackend {
                 ),
             );
         } else {
-            this.module.addFunction(
+            funcRef = this.module.addFunction(
                 func.name,
                 binaryen.createType(paramWASMTypes),
                 returnWASMType,
@@ -765,7 +818,12 @@ export class WASMGen extends Ts2wasmBackend {
                 ),
             );
         }
+        if (this.debugMode) {
+            this.setDebugLocation(funcRef, func.debugFilePath);
+        }
+        this.currentFuncCtx.localVarIdxNameMap.clear();
 
+        /** wrapped functions */
         if (
             (func.ownKind &
                 (FunctionOwnKind.EXPORT | FunctionOwnKind.DEFAULT)) ===
@@ -841,12 +899,6 @@ export class WASMGen extends Ts2wasmBackend {
         }
 
         this.generatedFuncNames.push(func.name);
-
-        /** set customize local var names iff debug mode*/
-        // const debugMode = this.parserContext.compileArgs[ArgNames.debug];
-        // if (debugMode) {
-        //     this.setDebugLocation(functionScope, funcRef, localVarNameIndexMap);
-        // }
     }
 
     public assignCtxVar(context: VarDeclareNode, freeVars: VarDeclareNode[]) {
@@ -1058,22 +1110,6 @@ export class WASMGen extends Ts2wasmBackend {
         return UtilFuncs.getFuncName(implClassName, methodName);
     }
 
-    // public addDebugInfoRef(
-    //     node: Statement | Expression,
-    //     exprRef: binaryen.ExpressionRef,
-    // ) {
-    //     if (node.debugLoc && this.currentFuncCtx) {
-    //         const scope = this.currentFuncCtx.getFuncScope();
-    //         if (
-    //             scope instanceof FunctionScope ||
-    //             scope instanceof GlobalScope
-    //         ) {
-    //             node.debugLoc.ref = exprRef;
-    //             scope.debugLocations.push(node.debugLoc);
-    //         }
-    //     }
-    // }
-
     public genrateInitJSGlobalObject(name: string) {
         const namePointer = this.generateRawString(name);
         const JSGlobalObj = this.module.call(
@@ -1096,40 +1132,40 @@ export class WASMGen extends Ts2wasmBackend {
     }
 
     private setDebugLocation(
-        scope: FunctionScope | GlobalScope,
         funcRef: binaryen.FunctionRef,
-        localVarNameIndexMap: Map<string, number>,
+        debugFilePath: string,
     ) {
-        localVarNameIndexMap.forEach((index, name) => {
+        const localNameMap = this.currentFuncCtx!.localVarIdxNameMap;
+        localNameMap.forEach((idx, name) => {
             binaryenCAPI._BinaryenFunctionSetLocalName(
                 funcRef,
-                index,
+                idx,
                 getCString(name),
             );
         });
-        const srcPath = scope.getRootGloablScope()!.srcFilePath;
-        const isBuiltIn = srcPath.includes(BuiltinNames.builtinTypeName);
+        const isBuiltIn = debugFilePath.includes(BuiltinNames.builtinTypeName);
+        if (isBuiltIn) {
+            return;
+        }
         // add debug location
-        if (!isBuiltIn && scope.debugLocations.length > 0) {
-            if (!this.debugInfoFileNames.has(srcPath)) {
-                this.debugInfoFileNames.set(
-                    srcPath,
-                    this.module.addDebugInfoFileName(srcPath),
-                );
-            }
-            const debugFileName = this.debugInfoFileNames.get(srcPath)!;
-
-            const debugLocs = scope.debugLocations;
-            for (let i = 0; i < debugLocs.length; i++) {
-                const loc = debugLocs[i];
-                this.module.setDebugLocation(
-                    funcRef,
-                    loc.ref,
-                    debugFileName,
-                    loc.line,
-                    loc.col,
-                );
-            }
+        if (!this.debugFileIndex.has(debugFilePath)) {
+            this.debugFileIndex.set(
+                debugFilePath,
+                this.module.addDebugInfoFileName(debugFilePath),
+            );
+        }
+        const fileIndex = this.debugFileIndex.get(debugFilePath)!;
+        /** set source mapping locations*/
+        const sourceMap = this.currentFuncCtx!.sourceMapLocs;
+        for (let i = 0; i < sourceMap.length; i++) {
+            const loc = sourceMap[i];
+            this.module.setDebugLocation(
+                funcRef,
+                loc.ref,
+                fileIndex,
+                loc.location.line,
+                loc.location.character,
+            );
         }
     }
 }

@@ -259,20 +259,23 @@ function main() {
             if (!generatedWasmFile.endsWith('.wasm')) {
                 throw new Error('output must be a wasm file');
             }
-            const sourceMapCfg = {
-                sourceMap: args.sourceMap,
-                name: generatedWasmFile.split('.')[0], // file name
+            const options = {
+                name_prefix: generatedWasmFile.split('.')[0],
             };
-            const output = backend.emitBinary(sourceMapCfg);
+            const output = backend.emitBinary(options);
             writeFile(generatedWasmFile, output, baseDir);
             console.log(
                 "The wasm file '" + generatedWasmFile + "' has been generated.",
             );
             if (args.sourceMap) {
-                const sourceMap = backend.emitSourceMap(sourceMapCfg.name);
-                writeFile(`${sourceMapCfg.name}.wasm.map`, sourceMap, baseDir);
+                const sourceMap = backend.emitSourceMap(options.name_prefix);
+                writeFile(
+                    `${options.name_prefix}.wasm.map`,
+                    sourceMap,
+                    baseDir,
+                );
                 console.log(
-                    `The source map file ${sourceMapCfg.name}.wasm.map has been generated.`,
+                    `The source map file ${options.name_prefix}.wasm.map has been generated.`,
                 );
             }
             if (args.validate) {

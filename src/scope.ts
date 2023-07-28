@@ -15,7 +15,7 @@ import {
     TSContext,
 } from './type.js';
 import { ParserContext } from './frontend.js';
-import { parentIsFunctionLike, DebugLoc } from './utils.js';
+import { parentIsFunctionLike } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
 import { ArgNames, BuiltinNames } from '../lib/builtin/builtin_name.js';
@@ -25,6 +25,7 @@ import {
     IdentifierExpression,
 } from './expression.js';
 import { Logger } from './log.js';
+import { SourceMapLoc } from './backend/binaryen/utils.js';
 
 export enum ScopeKind {
     Scope,
@@ -50,6 +51,10 @@ export class Scope {
     parent: Scope | null;
     /* All types defined in this scope */
     namedTypeMap: Map<string, Type> = new Map();
+    /** it used for source map, so every scope has a file path name field
+     * thus we can mapping to specifed source files
+     */
+    debugFilePath = '';
     /* Hold all temp variables inserted during code generation */
     private tempVarArray: Variable[] = [];
     private variableArray: Variable[] = [];
@@ -531,9 +536,8 @@ export class GlobalScope extends Scope {
     // default identifier map: import theDefault from "./export-case1"; import theOtherDefault from "./export-case2";
     defaultModuleImportMap = new Map<string, GlobalScope>();
     defaultExpr: Expression | undefined = undefined;
-    srcFilePath = '';
     node: ts.Node | null = null;
-    debugLocations: DebugLoc[] = [];
+    debugLocations: SourceMapLoc[] = [];
     // declare list name
     declareIdentifierList = new Set<string>();
 
@@ -613,10 +617,10 @@ export class FunctionScope extends ClosureEnvironment {
     realParamCtxType = new TSContext();
     /* ori func name iff func is declare */
     oriFuncName: string | undefined = undefined;
-    debugLocations: DebugLoc[] = [];
-
+    debugLocations: SourceMapLoc[] = [];
     constructor(parent: Scope) {
         super(parent);
+        this.debugFilePath = parent.debugFilePath;
     }
 
     getThisIndex() {
@@ -681,6 +685,7 @@ export class BlockScope extends ClosureEnvironment {
         super(parent);
         this.name = name;
         this.funcScope = funcScope;
+        this.debugFilePath = parent.debugFilePath;
     }
 }
 
@@ -691,6 +696,7 @@ export class ClassScope extends Scope {
     constructor(parent: Scope, name = '') {
         super(parent);
         this.name = name;
+        this.debugFilePath = parent.debugFilePath;
     }
 
     get className(): string {
@@ -711,6 +717,7 @@ export class NamespaceScope extends Scope {
 
     constructor(parent: Scope) {
         super(parent);
+        this.debugFilePath = parent.debugFilePath;
     }
 
     addVariable(variableObj: Variable) {
@@ -788,7 +795,7 @@ export class ScopeScanner {
                 const sourceFileNode = <ts.SourceFile>node;
                 const globalScope = new GlobalScope();
                 globalScope.node = node;
-                globalScope.srcFilePath = sourceFileNode.fileName;
+                globalScope.debugFilePath = sourceFileNode.fileName;
                 this.setCurrentScope(globalScope);
                 let moduleName = '';
                 const isBuiltInFile =

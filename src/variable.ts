@@ -30,6 +30,7 @@ export class Variable {
     public closureIndex?: number;
     /* If variable is a closure context, we should record its init context to do initialize */
     public initContext?: Variable;
+    public tsNode?: ts.Node;
 
     constructor(
         private name: string,
@@ -234,6 +235,7 @@ export class VariableScanner {
                     isOptional,
                     isDestructuring,
                 );
+                paramObj.tsNode = node;
                 functionScope.addParameter(paramObj);
                 break;
             }
@@ -301,6 +303,7 @@ export class VariableScanner {
                     -1,
                     true,
                 );
+                variable.tsNode = node;
                 if (variable.isDefault()) {
                     currentScope.getRootGloablScope()!.defaultExpr =
                         new IdentifierExpression(variable.varName);

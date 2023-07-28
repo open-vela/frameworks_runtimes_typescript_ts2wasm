@@ -18,7 +18,7 @@ import {
     TypeParameterType,
     ObjectType,
 } from './value_types.js';
-import { PredefinedTypeId } from '../utils.js';
+import { PredefinedTypeId, SourceLocation } from '../utils.js';
 import { SymbolKeyToString } from './builder_context.js';
 import { FunctionDeclareNode, VarDeclareNode } from './semantics_nodes.js';
 import { Shape, ShapeMember, Value } from './runtime.js';
@@ -134,7 +134,7 @@ export class SemanticsValue implements Value {
     toString(): string {
         return `[${SemanticsValueKind[this.kind]} ${this.type}]`;
     }
-
+    location: SourceLocation | null = null;
     dump(writer: DumpWriter) {
         writer.write(this.toString());
         writer.shift();
