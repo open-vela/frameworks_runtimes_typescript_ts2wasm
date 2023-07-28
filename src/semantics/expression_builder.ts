@@ -1126,6 +1126,69 @@ function typeTranslate(type1: ValueType, type2: ValueType): ValueType {
     throw Error(`"${type1}" aginst of "${type2}"`);
 }
 
+function shapeAssignCheck(left: ValueType, right: ValueType) {
+    // iff the type of lvalue is 'any', we should never fix its shape.
+    if (left.equals(Primitive.Any)) return false;
+
+    if (
+        left.kind == ValueTypeKind.OBJECT &&
+        right.kind == ValueTypeKind.OBJECT
+    ) {
+        const leftMeta = (left as ObjectType).meta;
+        const rightMeta = (right as ObjectType).meta;
+        if (rightMeta.members.length >= leftMeta.members.length) {
+            for (const left_member of leftMeta.members) {
+                const right_member = rightMeta.findMember(left_member.name);
+                /* e.g.
+                 interface I {
+                     x: number;
+                 }
+                 class A {
+                     y = 10;
+                     z = true;
+                 }
+
+                 const a = new A();
+                 const i: I = a;
+                */
+                if (!right_member) return false; // Property 'x' is missing in type 'A' but required in type 'I'.
+                /* e.g.
+                 interface I {
+                     x?: number;
+                 }
+                 class A {
+                     x = 10;
+                     y = true;
+                 }
+
+                 const a = new A();
+                 const i: I = a;
+                */
+                if (
+                    left_member.valueType.kind === ValueTypeKind.UNION &&
+                    !left_member.valueType.equals(right_member.valueType)
+                )
+                    return false;
+            }
+        } else {
+            /* e.g.
+                 interface I {
+                     x: number;
+                     y?: boolean;
+                 }
+                 class A {
+                     x = 10;
+                 }
+
+                 const a = new A();
+                 const i: I = a;
+            */
+            return false; // property 'y' is missing in type 'A' but required in type 'I'.
+        }
+    }
+    return true;
+}
+
 export function newBinaryExprValue(
     type: ValueType | undefined,
     opKind: ValueBinaryOperator,
@@ -1138,7 +1201,11 @@ export function newBinaryExprValue(
         `=== newBinaryExprValue left_value type ${left_value.effectType}`,
     );
 
-    if (is_equal && right_value.shape) left_value.shape = right_value.shape;
+    if (
+        is_equal &&
+        shapeAssignCheck(left_value.effectType, right_value.effectType)
+    )
+        left_value.shape = right_value.shape;
 
     if (isCompareOperator(opKind)) {
         /** Adding instanceof to the comparison operator can result in type coercion to any,
