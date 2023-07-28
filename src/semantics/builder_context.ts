@@ -92,6 +92,7 @@ export class BuildContext {
     public enterScope: GlobalScope | undefined = undefined;
     public startStmts = new Map<GlobalScope, SemanticsNode[]>();
     public recClassTypeGroup = new Array<TSClass[]>();
+    public enableSourceMap = false;
 
     addFunctionValue(var_func: VarValue) {
         this.namedGlobalValues.set(var_func.index as string, var_func);

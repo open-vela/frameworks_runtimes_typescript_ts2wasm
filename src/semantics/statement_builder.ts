@@ -88,6 +88,7 @@ import {
     ValueReferenceKind,
 } from './builder_context.js';
 import { createType } from './type_creator.js';
+import { getNodeLoc } from '../utils.js';
 
 export function createFromVariable(
     v: Variable,
@@ -350,14 +351,16 @@ function buildVariableStatement(
 
             context.pushReference(ValueReferenceKind.RIGHT);
             context.popReference();
-            basic_block.pushSemanticsValue(
-                newBinaryExprValue(
-                    var_value!.type,
-                    ts.SyntaxKind.EqualsToken,
-                    var_value!,
-                    init_value,
-                ),
+            const assignment = newBinaryExprValue(
+                var_value!.type,
+                ts.SyntaxKind.EqualsToken,
+                var_value!,
+                init_value,
             );
+            if (v.tsNode && context.enableSourceMap) {
+                assignment.location = getNodeLoc(v.tsNode);
+            }
+            basic_block.pushSemanticsValue(assignment);
         }
     }
     return basic_block;
@@ -501,20 +504,24 @@ function buildSwitchStatement(
 
     for (const clause of case_block.caseCauses) {
         if (clause.statementKind == ts.SyntaxKind.DefaultClause) {
-            default_node = new DefaultClauseNode(
-                buildCaseClauseStatements(clause as DefaultClause, context),
+            const default_cause = buildCaseClauseStatements(
+                clause as DefaultClause,
+                context,
             );
+            if (context.enableSourceMap) {
+                default_cause.location = getNodeLoc(clause.tsNode!);
+            }
+            default_node = new DefaultClauseNode(default_cause);
         } else {
             const case_clause = clause as CaseClause;
             context.pushReference(ValueReferenceKind.RIGHT);
             const case_expr = buildExpression(case_clause.caseExpr, context);
             context.popReference();
-            case_nodes.push(
-                new CaseClauseNode(
-                    case_expr,
-                    buildCaseClauseStatements(case_clause, context),
-                ),
-            );
+            const cause = buildCaseClauseStatements(case_clause, context);
+            if (context.enableSourceMap) {
+                cause.location = getNodeLoc(case_clause.tsNode!);
+            }
+            case_nodes.push(new CaseClauseNode(case_expr, cause));
         }
     }
 
@@ -557,16 +564,29 @@ function buildTryStatement(
     context: BuildContext,
 ): SemanticsNode {
     const try_block_node = buildBlock(statement.tryBlockStmt, context);
+    if (context.enableSourceMap) {
+        try_block_node.location = getNodeLoc(statement.tryBlockStmt.tsNode!);
+    }
     let catch_clause_node = undefined;
     if (statement.catchClauseStmt) {
         catch_clause_node = buildCatchClauseStatement(
             statement.catchClauseStmt,
             context,
         );
+        if (context.enableSourceMap) {
+            try_block_node.location = getNodeLoc(
+                statement.catchClauseStmt.tsNode!,
+            );
+        }
     }
     let finally_block_node = undefined;
     if (statement.finallyBlockStmt) {
         finally_block_node = buildBlock(statement.finallyBlockStmt, context);
+        if (context.enableSourceMap) {
+            try_block_node.location = getNodeLoc(
+                statement.finallyBlockStmt.tsNode!,
+            );
+        }
     }
     return new TryNode(
         statement.label,
@@ -583,36 +603,43 @@ export function buildStatement(
     Logger.debug(
         `======= buildStatement: ${ts.SyntaxKind[statement.statementKind]}`,
     );
+    let res: SemanticsNode | SemanticsValue | null = null;
     try {
         switch (statement.statementKind) {
             case ts.SyntaxKind.Block:
-                return buildBlock(statement as BlockStatement, context);
+                res = buildBlock(statement as BlockStatement, context);
+                break;
             case ts.SyntaxKind.IfStatement:
-                return buildIfStatement(statement as IfStatement, context);
+                res = buildIfStatement(statement as IfStatement, context);
+                break;
             case ts.SyntaxKind.ReturnStatement:
-                return buildReturnStatement(
+                res = buildReturnStatement(
                     statement as ReturnStatement,
                     context,
                 );
+                break;
             case ts.SyntaxKind.DoStatement:
             /* falls through */
             case ts.SyntaxKind.WhileStatement:
-                return buildBaseLoopStatement(
+                res = buildBaseLoopStatement(
                     statement as BaseLoopStatement,
                     context,
                 );
+                break;
             case ts.SyntaxKind.ForStatement:
-                return buildForStatement(statement as ForStatement, context);
+                res = buildForStatement(statement as ForStatement, context);
+                break;
             case ts.SyntaxKind.ForInStatement:
             /* falls through */
             case ts.SyntaxKind.ForOfStatement:
                 // TODO
                 break;
             case ts.SyntaxKind.ExpressionStatement:
-                return buildExpression(
+                res = buildExpression(
                     (statement as ExpressionStatement).expression,
                     context,
                 );
+                break;
             /* falls through */
             case ts.SyntaxKind.CaseClause:
                 //return buildCaseClauseStatement(statement as CaseClause, context);
@@ -621,15 +648,17 @@ export function buildStatement(
                 //return buildDefaultClauseStatement(statement as DefaultClause, context);
                 break; // call it in buildCaseClauseStatements
             case ts.SyntaxKind.SwitchStatement:
-                return buildSwitchStatement(
+                res = buildSwitchStatement(
                     statement as SwitchStatement,
                     context,
                 );
+                break;
             /* falls through */
             case ts.SyntaxKind.CaseBlock:
                 break; // call it in buildSwitchStatement statement
             case ts.SyntaxKind.BreakStatement:
-                return buildBreakStatement(statement as BreakStatement);
+                res = buildBreakStatement(statement as BreakStatement);
+                break;
             case ts.SyntaxKind.ContinueStatement:
                 break;
             case ts.SyntaxKind.VariableStatement:
@@ -657,16 +686,23 @@ export function buildStatement(
                 );
             }
             case ts.SyntaxKind.ThrowStatement:
-                return buildThrowStatement(
-                    statement as ThrowStatement,
-                    context,
-                );
+                res = buildThrowStatement(statement as ThrowStatement, context);
+                break;
             case ts.SyntaxKind.TryStatement:
-                return buildTryStatement(statement as TryStatement, context);
+                res = buildTryStatement(statement as TryStatement, context);
+                break;
             case ts.SyntaxKind.EmptyStatement:
-                return new EmptyNode();
+                res = new EmptyNode();
+                break;
             /* falls through */
         }
+        if (res && context.enableSourceMap) {
+            res.location = statement.debugLoc;
+        }
+        if (!res) {
+            res = new EmptyNode();
+        }
+        return res;
     } catch (e: any) {
         console.log(e);
         Logger.error(e.message);

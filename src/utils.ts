@@ -388,10 +388,9 @@ export function getBuiltInFuncName(oriFuncName: string) {
         .concat(oriFuncName);
 }
 
-export interface DebugLoc {
+export interface SourceLocation {
     line: number;
-    col: number;
-    ref: number; // expressionRef
+    character: number;
 }
 
 export function getNodeLoc(node: ts.Node) {
@@ -405,7 +404,7 @@ export function getNodeLoc(node: ts.Node) {
 
 export function addSourceMapLoc(irNode: Statement | Expression, node: ts.Node) {
     const { line, character } = getNodeLoc(node);
-    irNode.debugLoc = { line: line, col: character, ref: -1 };
+    irNode.debugLoc = { line: line, character: character };
 }
 
 export function adjustPrimitiveNodeType(
