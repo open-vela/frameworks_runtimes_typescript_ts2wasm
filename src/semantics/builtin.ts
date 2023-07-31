@@ -92,6 +92,18 @@ const builtin_objects: { [key: string]: ObjectInfo } = {
         inst_name: 'Promise',
         class_name: 'PromiseConstructor',
     },
+    Date: {
+        type: ObjectDescriptionType.OBJECT_INSTANCE,
+        id: PredefinedTypeId.DATE,
+        inst_name: 'Date',
+        class_name: 'DateConstructor',
+    },
+    DateConstructor: {
+        type: ObjectDescriptionType.OBJECT_CLASS,
+        id: PredefinedTypeId.DATE_CONSTRUCTOR,
+        inst_name: 'Date',
+        class_name: 'DateConstructor',
+    },
     Map: {
         type: ObjectDescriptionType.OBJECT_INSTANCE,
         id: PredefinedTypeId.MAP,

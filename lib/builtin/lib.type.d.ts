@@ -188,6 +188,33 @@ interface PromiseConstructor {
 
 declare var Promise: PromiseConstructor;
 
+interface DateConstructor {
+    new (): Date;
+    new (value: number | string): Date;
+    new (
+        year: number,
+        monthIndex: number,
+        date?: number,
+        hours?: number,
+        minutes?: number,
+        seconds?: number,
+        ms?: number,
+    ): Date;
+    parse(s: string): number;
+    UTC(
+        year: number,
+        monthIndex: number,
+        date?: number,
+        hours?: number,
+        minutes?: number,
+        seconds?: number,
+        ms?: number,
+    ): number;
+    now(): number;
+}
+
+declare var Date: DateConstructor;
+
 interface JSON {
     parse(
         text: string,
