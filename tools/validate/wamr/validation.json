@@ -3317,5 +3317,15 @@
                 "result": "50:f64"
             }
         ]
+    },
+    {
+        "module": "undefined_test",
+        "entries": [
+            {
+                "name": "test",
+                "args": [],
+                "result": "undefined \n18 undefined"
+            }
+        ]
     }
 ]

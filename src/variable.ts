@@ -5,7 +5,7 @@
 
 import ts from 'typescript';
 import { Expression, IdentifierExpression } from './expression.js';
-import { TypeResolver, Type, TSFunction } from './type.js';
+import { TypeResolver, Type, TypeKind, TSFunction } from './type.js';
 import { ParserContext } from './frontend.js';
 import {
     addSourceMapLoc,
@@ -415,6 +415,22 @@ export class VariableInit {
                         addSourceMapLoc(
                             variableInit,
                             variableDeclarationNode.initializer,
+                        );
+                    }
+                } else {
+                    /*
+                       TSC can ensure that variables(except those whose type is 'any') have been assigned before we use them.
+                       So when we directly use a variable that has not been assigned a value, the compiler will report an error: 'Variable is used before being assigned.'
+                    */
+                    // When we use an 'any' type variable that has not been assigned an initial value, the compiler can default its initial value to 'undefined'.
+                    if (
+                        (variableObj.varType.kind == TypeKind.ANY ||
+                            variableObj.varType.kind == TypeKind.UNDEFINED) &&
+                        !variableObj.isDeclare() &&
+                        !variableDeclarationNode.initializer
+                    ) {
+                        variableObj.setInitExpr(
+                            new IdentifierExpression('undefined'),
                         );
                     }
                 }
