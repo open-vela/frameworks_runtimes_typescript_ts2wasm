@@ -9,12 +9,14 @@
 #include "dyntype.h"
 
 void *
-console_constructor(wasm_exec_env_t exec_env, void *obj)
+console_constructor(wasm_exec_env_t exec_env, void *context, void *thiz,
+                    void *obj)
 {
     return obj;
 }
 
-void console_log(wasm_exec_env_t exec_env, void *obj)
+void
+console_log(wasm_exec_env_t exec_env, void *context, void *thiz, void *obj)
 {
     uint32 i, len;
     wasm_value_t wasm_array_data = { 0 }, wasm_array_len = { 0 };
@@ -50,8 +52,8 @@ void console_log(wasm_exec_env_t exec_env, void *obj)
     { #func_name, func_name, signature, NULL }
 
 static NativeSymbol native_symbols[] = {
-    REG_NATIVE_FUNC(console_constructor, "()r"),
-    REG_NATIVE_FUNC(console_log, "(r)"),
+    REG_NATIVE_FUNC(console_constructor, "(rr)r"),
+    REG_NATIVE_FUNC(console_log, "(rrr)"),
     /* TODO */
 };
 /* clang-format on */

@@ -572,17 +572,14 @@ export class WASMGen extends Ts2wasmBackend {
                 internalFuncName,
                 BuiltinNames.externalModuleName,
                 importName,
-                binaryen.createType(oriParamWasmTypes),
+                binaryen.createType(paramWASMTypes),
                 returnWASMType,
             );
             /* use wrappered func to invoke the orignal func */
             const oriParamWasmValues: binaryen.ExpressionRef[] = [];
-            for (let i = 0; i < oriParamWasmTypes.length; i++) {
+            for (let i = 0; i < paramWASMTypes.length; i++) {
                 oriParamWasmValues.push(
-                    this.module.local.get(
-                        i + func.envParamLen,
-                        oriParamWasmTypes[i],
-                    ),
+                    this.module.local.get(i, paramWASMTypes[i]),
                 );
             }
             let innerOp: binaryen.ExpressionRef;
