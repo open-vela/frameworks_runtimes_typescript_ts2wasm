@@ -410,14 +410,29 @@ export function createCondBlock(
     objImplId: binaryen.ExpressionRef,
     ifTrue: binaryen.ExpressionRef,
     ifFalse: binaryen.ExpressionRef,
+    optional: boolean,
+    field_index: binaryen.ExpressionRef,
+    dynUndefined: binaryen.ExpressionRef,
+    isSet: boolean,
 ): binaryen.ExpressionRef {
+    /** if optional, means the object maybe haven't the speciefied field, so we should
+     * check the found index whether equals to -1
+     */
+    let falseExpr = ifFalse;
+    if (optional) {
+        falseExpr = module.if(
+            module.i32.eq(field_index, module.i32.const(-1)),
+            isSet ? module.unreachable() : dynUndefined,
+            ifFalse,
+        );
+    }
     const cond = module.if(
         module.i32.or(
             module.i32.eq(infcTypeId, objTypeId),
             module.i32.eq(infcTypeId, objImplId),
         ),
         ifTrue,
-        ifFalse,
+        falseExpr,
     );
     const resType = binaryen.getExpressionType(ifTrue);
     const condBlock = module.block(null, [cond], resType);

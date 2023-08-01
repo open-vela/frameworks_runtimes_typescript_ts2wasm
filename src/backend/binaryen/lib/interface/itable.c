@@ -16,6 +16,7 @@ typedef struct ItableField {
     char *name;
     int flag; // 0: field, 1: method 2: getter 3: setter
     int index;
+    int type; // type id or, predefined type id
 } ItableField;
 
 /*
@@ -34,6 +35,15 @@ int find_index(Itable *table, char *prop_name, int flag) {
     for (int i = 0; i < table->size; i++) {
         if (strcmp(table->fields[i].name, prop_name) == 0 && table->fields[i].flag == flag) {
             return table->fields[i].index;
+        }
+    }
+    return -1;
+}
+
+int find_type_by_index(Itable *table, char *prop_name, int flag) {
+    for (int i = 0; i < table->size; i++) {
+        if (strcmp(table->fields[i].name, prop_name) == 0 && table->fields[i].flag == flag) {
+            return table->fields[i].type;
         }
     }
     return -1;

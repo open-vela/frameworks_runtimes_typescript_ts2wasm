@@ -26,7 +26,9 @@ import {
     EmptyType,
     FunctionType,
     ObjectType,
+    Primitive,
     TypeParameterType,
+    UnionType,
     ValueType,
     ValueTypeKind,
 } from '../../semantics/value_types.js';
@@ -41,6 +43,7 @@ import { FunctionalFuncs, UtilFuncs, getCString } from './utils.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { VarValue } from '../../semantics/value.js';
 import { needSpecialized } from '../../semantics/type_creator.js';
+import { TypeKind } from '../../type.js';
 
 export class WASMTypeGen {
     typeMap: Map<ValueType, binaryenCAPI.TypeRef> = new Map();
@@ -87,8 +90,12 @@ export class WASMTypeGen {
     private recStartElem: ObjectType | null = null;
 
     constructor(private wasmComp: WASMGen) {
+        //
+    }
+
+    parseCircularRecType(): void {
         /** parsing recursive types firstly */
-        const recTypes = wasmComp.semanticModule.recObjectTypeGroup;
+        const recTypes = this.wasmComp.semanticModule.recObjectTypeGroup;
         for (let i = 0; i < recTypes.length; i++) {
             for (let j = 0; j < recTypes[i].length; j++) {
                 this.typeToBuilderIdxMap.set(recTypes[i][j], j);
@@ -1227,10 +1234,23 @@ export class WASMTypeGen {
                     }
                 }
             } else if (member.type === MemberType.FIELD) {
-                const defaultValue = FunctionalFuncs.getVarDefaultValue(
+                let defaultValue = FunctionalFuncs.getVarDefaultValue(
                     this.wasmComp.module,
                     member.valueType.kind,
                 );
+                if (member.valueType.kind === ValueTypeKind.ANY) {
+                    defaultValue = FunctionalFuncs.generateDynUndefined(
+                        this.wasmComp.module,
+                    );
+                }
+                if (
+                    member.valueType instanceof UnionType &&
+                    member.valueType.types.has(Primitive.Undefined)
+                ) {
+                    defaultValue = FunctionalFuncs.generateDynUndefined(
+                        this.wasmComp.module,
+                    );
+                }
                 if (member.isStaic) {
                     if (buildIndex === -1) {
                         staticFieldsTypeRefs.push(

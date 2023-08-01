@@ -244,6 +244,7 @@ export interface TsClassField {
     modifier?: 'readonly';
     visibility?: 'public' | 'protected' | 'private';
     static?: 'static';
+    optional?: boolean;
 }
 
 export const enum FunctionKind {
@@ -271,6 +272,7 @@ export function getMethodPrefix(kind: FunctionKind): string {
 export interface TsClassFunc {
     name: string;
     type: TSFunction;
+    optional?: boolean;
 }
 
 export interface ClassMethod {
@@ -1271,9 +1273,14 @@ export class TypeResolver {
                 tsClass.addMethod({
                     name: propName,
                     type: tsType as TSFunction,
+                    optional: (valueDecl as any).questionToken ? true : false,
                 });
             } else {
-                tsClass.addMemberField({ name: propName, type: tsType });
+                tsClass.addMemberField({
+                    name: propName,
+                    type: tsType,
+                    optional: (valueDecl as any).questionToken ? true : false,
+                });
             }
         });
 
@@ -1492,12 +1499,21 @@ export class TypeResolver {
                 funcKind == FunctionKind.CONSTRUCTOR
                     ? 'constructor'
                     : member.name!.getText();
+            if (fieldType instanceof TSUnion && member.questionToken) {
+                const type = fieldType.types.find((type) => {
+                    return type instanceof TSFunction;
+                });
+                if (type) {
+                    fieldType = type;
+                }
+            }
             if (fieldType instanceof TSFunction) {
                 fieldType.funcKind = funcKind;
                 fieldType.envParamLen = 2;
                 infc.addMethod({
                     name: fieldName,
                     type: fieldType,
+                    optional: member.questionToken ? true : false,
                 });
                 this.parseTypeParameters(
                     fieldType as TSFunction,
@@ -1509,6 +1525,7 @@ export class TypeResolver {
                 infc.addMemberField({
                     name: fieldName,
                     type: fieldType,
+                    optional: member.questionToken ? true : false,
                 });
             }
         });
@@ -1660,6 +1677,7 @@ export class TypeResolver {
                     modifier: modifier,
                     visibility: 'public',
                     static: staticModifier,
+                    optional: member.questionToken ? true : false,
                 };
                 if (member.initializer) {
                     if (classField.static) {
@@ -1805,6 +1823,7 @@ export class TypeResolver {
             classType.addMethod({
                 name: methodName,
                 type: tsFuncType,
+                optional: func.questionToken ? true : false,
             });
         }
 
@@ -1962,13 +1981,26 @@ export class TypeResolver {
     private getShapeDesc(tsClass: TSClass) {
         let str = '';
         tsClass.fields.map((field) => {
-            str = str + field.name + this.getTypeString(field.type) + ',';
+            str =
+                str +
+                field.name +
+                (field.optional ? '?: ' : ': ') +
+                this.getTypeString(field.type) +
+                ',';
         });
         tsClass.memberFuncs
             .filter((func) => {
                 return func.type.funcKind !== FunctionKind.STATIC;
             })
-            .map((func) => (str = str + this.getTypeString(func.type) + ','));
+            .map(
+                (func) =>
+                    (str =
+                        str +
+                        func.name +
+                        (func.optional ? '?: ' : ': ') +
+                        this.getTypeString(func.type) +
+                        ','),
+            );
 
         return str;
     }

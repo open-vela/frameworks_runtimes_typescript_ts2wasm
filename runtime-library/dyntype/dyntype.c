@@ -425,7 +425,7 @@ dyn_value_t dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj
 
 int dyntype_execute_pending_jobs(dyn_ctx_t ctx) {
     JSContext *js_ctx1;
-    
+
     return JS_ExecutePendingJob(JS_GetRuntime(ctx->js_ctx), &js_ctx1);
 }
 

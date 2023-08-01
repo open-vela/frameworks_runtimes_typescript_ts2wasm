@@ -8,8 +8,10 @@ import { dyntype, structdyn } from './lib/dyntype/utils.js';
 import { SemanticsKind } from '../../semantics/semantics_nodes.js';
 import {
     ObjectType,
+    Primitive,
     PrimitiveType,
     TypeParameterType,
+    UnionType,
     ValueType,
     ValueTypeKind,
 } from '../../semantics/value_types.js';
@@ -198,12 +200,31 @@ export namespace FunctionalFuncs {
             //     return module.f32.const(0);
             // case ValueTypeKind.WASM_I64:
             //     return module.i64.const(0, 0);
+            // case ValueTypeKind.UNDEFINED:
+            //     return generateDynUndefined(module);
+            // case ValueTypeKind.UNION:
+            //     if (isUnionWithUndefined(type)) {
+            //         return generateDynUndefined(module);
+            //     } else {
+            //         return binaryenCAPI._BinaryenRefNull(
+            //             module.ptr,
+            //             binaryenCAPI._BinaryenTypeStructref(),
+            //         );
+            //     }
             default:
                 return binaryenCAPI._BinaryenRefNull(
                     module.ptr,
                     binaryenCAPI._BinaryenTypeStructref(),
                 );
         }
+    }
+
+    /** iff optional field or XXX|undefined */
+    export function isUnionWithUndefined(type: ValueType) {
+        if (type instanceof UnionType) {
+            return type.types.size === 2 && type.types.has(Primitive.Undefined);
+        }
+        return false;
     }
 
     export function generateStringRef(module: binaryen.Module, value: string) {
@@ -408,7 +429,8 @@ export namespace FunctionalFuncs {
             res = module.i32.and(n0, nNaN);
         } else if (
             srckind === ValueTypeKind.ANY ||
-            srckind === ValueTypeKind.UNDEFINED
+            srckind === ValueTypeKind.UNDEFINED ||
+            srckind === ValueTypeKind.UNION
         ) {
             const targetFunc = getBuiltInFuncName(BuiltinNames.anyrefCond);
             res = module.call(targetFunc, [exprRef], binaryen.i32);
