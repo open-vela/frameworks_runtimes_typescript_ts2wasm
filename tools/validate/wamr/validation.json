@@ -3319,6 +3319,26 @@
         ]
     },
     {
+        "module": "optional_field_access",
+        "entries": [
+            {
+                "name": "optionalField",
+                "args": [],
+                "result": "str \nstr1 \nundefined"
+            },
+            {
+                "name": "classOptionalField",
+                "args": [],
+                "result": "undefined \n10"
+            },
+            {
+                "name": "optionalMethod",
+                "args": [],
+                "result": "10:f64"
+            }
+        ]
+    },
+    {
         "module": "undefined_test",
         "entries": [
             {
