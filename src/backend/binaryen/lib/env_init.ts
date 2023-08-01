@@ -534,7 +534,7 @@ export function generateFreeDynContext(module: binaryen.Module) {
 }
 
 export function addItableFunc(module: binaryen.Module) {
-    /* add find_index function from .wat */
+    /* add customize function from .wat *
     /* TODO: Have not found an effiective way to load import function from .wat yet */
     module.addFunctionImport(
         'strcmp',
@@ -551,5 +551,6 @@ export function addItableFunc(module: binaryen.Module) {
     const itableLib = fs.readFileSync(itableFilePath, 'utf-8');
     const watModule = binaryen.parseText(itableLib);
     UtilFuncs.addWatFuncs(watModule, 'find_index', module);
+    UtilFuncs.addWatFuncs(watModule, 'find_type_by_index', module);
     watModule.dispose();
 }

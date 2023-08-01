@@ -7,8 +7,7 @@ import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
 import { TSContext } from '../../type.js';
 import { arrayToPtr, emptyStructType } from './glue/transform.js';
-import { FunctionScope, GlobalScope } from '../../scope.js';
-import { Stack } from '../../utils.js';
+import { PredefinedTypeId, Stack } from '../../utils.js';
 import {
     importAnyLibAPI,
     importInfcLibAPI,
@@ -75,6 +74,7 @@ import { dyntype } from './lib/dyntype/utils.js';
 import { clearWasmStringMap, getCString } from './utils.js';
 import { assert } from 'console';
 import ts from 'typescript';
+import { VarValue } from '../../semantics/value.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -452,7 +452,8 @@ export class WASMGen extends Ts2wasmBackend {
                 binaryen.none,
             );
         }
-
+        /** parse all recursive types firstly */
+        this.wasmTypeComp.parseCircularRecType();
         /* add global vars */
         this.addGlobalVars();
 
@@ -1028,19 +1029,20 @@ export class WASMGen extends Ts2wasmBackend {
         const members = objType.meta.members;
         let dataLength = members.length;
         dataLength += members.filter((m) => m.hasSetter && m.hasGetter).length;
-        const buffer = new Uint32Array(2 + 3 * dataLength);
+        const buffer = new Uint32Array(2 + 4 * dataLength);
         buffer[0] = objType.typeId;
         buffer[1] = dataLength;
         let memberMethodsCnt = 0;
         const cnt = Math.min(dataLength, members.length);
         let memberFieldsCnt = 1; // In obj, the first field is vtable.
-        for (let i = 0, j = 2; i < cnt; i++, j += 3) {
+        for (let i = 0, j = 2; i < cnt; i++, j += 4) {
             const member = members[i];
             const memberName = member.name;
             buffer[j] = this.generateRawString(memberName);
             if (member.type === MemberType.FIELD) {
                 buffer[j + 1] = ItableFlag.FIELD;
                 buffer[j + 2] = memberFieldsCnt++;
+                buffer[j + 3] = this.getDefinedTypeId(member.valueType);
             } else if (member.type === MemberType.METHOD) {
                 buffer[j + 1] = ItableFlag.METHOD;
                 buffer[j + 2] = memberMethodsCnt++;
@@ -1048,14 +1050,20 @@ export class WASMGen extends Ts2wasmBackend {
                 if (member.hasGetter) {
                     buffer[j + 1] = ItableFlag.GETTER;
                     buffer[j + 2] = memberMethodsCnt++;
+                    buffer[j + 3] = this.getDefinedTypeId(
+                        (member.getter as VarValue).type,
+                    );
                 }
                 if (member.hasGetter && member.hasSetter) {
-                    j += 3;
-                    buffer[j] = buffer[j - 3];
+                    j += 4;
+                    buffer[j] = buffer[j - 4];
                 }
                 if (member.hasSetter) {
                     buffer[j + 1] = ItableFlag.SETTER;
                     buffer[j + 2] = memberMethodsCnt++;
+                    buffer[j + 3] = this.getDefinedTypeId(
+                        (member.getter as VarValue).type,
+                    );
                 }
             }
         }
@@ -1064,6 +1072,42 @@ export class WASMGen extends Ts2wasmBackend {
         );
         this.dataSegmentContext!.itableMap.set(objType.typeId, offset);
         return offset;
+    }
+
+    private getDefinedTypeId(type: ValueType) {
+        switch (type.kind) {
+            case ValueTypeKind.UNDEFINED:
+                return PredefinedTypeId.UNDEFINED;
+            case ValueTypeKind.NULL:
+                return PredefinedTypeId.NULL;
+            case ValueTypeKind.INT:
+                return PredefinedTypeId.INT;
+            case ValueTypeKind.NUMBER:
+                return PredefinedTypeId.NUMBER;
+            case ValueTypeKind.BOOLEAN:
+                return PredefinedTypeId.BOOLEAN;
+            case ValueTypeKind.RAW_STRING:
+                return PredefinedTypeId.RAW_STRING;
+            case ValueTypeKind.STRING:
+                return PredefinedTypeId.STRING;
+            case ValueTypeKind.ANY:
+                return PredefinedTypeId.ANY;
+            case ValueTypeKind.FUNCTION:
+                /** TODO: create type id for function type base on signature */
+                return PredefinedTypeId.FUNCTION;
+            case ValueTypeKind.UNION:
+                return PredefinedTypeId.UNION;
+            case ValueTypeKind.INTERFACE:
+            case ValueTypeKind.OBJECT: {
+                const objType = type as ObjectType;
+                return objType.typeId;
+            }
+            default:
+                Logger.warn(
+                    `encounter type not assigned type id, type kind is ${type.kind}`,
+                );
+                return 0;
+        }
     }
 
     public findMethodImplementClass(

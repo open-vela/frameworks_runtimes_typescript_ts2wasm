@@ -23,7 +23,7 @@ import {
     ItableFlag,
     InfcFieldIndex,
 } from './utils.js';
-import { processEscape } from '../../utils.js';
+import { PredefinedTypeId, processEscape } from '../../utils.js';
 import {
     BinaryExprValue,
     BlockBranchIfValue,
@@ -644,9 +644,9 @@ export class WASMExpressionGen {
         ) {
             return FunctionalFuncs.operateStaticNullUndefined(
                 this.module,
-                leftValueType,
-                leftValueRef,
-                rightValueType.kind,
+                rightValueType,
+                rightValueRef,
+                leftValueType.kind,
                 opKind,
             );
         }
@@ -657,9 +657,9 @@ export class WASMExpressionGen {
         ) {
             return FunctionalFuncs.operateStaticNullUndefined(
                 this.module,
-                rightValueType,
-                rightValueRef,
-                leftValueType.kind,
+                leftValueType,
+                leftValueRef,
+                rightValueType.kind,
                 opKind,
             );
         }
@@ -2073,9 +2073,10 @@ export class WASMExpressionGen {
     ) {
         const thisTypeRef = this.wasmTypeGen.getWASMType(ownerType);
         const valueIdx = this.getTruthIdx(meta, member);
+        const typeMember = meta.findMember(member.name) as MemberDescription;
         if (meta.isInterface) {
             return this.getInfcMember(
-                member,
+                typeMember,
                 ownerType,
                 thisRef,
                 valueIdx,
@@ -2084,7 +2085,7 @@ export class WASMExpressionGen {
             );
         } else {
             return this.getObjMember(
-                member,
+                typeMember,
                 thisRef,
                 thisTypeRef,
                 valueIdx,
@@ -2396,17 +2397,37 @@ export class WASMExpressionGen {
                 : (memberValueType as FunctionType).argumentsType.length > 0
                 ? ItableFlag.SETTER
                 : ItableFlag.GETTER;
-        const indexRef = this.module.call(
-            'find_index',
-            [
-                itableRef,
-                this.module.i32.const(
-                    this.wasmCompiler.generateRawString(memberName),
-                ),
-                this.module.i32.const(flag),
-            ],
-            binaryen.i32,
+        /** here create a temp var, to avoid call `find_index` more times */
+        const indexRef = this.createTmpVarOfSpecifiedType(
+            this.module.call(
+                'find_index',
+                [
+                    itableRef,
+                    this.module.i32.const(
+                        this.wasmCompiler.generateRawString(memberName),
+                    ),
+                    this.module.i32.const(flag),
+                ],
+                binaryen.i32,
+            ),
+            Primitive.Int,
         );
+
+        const indexType = this.createTmpVarOfSpecifiedType(
+            this.module.call(
+                'find_type_by_index',
+                [
+                    itableRef,
+                    this.module.i32.const(
+                        this.wasmCompiler.generateRawString(memberName),
+                    ),
+                    this.module.i32.const(flag),
+                ],
+                binaryen.i32,
+            ),
+            Primitive.Int,
+        );
+        const optional = FunctionalFuncs.isUnionWithUndefined(memberValueType);
         let ifTrue: binaryen.ExpressionRef = binaryen.unreachable;
         let ifFalse: binaryen.ExpressionRef;
         if (isSet) {
@@ -2416,6 +2437,7 @@ export class WASMExpressionGen {
                 indexRef,
                 targetValueRef!,
                 memberValueType,
+                indexType,
             );
         } else {
             if (!getFunc) {
@@ -2435,8 +2457,10 @@ export class WASMExpressionGen {
                 oriObjAnyRef,
                 indexRef,
                 memberValueType,
+                indexType,
             );
         }
+        const dynUndefined = FunctionalFuncs.generateDynUndefined(this.module);
         const res = createCondBlock(
             this.module,
             infcTypeIdRef,
@@ -2444,6 +2468,10 @@ export class WASMExpressionGen {
             oriObjImplIdRef,
             ifTrue,
             ifFalse,
+            optional,
+            indexRef,
+            dynUndefined,
+            isSet,
         );
         return [castedObjRef, res];
     }
@@ -2559,6 +2587,7 @@ export class WASMExpressionGen {
         ref: binaryen.ExpressionRef,
         index: binaryen.ExpressionRef,
         type: ValueType,
+        indexType: binaryen.ExpressionRef,
     ) {
         const wasmType = this.wasmTypeGen.getWASMType(type);
         const typeKind = type.kind;
@@ -2588,6 +2617,20 @@ export class WASMExpressionGen {
                 binaryen.funcref,
             );
             res = binaryenCAPI._BinaryenRefCast(this.module.ptr, res, wasmType);
+        } else if (FunctionalFuncs.isUnionWithUndefined(type)) {
+            const union_type = type as UnionType;
+            let static_type: ValueType | null = null;
+            for (const key of union_type.types.keys()) {
+                if (key.kind !== ValueTypeKind.UNDEFINED) {
+                    static_type = key;
+                    break;
+                }
+            }
+            if (static_type === null) {
+                throw Error('Union type has no non_undefined field');
+            }
+            const field_type = static_type;
+            res = this.dynGetInfcOptField(ref, index, field_type, indexType);
         } else if (wasmType === binaryen.i64) {
             res = this.module.call(
                 structdyn.StructDyn.struct_get_dyn_i64,
@@ -2620,11 +2663,136 @@ export class WASMExpressionGen {
         return res;
     }
 
+    private dynGetInfcOptField(
+        ref: binaryen.ExpressionRef,
+        index: binaryen.ExpressionRef,
+        type: ValueType,
+        indexType: binaryen.ExpressionRef,
+    ) {
+        const wasmType = this.wasmTypeGen.getWASMType(type);
+        const typeKind = type.kind;
+        const ifFalse = this.module.call(
+            structdyn.StructDyn.struct_get_dyn_anyref,
+            [ref, index],
+            binaryen.anyref,
+        );
+
+        if (
+            typeKind === ValueTypeKind.UNION ||
+            typeKind === ValueTypeKind.ANY
+        ) {
+            return ifFalse;
+        }
+
+        let cond: binaryen.ExpressionRef;
+        let ifTrue: binaryen.ExpressionRef;
+
+        if (typeKind === ValueTypeKind.BOOLEAN) {
+            cond = this.module.i32.eq(
+                indexType,
+                this.module.i32.const(PredefinedTypeId.BOOLEAN),
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_i32,
+                [ref, index],
+                binaryen.i32,
+            );
+            ifTrue = FunctionalFuncs.boxBaseTypeToAny(
+                this.module,
+                ifTrue,
+                ValueTypeKind.BOOLEAN,
+            );
+        } else if (typeKind === ValueTypeKind.NUMBER) {
+            cond = this.module.i32.eq(
+                indexType,
+                this.module.i32.const(PredefinedTypeId.NUMBER),
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_f64,
+                [ref, index],
+                binaryen.f64,
+            );
+            ifTrue = FunctionalFuncs.boxBaseTypeToAny(
+                this.module,
+                ifTrue,
+                ValueTypeKind.NUMBER,
+            );
+        } else if (typeKind === ValueTypeKind.FUNCTION) {
+            cond = this.module.i32.eq(
+                indexType,
+                this.module.i32.const(PredefinedTypeId.FUNCTION),
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_anyref,
+                [ref, this.module.i32.const(0)],
+                binaryen.anyref,
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_funcref,
+                [ifTrue, index],
+                binaryen.funcref,
+            );
+            ifTrue = binaryenCAPI._BinaryenRefCast(
+                this.module.ptr,
+                ifTrue,
+                wasmType,
+            );
+            const closureType = this.wasmTypeGen.getWASMValueHeapType(type);
+            ifTrue = binaryenCAPI._BinaryenStructNew(
+                this.module.ptr,
+                arrayToPtr([
+                    binaryenCAPI._BinaryenRefNull(
+                        this.module.ptr,
+                        emptyStructType.typeRef,
+                    ),
+                    ifTrue,
+                ]).ptr,
+                2,
+                closureType,
+            );
+            ifTrue = FunctionalFuncs.boxNonLiteralToAny(
+                this.module,
+                ifTrue,
+                ValueTypeKind.FUNCTION,
+            );
+        } else {
+            // string or object
+            cond = this.module.i32.and(
+                this.module.i32.ne(
+                    indexType,
+                    this.module.i32.const(PredefinedTypeId.UNION),
+                ),
+                this.module.i32.ne(
+                    indexType,
+                    this.module.i32.const(PredefinedTypeId.ANY),
+                ),
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_anyref,
+                [ref, index],
+                binaryen.anyref,
+            );
+            ifTrue = binaryenCAPI._BinaryenRefCast(
+                this.module.ptr,
+                ifTrue,
+                wasmType,
+            );
+            ifTrue = FunctionalFuncs.boxNonLiteralToAny(
+                this.module,
+                ifTrue,
+                type.kind,
+            );
+        }
+
+        return this.module.if(cond, ifTrue, ifFalse);
+    }
+
     private dynSetInfcField(
         ref: binaryen.ExpressionRef,
         index: binaryen.ExpressionRef,
         value: binaryen.ExpressionRef,
         type: ValueType,
+        indexType: binaryen.ExpressionRef,
     ) {
         const wasmType = this.wasmTypeGen.getWASMType(type);
         const typeKind = type.kind;
@@ -2653,6 +2821,26 @@ export class WASMExpressionGen {
                 [res, index, value],
                 binaryen.none,
             );
+        } else if (FunctionalFuncs.isUnionWithUndefined(type)) {
+            const union_type = type as UnionType;
+            let static_type: ValueType | null = null;
+            for (const key of union_type.types.keys()) {
+                if (key.kind !== ValueTypeKind.UNDEFINED) {
+                    static_type = key;
+                    break;
+                }
+            }
+            if (static_type === null) {
+                throw Error('Union type has no non_undefined field');
+            }
+            const field_type = static_type;
+            res = this.dynSetInfcOptField(
+                ref,
+                index,
+                value,
+                field_type,
+                indexType,
+            );
         } else if (wasmType === binaryen.i64) {
             res = this.module.call(
                 structdyn.StructDyn.struct_set_dyn_i64,
@@ -2676,6 +2864,122 @@ export class WASMExpressionGen {
             throw new Error(`set interface field failed, type: ${type}`);
         }
         return res;
+    }
+
+    private dynSetInfcOptField(
+        ref: binaryen.ExpressionRef,
+        index: binaryen.ExpressionRef,
+        value: binaryen.ExpressionRef,
+        type: ValueType,
+        indexType: binaryen.ExpressionRef,
+    ) {
+        const wasmType = this.wasmTypeGen.getWASMType(type);
+        const typeKind = type.kind;
+        const ifFalse = this.module.call(
+            structdyn.StructDyn.struct_set_dyn_anyref,
+            [ref, index, value],
+            binaryen.anyref,
+        );
+
+        if (
+            typeKind === ValueTypeKind.UNION ||
+            typeKind === ValueTypeKind.ANY
+        ) {
+            return ifFalse;
+        }
+
+        let cond: binaryen.ExpressionRef;
+        let ifTrue: binaryen.ExpressionRef;
+
+        if (typeKind === ValueTypeKind.BOOLEAN) {
+            cond = this.module.i32.eq(
+                indexType,
+                this.module.i32.const(PredefinedTypeId.BOOLEAN),
+            );
+            ifTrue = FunctionalFuncs.unboxAnyToBase(
+                this.module,
+                value,
+                ValueTypeKind.BOOLEAN,
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_i32,
+                [ref, index, ifTrue],
+                binaryen.none,
+            );
+        } else if (typeKind === ValueTypeKind.NUMBER) {
+            cond = this.module.i32.eq(
+                indexType,
+                this.module.i32.const(PredefinedTypeId.NUMBER),
+            );
+            ifTrue = FunctionalFuncs.unboxAnyToBase(
+                this.module,
+                value,
+                ValueTypeKind.NUMBER,
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_f64,
+                [ref, index, ifTrue],
+                binaryen.f64,
+            );
+        } else if (typeKind === ValueTypeKind.FUNCTION) {
+            cond = this.module.i32.eq(
+                indexType,
+                this.module.i32.const(PredefinedTypeId.FUNCTION),
+            );
+            const vtable = this.module.call(
+                structdyn.StructDyn.struct_get_dyn_anyref,
+                [ref, this.module.i32.const(0)],
+                binaryen.anyref,
+            );
+            ifTrue = FunctionalFuncs.unboxAnyToExtref(
+                this.module,
+                value,
+                ValueTypeKind.FUNCTION,
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_funcref,
+                [vtable, index, ifTrue],
+                binaryen.none,
+            );
+        } else if (typeKind === ValueTypeKind.STRING) {
+            cond = this.module.i32.eq(
+                indexType,
+                this.module.i32.const(PredefinedTypeId.STRING),
+            );
+            ifTrue = FunctionalFuncs.unboxAnyToBase(
+                this.module,
+                value,
+                ValueTypeKind.STRING,
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_anyref,
+                [ref, index, ifTrue],
+                binaryen.none,
+            );
+        } else {
+            // object
+            cond = this.module.i32.and(
+                this.module.i32.ne(
+                    indexType,
+                    this.module.i32.const(PredefinedTypeId.UNION),
+                ),
+                this.module.i32.ne(
+                    indexType,
+                    this.module.i32.const(PredefinedTypeId.ANY),
+                ),
+            );
+            ifTrue = FunctionalFuncs.unboxAnyToExtref(
+                this.module,
+                value,
+                wasmType,
+            );
+            ifTrue = this.module.call(
+                structdyn.StructDyn.struct_set_dyn_anyref,
+                [ref, index, ifTrue],
+                binaryen.none,
+            );
+        }
+        return this.module.if(cond, ifTrue, ifFalse);
     }
 
     private wasmDirectGetter(value: DirectGetterValue) {
@@ -3325,5 +3629,17 @@ export class WASMExpressionGen {
                 objDescType,
             );
         }
+    }
+
+    /** create a temp var, and return it by local index */
+    private createTmpVarOfSpecifiedType(
+        expr: binaryen.ExpressionRef,
+        type: ValueType,
+    ) {
+        const ctx = this.currentFuncCtx!;
+        const tmpVar = ctx.insertTmpVar(type);
+        const varType = this.wasmTypeGen.getWASMType(type);
+        ctx.insert(this.module.local.set(tmpVar.index, expr));
+        return this.module.local.get(tmpVar.index, varType);
     }
 }
