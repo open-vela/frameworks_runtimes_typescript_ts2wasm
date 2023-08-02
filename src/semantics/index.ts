@@ -232,10 +232,17 @@ function createFunctionDeclareNode(
     context: BuildContext,
     f: FunctionScope,
 ): FunctionDeclareNode {
-    const name = f.mangledName; //f.funcName;
-    //if (f.className) {
-    //   name = f.className + "_" + name;
-    //}
+    let name = f.mangledName; //f.funcName;
+    // iff the function is a static member function.
+    /**
+     * adding a '@' prefix before the static member function name
+     * is to distinguish the non-static member function with the same name.
+     */
+    if (f.className != '' && f.funcType.isStatic) {
+        const reverse = name.split('|').reverse();
+        reverse[0] = '@' + reverse[0];
+        name = reverse.reverse().join('|');
+    }
 
     /* maybe can be replace to context.findSymbolKey(f.funcType) as FunctionType */
     const func_type = createType(context, f.funcType) as FunctionType;
