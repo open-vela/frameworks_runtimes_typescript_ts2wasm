@@ -959,6 +959,9 @@ export class WASMExpressionGen {
         isBuiltin = false,
     ) {
         let methodName = `${target}|${member.name}`;
+        if (member.isStaic) {
+            methodName = `${target}|` + '@' + `${member.name}`;
+        }
         if (isBuiltin) {
             methodName = UtilFuncs.getFuncName(
                 BuiltinNames.builtinModuleName,

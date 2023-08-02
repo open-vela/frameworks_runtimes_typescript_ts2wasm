@@ -89,3 +89,25 @@ export function testStaticField2() {
 export function testStaticField3() {
     return staticFieldsInit.field3; // 2
 }
+
+class Circle {
+    pi: number = 100;
+    static pi: number = 3.14;
+
+    calculateArea(radius:number):number {
+        // this function has no practical meaning, just for testing.
+        return this.pi * Circle.pi * radius;
+    }
+
+    static calculateArea(radius:number) {
+        return Circle.pi * radius * radius;
+    }
+}
+export function staticFieldWithOverwrite() {
+    console.log(Circle.pi);
+    console.log(Circle.calculateArea(1));
+
+    const circle = new Circle();
+    console.log(circle.pi);
+    console.log(circle.calculateArea(1));
+}

@@ -1703,15 +1703,13 @@ export class TypeResolver {
                     }
                 }
 
-                if (
-                    classType.getMemberField(name) ||
-                    classType.getStaticMemberField(name)
-                ) {
-                    continue;
-                }
                 if (!classField.static) {
+                    const found = classType.getMemberField(name);
+                    if (found) continue;
                     classType.addMemberField(classField);
                 } else {
+                    const found = classType.getStaticMemberField(name);
+                    if (found) continue;
                     classType.addStaticMemberField(classField);
                 }
             }
