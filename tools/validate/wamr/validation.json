@@ -1632,6 +1632,11 @@
                 "name": "testStaticField3",
                 "args": [],
                 "result": "2:f64"
+            },
+            {
+                "name": "staticFieldWithOverwrite",
+                "args": [],
+                "result": "3.14 \n3.14 \n100 \n314"
             }
         ]
     },
