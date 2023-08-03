@@ -2825,6 +2825,81 @@
         ]
     },
     {
+        "module": "promise_chain",
+        "entries": [
+            {
+                "name": "promiseChain",
+                "args": [],
+                "result": "123 \n456 \nhello \nfalse \nfinally"
+            },
+            {
+                "name": "promiseMultiThen",
+                "args": [],
+                "result": "123 \n133 \n143 \n153"
+            }
+        ]
+    },
+    {
+        "module": "promise_constructor",
+        "entries": [
+            {
+                "name": "newPromiseWithVoid",
+                "args": [],
+                "result": "before call resolve \nafter call resolve \n\nthen_onFulfilled_func"
+            },
+            {
+                "name": "newPromiseWithNumber",
+                "args": [],
+                "result": "100"
+            },
+            {
+                "name": "newPromiseWithString",
+                "args": [],
+                "result": "hello"
+            }
+        ]
+    },
+    {
+        "module": "promise_immediate",
+        "entries": [
+            {
+                "name": "immediateResolveWithNoArg",
+                "args": [],
+                "result": "then_onFulfilled_func"
+            },
+            {
+                "name": "immediateResolveWithArg",
+                "args": [],
+                "result": "then_onFulfilled_func"
+            },
+            {
+                "name": "immediateReject",
+                "args": [],
+                "result": "then_onRejected_func"
+            }
+        ]
+    },
+    {
+        "module": "promise_throw",
+        "entries": [
+            {
+                "name": "promiseThrowError",
+                "args": [],
+                "result": "123 \n456 \nfinally"
+            },
+            {
+                "name": "promiseCatchInCB",
+                "args": [],
+                "result": "123 \n456 \nfinally"
+            },
+            {
+                "name": "promiseNotCatchInCB",
+                "args": [],
+                "result": "123 \nexception_not_catch_in_cb \nfinally"
+            }
+        ]
+    },
+    {
         "module": "prototype",
         "entries": [
             {

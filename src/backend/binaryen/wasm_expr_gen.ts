@@ -1596,7 +1596,16 @@ export class WASMExpressionGen {
 
         /* parse optional param as undefined */
         for (let i = 0; i < paramTypes.length; i++) {
-            if (funcType.isOptionalParams[i]) {
+            /* workaround: when promise generic type is void, function call arguments may be empty.
+            We should add undefined as argument here.
+            new Promise<void>((resolve, reject) => {
+                resolve();
+            }); 
+            */
+            if (
+                funcType.isOptionalParams[i] ||
+                funcType.argumentsType[i].kind === ValueTypeKind.TYPE_PARAMETER
+            ) {
                 callerArgs[i + envArgLen] =
                     FunctionalFuncs.generateDynUndefined(this.module);
             }

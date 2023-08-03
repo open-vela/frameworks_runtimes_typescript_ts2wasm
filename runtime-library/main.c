@@ -13,6 +13,7 @@
 #include "bh_platform.h"
 #include "bh_read_file.h"
 #include "wasm_export.h"
+#include "dyntype.h"
 
 extern uint32_t
 get_libdyntype_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
@@ -372,6 +373,35 @@ static char global_heap_buf[WASM_GLOBAL_HEAP_SIZE] = { 0 };
 #endif
 
 int
+events_poll(wasm_exec_env_t exec_env)
+{
+    /* TODO: not detect macro tasks yet */
+    return -1;
+}
+
+void
+execute_micro_tasks(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
+{
+    int err;
+
+    for (;;) {
+        /* execute the pending jobs */
+        for (;;) {
+            err = dyntype_execute_pending_jobs(ctx);
+            if (err <= 0) {
+                if (err < 0) {
+                    dyntype_dump_error(ctx);
+                }
+                break;
+            }
+        }
+
+        if (events_poll(exec_env))
+            break;
+    }
+}
+
+int
 main(int argc, char *argv[])
 {
     int32 ret = -1;
@@ -392,6 +422,7 @@ main(int argc, char *argv[])
 #endif
     wasm_module_t wasm_module = NULL;
     wasm_module_inst_t wasm_module_inst = NULL;
+    wasm_exec_env_t exec_env = NULL;
     RunningMode running_mode = 0;
     RuntimeInitArgs init_args;
     char error_buf[128] = { 0 };
@@ -782,15 +813,14 @@ main(int argc, char *argv[])
         goto fail3;
     }
 
+    exec_env = wasm_runtime_get_exec_env_singleton(wasm_module_inst);
+    if (exec_env == NULL) {
+        printf("%s\n", wasm_runtime_get_exception(wasm_module_inst));
+    }
+
 #if WASM_ENABLE_DEBUG_INTERP != 0
     if (ip_addr != NULL) {
-        wasm_exec_env_t exec_env =
-            wasm_runtime_get_exec_env_singleton(wasm_module_inst);
         uint32_t debug_port;
-        if (exec_env == NULL) {
-            printf("%s\n", wasm_runtime_get_exception(wasm_module_inst));
-            goto fail4;
-        }
         debug_port = wasm_runtime_start_debug_instance(exec_env);
         if (debug_port == 0) {
             printf("Failed to start debug instance\n");
@@ -826,6 +856,10 @@ main(int argc, char *argv[])
 #if WASM_ENABLE_DEBUG_INTERP != 0
 fail4:
 #endif
+    /* run micro tasks */
+    execute_micro_tasks(exec_env, dyntype_get_context());
+    /* destroy dynamic ctx */
+    dyntype_context_destroy(dyntype_get_context());
     /* destroy the module instance */
     wasm_runtime_deinstantiate(wasm_module_inst);
 
