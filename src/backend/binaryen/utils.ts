@@ -118,6 +118,20 @@ export namespace UtilFuncs {
                 );
         }
     }
+
+    export function isSupportedStringOP(opKind: ts.SyntaxKind) {
+        switch (opKind) {
+            case ts.SyntaxKind.ExclamationEqualsToken:
+            case ts.SyntaxKind.ExclamationEqualsEqualsToken:
+            case ts.SyntaxKind.EqualsEqualsToken:
+            case ts.SyntaxKind.EqualsEqualsEqualsToken:
+            case ts.SyntaxKind.PlusToken:
+            case ts.SyntaxKind.BarBarToken:
+                return true;
+            default:
+                return false;
+        }
+    }
 }
 
 export namespace FunctionalFuncs {
@@ -1257,16 +1271,6 @@ export namespace FunctionalFuncs {
                     rightValueRef,
                     opKind,
                 );
-
-                /** iff not compare or plus token, tsc will auto convert to number */
-                if (
-                    !(
-                        opKind >= ts.SyntaxKind.LessThanToken &&
-                        opKind <= ts.SyntaxKind.PlusToken
-                    )
-                ) {
-                    res = unboxAnyToBase(module, res, ValueTypeKind.NUMBER);
-                }
                 break;
             }
         }
@@ -1398,36 +1402,33 @@ export namespace FunctionalFuncs {
         opKind: ts.SyntaxKind,
     ) {
         const dynTypeCtx = getDynContextRef(module);
-        const typeEq = module.call(
+        const isTypeEq = module.call(
             dyntype.dyntype_type_eq,
             [dynTypeCtx, leftValueRef, rightValueRef],
             binaryen.i32,
         );
-        // const
-        const ifFalse = module.unreachable();
-        const ifNumber = module.call(
+        const ifFalseRef = module.unreachable();
+        const isNumber = module.call(
             dyntype.dyntype_is_number,
             [dynTypeCtx, leftValueRef],
             binaryen.i32,
         );
-        const ifString = module.call(
+        const isString = module.call(
             dyntype.dyntype_is_string,
             [dynTypeCtx, leftValueRef],
             binaryen.i32,
         );
-        const ifStringTrue = operateStrStrToDyn(
-            module,
-            leftValueRef,
-            rightValueRef,
-            opKind,
-        );
-        const ifTypeEqTrue = module.if(
-            ifNumber,
+        const ifTrueRef = module.if(
+            isNumber,
             operateF64F64ToDyn(module, leftValueRef, rightValueRef, opKind),
-            module.if(ifString, ifStringTrue, ifFalse),
+            module.if(
+                isString,
+                operateStrStrToDyn(module, leftValueRef, rightValueRef, opKind),
+                ifFalseRef,
+            ),
         );
 
-        return module.if(typeEq, ifTypeEqTrue, ifFalse);
+        return module.if(isTypeEq, ifTrueRef, ifFalseRef);
     }
 
     export function operateF64F64ToDyn(
@@ -1473,14 +1474,19 @@ export namespace FunctionalFuncs {
         const tmpRightStrRef = isRightStatic
             ? rightValueRef
             : unboxAnyToBase(module, rightValueRef, ValueTypeKind.STRING);
-        // operate left expression and right expression
-        const operateString = operateStringString(
-            module,
-            tmpLeftStrRef,
-            tmpRightStrRef,
-            opKind,
-        );
-        return generateDynString(module, operateString);
+        let operateStringRef = module.unreachable();
+        if (UtilFuncs.isSupportedStringOP(opKind)) {
+            operateStringRef = generateDynString(
+                module,
+                operateStringString(
+                    module,
+                    tmpLeftStrRef,
+                    tmpRightStrRef,
+                    opKind,
+                ),
+            );
+        }
+        return operateStringRef;
     }
 
     export function oprateF64F64ToDyn(
