@@ -743,7 +743,7 @@ export class ScopeScanner {
             | ts.AccessorDeclaration
             | ts.MethodDeclaration
             | ts.ConstructorDeclaration,
-        methodType: FunctionKind,
+        methodKind: FunctionKind,
     ) {
         const parentScope = this.currentScope!;
         const functionScope = new FunctionScope(parentScope);
@@ -756,7 +756,7 @@ export class ScopeScanner {
         /* functionScope put @context env param defaultly */
         functionScope.envParamLen++;
 
-        if (methodType !== FunctionKind.STATIC) {
+        if (methodKind !== FunctionKind.STATIC) {
             /* record '@this' as env param, add 'this' to varArray */
             functionScope.envParamLen++;
             const thisVar = new Variable('this', new Type());
@@ -765,7 +765,7 @@ export class ScopeScanner {
         }
 
         functionScope.setClassName((<ClassScope>parentScope).className);
-        let methodName = getMethodPrefix(methodType);
+        let methodName = getMethodPrefix(methodKind);
         if (node.name) {
             methodName += node.name.getText();
         }
@@ -923,21 +923,17 @@ export class ScopeScanner {
                 break;
             }
             case ts.SyntaxKind.SetAccessor: {
-                if ((<ts.SetAccessorDeclaration>node).body) {
-                    this._generateClassFuncScope(
-                        <ts.MethodDeclaration>node,
-                        FunctionKind.SETTER,
-                    );
-                }
+                this._generateClassFuncScope(
+                    <ts.MethodDeclaration>node,
+                    FunctionKind.SETTER,
+                );
                 break;
             }
             case ts.SyntaxKind.GetAccessor: {
-                if ((<ts.GetAccessorDeclaration>node).body) {
-                    this._generateClassFuncScope(
-                        <ts.MethodDeclaration>node,
-                        FunctionKind.GETTER,
-                    );
-                }
+                this._generateClassFuncScope(
+                    <ts.MethodDeclaration>node,
+                    FunctionKind.GETTER,
+                );
                 break;
             }
             case ts.SyntaxKind.Constructor: {
