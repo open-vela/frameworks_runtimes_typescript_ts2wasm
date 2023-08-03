@@ -523,7 +523,13 @@ export class WASMTypeGen {
         /* 1. traverse members */
         /* currently vtable stores all member functions (without constructor) */
         const methodTypeRefs = new Array<binaryenCAPI.TypeRef>();
+        methodTypeRefs.push(binaryen.i32);
         const vtableFuncs = new Array<binaryen.ExpressionRef>();
+        vtableFuncs.push(
+            this.wasmComp.module.i32.const(
+                this.wasmComp.generateMetaInfo(type),
+            ),
+        );
         const fieldTypeRefs = new Array<binaryenCAPI.TypeRef>();
         const fieldMuts = new Array<boolean>();
         const staticFieldsTypeRefs = new Array<binaryenCAPI.TypeRef>();
@@ -1054,7 +1060,13 @@ export class WASMTypeGen {
                 //
             } else if (type instanceof ObjectType) {
                 const methodTypeRefs = new Array<binaryenCAPI.TypeRef>();
+                methodTypeRefs.push(binaryen.i32);
                 const vtableFuncs = new Array<binaryen.ExpressionRef>();
+                vtableFuncs.push(
+                    this.wasmComp.module.i32.const(
+                        this.wasmComp.generateMetaInfo(type),
+                    ),
+                );
                 const fieldTypeRefs = new Array<binaryenCAPI.TypeRef>();
                 const fieldMuts = new Array<boolean>();
                 const staticFieldsTypeRefs = new Array<binaryenCAPI.TypeRef>();

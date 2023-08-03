@@ -21,6 +21,22 @@ class TypesTest : public testing::Test {
     dyn_ctx_t ctx;
 };
 
+TEST_F(TypesTest, is_undefined) {
+    dyn_value_t boolean = dyntype_new_boolean(ctx, false);
+    EXPECT_FALSE(dyntype_is_undefined(ctx, boolean));
+
+    dyn_value_t number = dyntype_new_number(ctx, 0);
+    EXPECT_FALSE(dyntype_is_undefined(ctx, number));
+
+    dyn_value_t obj = dyntype_new_object(ctx);
+    EXPECT_FALSE(dyntype_is_undefined(ctx, obj));
+
+    dyntype_release(ctx, obj);
+
+    dyn_value_t undefined = dyntype_new_undefined(ctx);
+    EXPECT_TRUE(dyntype_is_undefined(ctx, undefined));
+}
+
 TEST_F(TypesTest, create_number_object) {
     double check_values[] = { -1, 0, 0x100, 0x1000, 0x3fffffff, 0x7ffffffe, 0x7ffffff,
         0x80000000, 0xfffffffe, 0xffffffff, 0x10000, 0x100000, 2147483649.1, -5.48,
@@ -34,7 +50,8 @@ TEST_F(TypesTest, create_number_object) {
 
         EXPECT_EQ(dyntype_set_property(ctx, num, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
         EXPECT_EQ(dyntype_define_property(ctx, num, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
-        EXPECT_EQ(dyntype_get_property(ctx, num, "not_a_object"), nullptr);
+        dyn_value_t prop = dyntype_get_property(ctx, num, "not_a_object");
+        EXPECT_TRUE(dyntype_is_undefined(ctx, prop));
         EXPECT_EQ(dyntype_has_property(ctx, num, "not_a_object"), -DYNTYPE_TYPEERR);
         EXPECT_EQ(dyntype_delete_property(ctx, num, "not_a_object"), -DYNTYPE_FALSE);
 
@@ -68,7 +85,8 @@ TEST_F(TypesTest, create_boolean_object) {
                   -DYNTYPE_TYPEERR);
         EXPECT_EQ(dyntype_define_property(ctx, boolean, "not_a_object", dyntype_new_boolean(ctx, false)),
                   -DYNTYPE_TYPEERR);
-        EXPECT_EQ(dyntype_get_property(ctx, boolean, "not_a_object"), nullptr);
+        dyn_value_t prop = dyntype_get_property(ctx, boolean, "not_a_object");
+        EXPECT_TRUE(dyntype_is_undefined(ctx, prop));
         EXPECT_EQ(dyntype_has_property(ctx, boolean, "not_a_object"), -DYNTYPE_TYPEERR);
         EXPECT_EQ(dyntype_delete_property(ctx, boolean, "not_a_object"), -DYNTYPE_FALSE);
         EXPECT_FALSE(dyntype_is_number(ctx, boolean));
@@ -146,7 +164,8 @@ TEST_F(TypesTest, create_string) {
         EXPECT_NE(str, nullptr);
         EXPECT_EQ(dyntype_set_property(ctx, str, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
         EXPECT_EQ(dyntype_define_property(ctx, str, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
-        EXPECT_EQ(dyntype_get_property(ctx, str, "not_a_object"), nullptr);
+        dyn_value_t prop = dyntype_get_property(ctx, str, "not_a_object");
+        EXPECT_TRUE(dyntype_is_undefined(ctx, prop));
         EXPECT_EQ(dyntype_has_property(ctx, str, "not_a_object"), -DYNTYPE_TYPEERR);
         EXPECT_EQ(dyntype_delete_property(ctx, str, "not_a_object"), -DYNTYPE_FALSE);
         EXPECT_FALSE(dyntype_is_number(ctx, str));
@@ -179,7 +198,8 @@ TEST_F(TypesTest, create_string) {
         EXPECT_NE(str, nullptr);
         EXPECT_EQ(dyntype_set_property(ctx, str, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
         EXPECT_EQ(dyntype_define_property(ctx, str, "not_a_object", dyntype_new_boolean(ctx, false)), -DYNTYPE_TYPEERR);
-        EXPECT_EQ(dyntype_get_property(ctx, str, "not_a_object"), nullptr);
+        dyn_value_t prop = dyntype_get_property(ctx, str, "not_a_object");
+        EXPECT_TRUE(dyntype_is_undefined(ctx, prop));
         EXPECT_EQ(dyntype_has_property(ctx, str, "not_a_object"), -DYNTYPE_TYPEERR);
         EXPECT_EQ(dyntype_delete_property(ctx, str, "not_a_object"), -DYNTYPE_FALSE);
         EXPECT_FALSE(dyntype_is_number(ctx, str));

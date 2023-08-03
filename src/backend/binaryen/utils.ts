@@ -1628,3 +1628,6 @@ export interface SourceMapLoc {
     location: SourceLocation;
     ref: binaryen.ExpressionRef;
 }
+
+export const META_FLAG_MASK = 0x0000000f;
+export const META_INDEX_MASK = 0xfffffff0;
