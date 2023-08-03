@@ -65,3 +65,31 @@ export function anyNullUndefinedCmp() {
     console.log(n2 === null); // true
     console.log(n2 !== null); // false
 }
+
+export function anyMinusAny() {
+    let a: any = 10;
+    let b: any = 5;
+    let c: any = a - b;
+    console.log(c);
+}
+
+export function anyDivideAny() {
+    let a: any = 10;
+    let b: any = 5;
+    let c: any = a / b;
+    console.log(c);
+}
+
+export function anyMultiplyAny() {
+    let a: any = 10;
+    let b: any = 5;
+    let c: any = a * b;
+    console.log(c);
+}
+
+export function anyModAny() {
+    let a: any = 10;
+    let b: any = 5;
+    let c: any = a % b;
+    console.log(c);
+}
