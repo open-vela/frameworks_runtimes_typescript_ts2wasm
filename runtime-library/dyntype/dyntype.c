@@ -19,7 +19,8 @@ typedef struct DynTypeContext {
 } DynTypeContext;
 
 static inline JSValue* dyntype_dup_value(JSContext *ctx, JSValue value) {
-    JSValue* ptr = js_malloc(ctx, sizeof(value));
+    JSValue *ptr = js_malloc(ctx, sizeof(value));
+
     if (!ptr) {
         return NULL;
     }
@@ -270,18 +271,20 @@ WasmCallBackDataForJS(JSContext *ctx, JSValueConst this_obj, int argc,
     void *exec_env = JS_GetOpaque(func_data[1], JS_CLASS_OBJECT);
     dyn_ctx_t dyntype_ctx = JS_GetOpaque(func_data[2], JS_CLASS_OBJECT);
     dyn_value_t *args = malloc(sizeof(dyn_value_t) * argc);
+    dyn_value_t this_dyn_obj = NULL;
 
     if (!args) {
         return JS_NULL;
     }
 
     for (int i = 0; i < argc; i++) {
-        args[i] = argv + i;
+        args[i] = dyntype_dup_value(ctx, *(argv + i));
     }
+    this_dyn_obj = dyntype_dup_value(ctx, this_obj);
 
     if (dyntype_ctx->cb_dispatcher) {
-        ret = *(JSValue *)dyntype_ctx->cb_dispatcher(
-            exec_env, vfunc, (dyn_value_t)&this_obj, argc, args);
+        ret = *(JSValue *)(dyntype_ctx->cb_dispatcher(
+            exec_env, dyntype_ctx, vfunc, this_dyn_obj, argc, args));
     }
     else {
         ret = JS_ThrowInternalError(
@@ -936,4 +939,70 @@ void dyntype_release(dyn_ctx_t ctx, dyn_value_t obj) {
 
 void dyntype_collect(dyn_ctx_t ctx) {
     // TODO
+}
+
+dyn_value_t
+dyntype_throw_exception(dyn_ctx_t ctx, dyn_value_t obj)
+{
+    JSValue exception_obj;
+    JSValue js_exception;
+
+    exception_obj = *(JSValue *)obj;
+    js_exception = JS_Throw(ctx->js_ctx, exception_obj);
+
+    return dyntype_dup_value(ctx->js_ctx, js_exception);
+}
+
+dyn_value_t
+dyntype_get_exception(dyn_ctx_t ctx)
+{
+    JSValue val = JS_GetException(ctx->js_ctx);
+
+    return dyntype_dup_value(ctx->js_ctx, val);
+}
+
+void
+dyntype_dump_error(dyn_ctx_t ctx)
+{
+    dyn_value_t error;
+    JSValue val;
+    BOOL is_error;
+
+    error = dyntype_get_exception(ctx);
+    is_error = JS_IsError(ctx->js_ctx, *(JSValue *)error);
+    dyntype_dump_value(ctx, error);
+    if (is_error) {
+        val = JS_GetPropertyStr(ctx->js_ctx, *(JSValue *)error, "stack");
+        if (!JS_IsUndefined(val)) {
+            dyntype_dump_value(ctx, dyntype_dup_value(ctx->js_ctx, val));
+        }
+        JS_FreeValue(ctx->js_ctx, val);
+    }
+}
+
+dyn_value_t
+dyntype_call_func(dyn_ctx_t ctx, dyn_value_t obj, int argc, dyn_value_t *args)
+{
+    JSValue obj_value = *(JSValue *)obj;
+    JSValue *argv = NULL;
+
+    if (!JS_IsFunction(ctx->js_ctx, obj_value)) {
+        return NULL;
+    }
+    if (argc > 0) {
+        argv = js_malloc(ctx->js_ctx, sizeof(JSValue) * argc);
+        for (int i = 0; i < argc; i++) {
+            argv[i] = *(JSValue *)args[i];
+        }
+    }
+
+    JSValue ret = JS_Call(ctx->js_ctx, obj_value, JS_UNDEFINED, argc, argv);
+
+    js_free(ctx->js_ctx, argv);
+    if (JS_IsException(ret)) {
+        return NULL;
+    }
+    JSValue *ptr = dyntype_dup_value(ctx->js_ctx, ret);
+
+    return ptr;
 }

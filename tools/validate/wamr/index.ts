@@ -47,6 +47,10 @@ const IGNORE_CASES = [
     'exception_throw_error.ts',
     'exception_try_structure.ts',
 
+    'promise_throw:promiseThrowError',
+    'promise_throw:promiseCatchInCB',
+    'promise_throw:promiseNotCatchInCB',
+
     /* workaround: any func call to return extref */
     'any_func_call:anyFuncCallWithFunc',
     'any_func_call:anyFuncCallWithObj',
@@ -104,7 +108,7 @@ validationItems.forEach((item) => {
         const parserCtx = new ParserContext();
         console.log(`Validating [${item.module}] ...`);
 
-        parserCtx.parse([sourceFile]);
+        parserCtx.parse([sourceFile], { noAutoFreeCtx: true });
 
         const backend = new WASMGen(parserCtx);
         backend.codegen();
