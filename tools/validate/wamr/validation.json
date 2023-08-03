@@ -26,6 +26,26 @@
                 "name": "anyNullUndefinedCmp",
                 "args": [],
                 "result": "true \nfalse \ntrue \ntrue \nfalse \ntrue \nfalse"
+            },
+            {
+                "name": "anyMinusAny",
+                "args": [],
+                "result": "5"
+            },
+            {
+                "name": "anyDivideAny",
+                "args": [],
+                "result": "2"
+            },
+            {
+                "name": "anyMultiplyAny",
+                "args": [],
+                "result": "50"
+            },
+            {
+                "name": "anyModAny",
+                "args": [],
+                "result": "0"
             }
         ]
     },
