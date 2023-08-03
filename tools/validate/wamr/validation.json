@@ -46,6 +46,11 @@
                 "name": "anyModAny",
                 "args": [],
                 "result": "0"
+            },
+            {
+                "name": "addAnyInBinaryExpr",
+                "args": [],
+                "result": "str11astr33"
             }
         ]
     },

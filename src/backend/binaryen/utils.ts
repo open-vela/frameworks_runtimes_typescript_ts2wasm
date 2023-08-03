@@ -551,6 +551,7 @@ export namespace FunctionalFuncs {
                     ValueTypeKind.ANY,
                 );
             }
+            case ValueTypeKind.RAW_STRING:
             case ValueTypeKind.STRING: {
                 condFuncName = dyntype.dyntype_is_string;
                 cvtFuncName = dyntype.dyntype_to_string;
@@ -570,7 +571,10 @@ export namespace FunctionalFuncs {
 
         let value = module.call(cvtFuncName, dynParam, binaryenType);
 
-        if (typeKind === ValueTypeKind.STRING) {
+        if (
+            typeKind === ValueTypeKind.STRING ||
+            typeKind === ValueTypeKind.RAW_STRING
+        ) {
             const wasmStringType = stringTypeInfo.typeRef;
             const string_value = value;
             value = binaryenCAPI._BinaryenRefCast(
