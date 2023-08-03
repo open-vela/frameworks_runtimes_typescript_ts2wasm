@@ -852,6 +852,8 @@ export class TypeResolver {
                             type as TSClass,
                         ) as TSClass;
                         specificType.isLiteral = true;
+                        // TODO: in this case, specificType can't be recursive
+                        this.typeIdAllocate(specificType);
                         this.symbolTypeMap.set(node, specificType);
                         this.parsedClassTypes.add(specificType);
                         this.addTypeToTypeMap(specificType, node);

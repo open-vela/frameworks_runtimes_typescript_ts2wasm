@@ -546,7 +546,7 @@ export function addItableFunc(module: binaryen.Module) {
     const itableFilePath = path.join(
         path.dirname(fileURLToPath(import.meta.url)),
         'interface',
-        'itable.wat',
+        'meta.wat',
     );
     const itableLib = fs.readFileSync(itableFilePath, 'utf-8');
     const watModule = binaryen.parseText(itableLib);

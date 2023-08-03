@@ -1807,7 +1807,8 @@ export class WASMExpressionGen {
         );
         return binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
-            methodIdx,
+            /** because the first index is point to meta, so methodIdx should plus 1 */
+            methodIdx + 1,
             vtableRef,
             binaryen.getExpressionType(vtableRef),
             false,
@@ -2304,7 +2305,7 @@ export class WASMExpressionGen {
         toType: ObjectType,
     ) {
         const itablePtr = this.module.i32.const(
-            this.wasmCompiler.generateItable(oriType),
+            this.wasmCompiler.generateMetaInfo(oriType),
         );
         const wasmTypeId = this.module.i32.const(oriType.typeId);
         const wasmImplId = this.module.i32.const(oriType.implId);

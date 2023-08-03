@@ -21,14 +21,14 @@ export class DataSegmentContext {
     currentOffset;
     stringOffsetMap;
     /* cache <typeid, itable*>*/
-    itableMap;
+    metaMap;
     dataArray: Array<SegmentInfo> = [];
 
     constructor() {
         /* Reserve 1024 bytes at beggining */
         this.currentOffset = DataSegmentContext.reservedSpace;
         this.stringOffsetMap = new Map<string, number>();
-        this.itableMap = new Map<number, number>();
+        this.metaMap = new Map<number, number>();
     }
 
     addData(data: Uint8Array) {

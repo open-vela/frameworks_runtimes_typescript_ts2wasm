@@ -298,38 +298,27 @@ export default class SemanticChecker {
             return;
         }
 
-        // TODO now ignore object literal
-        // we changed the literal name from "@object_literal" to "@object_literal$idx"
-        //
-        if ((left as TSClass).isLiteral && (right as TSClass).isLiteral) return;
-
-        if (left.className !== right.className) {
-            // is downcast
-            // TODO: classname maybe can not get right result when envolving with multiple modules
-            let base = right.getBase();
-            while (base) {
-                if (base.className === left.className) {
-                    return;
-                }
-                base = base.getBase();
-            }
-            base = left.getBase();
-            while (base) {
-                //TODO assume all liberal object's name is "@object_literal"
-                //TODO in factly, I changed the name to "@object_literal$idx"
-                // See TypeResolver.generateObjectLiteralName
-                if (base.className === right.className) {
-                    return;
-                }
-                base = base.getBase();
-            }
-            this.errors.push({
-                errorKind: ErrorKind.NominalClass,
-                errorFlag: flag,
-                message: msg,
-                scopeName: this.getScopeName(this.curScope!),
-            });
+        if (left.typeId === right.typeId) {
+            return;
         }
+
+        // downcast
+        let base = right.getBase();
+        while (base) {
+            if (base.typeId === left.typeId) {
+                return;
+            }
+            base = base.getBase();
+        }
+
+        this.errors.push({
+            errorKind: ErrorKind.NominalClass,
+            errorFlag: flag,
+            message:
+                msg +
+                ` object(${right.typeId}) is not able to assgn to object(${left.typeId})`,
+            scopeName: this.getScopeName(this.curScope!),
+        });
     }
 
     private invokeAnyObjCheck(left: Type, exprType: Type) {

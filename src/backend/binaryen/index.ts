@@ -61,6 +61,8 @@ import { FunctionDeclareNode } from '../../semantics/semantics_nodes.js';
 import {
     FunctionalFuncs,
     ItableFlag,
+    META_INDEX_MASK,
+    META_FLAG_MASK,
     SourceMapLoc,
     TmpVarInfo,
     UtilFuncs,
@@ -1019,46 +1021,60 @@ export class WASMGen extends Ts2wasmBackend {
         return offset;
     }
 
-    public generateItable(objType: ObjectType): number {
-        if (this.dataSegmentContext!.itableMap.has(objType.typeId)) {
-            return this.dataSegmentContext!.itableMap.get(objType.typeId)!;
+    public generateMetaInfo(objType: ObjectType): number {
+        if (this.dataSegmentContext!.metaMap.has(objType.typeId)) {
+            return this.dataSegmentContext!.metaMap.get(objType.typeId)!;
         }
         const members = objType.meta.members;
         let dataLength = members.length;
         dataLength += members.filter((m) => m.hasSetter && m.hasGetter).length;
-        const buffer = new Uint32Array(2 + 4 * dataLength);
+        const buffer = new Uint32Array(2 + 3 * dataLength);
         buffer[0] = objType.typeId;
         buffer[1] = dataLength;
-        let memberMethodsCnt = 0;
+        // if (buffer[1] > (1 << 27) - 1) {
+        //     throw new Error('Too many members in object type');
+        // }
+        let memberMethodsCnt = 1;
         const cnt = Math.min(dataLength, members.length);
         let memberFieldsCnt = 1; // In obj, the first field is vtable.
-        for (let i = 0, j = 2; i < cnt; i++, j += 4) {
+        for (let i = 0, j = 2; i < cnt; i++, j += 3) {
             const member = members[i];
             const memberName = member.name;
             buffer[j] = this.generateRawString(memberName);
             if (member.type === MemberType.FIELD) {
-                buffer[j + 1] = ItableFlag.FIELD;
-                buffer[j + 2] = memberFieldsCnt++;
-                buffer[j + 3] = this.getDefinedTypeId(member.valueType);
+                const flag = ItableFlag.FIELD;
+                const index = memberFieldsCnt++;
+                buffer[j + 1] =
+                    (flag & META_FLAG_MASK) | ((index << 4) & META_INDEX_MASK);
+                buffer[j + 2] = this.getDefinedTypeId(member.valueType);
             } else if (member.type === MemberType.METHOD) {
-                buffer[j + 1] = ItableFlag.METHOD;
-                buffer[j + 2] = memberMethodsCnt++;
+                const flag = ItableFlag.METHOD;
+                const index = memberMethodsCnt++;
+                buffer[j + 1] =
+                    (flag & META_FLAG_MASK) | ((index << 4) & META_INDEX_MASK);
+                buffer[j + 2] = this.getDefinedTypeId(member.valueType);
             } else if (member.type === MemberType.ACCESSOR) {
                 if (member.hasGetter) {
-                    buffer[j + 1] = ItableFlag.GETTER;
-                    buffer[j + 2] = memberMethodsCnt++;
-                    buffer[j + 3] = this.getDefinedTypeId(
+                    const flag = ItableFlag.GETTER;
+                    const index = memberMethodsCnt++;
+                    buffer[j + 1] =
+                        (flag & META_FLAG_MASK) |
+                        ((index << 4) & META_INDEX_MASK);
+                    buffer[j + 2] = this.getDefinedTypeId(
                         (member.getter as VarValue).type,
                     );
                 }
                 if (member.hasGetter && member.hasSetter) {
-                    j += 4;
-                    buffer[j] = buffer[j - 4];
+                    j += 3;
+                    buffer[j] = buffer[j - 3];
                 }
                 if (member.hasSetter) {
-                    buffer[j + 1] = ItableFlag.SETTER;
-                    buffer[j + 2] = memberMethodsCnt++;
-                    buffer[j + 3] = this.getDefinedTypeId(
+                    const flag = ItableFlag.SETTER;
+                    const index = memberMethodsCnt++;
+                    buffer[j + 1] =
+                        (flag & META_FLAG_MASK) |
+                        ((index << 4) & META_INDEX_MASK);
+                    buffer[j + 2] = this.getDefinedTypeId(
                         (member.getter as VarValue).type,
                     );
                 }
@@ -1067,7 +1083,7 @@ export class WASMGen extends Ts2wasmBackend {
         const offset = this.dataSegmentContext!.addData(
             new Uint8Array(buffer.buffer),
         );
-        this.dataSegmentContext!.itableMap.set(objType.typeId, offset);
+        this.dataSegmentContext!.metaMap.set(objType.typeId, offset);
         return offset;
     }
 
