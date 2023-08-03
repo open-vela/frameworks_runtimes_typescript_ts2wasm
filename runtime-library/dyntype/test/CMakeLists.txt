@@ -62,7 +62,6 @@ endif ()
 
 add_subdirectory(${QJS_ROOT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/libdyntype)
 include_directories(${QJS_ROOT_DIR})
-
 add_executable(
     dyntype_test
     ${CMAKE_CURRENT_LIST_DIR}/types_test.cc

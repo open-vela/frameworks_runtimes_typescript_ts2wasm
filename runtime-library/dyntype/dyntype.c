@@ -531,7 +531,7 @@ dyn_value_t dyntype_get_property(dyn_ctx_t ctx, dyn_value_t obj,
                                  const char *prop) {
     JSValue *obj_ptr = (JSValue *)obj;
     if (!JS_IsObject(*obj_ptr)) {
-        return NULL;
+        return ctx->js_undefined;
     }
     JSValue val = JS_GetPropertyStr(ctx->js_ctx, *obj_ptr, prop);
     if (JS_IsException(val)) {
