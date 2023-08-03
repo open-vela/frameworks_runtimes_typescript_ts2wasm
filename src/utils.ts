@@ -167,9 +167,6 @@ export function isScopeNode(node: ts.Node) {
         node.kind === ts.SyntaxKind.CaseClause ||
         node.kind === ts.SyntaxKind.DefaultClause
     ) {
-        if (ts.isAccessor(node) && !node.body) {
-            return false;
-        }
         return true;
     }
     if (node.kind === ts.SyntaxKind.Block && !parentIsFunctionLike(node)) {
