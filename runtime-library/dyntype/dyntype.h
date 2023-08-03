@@ -26,7 +26,8 @@ typedef DynTypeContext *dyn_ctx_t;
 typedef void dyn_options_t;
 typedef void *dyn_value_t;
 
-typedef dyn_value_t (*dyntype_callback_dispatcher_t)(void *env, void *vfunc,
+typedef dyn_value_t (*dyntype_callback_dispatcher_t)(void *env, dyn_ctx_t ctx,
+                                                     void *vfunc,
                                                      dyn_value_t this_obj,
                                                      int argc,
                                                      dyn_value_t *args);
@@ -345,6 +346,18 @@ dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
 int
 dyntype_delete_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
 
+/**
+ * @brief Call original function object in js runtime
+ *
+ * @param ctx the dynamic type system context
+ * @param obj dynamic object
+ * @param argc the count of arguements
+ * @param args the arguements
+ * @return The returned dynamic value
+ */
+dyn_value_t
+dyntype_call_func(dyn_ctx_t ctx, dyn_value_t obj, int argc, dyn_value_t *args);
+
 /******************* Runtime type checking *******************/
 /* undefined and null */
 bool
@@ -504,6 +517,17 @@ bool
 dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
                    const dyn_value_t dst_obj);
 
+/******************* Exception *******************/
+
+/**
+ * @brief Throw dynamic exception
+ *
+ * @param ctx the dynamic type system context
+ * @param obj the dynamic exception value
+ */
+dyn_value_t
+dyntype_throw_exception(dyn_ctx_t ctx, dyn_value_t obj);
+
 /******************* Dumping *******************/
 
 /**
@@ -529,6 +553,14 @@ dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj);
 int
 dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer,
                           int len);
+
+/**
+ * @brief Dump dynamic error to stdout
+ *
+ * @param ctx the dynamic type system context
+ */
+void
+dyntype_dump_error(dyn_ctx_t ctx);
 
 /******************* Garbage collection *******************/
 
@@ -557,6 +589,8 @@ dyntype_release(dyn_ctx_t ctx, dyn_value_t obj);
  */
 void
 dyntype_collect(dyn_ctx_t ctx);
+
+/******************* event loop *******************/
 
 /**
  * @brief execute pending jobs in micro-tasks of quickjs

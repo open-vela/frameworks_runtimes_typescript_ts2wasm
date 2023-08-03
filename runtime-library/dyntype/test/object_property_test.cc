@@ -458,7 +458,7 @@ TEST_F(ObjectPropertyTest, map_function_test) {
 }
 
 static dyn_value_t
-test_callback_dispatcher(void *exec_env_v, void *vfunc, dyn_value_t this_obj,
+test_callback_dispatcher(void *exec_env_v, dyn_ctx_t ctx, void *vfunc, dyn_value_t this_obj,
                          int argc, dyn_value_t *args)
 {
     return dyntype_new_boolean(dyntype_get_context(), true);

@@ -708,7 +708,7 @@ export namespace FunctionalFuncs {
             [getDynContextRef(module), anyExprRef],
             dyntype.bool,
         );
-        const condition = module.i32.eq(isExternRef, module.i32.const(1));
+        const isExtrefCond = module.i32.eq(isExternRef, module.i32.const(1));
         // const wasmType = this.wasmType.getWASMType(targetType);
         // iff True
         const tableIndex = module.call(
@@ -771,10 +771,13 @@ export namespace FunctionalFuncs {
             );
         }
         // iff False
-        const unreachableRef = module.unreachable();
-
-        const blockStmt = module.if(condition, value, unreachableRef);
-        return module.block(null, [blockStmt], wasmType);
+        let falseRef = module.unreachable();
+        /* if wasmType is anyref, then the value may be a pure Quickjs value */
+        if (wasmType === binaryen.anyref) {
+            falseRef = anyExprRef;
+        }
+        const toExtrefBlockRef = module.if(isExtrefCond, value, falseRef);
+        return module.block(null, [toExtrefBlockRef], wasmType);
     }
 
     export function boxToAny(
