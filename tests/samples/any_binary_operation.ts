@@ -93,3 +93,11 @@ export function anyModAny() {
     let c: any = a % b;
     console.log(c);
 }
+
+export function addAnyInBinaryExpr() {
+    const str1: any = 'str11';
+    let str2: any;
+    const str3: any = 'str33';
+    str2 = str1 + 'a' + str3;
+    console.log(str2);
+}
