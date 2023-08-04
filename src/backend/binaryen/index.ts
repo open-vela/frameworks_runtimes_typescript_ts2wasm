@@ -569,19 +569,22 @@ export class WASMGen extends Ts2wasmBackend {
 
         /** declare functions */
         if ((func.ownKind & FunctionOwnKind.DECLARE) !== 0) {
+            /* Native functions will never use closure variable, so we skip the context parameter */
+            const importParamWASMTypes = paramWASMTypes.slice(1);
             const internalFuncName = `${func.name}${BuiltinNames.declareSuffix}`;
             this.module.addFunctionImport(
                 internalFuncName,
                 BuiltinNames.externalModuleName,
                 importName,
-                binaryen.createType(paramWASMTypes),
+                binaryen.createType(importParamWASMTypes),
                 returnWASMType,
             );
             /* use wrappered func to invoke the orignal func */
             const oriParamWasmValues: binaryen.ExpressionRef[] = [];
-            for (let i = 0; i < paramWASMTypes.length; i++) {
+            for (let i = 0; i < importParamWASMTypes.length; i++) {
                 oriParamWasmValues.push(
-                    this.module.local.get(i, paramWASMTypes[i]),
+                    /* skip context */
+                    this.module.local.get(i + 1, importParamWASMTypes[i]),
                 );
             }
             let innerOp: binaryen.ExpressionRef;
