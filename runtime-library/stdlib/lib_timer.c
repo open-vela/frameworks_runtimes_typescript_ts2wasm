@@ -14,7 +14,7 @@ void *(*_createTimer)(uint64_t timeout);
 bool (*_destroyTimer)(void *timer_id);
 
 double
-setTimeout(wasm_exec_env_t exec_env, void *context, void *closure, double delay, void *args)
+setTimeout(wasm_exec_env_t exec_env, void *closure, double delay, void *args)
 {
     void *timer_id = NULL;
 
@@ -28,7 +28,7 @@ setTimeout(wasm_exec_env_t exec_env, void *context, void *closure, double delay,
 }
 
 void
-clearTimeout(wasm_exec_env_t exec_env, void *context, double id)
+clearTimeout(wasm_exec_env_t exec_env, double id)
 {
     void *timer_id = (void *)(uintptr_t)id;
 
@@ -45,8 +45,8 @@ clearTimeout(wasm_exec_env_t exec_env, void *context, double id)
     { #func_name, func_name, signature, NULL }
 
 static NativeSymbol native_symbols[] = {
-    REG_NATIVE_FUNC(setTimeout, "(rrFr)F"),
-    REG_NATIVE_FUNC(clearTimeout, "(rF)"),
+    REG_NATIVE_FUNC(setTimeout, "(rFr)F"),
+    REG_NATIVE_FUNC(clearTimeout, "(F)"),
 };
 /* clang-format on */
 
