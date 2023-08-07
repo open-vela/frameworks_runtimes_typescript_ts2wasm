@@ -1519,7 +1519,7 @@ array_copyWithin_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
         }                                                                      \
                                                                                \
         if (from_idx < 0) {                                                    \
-            from_idx = 0;                                                      \
+            from_idx = -from_idx > len ?  0 : from_idx + len;                  \
         }                                                                      \
                                                                                \
         if (len == 0 || from_idx >= len) {                                     \
@@ -1590,7 +1590,7 @@ array_includes_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
         from_idx = 0;
     }
     if (from_idx < 0) {
-        from_idx = 0;
+        from_idx = -from_idx > len ?  0 : from_idx + len;
     }
 
     if (len == 0 || from_idx >= len) {
