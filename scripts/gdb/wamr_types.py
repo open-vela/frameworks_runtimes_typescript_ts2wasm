@@ -91,7 +91,7 @@ class WASMStructType(WASMType):
 
     def __str__(self):
         return f'{GREEN}WASMStructType: {hex(self.ref)}\n' + \
-            f'  * parent type: {self.type["parent_type_idx"]}\n' + \
+            f'  * parent type: {self.type["base_type"]["parent_type_idx"]}\n' + \
             f'  * field count: {self.type["field_count"]}\n' + \
             f'  * fields info:\n' + \
             self._create_fields_description() + \
