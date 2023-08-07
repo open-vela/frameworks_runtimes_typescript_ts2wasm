@@ -775,18 +775,6 @@ export class WASMTypeGen {
         if (!this.oriArrayTypeMap.has(type) || needSpecialized(type)) {
             this.createWASMType(type);
         }
-        /* Workaround (array specialize issue): semantic tree may forget to specialize some
-            method type, we specialize it in background to fix the
-            type, but we may already cached the wasm type for the given
-            ArrayType.
-           So here we check if the type has type parameter, and ignore
-            the cache if it does.
-            let a : number[] = []; a.push(10);
-        */
-
-        if ((type as ArrayType).specialTypeArguments?.length) {
-            this.createWASMType(type);
-        }
 
         return this.oriArrayTypeMap.get(type) as binaryenCAPI.TypeRef;
     }

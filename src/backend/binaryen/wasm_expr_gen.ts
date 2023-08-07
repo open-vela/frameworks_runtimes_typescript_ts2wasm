@@ -1161,20 +1161,6 @@ export class WASMExpressionGen {
                     'Generic builtin method only support array type',
                 );
             }
-
-            /* Workaround: semantic tree may forget to specialize some
-                method type, we specialize it here
-                let a : number[] = []; a.push(10);
-            */
-            for (let i = 0; i < methodType.argumentsType.length; i++) {
-                const argType = methodType.argumentsType[i];
-                if (
-                    argType instanceof ArrayType &&
-                    argType.element.kind === ValueTypeKind.TYPE_PARAMETER
-                ) {
-                    argType.setSpecialTypeArguments([valueType.element]);
-                }
-            }
         }
 
         const returnTypeRef = this.wasmTypeGen.getWASMValueType(
@@ -1297,24 +1283,13 @@ export class WASMExpressionGen {
                 }
                 return this.dyntypeInvoke(methodName, invokeArgs);
             }
-            case ValueTypeKind.OBJECT: {
-                /*  workaround: call static method has been changed to shapeCall */
-                return this.callClassStaticMethod(
-                    (owner as VarValue).ref as ObjectType,
-                    methodName,
-                    value.parameters,
-                );
-            }
             case ValueTypeKind.ARRAY:
             case ValueTypeKind.FUNCTION:
             case ValueTypeKind.BOOLEAN:
             case ValueTypeKind.NUMBER:
             case ValueTypeKind.STRING: {
                 const className = 'String';
-                // workaround: reason
-                /* currently builtInMeta's members will be empty in semantic tree, which should not */
-                /* workaround: builtin may be get meta by owner.shape!.meta! later */
-                const builtInMeta = GetBuiltinObjectType(className).meta;
+                const builtInMeta = owner.shape!.meta!;
                 const foundMember = this.getMemberByName(
                     builtInMeta,
                     methodName,
@@ -1370,35 +1345,11 @@ export class WASMExpressionGen {
         switch (owner.type.kind) {
             case ValueTypeKind.OBJECT: {
                 if (owner.ref instanceof ObjectType) {
-                    const objDescriptionName = owner.ref.meta.name;
-                    /* workaround: console.log */
-                    if (
-                        objDescriptionName.includes(
-                            BuiltinNames.builtinModuleName,
-                        )
-                    ) {
-                        const classMangledName = owner.index as string;
-                        const methodName = UtilFuncs.getFuncName(
-                            classMangledName,
-                            member.name,
-                        );
-                        const methodType = member.valueType as FunctionType;
-                        const returnTypeRef = this.wasmTypeGen.getWASMType(
-                            methodType.returnType,
-                        );
-                        return this.callFunc(
-                            methodType,
-                            methodName,
-                            returnTypeRef,
-                            value.parameters,
-                        );
-                    } else {
-                        return this.callClassStaticMethod(
-                            owner.ref,
-                            member.name,
-                            value.parameters,
-                        );
-                    }
+                    return this.callClassStaticMethod(
+                        owner.ref,
+                        member.name,
+                        value.parameters,
+                    );
                 } else {
                     const ownerType = owner.type as ObjectType;
                     const typeMeta = ownerType.meta;
@@ -1456,21 +1407,6 @@ export class WASMExpressionGen {
                     );
                 }
                 return res;
-            }
-            case ValueTypeKind.STRING: {
-                /* workaround: meta is undefined*/
-                const className = 'String';
-                const methodType = member.valueType as FunctionType;
-                const thisRef = this.wasmExprGen(owner);
-                const calledName = `${BuiltinNames.builtinModuleName}|${className}|${member.name}`;
-                return this.callClassMethod(
-                    methodType,
-                    methodType.returnType,
-                    calledName,
-                    thisRef,
-                    owner.type,
-                    value.parameters,
-                );
             }
             default: {
                 throw Error(`TODO: ${value.type.kind}`);
@@ -1600,7 +1536,7 @@ export class WASMExpressionGen {
             We should add undefined as argument here.
             new Promise<void>((resolve, reject) => {
                 resolve();
-            }); 
+            });
             */
             if (
                 funcType.isOptionalParams[i] ||
