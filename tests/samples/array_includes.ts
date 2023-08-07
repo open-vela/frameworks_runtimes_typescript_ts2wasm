@@ -26,6 +26,9 @@ export function array_includes_string() {
     console.log(arr.includes("1", 2.1));            // false
     console.log(arr.includes("1", undefined));      // true
     console.log(arr.includes("1", 0));              // true
+
+    let arr2 = ["a", "b", "c"];
+    console.log(arr2.includes("a", -2));    // false
 }
 
 export function array_includes_boolean() {
