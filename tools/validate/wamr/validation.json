@@ -1066,7 +1066,7 @@
             {
                 "name": "array_includes_string",
                 "args": [],
-                "result": "false \nfalse \ntrue \ntrue"
+                "result": "false \nfalse \ntrue \ntrue \nfalse"
             },
             {
                 "name": "array_includes_class",
