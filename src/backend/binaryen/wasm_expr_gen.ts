@@ -33,6 +33,7 @@ import {
     ClosureCallValue,
     ConditionExprValue,
     DirectCallValue,
+    DirectGetValue,
     DirectGetterValue,
     DirectSetterValue,
     DynamicCallValue,
@@ -179,6 +180,8 @@ export class WASMExpressionGen {
                 return this.wasmNewClass(<NewConstructorObjectValue>value);
             case SemanticsValueKind.SHAPE_GET:
                 return this.wasmObjFieldGet(<ShapeGetValue>value);
+            case SemanticsValueKind.DIRECT_GET:
+                return this.wasmObjFieldGet(<DirectGetValue>value);
             case SemanticsValueKind.OFFSET_GETTER:
             case SemanticsValueKind.OFFSET_GET:
                 return this.wasmObjFieldGet(<OffsetGetValue>value);
@@ -2453,7 +2456,9 @@ export class WASMExpressionGen {
         }
     }
 
-    private wasmObjFieldGet(value: ShapeGetValue | OffsetGetValue) {
+    private wasmObjFieldGet(
+        value: DirectGetValue | ShapeGetValue | OffsetGetValue,
+    ) {
         /* Workaround: ShapeGetValue's field index now based on its origin shape, not objectType */
         const owner = value.owner;
         const meta = owner.shape!.meta;
