@@ -82,6 +82,7 @@ import {
     DirectCallValue,
     DirectSetterValue,
     DirectGetterValue,
+    DirectGetValue,
     MemberGetValue,
     MemberSetValue,
     MemberCallValue,
@@ -248,6 +249,15 @@ function buildPropertyAccessExpression(
     expr: PropertyAccessExpression,
     context: BuildContext,
 ): SemanticsValue {
+    // whether the context of property access is in the call expression
+    let isMethodCall = false;
+    if (
+        expr.tsNode &&
+        expr.tsNode.parent.kind == ts.SyntaxKind.CallExpression
+    ) {
+        isMethodCall = true;
+    }
+
     context.pushReference(ValueReferenceKind.RIGHT);
     let own = buildExpression(expr.propertyAccessExpr, context);
     context.popReference();
@@ -322,6 +332,7 @@ function buildPropertyAccessExpression(
             own,
             member_name,
             member_as_write,
+            isMethodCall,
         );
 
         if (own.type instanceof ObjectType) {
@@ -355,14 +366,30 @@ function buildPropertyAccessExpression(
         if (BuiltinNames.fallbackConstructors.includes(own_name)) {
             own.type.kind = ValueTypeKind.ANY;
         }
-        return createDynamicAccess(own, member_name, member_as_write);
+        return createDynamicAccess(
+            own,
+            member_name,
+            member_as_write,
+            isMethodCall,
+        );
     }
 
     const shape_member = shape.getMember(member.index);
     if (!shape_member || shape_member.isEmpty) {
         if (isThisShape)
-            return createVTableAccess(own, member, member_as_write);
-        else return createShapeAccess(own, member, member_as_write);
+            return createVTableAccess(
+                own,
+                member,
+                member_as_write,
+                isMethodCall,
+            );
+        else
+            return createShapeAccess(
+                own,
+                member,
+                member_as_write,
+                isMethodCall,
+            );
     }
 
     return createDirectAccess(
@@ -371,6 +398,7 @@ function buildPropertyAccessExpression(
         member,
         member_as_write,
         isThisShape,
+        isMethodCall,
     );
 }
 
@@ -378,6 +406,7 @@ function createDynamicAccess(
     own: SemanticsValue,
     name: string,
     is_write: boolean,
+    is_method_call: boolean,
 ): SemanticsValue {
     /* iff call Object builtin methods */
     if (BuiltinNames.ObjectBuiltinMethods.includes(name)) {
@@ -387,16 +416,17 @@ function createDynamicAccess(
     }
     if (is_write) return new DynamicSetValue(own, name);
 
-    return new DynamicGetValue(own, name);
+    return new DynamicGetValue(own, name, is_method_call);
 }
 
 function createShapeAccess(
     own: SemanticsValue,
     member: MemberDescription,
     is_write: boolean,
+    is_method_call: boolean,
 ): SemanticsValue {
     if (is_write) return new ShapeSetValue(own, member.valueType, member.index);
-    if (member.type == MemberType.METHOD) {
+    if (member.type == MemberType.METHOD && is_method_call) {
         return new ShapeCallValue(
             own,
             member.valueType as FunctionType,
@@ -410,10 +440,11 @@ function createVTableAccess(
     own: SemanticsValue,
     member: MemberDescription,
     is_write: boolean,
+    is_method_call: boolean,
 ): SemanticsValue {
     if (is_write)
         return new VTableSetValue(own, member.valueType, member.index);
-    if (member.type == MemberType.METHOD) {
+    if (member.type == MemberType.METHOD && is_method_call) {
         return new VTableCallValue(
             own,
             member.valueType as FunctionType,
@@ -429,11 +460,24 @@ function createDirectAccess(
     member: MemberDescription,
     is_write: boolean,
     isThisShape: boolean,
+    is_method_call: boolean,
 ): SemanticsValue {
     if (is_write) {
-        return createDirectSet(own, shape_member, member, isThisShape);
+        return createDirectSet(
+            own,
+            shape_member,
+            member,
+            isThisShape,
+            is_method_call,
+        );
     } else {
-        return createDirectGet(own, shape_member, member, isThisShape);
+        return createDirectGet(
+            own,
+            shape_member,
+            member,
+            isThisShape,
+            is_method_call,
+        );
     }
 }
 
@@ -442,6 +486,7 @@ function createDirectGet(
     shape_member: ShapeMember,
     member: MemberDescription,
     isThisShape: boolean,
+    is_method_call: boolean,
 ) {
     switch (shape_member.kind) {
         case MemberType.FIELD:
@@ -455,8 +500,9 @@ function createDirectGet(
             const getter = accessor.getter;
             if (!getter) {
                 Logger.info('==== getter is not exist, access by shape');
-                if (isThisShape) return createVTableAccess(own, member, false);
-                return createShapeAccess(own, member, false);
+                if (isThisShape)
+                    return createVTableAccess(own, member, false, true);
+                return createShapeAccess(own, member, false, true);
             }
             if (accessor.isOffset) {
                 return new OffsetGetterValue(
@@ -477,13 +523,33 @@ function createDirectGet(
             const method = shape_member as ShapeMethod;
             const func_type = member.valueType as FunctionType;
             if (method.isOffset) {
-                return new OffsetCallValue(
-                    own,
-                    func_type,
-                    method.methodOffset!,
-                );
+                if (is_method_call) {
+                    return new OffsetCallValue(
+                        own,
+                        func_type,
+                        method.methodOffset!,
+                    );
+                } else {
+                    return new OffsetGetValue(
+                        own,
+                        func_type,
+                        (shape_member as ShapeMethod).methodOffset!,
+                    );
+                }
             } else {
-                return new DirectCallValue(own, func_type, method.methodValue!);
+                if (is_method_call) {
+                    return new DirectCallValue(
+                        own,
+                        func_type,
+                        method.methodValue!,
+                    );
+                } else {
+                    return new DirectGetValue(
+                        own,
+                        member.valueType,
+                        member.index,
+                    );
+                }
             }
             break;
         }
@@ -497,6 +563,7 @@ function createDirectSet(
     shape_member: ShapeMember,
     member: MemberDescription,
     isThisShape: boolean,
+    is_method_call: boolean,
 ) {
     switch (shape_member.kind) {
         case MemberType.FIELD: // get the feild directly
@@ -510,8 +577,9 @@ function createDirectSet(
             const setter = accessor.setter;
             if (!setter) {
                 Logger.info('==== setter is not exist, access by shape');
-                if (isThisShape) return createVTableAccess(own, member, true);
-                return createShapeAccess(own, member, true);
+                if (isThisShape)
+                    return createVTableAccess(own, member, true, true);
+                return createShapeAccess(own, member, true, true);
             }
             if (accessor.isOffset) {
                 return new OffsetSetterValue(
@@ -1036,7 +1104,10 @@ export function newCastValue(
         }
         const opts: NoddOptions = {}
          */
-        if (to_meta.members.length > from_obj_type.meta.members.length) {
+        if (
+            from_value instanceof NewLiteralObjectValue &&
+            to_meta.members.length > from_obj_type.meta.members.length
+        ) {
             for (const to_member of to_meta.members) {
                 if (
                     from_obj_type.meta.members.find((from_member) => {
@@ -1061,6 +1132,7 @@ export function newCastValue(
                             to_member.name,
                             to_member.type,
                             curLen,
+                            to_member.isOptional,
                             to_member.valueType,
                         ),
                     );
@@ -1170,10 +1242,7 @@ function shapeAssignCheck(left: ValueType, right: ValueType) {
                  const a = new A();
                  const i: I = a;
                 */
-                if (
-                    left_member.valueType.kind === ValueTypeKind.UNION &&
-                    !left_member.valueType.equals(right_member.valueType)
-                )
+                if (left_member.isOptional && !right_member.isOptional)
                     return false;
             }
         } else {

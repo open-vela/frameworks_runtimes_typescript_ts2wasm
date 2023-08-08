@@ -250,6 +250,7 @@ function createUnionInterfaceType(
             v.name,
             v.type,
             inst_members.length,
+            v.isOptional,
             v.valueType,
         );
         inst_members.push(m);
@@ -669,11 +670,13 @@ function updateMemberDescriptions(
     if (clazz_meta) clazz_meta.members = new Array(counts.static_count);
 
     for (const f of clazz.fields) {
+        const is_optional = f.optional == undefined ? false : f.optional;
         const value_type = createType(context, f.type);
         const member = inst_meta.updateMember(
             f.name,
             inst_idx,
             MemberType.FIELD,
+            is_optional,
             value_type,
             true,
         );
@@ -686,6 +689,7 @@ function updateMemberDescriptions(
     if (clazz_meta) {
         clazz_meta.setInited();
         for (const f of clazz.staticFields) {
+            const is_optional = f.optional == undefined ? false : f.optional;
             const value_type = createType(context, f.type);
             const staticInitExpr =
                 clazz.staticFieldsInitValueMap.get(class_idx);
@@ -701,6 +705,7 @@ function updateMemberDescriptions(
                 f.name,
                 class_idx++,
                 MemberType.FIELD,
+                is_optional,
                 value_type,
                 true,
                 undefined,
@@ -720,6 +725,7 @@ function updateMemberDescriptions(
                 InternalNames.CONSTRUCTOR,
                 MemberType.CONSTRUCTOR,
                 -1,
+                false,
                 ctor_type,
                 {
                     method: getGlobalFunction(
@@ -738,6 +744,7 @@ function updateMemberDescriptions(
                 InternalNames.CONSTRUCTOR,
                 class_idx++,
                 MemberType.CONSTRUCTOR,
+                false,
                 ctor_type,
                 true,
                 {
@@ -753,6 +760,7 @@ function updateMemberDescriptions(
 
     for (const m of clazz.memberFuncs) {
         const value_type = createType(context, m.type);
+        const is_optional = m.optional == undefined ? false : m.optional;
         Logger.debug(
             `=== member method:${m.name} ${m.type.funcKind}  ${value_type}`,
         );
@@ -764,6 +772,7 @@ function updateMemberDescriptions(
                     InternalNames.CONSTRUCTOR,
                     is_interface ? inst_idx++ : class_idx++,
                     MemberType.METHOD,
+                    is_optional,
                     value_type,
                     true,
                     {
@@ -784,6 +793,7 @@ function updateMemberDescriptions(
                     m.name,
                     class_idx++,
                     MemberType.METHOD,
+                    is_optional,
                     value_type,
                     is_override_or_own,
                     {
@@ -823,6 +833,7 @@ function updateMemberDescriptions(
                     m.name,
                     inst_idx,
                     MemberType.ACCESSOR,
+                    is_optional,
                     field_type,
                     is_override_or_own,
                 );
@@ -851,6 +862,7 @@ function updateMemberDescriptions(
                 m.name,
                 inst_idx,
                 MemberType.METHOD,
+                is_optional,
                 value_type,
                 is_override_or_own,
                 is_interface
@@ -1042,6 +1054,7 @@ function specializeMemberDescription(
         m.name,
         m.type,
         m.index,
+        m.isOptional,
         mapper.getValueType(m.valueType),
         newMemberOrAccessor,
     );

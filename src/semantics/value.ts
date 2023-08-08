@@ -95,6 +95,7 @@ export enum SemanticsValueKind {
     DIRECT_GETTER,
     DIRECT_SETTER,
     DIRECT_CALL,
+    DIRECT_GET,
 
     STRING_INDEX_GET,
     STRING_INDEX_SET,
@@ -734,9 +735,16 @@ export class UnimplementValue extends SemanticsValue {
     }
 }
 
-/////////////////////////////////////////////////
 export class DynamicGetValue extends SemanticsValue {
-    constructor(public owner: SemanticsValue, public name: string) {
+    /* 'isMethodCall' determines the specific semantics of member function property access,
+        whether it is just to obtain the member function property value,
+        or needs to call the member function.
+    */
+    constructor(
+        public owner: SemanticsValue,
+        public name: string,
+        public isMethodCall: boolean,
+    ) {
         super(SemanticsValueKind.DYNAMIC_GET, Primitive.Any);
     }
 
@@ -1026,6 +1034,25 @@ export class DirectSetterValue extends SemanticsValue {
         public opKind?: ValueBinaryOperator,
     ) {
         super(SemanticsValueKind.DIRECT_SETTER, type);
+    }
+
+    forEachChild(visitor: SemanticsValueVisitor) {
+        visitor(this.owner);
+        super.forEachChild(visitor);
+    }
+}
+
+export class DirectGetValue extends SemanticsValue {
+    constructor(
+        public owner: SemanticsValue,
+        type: ValueType,
+        public index: number,
+    ) {
+        super(SemanticsValueKind.DIRECT_GET, type);
+    }
+
+    toString(): string {
+        return `[DirectGet ${this.index}]`;
     }
 
     forEachChild(visitor: SemanticsValueVisitor) {

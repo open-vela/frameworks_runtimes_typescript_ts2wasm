@@ -35,6 +35,7 @@ export class MemberDescription {
         public readonly name: string,
         public readonly type: MemberType,
         public readonly index: number,
+        public readonly isOptional: boolean,
         public valueType: ValueType, // we will reset the value
         public methodOrAccessor?: MemberOrAccessor,
         public isOwn = true,
@@ -224,6 +225,7 @@ export class ObjectDescription {
         name: string,
         i: number,
         type: MemberType,
+        is_optional = false,
         valueType: ValueType,
         is_own: boolean,
         methodOrAccessor?: MemberOrAccessor,
@@ -255,6 +257,7 @@ export class ObjectDescription {
             name,
             type,
             index,
+            is_optional,
             valueType,
             methodOrAccessor,
             is_own,
