@@ -26,26 +26,31 @@ consoleLogger.level = LoggerLevel.ERROR;
 
 export class Logger {
     static info(...args: any[]) {
-        fileLogger.info(args);
+        const msg = Logger.msgCollectInProduction(args);
+        fileLogger.info(msg);
     }
 
     static trace(...args: any[]) {
-        fileLogger.trace(Logger.getStackTrace(), ...args);
+        const msg = Logger.msgCollectInProduction(args);
+        fileLogger.trace(Logger.getLocation(), ...msg);
     }
 
     static debug(...args: any[]) {
-        fileLogger.debug(Logger.getStackTrace(), ...args);
+        const msg = Logger.msgCollectInProduction(args);
+        fileLogger.debug(Logger.getLocation(), ...msg);
     }
 
     static warn(...args: any[]) {
-        fileLogger.warn(Logger.getStackTrace(), ...args);
+        const msg = Logger.msgCollectInProduction(args);
+        fileLogger.warn(Logger.getLocation(), ...msg);
     }
 
     static error(...args: any[]) {
-        fileLogger.error(Logger.getStackTrace(), ...args);
+        const msg = Logger.msgCollectInProduction(args);
+        fileLogger.error(Logger.getLocation(), ...msg);
     }
 
-    static getStackTrace(depth = 2): string {
+    static getLocation(depth = 2): string {
         const stackFrames = stackTrace.getSync();
         const stackFrame = stackFrames[depth];
         const lineNumber = stackFrame.lineNumber!;
@@ -53,5 +58,20 @@ export class Logger {
         const fileName = stackFrame.fileName!;
         const pathBaseName = path.basename(fileName);
         return `${pathBaseName} (line: ${lineNumber}, column: ${columnNumber}): \n`;
+    }
+
+    static msgCollectInProduction(args: any[]) {
+        const res: any[] = [];
+        for (let i = 0; i < args.length; i++) {
+            if (
+                args[i] instanceof Error &&
+                process.env.NODE_ENV === 'production'
+            ) {
+                res.push(args[i].message);
+            } else {
+                res.push(args[i]);
+            }
+        }
+        return res;
     }
 }

@@ -705,8 +705,7 @@ export function buildStatement(
         return res;
     } catch (e: any) {
         console.log(e);
-        Logger.error(e.message);
-        Logger.error(e.stack);
+        Logger.error(e);
         const tsNode = statement.tsNode!;
         const sourceFile = tsNode.getSourceFile();
         const start = tsNode.getStart(sourceFile);
