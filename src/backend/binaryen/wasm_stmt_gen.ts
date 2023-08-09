@@ -102,7 +102,7 @@ export class WASMStatementGen {
     wasmIf(stmt: IfNode): binaryen.ExpressionRef {
         let wasmCond: binaryen.ExpressionRef =
             this.wasmCompiler.wasmExprComp.wasmExprGen(stmt.condition);
-        wasmCond = FunctionalFuncs.generateCondition2(
+        wasmCond = FunctionalFuncs.generateCondition(
             this.module,
             wasmCond,
             stmt.condition.type.kind,
@@ -172,7 +172,7 @@ export class WASMStatementGen {
             this.wasmCompiler.wasmExprComp.wasmExprGen(stmt.condition);
         const WASMStmts: binaryen.ExpressionRef = this.WASMStmtGen(stmt.body!);
 
-        WASMCond = FunctionalFuncs.generateCondition2(
+        WASMCond = FunctionalFuncs.generateCondition(
             this.module,
             WASMCond,
             stmt.condition.type.kind,
