@@ -2436,8 +2436,7 @@ export function buildExpression(
         }
         return res;
     } catch (e: any) {
-        Logger.error(e.message);
-        Logger.error(e.stack);
+        Logger.error(e);
         const tsNode = expr.tsNode!;
         const sourceFile = tsNode.getSourceFile();
         const start = tsNode.getStart(sourceFile);
