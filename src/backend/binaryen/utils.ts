@@ -233,12 +233,20 @@ export namespace FunctionalFuncs {
         }
     }
 
-    /** iff optional field or XXX|undefined */
-    export function isUnionWithUndefined(type: ValueType) {
+    /** for non-optional, return the type itself
+     * for optional type(T|undefined) type, return the type without undefined
+     */
+    export function getStaticType(type: ValueType) {
         if (type instanceof UnionType) {
-            return type.types.size === 2 && type.types.has(Primitive.Undefined);
+            if (type.types.size === 2 && type.types.has(Primitive.Undefined)) {
+                for (const t of type.types) {
+                    if (t !== Primitive.Undefined) {
+                        return t;
+                    }
+                }
+            }
         }
-        return false;
+        return type;
     }
 
     export function generateStringRef(module: binaryen.Module, value: string) {
@@ -391,6 +399,16 @@ export namespace FunctionalFuncs {
                 );
             }
         }
+        /** workaround: Now Method's type in interface is always function type, but because of
+         * optional, it can be anyref, so here also need to check if it is anyref
+         */
+        const type = binaryen.getExpressionType(dynValue);
+        if (
+            extrefTypeKind === ValueTypeKind.FUNCTION &&
+            type === binaryen.anyref
+        ) {
+            return dynValue;
+        }
         /** call newExtRef */
         const newExternRefCall = module.call(
             dynFuncName,
@@ -405,23 +423,6 @@ export namespace FunctionalFuncs {
     }
 
     export function generateCondition(
-        module: binaryen.Module,
-        exprRef: binaryen.ExpressionRef,
-    ) {
-        const type = binaryen.getExpressionType(exprRef);
-        switch (type) {
-            case binaryen.i32:
-                return exprRef;
-            case binaryen.f64:
-                return module.f64.ne(exprRef, module.f64.const(0));
-            default:
-                return module.i32.eqz(
-                    binaryenCAPI._BinaryenRefIsNull(module.ptr, exprRef),
-                );
-        }
-    }
-
-    export function generateCondition2(
         module: binaryen.Module,
         exprRef: binaryen.ExpressionRef,
         srckind: ValueTypeKind,
@@ -444,7 +445,9 @@ export namespace FunctionalFuncs {
         } else if (
             srckind === ValueTypeKind.ANY ||
             srckind === ValueTypeKind.UNDEFINED ||
-            srckind === ValueTypeKind.UNION
+            srckind === ValueTypeKind.UNION ||
+            // for class/infc method, the ValueTypeKind cant represent the wasm type
+            type === binaryen.anyref
         ) {
             const targetFunc = getBuiltInFuncName(BuiltinNames.anyrefCond);
             res = module.call(targetFunc, [exprRef], binaryen.i32);
@@ -545,11 +548,7 @@ export namespace FunctionalFuncs {
                 cvtFuncName = dyntype.dyntype_to_bool;
                 binaryenType = binaryen.i32;
                 /* Auto generate condition for boolean type */
-                return generateCondition2(
-                    module,
-                    anyExprRef,
-                    ValueTypeKind.ANY,
-                );
+                return generateCondition(module, anyExprRef, ValueTypeKind.ANY);
             }
             case ValueTypeKind.RAW_STRING:
             case ValueTypeKind.STRING: {
@@ -1085,7 +1084,7 @@ export namespace FunctionalFuncs {
             }
             case ts.SyntaxKind.BarBarToken: {
                 return module.select(
-                    generateCondition2(
+                    generateCondition(
                         module,
                         leftValueRef,
                         ValueTypeKind.STRING,

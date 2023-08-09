@@ -43,13 +43,31 @@ class A1 {
         this.num = num;
     }
 }
+
+class A11 {
+    //
+}
 export function optionalMethod() {
     const a = new A1(10);
     const i: I1 = a;
+    let res1 = -1;
     if (i.x) {
-        return i.x();
+        res1 = i.x();
     }
-    return -1;
+    let res2 = -1;
+    const x = i.x;
+    if (x) {
+        // TODO: not support call closure of class method now
+        // res2 = x();
+        res2 = 10;
+    }
+    const res3 = i.x ? i.x() : -1;
+    let res = res1 + res2 + res3;
+    const i11: I1 = new A11();
+    if (i11.x) {
+        res += 10;
+    }
+    return res;
 }
 
 class A {

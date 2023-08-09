@@ -3439,7 +3439,7 @@
             {
                 "name": "optionalMethod",
                 "args": [],
-                "result": "10:f64"
+                "result": "30:f64"
             }
         ]
     },
