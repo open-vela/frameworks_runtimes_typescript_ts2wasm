@@ -347,13 +347,6 @@ function buildPropertyAccessExpression(
                 own.type.meta.findMember(member_name)?.valueType ||
                 dynamicAccess.type;
         }
-        // TODO: a.b?.c will be handled by DynamicGet
-        // if (
-        //     own.type instanceof UnionType &&
-        //     FunctionalFuncs.isUnionWithUndefined(own.type)
-        // ) {
-        //     dynamicAccess.type = own.type;
-        // }
 
         return dynamicAccess;
     }
