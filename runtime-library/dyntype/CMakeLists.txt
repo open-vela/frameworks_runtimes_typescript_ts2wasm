@@ -10,6 +10,8 @@ project(libdyntype)
 set(QUICKJS_SRC_DIR ${CMAKE_CURRENT_LIST_DIR}/../deps/quickjs)
 
 set(UTILS_DIR ${CMAKE_CURRENT_LIST_DIR}/../utils)
+set(LIBQUICKJS_IMPL_DIR ${CMAKE_CURRENT_LIST_DIR}/dyntype_qjs_impl)
+
 include_directories(.)
 include_directories(${QUICKJS_SRC_DIR})
 
@@ -23,7 +25,9 @@ set(LIB_QUICKJS
 
 set(LIB_DYNTYPE
     ${UTILS_DIR}/type_utils.c
-    dyntype.c)
+    ${LIBQUICKJS_IMPL_DIR}/context.c
+    ${LIBQUICKJS_IMPL_DIR}/fallback.c
+    ${LIBQUICKJS_IMPL_DIR}/object.c)
 
 add_library(quickjs ${LIB_QUICKJS})
 add_library(dyntype ${LIB_DYNTYPE})

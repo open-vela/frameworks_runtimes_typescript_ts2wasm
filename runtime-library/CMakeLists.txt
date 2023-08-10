@@ -31,11 +31,14 @@ set(QUICKJS_SOURCE
 
 ## libdyntype
 set(LIBDYNTYPE_DIR ${CMAKE_CURRENT_LIST_DIR}/dyntype)
+set(LIBQUICKJS_IMPL_DIR ${LIBDYNTYPE_DIR}/dyntype_qjs_impl)
 
 include_directories(${LIBDYNTYPE_DIR})
 
 set(LIBDYNTYPE_SOURCE
-    ${LIBDYNTYPE_DIR}/dyntype.c
+    ${LIBQUICKJS_IMPL_DIR}/context.c
+    ${LIBQUICKJS_IMPL_DIR}/fallback.c
+    ${LIBQUICKJS_IMPL_DIR}/object.c
     ${LIBDYNTYPE_DIR}/lib_dyntype_wrapper.c
 )
 

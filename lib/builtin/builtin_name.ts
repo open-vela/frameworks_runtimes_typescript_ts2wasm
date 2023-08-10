@@ -268,7 +268,6 @@ export namespace BuiltinNames {
 export namespace ArgNames {
     export const opt = 'opt';
     export const disableAny = 'disableAny';
-    export const noAutoFreeCtx = 'noAutoFreeCtx';
     export const disableBuiltIn = 'disableBuiltIn';
     export const disableInterface = 'disableInterface';
     export const isBuiltIn = 'isBuiltIn';
