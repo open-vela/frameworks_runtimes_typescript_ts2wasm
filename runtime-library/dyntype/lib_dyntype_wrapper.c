@@ -22,6 +22,14 @@
 #define UNBOX_ANYREF(anyref) \
     (dyn_value_t) wasm_anyref_obj_get_value((wasm_anyref_obj_t)anyref)
 
+/****************** Context access *****************/
+void *
+dyntype_get_context_wrapper(wasm_exec_env_t exec_env)
+{
+    dyn_ctx_t ctx = dyntype_get_context();
+    RETURN_BOX_ANYREF(ctx);
+}
+
 /******************* Field access *******************/
 dyn_value_t
 dyntype_new_number_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
@@ -243,7 +251,7 @@ dyntype_to_string_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     ret = dyntype_to_cstring(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), &value);
     if (ret != DYNTYPE_SUCCESS) {
         if (value) {
-            dyntype_free_cstring(dyntype_get_context(), value);
+            dyntype_free_cstring(UNBOX_ANYREF(ctx), value);
         }
         wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
                                    "libdyntype: failed to convert to cstring");
@@ -1019,7 +1027,7 @@ invoke_func_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     return ret;
 }
 
-static dyn_value_t
+dyn_value_t
 dyntype_callback_wasm_dispatcher(void *exec_env_v, dyn_ctx_t ctx, void *vfunc,
                                  dyn_value_t this_obj, int argc,
                                  dyn_value_t *args)
@@ -1067,38 +1075,12 @@ dyntype_callback_wasm_dispatcher(void *exec_env_v, dyn_ctx_t ctx, void *vfunc,
     return UNBOX_ANYREF(res);
 }
 
-/******************* Initialization and destroy *******************/
-
-void *
-dyntype_context_init_wrapper(wasm_exec_env_t exec_env)
-{
-    dyn_ctx_t ctx = dyntype_context_init();
-    dyntype_set_callback_dispatcher(ctx, dyntype_callback_wasm_dispatcher);
-    RETURN_BOX_ANYREF(ctx);
-}
-
-void *
-dyntype_context_init_with_opt_wrapper(wasm_exec_env_t exec_env,
-                                      dyn_options_t *options)
-{
-    dyn_ctx_t ctx = dyntype_context_init();
-    dyntype_set_callback_dispatcher(ctx, dyntype_callback_wasm_dispatcher);
-    RETURN_BOX_ANYREF(ctx);
-}
-
-void
-dyntype_context_destroy_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx)
-{
-    return dyntype_context_destroy(UNBOX_ANYREF(ctx));
-}
-
 /* clang-format off */
 #define REG_NATIVE_FUNC(func_name, signature) \
     { #func_name, func_name##_wrapper, signature, NULL }
 
 static NativeSymbol native_symbols[] = {
-    REG_NATIVE_FUNC(dyntype_context_init, "()r"),
-    REG_NATIVE_FUNC(dyntype_context_destroy, "(r)"),
+    REG_NATIVE_FUNC(dyntype_get_context, "()r"),
 
     REG_NATIVE_FUNC(dyntype_new_number, "(rF)r"),
     REG_NATIVE_FUNC(dyntype_new_boolean, "(ri)r"),

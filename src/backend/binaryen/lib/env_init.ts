@@ -15,18 +15,11 @@ import { charArrayTypeInfo, stringTypeInfo } from '../glue/packType.js';
 
 export function importAnyLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
-        dyntype.dyntype_context_init,
+        dyntype.dyntype_get_context,
         dyntype.module_name,
-        dyntype.dyntype_context_init,
+        dyntype.dyntype_get_context,
         binaryen.createType([]),
         dyntype.dyn_ctx_t,
-    );
-    module.addFunctionImport(
-        dyntype.dyntype_context_destroy,
-        dyntype.module_name,
-        dyntype.dyntype_context_destroy,
-        binaryen.createType([dyntype.dyn_ctx_t]),
-        dyntype.cvoid,
     );
     module.addFunctionImport(
         dyntype.dyntype_new_number,
@@ -514,23 +507,13 @@ export function generateExtRefTableMaskArr(module: binaryen.Module) {
     );
 }
 
-export function generateInitDynContext(module: binaryen.Module) {
+export function generateDynContext(module: binaryen.Module) {
     const initDynContextStmt = module.global.set(
         dyntype.dyntype_context,
-        module.call(dyntype.dyntype_context_init, [], binaryen.none),
+        module.call(dyntype.dyntype_get_context, [], binaryen.none),
     );
 
     return initDynContextStmt;
-}
-
-export function generateFreeDynContext(module: binaryen.Module) {
-    const freeDynContextStmt = module.call(
-        dyntype.dyntype_context_destroy,
-        [module.global.get(dyntype.dyntype_context, dyntype.dyn_ctx_t)],
-        binaryen.none,
-    );
-
-    return freeDynContextStmt;
 }
 
 export function addItableFunc(module: binaryen.Module) {

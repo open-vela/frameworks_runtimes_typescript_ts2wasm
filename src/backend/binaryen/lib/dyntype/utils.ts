@@ -40,10 +40,7 @@ export namespace dyntype {
     }
 
     // export dyntype functions
-    export const dyntype_context_init = 'dyntype_context_init';
-    export const dyntype_context_init_with_opt =
-        'dyntype_context_init_with_opt';
-    export const dyntype_context_destroy = 'dyntype_context_destroy';
+    export const dyntype_get_context = 'dyntype_get_context';
     export const dyntype_new_number = 'dyntype_new_number';
     export const dyntype_new_boolean = 'dyntype_new_boolean';
     export const dyntype_new_string = 'dyntype_new_string';

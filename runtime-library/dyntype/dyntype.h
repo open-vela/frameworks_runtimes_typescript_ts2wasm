@@ -67,10 +67,15 @@ typedef enum cmp_operator {
     ExclamationEqualsEqualsToken = 37,
 } cmp_operator;
 
-/******************* Initialization and destroy *******************/
+/*****************************************************************
+*                                                                *
+*                          Section 1                             *
+*                                                                *
+*          Interface exposed to the runtime embedder             *
+*                                                                *
+*****************************************************************/
 
-dyn_ctx_t
-dyntype_get_context();
+/******************* Initialization and destroy *****************/
 
 /**
  * @brief Initialize the dynamic type system context
@@ -117,6 +122,43 @@ dyntype_context_destroy(dyn_ctx_t ctx);
 void
 dyntype_set_callback_dispatcher(dyn_ctx_t ctx,
                                 dyntype_callback_dispatcher_t callback);
+
+/******************* event loop *******************/
+
+/**
+ * @brief execute pending jobs in micro-tasks of js runtime
+ * @param ctx the dynamic type system context
+ */
+int
+dyntype_execute_pending_jobs(dyn_ctx_t ctx);
+
+/******************* Dumping *******************/
+
+/**
+ * @brief Dump dynamic error to stdout
+ *
+ * @param ctx the dynamic type system context
+ */
+void
+dyntype_dump_error(dyn_ctx_t ctx);
+
+/*****************************************************************
+*                                                                *
+*                          Section 2                             *
+*                                                                *
+*              Interface exposed to application                  *
+*                                                                *
+*****************************************************************/
+
+/****************** Context access *****************/
+
+/**
+ * @brief Get the global dynamic type system context
+ *
+ * @return dynamic type system context if success, NULL otherwise
+ */
+dyn_ctx_t
+dyntype_get_context();
 
 /******************* Field access *******************/
 /* Creation */
@@ -165,18 +207,6 @@ dyn_value_t
 dyntype_new_string_with_length(dyn_ctx_t ctx, const char *str, int len);
 
 /**
- * @brief Create a new dynamic JSvalue with the given c JSON string
- *
- * @note the string must be null-terminated
- *
- * @param ctx the dynamic type system context
- * @param value the JSON string to initialize the dynamic value
- * @return dynamic value if success, NULL otherwise
- */
-dyn_value_t
-dyntype_parse_json(dyn_ctx_t ctx, const char *str);
-
-/**
  * @brief Create a undefined value
  *
  * @param ctx the dynamic type system context
@@ -203,6 +233,25 @@ dyntype_new_null(dyn_ctx_t ctx);
 dyn_value_t
 dyntype_new_object(dyn_ctx_t ctx);
 
+/**
+ * @brief Create a new dynamic JSvalue with the given c JSON string
+ *
+ * @note the string must be null-terminated
+ *
+ * @param ctx the dynamic type system context
+ * @param value the JSON string to initialize the dynamic value
+ * @return dynamic value if success, NULL otherwise
+ */
+dyn_value_t
+dyntype_parse_json(dyn_ctx_t ctx, const char *str);
+
+/**
+ * @brief Create a new dynamic array object with array length
+ *
+ * @param ctx the dynamic type system context
+ * @param len array length
+ * @return dynamic value if success, NULL otherwise
+ */
 dyn_value_t
 dyntype_new_array_with_length(dyn_ctx_t ctx, int len);
 
@@ -238,19 +287,6 @@ dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
                               dyn_value_t *args);
 
 /**
- * @brief invoke a method by this and method name
- *
- * @param name the name of method name
- * @param this_obj the The object bound by this
- * @param argc the count of arguments
- * @param args the argument array
- * @return dynamic value determined by the method
- */
-dyn_value_t
-dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj, int argc,
-               dyn_value_t *args);
-
-/**
  * @brief Boxing an external reference to a dynamic value
  *
  * @param ctx the dynamic type system context
@@ -260,21 +296,6 @@ dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj, int argc,
  */
 dyn_value_t
 dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, void* opaque);
-
-/* Modifying and testing */
-/**
- * @brief Set the property of a dynamic object
- *
- * @param ctx the dynamic type system context
- * @param obj dynamic object
- * @param prop property name
- * @param value the value to be set to the property
- * @return 0 if success, error code otherwise
- * @retval -1:EXCEPTION, -2: TYPE ERROR
- */
-int
-dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
-                     dyn_value_t value);
 
 /**
  * @brief Set the value element of a dynamic object by index.
@@ -298,6 +319,20 @@ dyntype_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem);
  */
 dyn_value_t
 dyntype_get_elem(dyn_ctx_t ctx, dyn_value_t obj, int index);
+
+/**
+ * @brief Set the property of a dynamic object
+ *
+ * @param ctx the dynamic type system context
+ * @param obj dynamic object
+ * @param prop property name
+ * @param value the value to be set to the property
+ * @return 0 if success, error code otherwise
+ * @retval -1:EXCEPTION, -2: TYPE ERROR
+ */
+int
+dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
+                     dyn_value_t value);
 
 /**
  * @brief Define the property of a dynamic object
@@ -345,6 +380,21 @@ dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
  */
 int
 dyntype_delete_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
+
+/******************* function fallback *******************/
+
+/**
+ * @brief invoke a method by this and method name
+ *
+ * @param name the name of method name
+ * @param this_obj the The object bound by this
+ * @param argc the count of arguments
+ * @param args the argument array
+ * @return dynamic value determined by the method
+ */
+dyn_value_t
+dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj, int argc,
+               dyn_value_t *args);
 
 /**
  * @brief Call original function object in js runtime
@@ -494,6 +544,9 @@ dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
 const dyn_value_t
 dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj);
 
+
+/******************* property access *******************/
+
 /**
  * @brief Get own property of the given dynamic object
  *
@@ -554,14 +607,6 @@ int
 dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer,
                           int len);
 
-/**
- * @brief Dump dynamic error to stdout
- *
- * @param ctx the dynamic type system context
- */
-void
-dyntype_dump_error(dyn_ctx_t ctx);
-
 /******************* Garbage collection *******************/
 
 /**
@@ -589,14 +634,6 @@ dyntype_release(dyn_ctx_t ctx, dyn_value_t obj);
  */
 void
 dyntype_collect(dyn_ctx_t ctx);
-
-/******************* event loop *******************/
-
-/**
- * @brief execute pending jobs in micro-tasks of quickjs
- * @param ctx the dynamic type system context
-*/
-int dyntype_execute_pending_jobs(dyn_ctx_t ctx);
 
 #ifdef __cplusplus
 }

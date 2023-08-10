@@ -108,7 +108,7 @@ validationItems.forEach((item) => {
         const parserCtx = new ParserContext();
         console.log(`Validating [${item.module}] ...`);
 
-        parserCtx.parse([sourceFile], { noAutoFreeCtx: true });
+        parserCtx.parse([sourceFile]);
 
         const backend = new WASMGen(parserCtx);
         backend.codegen();

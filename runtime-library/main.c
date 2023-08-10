@@ -30,6 +30,11 @@ get_lib_timer_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
 extern uint32_t
 get_struct_dyn_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
 
+extern dyn_value_t
+dyntype_callback_wasm_dispatcher(void *exec_env_v, dyn_ctx_t ctx, void *vfunc,
+                                 dyn_value_t this_obj, int argc,
+                                 dyn_value_t *args);
+
 #if BH_HAS_DLFCN
 #include <dlfcn.h>
 #endif
@@ -404,6 +409,7 @@ execute_micro_tasks(wasm_exec_env_t exec_env, dyn_ctx_t ctx)
 int
 main(int argc, char *argv[])
 {
+    dyn_ctx_t dyn_ctx = NULL;
     int32 ret = -1;
     char *wasm_file = NULL;
     const char *func_name = NULL;
@@ -710,6 +716,10 @@ main(int argc, char *argv[])
         return -1;
     }
 
+    /* initialize dyntype context and set callback dispatcher */
+    dyn_ctx = dyntype_context_init();
+    dyntype_set_callback_dispatcher(dyn_ctx, dyntype_callback_wasm_dispatcher);
+
 #if WASM_ENABLE_LOG != 0
     bh_log_set_verbose_level(log_verbose_level);
 #endif
@@ -856,10 +866,10 @@ main(int argc, char *argv[])
 #if WASM_ENABLE_DEBUG_INTERP != 0
 fail4:
 #endif
+
     /* run micro tasks */
-    execute_micro_tasks(exec_env, dyntype_get_context());
-    /* destroy dynamic ctx */
-    dyntype_context_destroy(dyntype_get_context());
+    execute_micro_tasks(exec_env, dyn_ctx);
+
     /* destroy the module instance */
     wasm_runtime_deinstantiate(wasm_module_inst);
 
@@ -883,6 +893,9 @@ fail1:
     /* unload the native libraries */
     unregister_and_unload_native_libs(native_handle_count, native_handle_list);
 #endif
+
+    /* destroy dynamic ctx */
+    dyntype_context_destroy(dyn_ctx);
 
     /* destroy runtime environment */
     wasm_runtime_destroy();

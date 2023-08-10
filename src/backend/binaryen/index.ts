@@ -5,18 +5,16 @@
 
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
-import { TSContext } from '../../type.js';
 import { arrayToPtr, emptyStructType } from './glue/transform.js';
 import { PredefinedTypeId, Stack } from '../../utils.js';
 import {
     importAnyLibAPI,
     importInfcLibAPI,
     generateGlobalContext,
-    generateFreeDynContext,
     addItableFunc,
     generateGlobalJSObject,
     generateExtRefTableMaskArr,
-    generateInitDynContext,
+    generateDynContext,
 } from './lib/env_init.js';
 import { WASMTypeGen } from './wasm_type_gen.js';
 import { WASMExpressionGen } from './wasm_expr_gen.js';
@@ -33,7 +31,6 @@ import { callBuiltInAPIs } from './lib/init_builtin_api.js';
 import {
     BlockNode,
     CaseClauseNode,
-    CatchClauseNode,
     DefaultClauseNode,
     ForInNode,
     ForNode,
@@ -45,13 +42,11 @@ import {
     SwitchNode,
     TryNode,
     VarDeclareNode,
-    VarStorageType,
     WhileNode,
 } from '../../semantics/semantics_nodes.js';
 import { BuildModuleNode } from '../../semantics/index.js';
 import {
     ClosureContextType,
-    FunctionType,
     ObjectType,
     Primitive,
     ValueType,
@@ -290,8 +285,6 @@ export class WASMGen extends Ts2wasmBackend {
 
     private globalInitFuncName = 'global|init|func';
     public globalInitArray: Array<binaryen.ExpressionRef> = [];
-    private globalDestoryFuncName = 'global|destory|func';
-    public globalDestoryArray: Array<binaryen.ExpressionRef> = [];
     private debugFileIndex = new Map<string, number>();
     /** source map file url */
     private map: string | null = null;
@@ -433,8 +426,7 @@ export class WASMGen extends Ts2wasmBackend {
         callBuiltInAPIs(this.module);
         if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
             importAnyLibAPI(this.module);
-            this.globalInitArray.push(generateInitDynContext(this.module));
-            this.globalDestoryArray.push(generateFreeDynContext(this.module));
+            this.globalInitArray.push(generateDynContext(this.module));
         }
         if (!this.parserContext.compileArgs[ArgNames.disableInterface]) {
             importInfcLibAPI(this.module);
@@ -505,7 +497,6 @@ export class WASMGen extends Ts2wasmBackend {
         initDefaultMemory(this.module, segments);
 
         this.initEnv();
-        this.destoryEnv();
     }
 
     private addGlobalVars() {
@@ -771,16 +762,6 @@ export class WASMGen extends Ts2wasmBackend {
                 this.module.call(this.globalInitFuncName, [], binaryen.none),
             );
             startFuncStmts.push(this.module.call(func.name, [], binaryen.none));
-            /* call globalDestoryFunc */
-            if (!this.parserContext.compileArgs[ArgNames.noAutoFreeCtx]) {
-                startFuncStmts.push(
-                    this.module.call(
-                        this.globalDestoryFuncName,
-                        [],
-                        binaryen.none,
-                    ),
-                );
-            }
             const wasmStartFuncRef = this.module.addFunction(
                 BuiltinNames.start,
                 binaryen.none,
@@ -868,17 +849,6 @@ export class WASMGen extends Ts2wasmBackend {
             functionStmts.push(
                 isReturn ? this.module.local.set(idx, targetCall) : targetCall,
             );
-
-            /* call globalDestoryFunc */
-            if (!this.parserContext.compileArgs[ArgNames.noAutoFreeCtx]) {
-                functionStmts.push(
-                    this.module.call(
-                        this.globalDestoryFuncName,
-                        [],
-                        binaryen.none,
-                    ),
-                );
-            }
 
             /* set return value */
             const functionVars: binaryen.ExpressionRef[] = [];
@@ -1006,16 +976,6 @@ export class WASMGen extends Ts2wasmBackend {
             binaryen.none,
             [],
             this.module.block(null, this.globalInitArray),
-        );
-    }
-
-    private destoryEnv() {
-        this.module.addFunction(
-            this.globalDestoryFuncName,
-            binaryen.none,
-            binaryen.none,
-            [],
-            this.module.block(null, this.globalDestoryArray),
         );
     }
 
