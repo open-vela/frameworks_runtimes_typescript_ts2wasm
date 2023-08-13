@@ -14,6 +14,18 @@ endif ()
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Werror")
 set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
+if (USE_SANITIZER EQUAL 1)
+    message("Sanitizer enabled")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=signed-integer-overflow  \
+                        -fsanitize=undefined -fsanitize=address  \
+                        -fno-sanitize=bounds,bounds-strict,alignment \
+                        -fno-sanitize-recover")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=signed-integer-overflow  \
+                        -fsanitize=undefined -fsanitize=address  \
+                        -fno-sanitize=bounds,bounds-strict,alignment \
+                        -fno-sanitize-recover")
+endif ()
+
 ## WAMR
 include(${CMAKE_CURRENT_LIST_DIR}/wamr_config.cmake)
 add_library(vmlib ${WAMR_RUNTIME_LIB_SOURCE})
