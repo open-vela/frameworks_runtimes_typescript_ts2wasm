@@ -849,13 +849,7 @@ export function isEqualOperator(kind: ts.SyntaxKind): boolean {
 export function isCompareOperator(kind: ts.SyntaxKind): boolean {
     return (
         kind == ts.SyntaxKind.LessThanEqualsToken ||
-        kind == ts.SyntaxKind.LessThanLessThanEqualsToken ||
         kind == ts.SyntaxKind.LessThanToken ||
-        kind == ts.SyntaxKind.LessThanLessThanToken ||
-        kind == ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
-        kind == ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken ||
-        kind == ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
-        kind == ts.SyntaxKind.GreaterThanGreaterThanToken ||
         kind == ts.SyntaxKind.GreaterThanEqualsToken ||
         kind == ts.SyntaxKind.GreaterThanToken ||
         kind == ts.SyntaxKind.EqualsEqualsToken ||
