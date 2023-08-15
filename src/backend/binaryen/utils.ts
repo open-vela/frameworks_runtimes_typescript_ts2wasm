@@ -1022,7 +1022,7 @@ export namespace FunctionalFuncs {
                 );
             }
             default:
-                throw new Error(`operateF64F64: ${opKind}`);
+                throw new UnimplementError(`operateF64F64: ${opKind}`);
         }
     }
 
@@ -1103,7 +1103,9 @@ export namespace FunctionalFuncs {
                 );
             }
             default:
-                throw new Error(`operator doesn't support, ${opKind}`);
+                throw new UnimplementError(
+                    `operator doesn't support, ${opKind}`,
+                );
         }
 
         return res;
@@ -1133,7 +1135,9 @@ export namespace FunctionalFuncs {
                 );
             }
             default:
-                throw new Error(`operator doesn't support, ${operatorKind}`);
+                throw new UnimplementError(
+                    `operator doesn't support, ${operatorKind}`,
+                );
         }
     }
 
@@ -1161,7 +1165,9 @@ export namespace FunctionalFuncs {
                 );
             }
             default:
-                throw new Error(`operator doesn't support, ${opKind}`);
+                throw new UnimplementError(
+                    `operator doesn't support, ${opKind}`,
+                );
         }
     }
 
@@ -1200,7 +1206,9 @@ export namespace FunctionalFuncs {
                 }
             }
             default:
-                throw new Error(`operator doesn't support, ${opKind}`);
+                throw new UnimplementError(
+                    `operator doesn't support, ${opKind}`,
+                );
         }
     }
 
@@ -1234,7 +1242,9 @@ export namespace FunctionalFuncs {
                 return module.i32.ne(leftValueRef, rightValueRef);
             }
             default:
-                throw new Error(`operator doesn't support, ${opKind}`);
+                throw new UnimplementError(
+                    `operator doesn't support, ${opKind}`,
+                );
         }
     }
 
@@ -1371,7 +1381,7 @@ export namespace FunctionalFuncs {
                         true,
                     );
                 } else {
-                    throw new Error(
+                    throw new UnimplementError(
                         `operand type doesn't support on any static operation, static type is ${rightValueType}`,
                     );
                 }
@@ -1401,7 +1411,7 @@ export namespace FunctionalFuncs {
                         true,
                     );
                 } else {
-                    throw new Error(
+                    throw new UnimplementError(
                         `operator doesn't support on any static operation, ${opKind}`,
                     );
                 }

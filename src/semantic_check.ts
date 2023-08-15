@@ -39,6 +39,7 @@ import {
     Statement,
     SwitchStatement,
 } from './statement.js';
+import { SemanticCheckError } from './error.js';
 
 const enum ErrorKind {
     NominalClass = 'nominal class',
@@ -112,7 +113,7 @@ export default class SemanticChecker {
         }
         if (this.errors.length > 0) {
             Logger.error(this.logErrors());
-            throw new Error('Semantic check error.');
+            throw new SemanticCheckError('Semantic check error.');
         }
     }
 

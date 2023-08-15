@@ -26,6 +26,7 @@ import {
 } from './expression.js';
 import { Logger } from './log.js';
 import { SourceMapLoc } from './backend/binaryen/utils.js';
+import { ScopeError } from './error.js';
 
 export enum ScopeKind {
     Scope,
@@ -126,7 +127,7 @@ export class Scope {
 
     initVariableIndex() {
         if (this.localIndex !== -1) {
-            throw Error(`Can't initialize variables multiple times`);
+            throw new ScopeError(`Can't initialize variables multiple times`);
         }
 
         if (this instanceof FunctionScope) {
@@ -150,7 +151,7 @@ export class Scope {
 
     addTempVar(variableObj: Variable) {
         if (this.localIndex === -1) {
-            throw Error(
+            throw new ScopeError(
                 `Can't add temp variable begore index assigned, add variable instead`,
             );
         }
@@ -831,7 +832,7 @@ export class ScopeScanner {
                     parentScope.kind !== ScopeKind.GlobalScope &&
                     parentScope.kind !== ScopeKind.NamespaceScope
                 ) {
-                    throw Error(
+                    throw new ScopeError(
                         'A namespace declaration is only allowed at the top level of a namespace or module',
                     );
                 }
