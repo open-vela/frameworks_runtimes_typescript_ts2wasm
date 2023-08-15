@@ -2991,6 +2991,11 @@
                 "name": "anyrefCond",
                 "args": [],
                 "result": "hello \nv \nv3 \nv5 \nv7 \nv10 \nv11 \nv12"
+            },
+            {
+                "name": "restParamWithEmpty",
+                "args": [],
+                "result": "3 \n0"
             }
         ]
     },

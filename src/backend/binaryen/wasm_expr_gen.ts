@@ -1578,6 +1578,13 @@ export class WASMExpressionGen {
         }
 
         if (!args) {
+            if (funcType.restParamIdx !== -1) {
+                const restType = paramTypes[funcType.restParamIdx] as ArrayType;
+                callerArgs[funcType.restParamIdx + envArgLen] = this.initArray(
+                    restType,
+                    [],
+                );
+            }
             return callerArgs;
         }
 
@@ -1613,12 +1620,6 @@ export class WASMExpressionGen {
     private initArray(arrType: ArrayType, elements: SemanticsValue[]) {
         const arrayLen = elements.length;
         const array = [];
-        if (elements.length === 0) {
-            return binaryenCAPI._BinaryenRefNull(
-                this.module.ptr,
-                binaryenCAPI._BinaryenTypeArrayref(),
-            );
-        }
         for (let i = 0; i < arrayLen; i++) {
             const elemExpr = elements[i];
             const elemExprRef: binaryen.ExpressionRef =
