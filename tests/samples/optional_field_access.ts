@@ -80,3 +80,24 @@ export function classOptionalField() {
     a.x = 10;
     console.log(a.x);
 }
+
+class B2 {
+    str = 'hello';
+}
+
+class A2 {
+    b?: B2;
+}
+
+export function accessOptFieldOfOptField() {
+    const a = new A2();
+    if (a.b) {
+        console.log(a.b.str);
+    }
+    console.log(a.b?.str);
+    a.b = new B2();
+    if (a.b) {
+        console.log(a.b.str);
+    }
+    console.log(a.b?.str);
+}
