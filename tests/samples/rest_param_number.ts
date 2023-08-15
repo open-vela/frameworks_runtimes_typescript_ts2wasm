@@ -93,3 +93,16 @@ export function anyrefCond() {
         console.log('v12');
     }
 }
+
+function foo(...num: number[]) {
+    let res = 0;
+    for (let i = 0; i < num.length; i++) {
+        res += num[i];
+    }
+    return res;
+}
+
+export function restParamWithEmpty() {
+    console.log(foo(1, 2));
+    console.log(foo());
+}
