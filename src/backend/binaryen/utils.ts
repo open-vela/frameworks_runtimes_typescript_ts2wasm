@@ -249,6 +249,14 @@ export namespace FunctionalFuncs {
         return type;
     }
 
+    export function isUnionWithUndefined(type: ValueType) {
+        return (
+            type instanceof UnionType &&
+            type.types.size == 2 &&
+            type.types.has(Primitive.Undefined)
+        );
+    }
+
     export function generateStringRef(module: binaryen.Module, value: string) {
         const valueLen = value.length;
         let strRelLen = valueLen;

@@ -74,6 +74,7 @@ import {
     ObjectType,
     ObjectTypeFlag,
     Primitive,
+    PrimitiveType,
     TypeParameterType,
     UnionType,
     ValueType,
@@ -3209,15 +3210,103 @@ export class WASMExpressionGen {
             this.wasmCompiler.generateRawString(propName),
         );
         switch (owner.type.kind) {
-            case ValueTypeKind.ANY:
-            case ValueTypeKind.UNION: {
-                /* get any prop */
+            case ValueTypeKind.ANY: {
                 const ownValueRef = this.wasmExprGen(owner);
                 return FunctionalFuncs.getDynObjProp(
                     this.module,
                     ownValueRef,
                     propNameRef,
                 );
+            }
+            case ValueTypeKind.UNION: {
+                const ownValueRef = this.wasmExprGen(owner);
+                const dynamicGetProp = FunctionalFuncs.getDynObjProp(
+                    this.module,
+                    ownValueRef,
+                    propNameRef,
+                );
+                if (FunctionalFuncs.isUnionWithUndefined(owner.type)) {
+                    const isNonUndefined = FunctionalFuncs.generateCondition(
+                        this.module,
+                        ownValueRef,
+                        ValueTypeKind.UNION,
+                    );
+                    const staticType = FunctionalFuncs.getStaticType(
+                        owner.type,
+                    );
+                    const wasmStaticType =
+                        this.wasmTypeGen.getWASMValueType(staticType);
+                    const tempValue = this.createTmpVarOfSpecifiedType(
+                        ownValueRef,
+                        Primitive.Any,
+                    );
+                    let ownerStaticValueRef = FunctionalFuncs.unboxAny(
+                        this.module,
+                        tempValue,
+                        staticType.kind,
+                        wasmStaticType,
+                    );
+                    ownerStaticValueRef = binaryenCAPI._BinaryenRefCast(
+                        this.module.ptr,
+                        ownerStaticValueRef,
+                        wasmStaticType,
+                    );
+
+                    let propValueRef: binaryen.ExpressionRef;
+                    let propType: ValueType;
+                    if (
+                        staticType.kind === ValueTypeKind.STRING &&
+                        propName === 'length'
+                    ) {
+                        propValueRef = FunctionalFuncs.getStringRefLen(
+                            this.module,
+                            ownerStaticValueRef,
+                        );
+                        propType = Primitive.Number;
+                    } else if (
+                        staticType.kind === ValueTypeKind.ARRAY &&
+                        propName === 'length'
+                    ) {
+                        propValueRef = FunctionalFuncs.getArrayRefLen(
+                            this.module,
+                            ownerStaticValueRef,
+                        );
+                        propType = Primitive.Number;
+                    } else if (staticType instanceof ObjectType) {
+                        const member = this.getMemberByName(
+                            staticType.meta,
+                            propName,
+                        );
+                        propValueRef = this.getInstMember(
+                            ownerStaticValueRef,
+                            staticType,
+                            staticType.meta,
+                            member,
+                        );
+                        propType = member.valueType;
+                    } else {
+                        return dynamicGetProp;
+                    }
+                    propValueRef =
+                        propType instanceof PrimitiveType
+                            ? FunctionalFuncs.boxBaseTypeToAny(
+                                  this.module,
+                                  propValueRef,
+                                  propType.kind,
+                              )
+                            : FunctionalFuncs.generateDynExtref(
+                                  this.module,
+                                  propValueRef,
+                                  propType.kind,
+                              );
+                    return this.module.if(
+                        isNonUndefined,
+                        propValueRef,
+                        FunctionalFuncs.generateDynUndefined(this.module),
+                    );
+                } else {
+                    return dynamicGetProp;
+                }
             }
             case ValueTypeKind.OBJECT: {
                 const meta = (owner.type as ObjectType).meta;
