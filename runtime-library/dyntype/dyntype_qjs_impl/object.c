@@ -894,7 +894,7 @@ dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
     return res == 1 ? DYNTYPE_SUCCESS : -DYNTYPE_EXCEPTION;
 }
 
-const dyn_value_t
+dyn_value_t
 dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *obj_ptr = (JSValue *)obj;

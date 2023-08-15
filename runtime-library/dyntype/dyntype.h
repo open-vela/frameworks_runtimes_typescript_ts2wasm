@@ -541,7 +541,7 @@ dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
  * @param obj dynamic object
  * @return prototype object, NULL if failed
  */
-const dyn_value_t
+dyn_value_t
 dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj);
 
 
