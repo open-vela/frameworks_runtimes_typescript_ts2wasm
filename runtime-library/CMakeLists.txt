@@ -11,7 +11,7 @@ if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif ()
 
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Werror")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Wall -Werror -Wformat")
 set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
 if (USE_SANITIZER EQUAL 1)
@@ -19,11 +19,11 @@ if (USE_SANITIZER EQUAL 1)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=signed-integer-overflow  \
                         -fsanitize=undefined -fsanitize=address  \
                         -fno-sanitize=bounds,bounds-strict,alignment \
-                        -fno-sanitize-recover")
+                        -fno-sanitize-recover -Wall -Werror -Wformat")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=signed-integer-overflow  \
                         -fsanitize=undefined -fsanitize=address  \
                         -fno-sanitize=bounds,bounds-strict,alignment \
-                        -fno-sanitize-recover")
+                        -fno-sanitize-recover -Wall -Werror -Wformat")
 endif ()
 
 ## WAMR
