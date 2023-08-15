@@ -222,7 +222,7 @@ export class WASMExpressionGen {
             case SemanticsValueKind.OBJECT_TO_STRING:
                 return this.wasmToString(<ToStringValue>value);
             default:
-                throw new Error(`unexpected value: ${value}`);
+                throw new UnimplementError(`unexpected value: ${value}`);
         }
     }
 
@@ -371,7 +371,7 @@ export class WASMExpressionGen {
                                 fallbackTypeName,
                             )
                         ) {
-                            throw new Error(
+                            throw new UnimplementError(
                                 `type ${fallbackTypeName} doesn't exist in fallback type names`,
                             );
                         }
@@ -388,7 +388,7 @@ export class WASMExpressionGen {
                 } else if (varNode instanceof FunctionDeclareNode) {
                     return this.createClosureStruct(varNode);
                 } else {
-                    throw Error(
+                    throw new UnimplementError(
                         `need to handle global var in wasmGetVar: ${value}`,
                     );
                 }
@@ -709,7 +709,7 @@ export class WASMExpressionGen {
             );
         }
 
-        throw new Error(
+        throw new UnimplementError(
             `unsupported operation between ${leftValueType} and ${rightValueType}`,
         );
     }
@@ -1026,7 +1026,7 @@ export class WASMExpressionGen {
                     }
 
                     if (!baseMeta) {
-                        throw Error(
+                        throw new Error(
                             `Can not find static field ${member.name} in inherit chain of ${meta.name}}`,
                         );
                     }

@@ -19,7 +19,7 @@ import { Parameter, Variable } from './variable.js';
 import { Expression, IdentifierExpression } from './expression.js';
 import { Logger } from './log.js';
 import { DefaultTypeId, adjustPrimitiveNodeType } from './utils.js';
-import { UnimplementError } from './error.js';
+import { TypeError, UnimplementError } from './error.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 
 export const enum TypeKind {
@@ -690,7 +690,7 @@ export class TSEnum extends Type {
 
     addMember(name: string, value: number | string) {
         if (this._members.has(name)) {
-            throw Error(`EnumMember exist: ${name}`);
+            throw new TypeError(`EnumMember exist: ${name}`);
         }
         this._members.set(name, value);
         if (this._memberType.kind == TypeKind.UNDEFINED) {
@@ -1056,7 +1056,7 @@ export class TypeResolver {
 
             const type_param = this.currentScope!.findType(type_name);
             if (!type_param || type_param.kind != TypeKind.TYPE_PARAMETER) {
-                throw Error(
+                throw new TypeError(
                     `Cannot find the type ${type_name} or it isn't a TypeParameter (${type_param})`,
                 );
             }
@@ -1068,7 +1068,7 @@ export class TypeResolver {
         }
         if (!res && this.isArray(type)) {
             if (!type.typeArguments) {
-                throw new Error('array type has no type arguments');
+                throw new TypeError('array type has no type arguments');
             }
             const elemType = this.tsTypeToType(type.typeArguments![0]);
             res = new TSArray(elemType);
@@ -1085,7 +1085,7 @@ export class TypeResolver {
                 const decl = type.symbol.declarations![0];
                 const tsType = this.symbolTypeMap.get(decl);
                 if (!tsType) {
-                    throw new Error(
+                    throw new TypeError(
                         `class/interface/object type not found, type name <${type.symbol.name}>. `,
                     );
                 }
@@ -1096,7 +1096,7 @@ export class TypeResolver {
                  */
                 res = new TSClass();
             } else {
-                throw new Error(
+                throw new TypeError(
                     `class/interface/object type contains neither declarations
                     nor Substitution flag, type name  <${type.symbol.name}>. `,
                 );
@@ -1179,7 +1179,7 @@ export class TypeResolver {
                 const name = (expr as ts.Identifier).getText();
                 const value = enumType.getMember(name);
                 if (!value) {
-                    throw Error(`EnumMember cannot find ${name}`);
+                    throw new TypeError(`EnumMember cannot find ${name}`);
                 }
                 return value;
             }
@@ -1193,7 +1193,7 @@ export class TypeResolver {
                             return `${left}${right}`;
                         else return (left as number) + (right as number);
                     default:
-                        throw Error(
+                        throw new TypeError(
                             `EnumMember cannot support the operator ${
                                 ts.SyntaxKind[bnode.operatorToken.kind]
                             }`,
@@ -1201,7 +1201,9 @@ export class TypeResolver {
                 }
             }
             default:
-                throw Error(`EnumMember don't support dynamic expression`);
+                throw new TypeError(
+                    `EnumMember don't support dynamic expression`,
+                );
         }
     }
 
@@ -1264,7 +1266,7 @@ export class TypeResolver {
             const propName = prop.name;
             const valueDecl = prop.valueDeclaration;
             if (!valueDecl) {
-                throw new Error(
+                throw new TypeError(
                     `property ${propName} has no declaration when parsing object type`,
                 );
             }
@@ -1292,7 +1294,7 @@ export class TypeResolver {
 
     private parseSignature(signature: ts.Signature | undefined) {
         if (!signature) {
-            throw new Error('signature is undefined');
+            throw new TypeError('signature is undefined');
         }
         const decl = signature.getDeclaration();
         const cached_type = this.nodeTypeCache.get(decl);
@@ -1427,7 +1429,7 @@ export class TypeResolver {
             key_type.kind !== TypeKind.NUMBER &&
             key_type.kind !== TypeKind.STRING
         ) {
-            throw Error(
+            throw new TypeError(
                 `${infc.className} indexSignature need number or string : ${key_type}`,
             );
         }
@@ -1592,7 +1594,7 @@ export class TypeResolver {
                         classType.setImplInfc(baseInfcType);
                     }
                     if (baseClassType) {
-                        throw new Error('unimpl multiple base classes');
+                        throw new TypeError('unimpl multiple base classes');
                     }
                     baseClassType = h;
                     classType.setBase(baseClassType);

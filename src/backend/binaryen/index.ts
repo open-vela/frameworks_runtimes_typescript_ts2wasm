@@ -72,6 +72,7 @@ import { clearWasmStringMap, getCString } from './utils.js';
 import { assert } from 'console';
 import ts from 'typescript';
 import { VarValue } from '../../semantics/value.js';
+import { ValidateError } from '../../error.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -365,7 +366,7 @@ export class WASMGen extends Ts2wasmBackend {
         const validationResult = this._binaryenModule.validate();
         if (validationResult === 0) {
             Logger.error(`Validation wasm module failed`);
-            throw Error('Failed to validate generated wasm module');
+            throw new ValidateError('Failed to validate generated wasm module');
         }
     }
 

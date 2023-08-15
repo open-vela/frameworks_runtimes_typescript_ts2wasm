@@ -25,6 +25,7 @@ import {
 import { Variable } from './variable.js';
 import { TSClass, Type, TypeKind } from './type.js';
 import { Logger } from './log.js';
+import { StatementError } from './error.js';
 
 type StatementKind = ts.SyntaxKind;
 
@@ -727,7 +728,7 @@ export default class StatementProcessor {
                 const moduleBlock = <ts.ModuleBlock>md.body!;
                 const scope = this.parserCtx.nodeScopeMap.get(moduleBlock);
                 if (!scope) {
-                    throw new Error(
+                    throw new StatementError(
                         `failed to find scope for ModuleDeclaration ${md.name}`,
                     );
                 }
@@ -801,7 +802,7 @@ export default class StatementProcessor {
             const varName = (<ts.Identifier>varDecNode.name).getText()!;
             const variable = this.currentScope!.findVariable(varName);
             if (!variable) {
-                throw new Error(
+                throw new StatementError(
                     'can not find ' + varName + ' in current scope',
                 );
             }
