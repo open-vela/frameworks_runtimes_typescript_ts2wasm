@@ -3236,13 +3236,9 @@ export class WASMExpressionGen {
                     );
                     const wasmStaticType =
                         this.wasmTypeGen.getWASMValueType(staticType);
-                    const tempValue = this.createTmpVarOfSpecifiedType(
-                        ownValueRef,
-                        Primitive.Any,
-                    );
                     let ownerStaticValueRef = FunctionalFuncs.unboxAny(
                         this.module,
-                        tempValue,
+                        ownValueRef,
                         staticType.kind,
                         wasmStaticType,
                     );
