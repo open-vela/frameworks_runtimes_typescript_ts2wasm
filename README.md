@@ -46,8 +46,10 @@
 
     ``` bash
     cd build
-    node cli/ts2wasm.js <source> -o out.wasm
+    node cli/ts2wasm.js --opt=3 <source> -o out.wasm
     ```
+
+Please refer to [developer guide](./doc/developer-guide/index.md) for feature description.
 
 ### Execute the generated module
 

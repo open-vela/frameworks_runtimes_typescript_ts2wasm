@@ -1,3 +1,12 @@
+/* The Computer Language Benchmarks Game
+   https://salsa.debian.org/benchmarksgame-team/benchmarksgame/
+   contributed by Isaac Gouy
+*/
+
+/* This file is from:
+ *  https://benchmarksgame-team.pages.debian.net/benchmarksgame/program/spectralnorm-typescript-1.html
+ */
+
 export function approximate(n: number): number {
     const u: number[] = new Array(n),
         v: number[] = new Array(n);
@@ -25,7 +34,7 @@ function multiplyAv(n: number, v: number[], av: number[]) {
     for (let i = 0; i < n - 1; ++i) {
         av[i] = 0.0;
         for (let j = 0; j < n - 1; ++j) {
-            av[i] += a(i, j) * v[j];
+            av[i] = av[i] + a(i, j) * v[j];
         }
     }
 }
@@ -34,7 +43,7 @@ function multiplyAtv(n: number, v: number[], atv: number[]) {
     for (let i = 0; i < n - 1; ++i) {
         atv[i] = 0.0;
         for (let j = 0; j < n - 1; ++j) {
-            atv[i] += a(j, i) * v[j];
+            atv[i] = atv[i] + a(j, i) * v[j];
         }
     }
 }

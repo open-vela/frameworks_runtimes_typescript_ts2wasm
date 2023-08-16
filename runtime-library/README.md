@@ -5,7 +5,7 @@ This folder contains code to be built into WAMR runtime to expose required APIs 
 - struct-dyn API: APIs for accessing wasmGC struct fields through dynamically calculated index
 - stdlib API: APIs for providing standard library functions such as `console.log`
 
-## Build 
+## Build
 
 ``` bash
 # prepare dependencies
@@ -29,8 +29,24 @@ This will generate an `iwasm_gc` executable which can be used to execute wasm mo
 ./iwasm_gc -f consoleLog builtin_console.wasm
 ```
 
-## Known issues
+## CMake Configurations
 
-- Garbage collection for libdyntype not implemented, so if there are `any` in the source code, there will be memory leak.
+- **USE_SANITIZER=1**
 
-    > This will also cause assertion error in debug build, since quickjs will assert the heap is empty before exit.
+    Enable sanitizer. When enabled, all invalid memory access and memory leaks will be reported, disabled by default.
+
+- **WAMR_BUILD_TARGET**
+
+    Build target, default is `X86_64`.
+
+- **WAMR_BUILD_FAST_INTERP**
+
+    Enable fast interpreter, enabled by default.
+
+- **WAMR_GC_IN_EVERY_ALLOCATION**
+
+    Enable GC in every allocation. When enabled, the garbage collector will reclaim the heap on every allocation request, this is for testing the GC behaviour, disabled by default.
+
+- **WAMR_GC_HEAP_SIZE**
+
+    Set default GC Heap size (in bytes), the default value is `131072` (128KB)
