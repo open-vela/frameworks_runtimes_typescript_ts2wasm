@@ -3462,5 +3462,15 @@
                 "result": "undefined \n18 undefined"
             }
         ]
+    },
+    {
+        "module": "array_specialization",
+        "entries": [
+            {
+                "name": "test",
+                "args": [],
+                "result": "100"
+            }
+        ]
     }
 ]
