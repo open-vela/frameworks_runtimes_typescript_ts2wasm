@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2023 Intel Corporation.  All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ */
+
 import binaryen from 'binaryen';
 import * as binaryenCAPI from './glue/binaryen.js';
 import ts from 'typescript';

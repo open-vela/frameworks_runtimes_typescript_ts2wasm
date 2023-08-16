@@ -1,3 +1,7 @@
+/* This file is modified base on:
+ *  https://github.com/ColinEberhardt/wasm-mandelbrot/blob/master/assemblyscript/mandelbrot.ts
+ */
+
 // const WIDTH = 1200;
 // const HEIGHT = 800;
 
