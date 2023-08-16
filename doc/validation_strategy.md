@@ -1,4 +1,4 @@
-# ts2wasm-compiler validation strategy
+# ts2wasm-compiler validation strategy (WIP)
 
 Ts2wasm-compiler aims to compile TypeScript source code to WebAssembly bytecode while keep the same semantics, the default validation strategy is to compile the same TypeScript source code into both JavaScript (through `tsc`) and WebAssembly (through `ts2wasm-compiler`) and compare the execution results.
 

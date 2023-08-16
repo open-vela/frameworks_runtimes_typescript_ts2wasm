@@ -5,3 +5,4 @@ build/*
 **/dist/*
 tools/playground/server/assets/samples/*
 lib/builtin/lib.type.d.ts
+fuzz/*
