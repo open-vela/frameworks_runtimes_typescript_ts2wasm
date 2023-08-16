@@ -1396,7 +1396,10 @@ export function specializeBuiltinObjectType(
     const need_update_type_args = type.hasUninitedTypeArguments;
 
     const special_type = mapper.specializeValueType(type) as ObjectType;
-
+    // before the array is specialized, mark the actual element type of the array
+    if (special_type instanceof ArrayType) {
+        special_type.setElement(typeArgs[0]);
+    }
     if (special_type !== type) {
         if (!(type.meta.isInited && type.meta.originShape)) {
             AddSpecializeObjectType(type, () => {
