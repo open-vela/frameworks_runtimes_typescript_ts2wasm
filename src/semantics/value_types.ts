@@ -417,11 +417,18 @@ export class ObjectType extends ValueTypeWithArguments {
 export class ArrayType extends ObjectType {
     constructor(typeId: number, meta: ObjectDescription, flags: number) {
         super(typeId, meta, flags, ValueTypeKind.ARRAY);
+        this._element = Primitive.Undefined;
+    }
+
+    private _element: ValueType;
+
+    setElement(element: ValueType) {
+        this._element = element;
     }
 
     get element(): ValueType {
         if (this.numberIndexType) return this.numberIndexType;
-        return Primitive.Any;
+        return this._element;
     }
 
     public get numberIndexType(): ValueType | undefined {
@@ -543,7 +550,6 @@ export class FunctionType extends ValueTypeWithArguments {
         if (this.kind != other.kind) return false;
 
         const other_func = other as FunctionType;
-
         if (!this.returnType.equals(other_func.returnType)) return false;
         if (this.argumentsType.length != other_func.argumentsType.length)
             return false;
