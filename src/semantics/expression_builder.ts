@@ -190,8 +190,13 @@ import {
 import { processEscape } from '../utils.js';
 import { BuiltinNames } from '../../lib/builtin/builtin_name.js';
 
-function isInt(n: number): boolean {
+function isInt(expr: Expression): boolean {
     /* TODO: currently we treat all numbers as f64, we can make some analysis and optimize some number to int */
+    if (expr.tsNode) {
+        // if NumberLiteralExpression represents an array index，we should treat this number as i32
+        if (expr.tsNode.parent?.kind == ts.SyntaxKind.ElementAccessExpression)
+            return true;
+    }
     return false;
 }
 
@@ -2337,7 +2342,7 @@ export function buildExpression(
                 break;
             case ts.SyntaxKind.NumericLiteral: {
                 const n = (expr as NumberLiteralExpression).expressionValue;
-                if (isInt(n)) {
+                if (isInt(expr)) {
                     res = new LiteralValue(Primitive.Int, toInt(n));
                 } else {
                     res = new LiteralValue(Primitive.Number, n);
