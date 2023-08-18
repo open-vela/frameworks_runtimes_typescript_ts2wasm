@@ -348,8 +348,22 @@ export class PrefixUnaryExprValue extends SemanticsValue {
         type: PrimitiveType,
         public opKind: ts.PrefixUnaryOperator,
         public target: SemanticsValue,
+        flattenExprValue?: SemanticsValue,
     ) {
         super(SemanticsValueKind.PRE_UNARY_EXPR, type);
+        if (flattenExprValue) {
+            this._flattenExprValue = flattenExprValue;
+        }
+    }
+
+    private _flattenExprValue?: SemanticsValue;
+
+    setFlattenExprValue(flattenExprValue: SemanticsValue) {
+        this._flattenExprValue = flattenExprValue;
+    }
+
+    get flattenExprValue(): SemanticsValue | undefined {
+        return this._flattenExprValue;
     }
 
     forEachChild(visitor: SemanticsValueVisitor) {
@@ -362,8 +376,22 @@ export class PostUnaryExprValue extends SemanticsValue {
         type: PrimitiveType,
         public opKind: ts.PostfixUnaryOperator,
         public target: SemanticsValue,
+        flattenExprValue?: SemanticsValue,
     ) {
         super(SemanticsValueKind.POST_UNARY_EXPR, type);
+        if (flattenExprValue) {
+            this._flattenExprValue = flattenExprValue;
+        }
+    }
+
+    private _flattenExprValue?: SemanticsValue;
+
+    setFlattenExprValue(flattenExprValue: SemanticsValue) {
+        this._flattenExprValue = flattenExprValue;
+    }
+
+    get flattenExprValue(): SemanticsValue | undefined {
+        return this._flattenExprValue;
     }
 
     forEachChild(visitor: SemanticsValueVisitor) {

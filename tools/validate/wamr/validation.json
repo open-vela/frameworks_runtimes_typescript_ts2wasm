@@ -3472,5 +3472,15 @@
                 "result": "100"
             }
         ]
+    },
+    {
+        "module": "compound_assignment_operator",
+        "entries": [
+            {
+                "name": "test",
+                "args": [],
+                "result": "3 \n8 \n5 \nhello world"
+            }
+        ]
     }
 ]
