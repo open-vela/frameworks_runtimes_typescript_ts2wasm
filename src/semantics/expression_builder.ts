@@ -204,6 +204,67 @@ function toInt(n: number): number {
     return n | 0;
 }
 
+function flattenOperator(opKind: ts.SyntaxKind) {
+    switch (opKind) {
+        case ts.SyntaxKind.PlusEqualsToken: {
+            return ts.SyntaxKind.PlusToken;
+        }
+        case ts.SyntaxKind.MinusEqualsToken: {
+            return ts.SyntaxKind.MinusToken;
+        }
+        case ts.SyntaxKind.AsteriskAsteriskEqualsToken: {
+            return ts.SyntaxKind.AsteriskAsteriskToken;
+        }
+        case ts.SyntaxKind.AsteriskEqualsToken: {
+            return ts.SyntaxKind.AsteriskToken;
+        }
+        case ts.SyntaxKind.SlashEqualsToken: {
+            return ts.SyntaxKind.SlashToken;
+        }
+        case ts.SyntaxKind.PercentEqualsToken: {
+            return ts.SyntaxKind.PercentToken;
+        }
+        case ts.SyntaxKind.AmpersandEqualsToken: {
+            return ts.SyntaxKind.AmpersandToken;
+        }
+        case ts.SyntaxKind.BarEqualsToken: {
+            return ts.SyntaxKind.BarToken;
+        }
+        case ts.SyntaxKind.CaretEqualsToken: {
+            return ts.SyntaxKind.CaretToken;
+        }
+        case ts.SyntaxKind.LessThanLessThanEqualsToken: {
+            return ts.SyntaxKind.LessThanLessThanToken;
+        }
+        case ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken: {
+            return ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken;
+        }
+        case ts.SyntaxKind.GreaterThanGreaterThanEqualsToken: {
+            return ts.SyntaxKind.GreaterThanGreaterThanToken;
+        }
+        case ts.SyntaxKind.BarBarEqualsToken: {
+            return ts.SyntaxKind.BarBarToken;
+        }
+        case ts.SyntaxKind.AmpersandAmpersandEqualsToken: {
+            return ts.SyntaxKind.AmpersandAmpersandToken;
+        }
+        case ts.SyntaxKind.QuestionQuestionEqualsToken: {
+            return ts.SyntaxKind.QuestionQuestionToken;
+        }
+        case ts.SyntaxKind.PlusPlusToken: {
+            return ts.SyntaxKind.PlusEqualsToken;
+        }
+        case ts.SyntaxKind.MinusMinusToken: {
+            return ts.SyntaxKind.MinusEqualsToken;
+        }
+        case ts.SyntaxKind.MinusToken: {
+            return ts.SyntaxKind.MinusToken;
+        }
+        default:
+            return opKind;
+    }
+}
+
 function getValueFromNamespace(
     ns: VarValue,
     member: string,
@@ -1439,13 +1500,25 @@ function buildBinaryExpression(
     }
 
     context.pushReference(ValueReferenceKind.RIGHT);
-    const right_value = buildExpression(expr.rightOperand, context);
+    let operatorKind = expr.operatorKind;
+    const flatten_opKind = flattenOperator(expr.operatorKind);
+    const isCompoundAssignmentOp = !(flatten_opKind === expr.operatorKind);
+    let right_value = buildExpression(expr.rightOperand, context);
+    if (isCompoundAssignmentOp) {
+        right_value = newBinaryExprValue(
+            undefined,
+            flatten_opKind as ValueBinaryOperator,
+            buildExpression(expr.leftOperand, context),
+            right_value,
+        );
+        operatorKind = ts.SyntaxKind.EqualsToken;
+    }
     right_value.incAccessCount();
     context.popReference();
 
     return newBinaryExprValue(
         undefined,
-        expr.operatorKind as ValueBinaryOperator,
+        operatorKind as ValueBinaryOperator,
         left_value,
         right_value,
     );
@@ -2252,16 +2325,54 @@ function buildUnaryExpression(
     const operand = buildExpression(expr.operand, context);
     context.popReference();
 
+    let flattenExprValue: SemanticsValue | undefined;
+    switch (expr.operatorKind) {
+        case ts.SyntaxKind.PlusPlusToken:
+        case ts.SyntaxKind.MinusMinusToken: {
+            /* i++ ===> i += 1 */
+            /* i-- ===> i -= 1 */
+            const tmpOpKind = flattenOperator(expr.operatorKind);
+            const tmpLiteralExpression = new NumberLiteralExpression(1);
+            const tmpBinaryExpression = new BinaryExpression(
+                tmpOpKind,
+                expr.operand,
+                tmpLiteralExpression,
+            );
+            flattenExprValue = buildBinaryExpression(
+                tmpBinaryExpression,
+                context,
+            );
+            break;
+        }
+        case ts.SyntaxKind.MinusToken: {
+            /* -8 ==> 0-8, -a ===> 0-a */
+            const tmpOpKind = flattenOperator(expr.operatorKind);
+            const tmpLiteralExpression = new NumberLiteralExpression(0);
+            const tmpBinaryExpression = new BinaryExpression(
+                tmpOpKind,
+                tmpLiteralExpression,
+                expr.operand,
+            );
+            flattenExprValue = buildBinaryExpression(
+                tmpBinaryExpression,
+                context,
+            );
+            break;
+        }
+    }
+
     if (expr.expressionKind == ts.SyntaxKind.PrefixUnaryExpression)
         return new PrefixUnaryExprValue(
             operand.type as PrimitiveType,
             expr.operatorKind as ts.PrefixUnaryOperator,
             operand,
+            flattenExprValue,
         );
     return new PostUnaryExprValue(
         operand.type as PrimitiveType,
         expr.operatorKind as ts.PostfixUnaryOperator,
         operand,
+        flattenExprValue,
     );
 }
 
