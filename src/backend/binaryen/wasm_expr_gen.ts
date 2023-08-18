@@ -524,19 +524,6 @@ export class WASMExpressionGen {
             case ts.SyntaxKind.EqualsToken: {
                 return this.assignBinaryExpr(leftValue, rightValue);
             }
-            case ts.SyntaxKind.PlusEqualsToken:
-            case ts.SyntaxKind.MinusEqualsToken:
-            case ts.SyntaxKind.AsteriskEqualsToken:
-            case ts.SyntaxKind.SlashEqualsToken: {
-                const tmpOpKind = this.parseComplexOp(opKind);
-                const tmpValue = new BinaryExprValue(
-                    leftValue.type,
-                    tmpOpKind,
-                    leftValue,
-                    rightValue,
-                );
-                return this.assignBinaryExpr(leftValue, tmpValue);
-            }
             case ts.SyntaxKind.InstanceOfKeyword: {
                 return this.wasmInstanceOf(leftValue, rightValue);
             }
@@ -771,7 +758,12 @@ export class WASMExpressionGen {
     private wasmPostUnaryExpr(
         value: PostUnaryExprValue,
     ): binaryen.ExpressionRef {
-        const unaryOp = this.wasmUnaryExpr(value);
+        if (!value.flattenExprValue) {
+            throw new UnimplementError(`wasmPostUnaryExpr: ${value.opKind}`);
+        }
+        const unaryOp = this.wasmExprGen(
+            value.flattenExprValue as BinaryExprValue,
+        );
         const getValueOp = this.wasmExprGen(value.target);
         let getOriValueOp = binaryen.none;
         const opKind = value.opKind;
@@ -801,7 +793,14 @@ export class WASMExpressionGen {
         switch (opKind) {
             case ts.SyntaxKind.PlusPlusToken:
             case ts.SyntaxKind.MinusMinusToken: {
-                const unaryOp = this.wasmUnaryExpr(value);
+                if (!value.flattenExprValue) {
+                    throw new UnimplementError(
+                        `wasmPreUnaryExpr: ${value.opKind}`,
+                    );
+                }
+                const unaryOp = this.wasmExprGen(
+                    value.flattenExprValue as BinaryExprValue,
+                );
                 const getValueOp = this.wasmExprGen(value.target);
                 return this.module.block(
                     null,
@@ -825,11 +824,12 @@ export class WASMExpressionGen {
                 return result;
             }
             case ts.SyntaxKind.MinusToken: {
-                const operandValueRef = this.wasmExprGen(value.target);
-                return this.module.f64.sub(
-                    this.module.f64.const(0),
-                    operandValueRef,
-                );
+                if (!value.flattenExprValue) {
+                    throw new UnimplementError(
+                        `wasmPreUnaryExpr: ${value.opKind}`,
+                    );
+                }
+                return this.wasmExprGen(value.flattenExprValue);
             }
             case ts.SyntaxKind.PlusToken: {
                 return this.wasmExprGen(value.target);
