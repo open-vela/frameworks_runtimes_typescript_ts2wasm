@@ -491,31 +491,6 @@ export class WASMExpressionGen {
         }
     }
 
-    private parseComplexOp(opKind: ts.SyntaxKind): ts.BinaryOperator {
-        switch (opKind) {
-            case ts.SyntaxKind.PlusEqualsToken:
-                return ts.SyntaxKind.PlusToken;
-            case ts.SyntaxKind.MinusEqualsToken:
-                return ts.SyntaxKind.MinusToken;
-            case ts.SyntaxKind.AsteriskAsteriskEqualsToken:
-                return ts.SyntaxKind.AsteriskEqualsToken;
-            case ts.SyntaxKind.AsteriskEqualsToken:
-                return ts.SyntaxKind.AsteriskToken;
-            case ts.SyntaxKind.SlashEqualsToken:
-                return ts.SyntaxKind.SlashToken;
-            case ts.SyntaxKind.PercentEqualsToken:
-                return ts.SyntaxKind.PercentToken;
-            case ts.SyntaxKind.PlusPlusToken:
-                return ts.SyntaxKind.PlusEqualsToken;
-            case ts.SyntaxKind.MinusMinusToken:
-                return ts.SyntaxKind.MinusEqualsToken;
-            case ts.SyntaxKind.MinusToken:
-                return ts.SyntaxKind.MinusToken;
-            default:
-                throw new UnimplementError('parseAssignmentOp: ${operator}');
-        }
-    }
-
     private wasmBinaryExpr(value: BinaryExprValue): binaryen.ExpressionRef {
         const opKind = value.opKind;
         const leftValue = value.left;
@@ -716,42 +691,6 @@ export class WASMExpressionGen {
             return this.wasmObjFieldSet(leftValue, rightValue);
         } else {
             throw new UnimplementError(`assignBinaryExpr ${leftValue}`);
-        }
-    }
-
-    private wasmUnaryExpr(
-        value: PostUnaryExprValue | PrefixUnaryExprValue,
-    ): binaryen.ExpressionRef {
-        const opKind = value.opKind;
-        switch (opKind) {
-            case ts.SyntaxKind.PlusPlusToken:
-            case ts.SyntaxKind.MinusMinusToken: {
-                /* i++ ===> i += 1 */
-                /* i-- ===> i -= 1 */
-                const tmpOpKind = this.parseComplexOp(opKind);
-                const tmpLiteralValue = new LiteralValue(Primitive.Number, 1);
-                const tmpBinaryExprValue = new BinaryExprValue(
-                    value.type,
-                    tmpOpKind,
-                    value.target,
-                    tmpLiteralValue,
-                );
-                return this.wasmBinaryExpr(tmpBinaryExprValue);
-            }
-            case ts.SyntaxKind.MinusToken: {
-                /* -8 ==> 0-8, -a ===> 0-a */
-                const tmpOpKind = this.parseComplexOp(opKind);
-                const tmpLiteralValue = new LiteralValue(Primitive.Number, 0);
-                const tmpBinaryExprValue = new BinaryExprValue(
-                    value.type,
-                    tmpOpKind,
-                    tmpLiteralValue,
-                    value.target,
-                );
-                return this.wasmBinaryExpr(tmpBinaryExprValue);
-            }
-            default:
-                throw new UnimplementError(`wasmUnaryExpr: ${opKind}`);
         }
     }
 
