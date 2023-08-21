@@ -12,6 +12,8 @@ import { UtilFuncs } from '../utils.js';
 import { BuiltinNames } from '../../../../lib/builtin/builtin_name.js';
 import { getBuiltInFuncName } from '../../../utils.js';
 import { charArrayTypeInfo, stringTypeInfo } from '../glue/packType.js';
+import { _BinaryenTypeStringref } from '../glue/binaryen.js';
+import { getConfig } from '../../../../config/config_mgr.js';
 
 export function importAnyLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
@@ -47,7 +49,9 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.module_name,
         dyntype.dyntype_typeof,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
-        stringTypeInfo.typeRef,
+        getConfig().enableStringRef
+            ? _BinaryenTypeStringref()
+            : stringTypeInfo.typeRef,
     );
     module.addFunctionImport(
         dyntype.dyntype_typeof1,
@@ -61,7 +65,9 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.module_name,
         dyntype.dyntype_toString,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
-        stringTypeInfo.typeRef,
+        getConfig().enableStringRef
+            ? _BinaryenTypeStringref()
+            : stringTypeInfo.typeRef,
     );
     module.addFunctionImport(
         dyntype.dyntype_type_eq,

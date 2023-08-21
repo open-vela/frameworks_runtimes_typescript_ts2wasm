@@ -8,8 +8,8 @@ import * as binaryenCAPI from './glue/binaryen.js';
 import ts from 'typescript';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { UnimplementError } from '../../error.js';
-import { FunctionKind, TSArray, TSClass, Type, TypeKind } from '../../type.js';
-import { dyntype, structdyn } from './lib/dyntype/utils.js';
+import { TypeKind } from '../../type.js';
+import { dyntype } from './lib/dyntype/utils.js';
 import { SemanticsKind } from '../../semantics/semantics_nodes.js';
 import {
     ObjectType,
@@ -20,17 +20,25 @@ import {
     ValueType,
     ValueTypeKind,
 } from '../../semantics/value_types.js';
-import { arrayToPtr, emptyStructType } from './glue/transform.js';
+import {
+    StringRefMeatureOp,
+    StringRefNewOp,
+    arrayToPtr,
+    emptyStructType,
+    stringArrayTypeForStringRef,
+} from './glue/transform.js';
 import {
     infcTypeInfo,
     stringTypeInfo,
     charArrayTypeInfo,
     stringArrayTypeInfo,
     stringArrayStructTypeInfo,
+    stringArrayStructTypeInfoForStringRef,
 } from './glue/packType.js';
 import { SourceLocation, getBuiltInFuncName } from '../../utils.js';
 import { SemanticsValue, SemanticsValueKind } from '../../semantics/value.js';
 import { ObjectDescriptionType } from '../../semantics/runtime.js';
+import { getConfig } from '../../../config/config_mgr.js';
 
 /** typeof an any type object */
 export const enum DynType {
@@ -262,7 +270,10 @@ export namespace FunctionalFuncs {
         );
     }
 
-    export function generateStringRef(module: binaryen.Module, value: string) {
+    export function generateStringForStructArrayStr(
+        module: binaryen.Module,
+        value: string,
+    ) {
         const valueLen = value.length;
         let strRelLen = valueLen;
         const charArray = [];
@@ -289,6 +300,21 @@ export namespace FunctionalFuncs {
         return wasmStringValue;
     }
 
+    export function generateStringForStringref(
+        module: binaryen.Module,
+        ptr: binaryen.ExpressionRef,
+        len: binaryen.ExpressionRef,
+    ) {
+        return binaryenCAPI._BinaryenStringNew(
+            module.ptr,
+            StringRefNewOp.UTF8,
+            ptr,
+            len,
+            0,
+            0,
+            false,
+        );
+    }
     export function generateDynNumber(
         module: binaryen.Module,
         dynValue: binaryen.ExpressionRef,
@@ -466,14 +492,23 @@ export namespace FunctionalFuncs {
             res = module.call(targetFunc, [exprRef], binaryen.i32);
         } else if (srckind === ValueTypeKind.STRING) {
             // '' => false, '123' => true
-            const array = binaryenCAPI._BinaryenStructGet(
-                module.ptr,
-                1,
-                exprRef,
-                binaryen.i32,
-                false,
-            );
-            const len = binaryenCAPI._BinaryenArrayLen(module.ptr, array);
+            let len: binaryen.ExpressionRef;
+            if (getConfig().enableStringRef) {
+                len = binaryenCAPI._BinaryenStringMeasure(
+                    module.ptr,
+                    StringRefMeatureOp.WTF16,
+                    exprRef,
+                );
+            } else {
+                const strArray = binaryenCAPI._BinaryenStructGet(
+                    module.ptr,
+                    1,
+                    exprRef,
+                    charArrayTypeInfo.typeRef,
+                    false,
+                );
+                len = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray);
+            }
             res = module.i32.ne(len, module.i32.const(0));
         } else {
             res = module.i32.eqz(
@@ -587,7 +622,9 @@ export namespace FunctionalFuncs {
             typeKind === ValueTypeKind.STRING ||
             typeKind === ValueTypeKind.RAW_STRING
         ) {
-            const wasmStringType = stringTypeInfo.typeRef;
+            const wasmStringType = getConfig().enableStringRef
+                ? binaryenCAPI._BinaryenTypeStringref()
+                : stringTypeInfo.typeRef;
             const string_value = value;
             value = binaryenCAPI._BinaryenRefCast(
                 module.ptr,
@@ -1066,7 +1103,9 @@ export namespace FunctionalFuncs {
                 const statementArray: binaryen.ExpressionRef[] = [];
                 const arrayValue = binaryenCAPI._BinaryenArrayNewFixed(
                     module.ptr,
-                    stringArrayTypeInfo.heapTypeRef,
+                    getConfig().enableStringRef
+                        ? stringArrayTypeForStringRef.heapTypeRef
+                        : stringArrayTypeInfo.heapTypeRef,
                     arrayToPtr([rightValueRef]).ptr,
                     1,
                 );
@@ -1075,7 +1114,9 @@ export namespace FunctionalFuncs {
                     module.ptr,
                     arrayToPtr([arrayValue, module.i32.const(1)]).ptr,
                     2,
-                    stringArrayStructTypeInfo.heapTypeRef,
+                    getConfig().enableStringRef
+                        ? stringArrayStructTypeInfoForStringRef.heapTypeRef
+                        : stringArrayStructTypeInfo.heapTypeRef,
                 );
 
                 statementArray.push(
@@ -1570,14 +1611,23 @@ export namespace FunctionalFuncs {
         module: binaryen.Module,
         stringRef: binaryen.ExpressionRef,
     ): binaryen.ExpressionRef {
-        const strArray = binaryenCAPI._BinaryenStructGet(
-            module.ptr,
-            1,
-            stringRef,
-            charArrayTypeInfo.typeRef,
-            false,
-        );
-        const strLenI32 = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray);
+        let strLenI32: binaryen.ExpressionRef;
+        if (getConfig().enableStringRef) {
+            strLenI32 = binaryenCAPI._BinaryenStringMeasure(
+                module.ptr,
+                StringRefMeatureOp.WTF16,
+                stringRef,
+            );
+        } else {
+            const strArray = binaryenCAPI._BinaryenStructGet(
+                module.ptr,
+                1,
+                stringRef,
+                charArrayTypeInfo.typeRef,
+                false,
+            );
+            strLenI32 = binaryenCAPI._BinaryenArrayLen(module.ptr, strArray);
+        }
         const strLenF64 = convertTypeToF64(
             module,
             strLenI32,
@@ -1636,6 +1686,26 @@ export function getCString(str: string) {
     binaryenCAPI.__i32_store8(index, 0);
     wasmStringMap.set(str, wasmStr);
     return wasmStr;
+}
+
+export function utf16ToUtf8(utf16String: string): string {
+    let utf8String = '';
+
+    for (let i = 0; i < utf16String.length; i++) {
+        const charCode = utf16String.charCodeAt(i);
+        if (charCode <= 0x7f) {
+            utf8String += String.fromCharCode(charCode);
+        } else if (charCode <= 0x7ff) {
+            utf8String += String.fromCharCode(0xc0 | ((charCode >> 6) & 0x1f));
+            utf8String += String.fromCharCode(0x80 | (charCode & 0x3f));
+        } else {
+            utf8String += String.fromCharCode(0xe0 | ((charCode >> 12) & 0x0f));
+            utf8String += String.fromCharCode(0x80 | ((charCode >> 6) & 0x3f));
+            utf8String += String.fromCharCode(0x80 | (charCode & 0x3f));
+        }
+    }
+
+    return utf8String;
 }
 
 export function clearWasmStringMap() {

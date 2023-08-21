@@ -4,6 +4,7 @@
  */
 
 import { ParserContext } from '../frontend.js';
+import { utf16ToUtf8 } from './binaryen/utils.js';
 export { ParserContext } from '../frontend.js';
 
 export abstract class Ts2wasmBackend {
@@ -58,17 +59,16 @@ export class DataSegmentContext {
 
         const offset = this.currentOffset;
         this.stringOffsetMap.set(str, offset);
-        this.currentOffset += str.length + 1;
 
-        const buffer = new Uint8Array(str.length + 1);
-        for (let i = 0; i < str.length; i++) {
-            const byte = str.charCodeAt(i);
-            if (byte >= 256) {
-                throw Error('UTF-16 string not supported in data segment');
-            }
+        const utf8Str = utf16ToUtf8(str);
+        this.currentOffset += utf8Str.length + 1;
+
+        const buffer = new Uint8Array(utf8Str.length + 1);
+        for (let i = 0; i < utf8Str.length; i++) {
+            const byte = utf8Str.charCodeAt(i);
             buffer[i] = byte;
         }
-        buffer[str.length] = 0;
+        buffer[utf8Str.length] = 0;
 
         this.dataArray.push({
             data: buffer,

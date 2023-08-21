@@ -101,6 +101,7 @@ import {
 } from './builtin.js';
 import { ModDeclStatement, Statement } from '../statement.js';
 import { IdentifierExpression } from '../expression.js';
+import { getConfig } from '../../config/config_mgr.js';
 
 function processTypes(context: BuildContext, globalScopes: Array<GlobalScope>) {
     for (const scope of globalScopes) {
@@ -864,9 +865,7 @@ function removeRecWhichHasInfc(recGroupTypes: TSClass[][]) {
 export function BuildModuleNode(parserContext: ParserContext): ModuleNode {
     const module = new ModuleNode();
     const context = new BuildContext(parserContext.typeId, module);
-    if (parserContext.compileArgs.sourceMap) {
-        context.enableSourceMap = true;
-    }
+
     context.recClassTypeGroup = removeRecWhichHasInfc(
         parserContext.recGroupTypes,
     );

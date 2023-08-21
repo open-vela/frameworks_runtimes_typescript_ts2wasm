@@ -102,7 +102,7 @@ export function stringSearch() {
     idx = str.search("orld");
     console.log(idx);               // 7
     idx = str.search("helloworld");
-    console.log(idx);               // -1 
+    console.log(idx);               // -1
     idx = str.search("");
     console.log(idx);               // 0
     return idx;

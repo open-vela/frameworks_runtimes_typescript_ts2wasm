@@ -24,7 +24,7 @@ import {
     initDefaultMemory,
     initDefaultTable,
 } from './memory.js';
-import { ArgNames, BuiltinNames } from '../../../lib/builtin/builtin_name.js';
+import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { Ts2wasmBackend, ParserContext, DataSegmentContext } from '../index.js';
 import { Logger } from '../../log.js';
 import { callBuiltInAPIs } from './lib/init_builtin_api.js';
@@ -73,6 +73,7 @@ import { assert } from 'console';
 import ts from 'typescript';
 import { VarValue } from '../../semantics/value.js';
 import { ValidateError } from '../../error.js';
+import { getConfig } from '../../../config/config_mgr.js';
 
 export class WASMFunctionContext {
     private binaryenCtx: WASMGen;
@@ -290,18 +291,12 @@ export class WASMGen extends Ts2wasmBackend {
     /** source map file url */
     private map: string | null = null;
     public generatedFuncNames: Array<string> = [];
-    public enableSourceMap = false;
-    public debugMode = false;
     public sourceFileLists: ts.SourceFile[] = [];
 
     constructor(parserContext: ParserContext) {
         super(parserContext);
-        if (parserContext.compileArgs.debug) {
-            this.debugMode = true;
+        if (getConfig().debug) {
             binaryen.setDebugInfo(true);
-        }
-        if (parserContext.compileArgs.sourceMap) {
-            this.enableSourceMap = true;
         }
         this.sourceFileLists = parserContext.sourceFileLists;
         this._semanticModule = BuildModuleNode(parserContext);
@@ -335,7 +330,7 @@ export class WASMGen extends Ts2wasmBackend {
     }
 
     public codegen(options?: any): void {
-        binaryen.setDebugInfo(this.debugMode);
+        binaryen.setDebugInfo(getConfig().debug);
         this._binaryenModule.setFeatures(binaryen.Features.All);
         this._binaryenModule.autoDrop();
         this.wasmGenerate();
@@ -358,8 +353,8 @@ export class WASMGen extends Ts2wasmBackend {
         this._binaryenModule.setFeatures(binaryen.Features.All);
         this._binaryenModule.autoDrop();
 
-        if (options && options[ArgNames.opt]) {
-            binaryen.setOptimizeLevel(options[ArgNames.opt]);
+        if (getConfig().opt > 0) {
+            binaryen.setOptimizeLevel(getConfig().opt);
             this._binaryenModule.optimize();
         }
 
@@ -372,7 +367,7 @@ export class WASMGen extends Ts2wasmBackend {
 
     public emitBinary(options?: any): Uint8Array {
         let res: Uint8Array = this._binaryenModule.emitBinary();
-        if (this.enableSourceMap) {
+        if (getConfig().sourceMap) {
             const name = `${options.name_prefix}.wasm.map`;
             const binaryInfo = this._binaryenModule.emitBinary(name);
             res = binaryInfo.binary;
@@ -397,11 +392,6 @@ export class WASMGen extends Ts2wasmBackend {
         const content = JSON.parse(sourceMapStr);
         content.sourceRoot = `./${name}`;
         const sourceCode: string[] = [];
-        // for (const global of this.globalScopes) {
-        //     if (this.debugInfoFileNames.has(global.srcFilePath)) {
-        //         sourceCode.push(global.node!.getSourceFile().getFullText());
-        //     }
-        // }
         for (const sourceFile of this.sourceFileLists) {
             if (this.debugFileIndex.has(sourceFile.fileName)) {
                 sourceCode.push(sourceFile.getFullText());
@@ -425,16 +415,16 @@ export class WASMGen extends Ts2wasmBackend {
         initDefaultTable(this.module);
         /* init builtin APIs */
         callBuiltInAPIs(this.module);
-        if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
+        if (!getConfig().disableAny) {
             importAnyLibAPI(this.module);
             this.globalInitArray.push(generateDynContext(this.module));
         }
-        if (!this.parserContext.compileArgs[ArgNames.disableInterface]) {
+        if (!getConfig().disableInterface) {
             importInfcLibAPI(this.module);
             addItableFunc(this.module);
         }
 
-        if (this.parserContext.compileArgs[ArgNames.enableException]) {
+        if (getConfig().enableException) {
             /* add exception tags: anyref */
             this.module.addTag(
                 BuiltinNames.errorTag,
@@ -455,13 +445,13 @@ export class WASMGen extends Ts2wasmBackend {
         /* parse functions */
         this.parseFuncs();
 
-        if (this.parserContext.compileArgs[ArgNames.disableAny]) {
+        if (getConfig().disableAny) {
             if (this.wasmTypeComp.typeMap.has(Primitive.Any)) {
                 throw Error('any type is in source');
             }
         }
 
-        if (this.parserContext.compileArgs[ArgNames.disableInterface]) {
+        if (getConfig().disableInterface) {
             if (
                 Object.values(this._wasmTypeCompiler.typeMap).some(
                     (type) => type.kind === ValueTypeKind.INTERFACE,
@@ -471,7 +461,7 @@ export class WASMGen extends Ts2wasmBackend {
             }
         }
 
-        if (!this.parserContext.compileArgs[ArgNames.disableAny]) {
+        if (!getConfig().disableAny) {
             generateGlobalContext(this.module);
             generateExtRefTableMaskArr(this.module);
         }
@@ -803,7 +793,7 @@ export class WASMGen extends Ts2wasmBackend {
                 ),
             );
         }
-        if (this.debugMode) {
+        if (getConfig().debug) {
             this.setDebugLocation(funcRef, func.debugFilePath);
         }
         this.currentFuncCtx.localVarIdxNameMap.clear();

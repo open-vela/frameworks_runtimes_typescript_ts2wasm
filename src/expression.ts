@@ -8,11 +8,11 @@ import { ParserContext } from './frontend.js';
 import { ClosureEnvironment, FunctionScope } from './scope.js';
 import { Variable } from './variable.js';
 import { getCurScope, addSourceMapLoc } from './utils.js';
-import { TSFunction, Type, TypeKind } from './type.js';
+import { Type, TypeKind } from './type.js';
 import { Logger } from './log.js';
-import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 import { SourceMapLoc } from './backend/binaryen/utils.js';
 import { ExpressionError } from './error.js';
+import { getConfig } from '../config/config_mgr.js';
 
 type OperatorKind = ts.SyntaxKind;
 type ExpressionKind = ts.SyntaxKind;
@@ -398,11 +398,12 @@ export class TypeOfExpression extends Expression {
 export default class ExpressionProcessor {
     private typeResolver;
     private nodeScopeMap;
-    emitSourceMap = false;
+    private emitSourceMap;
 
     constructor(private parserCtx: ParserContext) {
         this.typeResolver = this.parserCtx.typeResolver;
         this.nodeScopeMap = this.parserCtx.nodeScopeMap;
+        this.emitSourceMap = getConfig().sourceMap;
     }
 
     visitNode(node: ts.Node): Expression {

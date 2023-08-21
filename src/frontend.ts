@@ -24,10 +24,6 @@ import SemanticChecker from './semantic_check.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 import { ImportResolver } from './import_resolve.js';
 
-export interface CompileArgs {
-    [key: string]: any;
-}
-
 export const COMPILER_OPTIONS: ts.CompilerOptions = {
     module: ts.ModuleKind.ESNext,
     target: ts.ScriptTarget.ES2015,
@@ -64,8 +60,6 @@ export class ParserContext {
     /* mapping type_string to type id */
     typeIdMap = new Map<string, number>();
 
-    // configurations
-    compileArgs: CompileArgs = {};
     builtinPath = path.join(
         path.dirname(fileURLToPath(import.meta.url)),
         '..',
@@ -88,8 +82,7 @@ export class ParserContext {
         this._sematicChecker = new SemanticChecker(this);
     }
 
-    parse(fileNames: string[], compileArgs: CompileArgs = {}): void {
-        this.compileArgs = compileArgs;
+    parse(fileNames: string[]): void {
         const compilerOptions: ts.CompilerOptions = this.getCompilerOptions();
         const program: ts.Program = ts.createProgram(
             [...this.builtinFileNames, ...fileNames],

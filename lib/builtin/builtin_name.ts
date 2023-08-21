@@ -103,8 +103,11 @@ export namespace BuiltinNames {
     export const stringSliceFuncName = 'String|slice';
     export const stringEQFuncName = 'string_eq';
     export const stringReplaceFuncName = 'String|replace';
+    export const stringSubStringFuncName = 'String|substring';
+    export const stringCharCodeAtFuncName = 'String|charCodeAt';
     export const stringSplitFuncName = 'String|split';
     export const stringIndexOfFuncName = 'String|indexOf';
+    export const stringLastIndexOfFuncName = 'String|lastIndexOf';
     export const stringIndexOfInternalFuncName = 'String|indexOfInternal';
     export const stringMatchFuncName = 'String|match';
     export const stringSearchFuncName = 'String|search';
@@ -263,15 +266,4 @@ export namespace BuiltinNames {
     }
     export const ObjectToStringMethod = 'toString';
     export const ObjectBuiltinMethods = [ObjectToStringMethod];
-}
-
-export namespace ArgNames {
-    export const opt = 'opt';
-    export const disableAny = 'disableAny';
-    export const disableBuiltIn = 'disableBuiltIn';
-    export const disableInterface = 'disableInterface';
-    export const isBuiltIn = 'isBuiltIn';
-    export const debug = 'debug';
-    export const sourceMap = 'sourceMap';
-    export const enableException = 'enableException';
 }

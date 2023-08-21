@@ -13,6 +13,8 @@ import {
     objectStructTypeInformation,
     infcTypeInformation,
     stringArrayStructTypeInformation,
+    stringArrayTypeForStringRef,
+    stringArrayStructTypeForStringRef,
 } from './transform.js';
 import { typeInfo } from './utils.js';
 
@@ -21,6 +23,9 @@ export const stringTypeInfo: typeInfo = stringTypeInformation;
 export const numberArrayTypeInfo = numberArrayTypeInformation;
 export const stringArrayTypeInfo = stringArrayTypeInformation;
 export const stringArrayStructTypeInfo = stringArrayStructTypeInformation;
+export const stringArrayTypeInfoForStringRef = stringArrayTypeForStringRef;
+export const stringArrayStructTypeInfoForStringRef =
+    stringArrayStructTypeForStringRef;
 export const boolArrayTypeInfo = boolArrayTypeInformation;
 export const anyArrayTypeInfo = anyArrayTypeInformation;
 export const objectStructTypeInfo = objectStructTypeInformation;
