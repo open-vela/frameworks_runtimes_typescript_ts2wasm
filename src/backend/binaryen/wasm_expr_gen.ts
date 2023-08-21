@@ -3336,13 +3336,7 @@ export class WASMExpressionGen {
         const oriValue = value.value!;
         const oriValueRef = this.wasmExprGen(oriValue);
         const ownVarDecl = (value.owner as VarValue).ref as VarDeclareNode;
-        const ownVarTypeRef = this.wasmTypeGen.getWASMType(
-            (value.owner as VarValue).type,
-        );
-        const ownValueRef = this.module.local.get(
-            ownVarDecl.index,
-            ownVarTypeRef,
-        );
+        const ownValueRef = this.wasmExprGen(value.owner);
         switch (ownVarDecl.type.kind) {
             case ValueTypeKind.ANY: {
                 /* set any prop */
