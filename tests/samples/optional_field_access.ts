@@ -101,3 +101,23 @@ export function accessOptFieldOfOptField() {
     }
     console.log(a.b?.str);
 }
+
+
+interface ITreeNode {
+    left?: ITreeNode;
+    right?: ITreeNode;
+}
+function checksum(node?: ITreeNode): number {
+    if (!node) {
+        return 1;
+    }
+    return 1 + checksum(node.left) + checksum(node.right);
+}
+
+export function accessOptionalUnionField() {
+    const l: ITreeNode = {};
+    const r: ITreeNode = {};
+    const node: ITreeNode = {left: l, right: r};
+    const node1 = {left: l, right: r};
+    return checksum(node) + checksum(node1);
+}

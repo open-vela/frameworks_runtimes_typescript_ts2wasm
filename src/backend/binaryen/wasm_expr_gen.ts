@@ -1436,6 +1436,26 @@ export class WASMExpressionGen {
                 }
             }
             case SemanticsValueKind.OBJECT_CAST_UNION: {
+                if (FunctionalFuncs.isUnionWithUndefined(toType)) {
+                    const staticType = FunctionalFuncs.getStaticType(toType);
+                    if (
+                        staticType instanceof ObjectType &&
+                        staticType.meta.isInterface &&
+                        fromType instanceof ObjectType &&
+                        !fromType.meta.isInterface
+                    ) {
+                        const boxedValueRef = this.boxObjToInfc(
+                            fromValueRef,
+                            fromType,
+                            staticType,
+                        );
+                        return FunctionalFuncs.generateDynExtref(
+                            this.module,
+                            boxedValueRef,
+                            ValueTypeKind.INTERFACE,
+                        );
+                    }
+                }
                 return FunctionalFuncs.boxToAny(
                     this.module,
                     fromValueRef,
@@ -3250,7 +3270,8 @@ export class WASMExpressionGen {
                         return dynamicGetProp;
                     }
                     propValueRef =
-                        propType instanceof PrimitiveType
+                        propType instanceof PrimitiveType ||
+                        propType instanceof UnionType
                             ? FunctionalFuncs.boxBaseTypeToAny(
                                   this.module,
                                   propValueRef,
