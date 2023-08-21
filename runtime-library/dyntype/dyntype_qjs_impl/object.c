@@ -429,7 +429,9 @@ dyntype_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem)
         return -DYNTYPE_TYPEERR;
     }
 
-    if (JS_SetPropertyUint32(ctx->js_ctx, *obj_ptr, index, *elem_ptr) < 0) {
+    if (JS_SetPropertyUint32(ctx->js_ctx, *obj_ptr, index,
+                             JS_DupValue(ctx->js_ctx, *elem_ptr))
+        < 0) {
         return -DYNTYPE_EXCEPTION;
     }
 
