@@ -43,7 +43,7 @@ import { FunctionalFuncs, UtilFuncs, getCString } from './utils.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { VarValue } from '../../semantics/value.js';
 import { needSpecialized } from '../../semantics/type_creator.js';
-import { TypeKind } from '../../type.js';
+import { getConfig } from '../../../config/config_mgr.js';
 
 export class WASMTypeGen {
     typeMap: Map<ValueType, binaryenCAPI.TypeRef> = new Map();
@@ -176,8 +176,14 @@ export class WASMTypeGen {
 
             case ValueTypeKind.RAW_STRING:
             case ValueTypeKind.STRING: {
-                this.typeMap.set(type, stringTypeInfo.typeRef);
-                this.heapTypeMap.set(type, stringTypeInfo.heapTypeRef);
+                const stringType = getConfig().enableStringRef
+                    ? binaryenCAPI._BinaryenTypeStringref()
+                    : stringTypeInfo.typeRef;
+                const stringHeapType = getConfig().enableStringRef
+                    ? binaryenCAPI._BinaryenHeapTypeString()
+                    : stringTypeInfo.heapTypeRef;
+                this.typeMap.set(type, stringType);
+                this.heapTypeMap.set(type, stringHeapType);
                 this.createCustomTypeName(
                     'string_type',
                     stringTypeInfo.heapTypeRef,

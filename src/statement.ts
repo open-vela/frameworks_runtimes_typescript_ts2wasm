@@ -26,6 +26,7 @@ import { Variable } from './variable.js';
 import { TSClass, Type, TypeKind } from './type.js';
 import { Logger } from './log.js';
 import { StatementError } from './error.js';
+import { getConfig } from '../config/config_mgr.js';
 
 type StatementKind = ts.SyntaxKind;
 
@@ -325,10 +326,7 @@ export default class StatementProcessor {
     constructor(private parserCtx: ParserContext) {}
 
     visit() {
-        if (this.parserCtx.compileArgs[`sourceMap`]) {
-            this.emitSourceMap = true;
-            this.parserCtx.expressionProcessor.emitSourceMap = true;
-        }
+        this.emitSourceMap = getConfig().sourceMap;
         this.parserCtx.nodeScopeMap.forEach((scope, node) => {
             this.currentScope = scope;
             /** arrow function body is a ts.expression */

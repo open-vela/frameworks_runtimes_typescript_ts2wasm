@@ -189,6 +189,7 @@ import {
 } from './runtime.js';
 import { processEscape } from '../utils.js';
 import { BuiltinNames } from '../../lib/builtin/builtin_name.js';
+import { getConfig } from '../../config/config_mgr.js';
 
 function isInt(expr: Expression): boolean {
     /* TODO: currently we treat all numbers as f64, we can make some analysis and optimize some number to int */
@@ -2541,7 +2542,7 @@ export function buildExpression(
         if (res == null) {
             res = new UnimplementValue(expr.tsNode!);
         }
-        if (context.enableSourceMap && expr.tsNode) {
+        if (getConfig().sourceMap && expr.tsNode) {
             res.location = getNodeLoc(expr.tsNode);
         }
         return res;

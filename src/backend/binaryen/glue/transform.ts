@@ -24,7 +24,7 @@ export namespace BinaryenType {
     export const F64: binaryen.Type = 5;
 }
 
-/** packed struct field types */
+/** packed types */
 export namespace Pakced {
     // _BinaryenPackedTypeNotPacked
     export const Not: binaryenCAPI.PackedType = 0;
@@ -32,6 +32,36 @@ export namespace Pakced {
     export const I8: binaryenCAPI.PackedType = 1;
     // _BinaryenPackedTypeInt16
     export const I16: binaryenCAPI.PackedType = 2;
+}
+
+export namespace StringRefNewOp {
+    export const UTF8 = 0;
+    export const WTF8 = 1;
+    export const WTF16 = 3;
+    export const UTF8FromArray = 4;
+    export const WTF8FromArray = 5;
+}
+
+export namespace StringRefMeatureOp {
+    export const UTF8 = 0;
+    export const WTF8 = 1;
+    export const WTF16 = 2;
+}
+
+export namespace StringRefEqOp {
+    export const EQ = 0;
+    export const COMPARE = 1;
+}
+
+export namespace StringRefSliceOp {
+    export const WTF8 = 0;
+    export const WTF16 = 1;
+}
+
+export namespace StringRefAsOp {
+    export const WTF8 = 0;
+    export const WTF16 = 1;
+    export const ITER = 2;
 }
 
 export function arrayToPtr(array: binaryen.ExpressionRef[]): ptrInfo {
@@ -205,6 +235,9 @@ export const numberArrayTypeInformation = genarateNumberArrayTypeInfo();
 export const stringArrayTypeInformation = genarateStringArrayTypeInfo(false);
 export const stringArrayStructTypeInformation =
     genarateStringArrayTypeInfo(true);
+export const stringArrayTypeForStringRef = genarateArrayTypeForStringRef(false);
+export const stringArrayStructTypeForStringRef =
+    genarateArrayTypeForStringRef(true);
 export const boolArrayTypeInformation = genarateBoolArrayTypeInfo();
 export const anyArrayTypeInformation = genarateAnyArrayTypeInfo();
 export const objectStructTypeInformation = emptyStructType;
@@ -298,6 +331,23 @@ function genarateStringArrayTypeInfo(struct_wrap: boolean): typeInfo {
     const stringTypeInfo = stringTypeInformation;
     const stringArrayTypeInfo = initArrayType(
         stringTypeInfo.typeRef,
+        Pakced.Not,
+        true,
+        true,
+        -1,
+        binaryenCAPI._TypeBuilderCreate(1),
+    );
+
+    if (struct_wrap) {
+        return generateArrayStructTypeInfo(stringArrayTypeInfo);
+    }
+
+    return stringArrayTypeInfo;
+}
+
+function genarateArrayTypeForStringRef(struct_wrap: boolean): typeInfo {
+    const stringArrayTypeInfo = initArrayType(
+        binaryenCAPI._BinaryenTypeStringref(),
         Pakced.Not,
         true,
         true,

@@ -72,5 +72,10 @@
         "category": "Compile",
         "description": "Enable exception feature",
         "default": true
+    },
+    "enableStringRef": {
+        "category": "Compile",
+        "description": "Enable stringref to represent typescript string",
+        "default": true
     }
 }

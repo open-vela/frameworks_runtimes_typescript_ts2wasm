@@ -21,6 +21,7 @@ import {
     getCString,
     ItableFlag,
     InfcFieldIndex,
+    utf16ToUtf8,
 } from './utils.js';
 import { PredefinedTypeId, processEscape } from '../../utils.js';
 import {
@@ -58,7 +59,6 @@ import {
     ShapeSetValue,
     SuperValue,
     VarValue,
-    VarValueKind,
     OffsetCallValue,
     VTableCallValue,
     TypeofValue,
@@ -99,6 +99,7 @@ import { anyArrayTypeInfo, infcTypeInfo } from './glue/packType.js';
 import { GetBuiltinObjectType } from '../../semantics/builtin.js';
 import { getBuiltInFuncName } from '../../utils.js';
 import { stringTypeInfo } from './glue/packType.js';
+import { getConfig } from '../../../config/config_mgr.js';
 
 export class WASMExpressionGen {
     private currentFuncCtx;
@@ -264,16 +265,24 @@ export class WASMExpressionGen {
                 }
             }
             case Primitive.RawString: {
-                return FunctionalFuncs.generateStringRef(
-                    this.module,
-                    processEscape(value.value as string),
-                );
+                if (getConfig().enableStringRef) {
+                    return this.createStringRef(value.value as string);
+                } else {
+                    return FunctionalFuncs.generateStringForStructArrayStr(
+                        this.module,
+                        processEscape(value.value as string),
+                    );
+                }
             }
             case Primitive.String: {
-                return FunctionalFuncs.generateStringRef(
-                    this.module,
-                    value.value as string,
-                );
+                if (getConfig().enableStringRef) {
+                    return this.createStringRef(value.value as string);
+                } else {
+                    return FunctionalFuncs.generateStringForStructArrayStr(
+                        this.module,
+                        value.value as string,
+                    );
+                }
             }
             case Primitive.Null: {
                 return this.module.ref.null(
@@ -291,6 +300,23 @@ export class WASMExpressionGen {
                 throw new UnimplementError(`TODO: wasmLiteral: ${value}`);
             }
         }
+    }
+
+    private createStringRef(value: string): binaryen.ExpressionRef {
+        let str = value;
+        if (
+            (str.startsWith("'") && str.endsWith("'")) ||
+            (str.startsWith('"') && str.endsWith('"'))
+        ) {
+            str = str.substring(1, str.length - 1);
+        }
+        const ptr = this.wasmCompiler.generateRawString(str);
+        const len = utf16ToUtf8(str).length;
+        return FunctionalFuncs.generateStringForStringref(
+            this.module,
+            this.module.i32.const(ptr),
+            this.module.i32.const(len),
+        );
     }
 
     private wasmGetValue(value: VarValue): binaryen.ExpressionRef {
@@ -3566,7 +3592,10 @@ export class WASMExpressionGen {
                 return module.f64.const(0);
             }
             case ValueTypeKind.STRING: {
-                return FunctionalFuncs.generateStringRef(this.module, '');
+                return FunctionalFuncs.generateStringForStructArrayStr(
+                    this.module,
+                    '',
+                );
             }
             case ValueTypeKind.BOOLEAN: {
                 return module.i32.const(0);
@@ -3670,7 +3699,9 @@ export class WASMExpressionGen {
                 ),
                 boxedExpr,
             ],
-            stringTypeInfo.typeRef,
+            getConfig().enableStringRef
+                ? binaryenCAPI._BinaryenTypeStringref()
+                : stringTypeInfo.typeRef,
         );
         return res;
     }

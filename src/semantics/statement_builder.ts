@@ -89,6 +89,7 @@ import {
 } from './builder_context.js';
 import { createType } from './type_creator.js';
 import { getNodeLoc } from '../utils.js';
+import { getConfig } from '../../config/config_mgr.js';
 
 export function createFromVariable(
     v: Variable,
@@ -357,7 +358,7 @@ function buildVariableStatement(
                 var_value!,
                 init_value,
             );
-            if (v.tsNode && context.enableSourceMap) {
+            if (v.tsNode && getConfig().sourceMap) {
                 assignment.location = getNodeLoc(v.tsNode);
             }
             basic_block.pushSemanticsValue(assignment);
@@ -508,7 +509,7 @@ function buildSwitchStatement(
                 clause as DefaultClause,
                 context,
             );
-            if (context.enableSourceMap) {
+            if (getConfig().sourceMap) {
                 default_cause.location = getNodeLoc(clause.tsNode!);
             }
             default_node = new DefaultClauseNode(default_cause);
@@ -518,7 +519,7 @@ function buildSwitchStatement(
             const case_expr = buildExpression(case_clause.caseExpr, context);
             context.popReference();
             const cause = buildCaseClauseStatements(case_clause, context);
-            if (context.enableSourceMap) {
+            if (getConfig().sourceMap) {
                 cause.location = getNodeLoc(case_clause.tsNode!);
             }
             case_nodes.push(new CaseClauseNode(case_expr, cause));
@@ -564,7 +565,7 @@ function buildTryStatement(
     context: BuildContext,
 ): SemanticsNode {
     const try_block_node = buildBlock(statement.tryBlockStmt, context);
-    if (context.enableSourceMap) {
+    if (getConfig().sourceMap) {
         try_block_node.location = getNodeLoc(statement.tryBlockStmt.tsNode!);
     }
     let catch_clause_node = undefined;
@@ -573,7 +574,7 @@ function buildTryStatement(
             statement.catchClauseStmt,
             context,
         );
-        if (context.enableSourceMap) {
+        if (getConfig().sourceMap) {
             try_block_node.location = getNodeLoc(
                 statement.catchClauseStmt.tsNode!,
             );
@@ -582,7 +583,7 @@ function buildTryStatement(
     let finally_block_node = undefined;
     if (statement.finallyBlockStmt) {
         finally_block_node = buildBlock(statement.finallyBlockStmt, context);
-        if (context.enableSourceMap) {
+        if (getConfig().sourceMap) {
             try_block_node.location = getNodeLoc(
                 statement.finallyBlockStmt.tsNode!,
             );
@@ -696,7 +697,7 @@ export function buildStatement(
                 break;
             /* falls through */
         }
-        if (res && context.enableSourceMap) {
+        if (res && getConfig().sourceMap) {
             res.location = statement.debugLoc;
         }
         if (!res) {

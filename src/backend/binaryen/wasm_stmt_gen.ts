@@ -28,16 +28,15 @@ import { ClosureContextType, Primitive } from '../../semantics/value_types.js';
 import ts from 'typescript';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { SemanticsValue, VarValue } from '../../semantics/value.js';
+import { getConfig } from '../../../config/config_mgr.js';
 
 export class WASMStatementGen {
     private currentFuncCtx;
     private module;
-    private enableSourceMap;
 
     constructor(private wasmCompiler: WASMGen) {
         this.currentFuncCtx = this.wasmCompiler.currentFuncCtx!;
         this.module = this.wasmCompiler.module;
-        this.enableSourceMap = this.wasmCompiler.enableSourceMap;
     }
 
     WASMStmtGen(stmt: SemanticsNode): binaryen.ExpressionRef {
@@ -424,7 +423,7 @@ export class WASMStatementGen {
         irNode: SemanticsNode | SemanticsValue,
         ref: binaryen.ExpressionRef,
     ) {
-        if (this.enableSourceMap && irNode.location) {
+        if (getConfig().sourceMap && irNode.location) {
             this.currentFuncCtx.sourceMapLocs.push({
                 location: irNode.location,
                 ref: ref,

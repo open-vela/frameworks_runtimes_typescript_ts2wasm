@@ -14,6 +14,7 @@ import {
     isScopeNode,
 } from './utils.js';
 import { ClassScope, FunctionScope, GlobalScope, Scope } from './scope.js';
+import { getConfig } from '../config/config_mgr.js';
 
 export enum ModifierKind {
     default = '',
@@ -411,7 +412,7 @@ export class VariableInit {
                         variableDeclarationNode.initializer,
                     );
                     variableObj.setInitExpr(variableInit);
-                    if (this.parserCtx.compileArgs[`sourceMap`]) {
+                    if (getConfig().sourceMap) {
                         addSourceMapLoc(
                             variableInit,
                             variableDeclarationNode.initializer,

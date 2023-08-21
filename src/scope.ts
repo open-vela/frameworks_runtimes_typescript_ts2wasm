@@ -18,7 +18,7 @@ import { ParserContext } from './frontend.js';
 import { parentIsFunctionLike } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
-import { ArgNames, BuiltinNames } from '../lib/builtin/builtin_name.js';
+import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 import {
     BinaryExpression,
     Expression,
@@ -27,6 +27,7 @@ import {
 import { Logger } from './log.js';
 import { SourceMapLoc } from './backend/binaryen/utils.js';
 import { ScopeError } from './error.js';
+import { getConfig } from '../config/config_mgr.js';
 
 export enum ScopeKind {
     Scope,
@@ -401,7 +402,7 @@ export class Scope {
         return this._getScopeByType<GlobalScope>(ScopeKind.GlobalScope);
     }
 
-    getRootFunctionScope() {
+    getRootFunctionScope(): FunctionScope | null {
         let currentScope: Scope | null = this;
         while (currentScope !== null) {
             if (
@@ -802,7 +803,7 @@ export class ScopeScanner {
                 const isBuiltInFile =
                     sourceFileNode.fileName.includes(
                         BuiltinNames.builtinImplementFileName,
-                    ) || this.parserCtx.compileArgs[ArgNames.isBuiltIn];
+                    ) || getConfig().isBuiltIn;
                 if (isBuiltInFile) {
                     /* Use fixed name for builtin libraries, since currently
                         we use the moduleName as the import module name when

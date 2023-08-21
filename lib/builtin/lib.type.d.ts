@@ -114,12 +114,15 @@ interface String {
     replace(from: string, to: string): string;
     split(sep: string): string[];
     indexOf(str: string): number;
+    lastIndexOf(str: string): number;
     match(pattern: string): string[];
     search(pattern: string): number;
     charAt(index: number): string;
     toLowerCase(): string;
     toUpperCase(): string;
     trim(): string;
+    substring(start: number, end?: number): string;
+    charCodeAt(index: number): number;
 }
 
 interface StringConstructor {
