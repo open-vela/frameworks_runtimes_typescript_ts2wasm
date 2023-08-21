@@ -3508,7 +3508,7 @@ export class WASMExpressionGen {
              * However, this case need to reserve.
              */
             case ValueTypeKind.ANY: {
-                return FunctionalFuncs.getAnyElemByIdx(
+                return FunctionalFuncs.getDynArrElem(
                     this.module,
                     ownerRef,
                     idxRef,
@@ -3538,7 +3538,6 @@ export class WASMExpressionGen {
         const owner = value.owner as VarValue;
         const ownerRef = this.wasmExprGen(owner);
         const ownerType = owner.type;
-        const ownerHeapTypeRef = this.wasmTypeGen.getWASMHeapType(ownerType);
         const idxRef = FunctionalFuncs.convertTypeToI32(
             this.module,
             this.wasmExprGen(value.index),
@@ -3547,6 +3546,8 @@ export class WASMExpressionGen {
         const targetValueRef = this.wasmExprGen(value.value!);
         switch (ownerType.kind) {
             case ValueTypeKind.ARRAY: {
+                const ownerHeapTypeRef =
+                    this.wasmTypeGen.getWASMHeapType(ownerType);
                 const arrayOriRef = binaryenCAPI._BinaryenStructGet(
                     this.module.ptr,
                     0,
@@ -3561,8 +3562,16 @@ export class WASMExpressionGen {
                     targetValueRef,
                 );
             }
+            case ValueTypeKind.ANY: {
+                return FunctionalFuncs.setDynArrElem(
+                    this.module,
+                    ownerRef,
+                    idxRef,
+                    targetValueRef,
+                );
+            }
             default:
-                throw Error(`wasmIdxGet: ${value}`);
+                throw Error(`wasmIdxSet: ${value}`);
         }
     }
 
@@ -3725,7 +3734,6 @@ export class WASMExpressionGen {
         const fromValue = value.value;
         const fromValueRef = this.wasmExprGen(fromValue);
         const fromType = fromValue.type;
-
         const fromObjType = fromType as ObjectType;
 
         /* Workaround: semantic tree treat Map/Set as ObjectType,
@@ -3739,92 +3747,56 @@ export class WASMExpressionGen {
             return fromValueRef;
         }
 
-        if (fromValue instanceof NewLiteralObjectValue) {
+        let castedValueRef = FunctionalFuncs.boxToAny(
+            this.module,
+            fromValueRef,
+            fromValue,
+        );
+
+        if (
+            fromValue instanceof NewLiteralObjectValue ||
+            fromValue instanceof NewLiteralArrayValue
+        ) {
             /* created a temVar to store dynObjValue, then set dyn property */
             const tmpVar = this.currentFuncCtx!.insertTmpVar(Primitive.Any);
             const tmpVarTypeRef = this.wasmTypeGen.getWASMType(tmpVar.type);
             const createDynObjOps: binaryen.ExpressionRef[] = [];
             createDynObjOps.push(
-                this.module.local.set(
-                    tmpVar.index,
-                    FunctionalFuncs.boxToAny(
-                        this.module,
-                        fromValueRef,
-                        fromValue,
-                    ),
-                ),
+                this.module.local.set(tmpVar.index, castedValueRef),
             );
             for (let i = 0; i < fromValue.initValues.length; i++) {
-                let initValue = fromValue.initValues[i];
-                let isNestedLiteralObj = false;
-                if (initValue instanceof NewLiteralObjectValue) {
-                    /* Workaround: semantic tree treat any typed object literal as
-                        casting object to any, in the backend, we firstly generate
-                        the static version of object literal, and then replace it
-                        with dynamic one during cast. And if there are nested literals,
-                        we need to insert this CastValue to ensure the inner literals
-                        are also replaced with dynamic version.
-                        e.g.
-
-                        export function boxNestedObj() {
-                            let obj: any;
-                            obj = {
-                                a: 1,
-                                c: true,
-                                d: {
-                                    e: 1,
-                                },
-                            };
-                            return obj.d.e as number;
-                        }
-
-                        Without this workaround, we will miss field 'e' of 'obj.d'
-                    */
-                    isNestedLiteralObj = true;
-                    initValue = new CastValue(
-                        SemanticsValueKind.OBJECT_CAST_ANY,
-                        initValue.type,
-                        initValue,
-                    );
-                }
+                const initValue = fromValue.initValues[i];
                 const initValueRef = this.wasmExprGen(initValue);
-                let initValueToAnyRef = initValueRef;
-                if (!isNestedLiteralObj) {
-                    initValueToAnyRef = FunctionalFuncs.boxToAny(
-                        this.module,
-                        initValueRef,
-                        initValue,
+                if (fromValue instanceof NewLiteralObjectValue) {
+                    const propName = fromObjType.meta.members[i].name;
+                    const propNameRef = this.module.i32.const(
+                        this.wasmCompiler.generateRawString(propName),
+                    );
+                    createDynObjOps.push(
+                        FunctionalFuncs.setDynObjProp(
+                            this.module,
+                            this.module.local.get(tmpVar.index, tmpVarTypeRef),
+                            propNameRef,
+                            initValueRef,
+                        ),
+                    );
+                } else {
+                    createDynObjOps.push(
+                        FunctionalFuncs.setDynArrElem(
+                            this.module,
+                            this.module.local.get(tmpVar.index, tmpVarTypeRef),
+                            this.module.i32.const(i),
+                            initValueRef,
+                        ),
                     );
                 }
-                const propName = fromObjType.meta.members[i].name;
-                const propNameRef = this.module.i32.const(
-                    this.wasmCompiler.generateRawString(propName),
-                );
-                createDynObjOps.push(
-                    FunctionalFuncs.setDynObjProp(
-                        this.module,
-                        this.module.local.get(tmpVar.index, tmpVarTypeRef),
-                        propNameRef,
-                        initValueToAnyRef,
-                    ),
-                );
             }
             createDynObjOps.push(
                 this.module.local.get(tmpVar.index, tmpVarTypeRef),
             );
-            return this.module.block(null, createDynObjOps);
-        } else {
-            let objDescType: ObjectDescriptionType | undefined = undefined;
-            if (fromValue.type instanceof ObjectType) {
-                objDescType = fromValue.type.meta.type;
-            }
-            return FunctionalFuncs.boxNonLiteralToAny(
-                this.module,
-                fromValueRef,
-                fromType.kind,
-                objDescType,
-            );
+            castedValueRef = this.module.block(null, createDynObjOps);
         }
+        return castedValueRef;
     }
 
     /** create a temp var, and return it by local index */

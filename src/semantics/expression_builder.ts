@@ -843,14 +843,15 @@ function buildArrayLiteralExpression(
     expr: ArrayLiteralExpression,
     context: BuildContext,
 ): SemanticsValue {
-    if (
-        expr.arrayValues.length == 0 &&
-        (expr.exprType as TSArray).elementType.kind == TypeKind.UNKNOWN
-    ) {
-        return new NewArrayLenValue(
-            GetPredefinedType(PredefinedTypeId.ARRAY_ANY)! as ArrayType,
-            new LiteralValue(Primitive.Int, 0),
-        );
+    if (expr.arrayValues.length == 0) {
+        if (
+            expr.exprType instanceof TSArray &&
+            expr.exprType.elementType.kind == TypeKind.UNKNOWN
+        )
+            return new NewArrayLenValue(
+                GetPredefinedType(PredefinedTypeId.ARRAY_ANY)! as ArrayType,
+                new LiteralValue(Primitive.Int, 0),
+            );
     }
 
     const init_values: SemanticsValue[] = [];
@@ -890,9 +891,13 @@ function buildArrayLiteralExpression(
     const elem_type = (array_type as ArrayType).element;
     return new NewLiteralArrayValue(
         array_type!,
-        init_values.map((v) => {
-            return elem_type.equals(v.type) ? v : newCastValue(elem_type, v);
-        }),
+        expr.arrayValues.length == 0
+            ? []
+            : init_values.map((v) => {
+                  return elem_type.equals(v.type)
+                      ? v
+                      : newCastValue(elem_type, v);
+              }),
     );
 }
 
@@ -924,6 +929,28 @@ export function isCompareOperator(kind: ts.SyntaxKind): boolean {
         kind == ts.SyntaxKind.ExclamationEqualsToken ||
         kind == ts.SyntaxKind.ExclamationEqualsEqualsToken
     );
+}
+
+function wrapObjToAny(value: SemanticsValue, type: ValueType) {
+    if (
+        value instanceof NewLiteralObjectValue ||
+        value instanceof NewLiteralArrayValue
+    ) {
+        for (let i = 0; i < value.initValues.length; i++) {
+            const elemValue = value.initValues[i];
+            if (
+                elemValue instanceof NewLiteralObjectValue ||
+                elemValue instanceof NewLiteralArrayValue
+            ) {
+                value.initValues[i] = wrapObjToAny(elemValue, type);
+            } else {
+                if (type.kind == ValueTypeKind.ANY) {
+                    value.initValues[i] = newCastValue(type, elemValue);
+                }
+            }
+        }
+    }
+    return new CastValue(SemanticsValueKind.OBJECT_CAST_ANY, type, value);
 }
 
 export function newCastValue(
@@ -1114,12 +1141,9 @@ export function newCastValue(
     }
 
     if (type.kind == ValueTypeKind.ANY) {
-        if (isObjectType(value_type.kind))
-            return new CastValue(
-                SemanticsValueKind.OBJECT_CAST_ANY,
-                type,
-                value,
-            );
+        if (isObjectType(value_type.kind)) {
+            return wrapObjToAny(value, type);
+        }
         return new CastValue(SemanticsValueKind.VALUE_CAST_ANY, type, value);
     }
 

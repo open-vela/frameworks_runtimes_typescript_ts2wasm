@@ -18,9 +18,10 @@ import ExpressionProcessor, {
     IdentifierExpression,
 } from './expression.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
-import { builtinTypes, Type, TSInterface, TypeKind } from './type.js';
+import { builtinTypes, Type, TSInterface, TypeKind, TSClass } from './type.js';
 import { UnimplementError } from './error.js';
 import { Statement } from './statement.js';
+import { Variable } from './variable.js';
 
 export interface importGlobalInfo {
     internalName: string;
@@ -445,17 +446,22 @@ export function adjustPrimitiveNodeType(
                 }
             }
             // make sure we can find this owner information
-            if (!scope!.findIdentifier(owner)) {
+            let targetScope = scope;
+            const ownerInfo = scope!.findIdentifier(owner);
+            if (!ownerInfo) {
                 return return_type;
+            } else {
+                if (ownerInfo instanceof Variable) {
+                    targetScope = (<Variable>ownerInfo).scope!;
+                }
             }
-            const propertynfo = scope.findIdentifier(property_name);
+            const propertyInfo = targetScope.findIdentifier(property_name);
             if (
-                propertynfo &&
-                propertynfo instanceof FunctionScope &&
-                propertynfo.funcType
+                propertyInfo &&
+                propertyInfo instanceof FunctionScope &&
+                propertyInfo.funcType
             ) {
-                const _type = propertynfo.funcType.returnType;
-                return_type = propertynfo.funcType.returnType;
+                return_type = propertyInfo.funcType.returnType;
             } else {
                 return_type = originType;
             }
