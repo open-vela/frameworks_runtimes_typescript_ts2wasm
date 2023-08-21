@@ -36,7 +36,11 @@ import {
     stringArrayStructTypeInfoForStringRef,
 } from './glue/packType.js';
 import { SourceLocation, getBuiltInFuncName } from '../../utils.js';
-import { SemanticsValue, SemanticsValueKind } from '../../semantics/value.js';
+import {
+    NewLiteralArrayValue,
+    SemanticsValue,
+    SemanticsValueKind,
+} from '../../semantics/value.js';
 import { ObjectDescriptionType } from '../../semantics/runtime.js';
 import { getConfig } from '../../../config/config_mgr.js';
 
@@ -364,10 +368,14 @@ export namespace FunctionalFuncs {
         );
     }
 
-    export function generateDynArray(module: binaryen.Module) {
+    export function generateDynArray(
+        module: binaryen.Module,
+        value: SemanticsValue,
+    ) {
+        const arrLen = (<NewLiteralArrayValue>value).initValues.length;
         return module.call(
-            dyntype.dyntype_new_array,
-            [getDynContextRef(module)],
+            dyntype.dyntype_new_array_with_length,
+            [getDynContextRef(module), module.i32.const(arrLen)],
             dyntype.dyn_value_t,
         );
     }
@@ -376,6 +384,31 @@ export namespace FunctionalFuncs {
         return module.call(
             dyntype.dyntype_new_object,
             [getDynContextRef(module)],
+            dyntype.dyn_value_t,
+        );
+    }
+
+    export function setDynArrElem(
+        module: binaryen.Module,
+        arrValueRef: binaryen.ExpressionRef,
+        idxRef: binaryen.ExpressionRef,
+        elemValueRef: binaryen.ExpressionRef,
+    ) {
+        return module.call(
+            dyntype.dyntype_set_elem,
+            [getDynContextRef(module), arrValueRef, idxRef, elemValueRef],
+            dyntype.cvoid,
+        );
+    }
+
+    export function getDynArrElem(
+        module: binaryen.Module,
+        arrValueRef: binaryen.ExpressionRef,
+        idxRef: binaryen.ExpressionRef,
+    ) {
+        return module.call(
+            dyntype.dyntype_get_elem,
+            [getDynContextRef(module), arrValueRef, idxRef],
             dyntype.dyn_value_t,
         );
     }
@@ -871,7 +904,7 @@ export namespace FunctionalFuncs {
                 switch (semanticsValueKind) {
                     case SemanticsValueKind.NEW_LITERAL_ARRAY:
                     case SemanticsValueKind.NEW_LITERAL_OBJECT:
-                        return boxLiteralToAny(module, valueTypeKind);
+                        return boxLiteralToAny(module, value);
                     default: {
                         return boxNonLiteralToAny(
                             module,
@@ -922,13 +955,14 @@ export namespace FunctionalFuncs {
 
     export function boxLiteralToAny(
         module: binaryen.Module,
-        valueTypeKind: ValueTypeKind,
+        value: SemanticsValue,
     ): binaryen.ExpressionRef {
+        const valueTypeKind = value.type.kind;
         switch (valueTypeKind) {
             case ValueTypeKind.OBJECT:
                 return generateDynObj(module);
             case ValueTypeKind.ARRAY:
-                return generateDynArray(module);
+                return generateDynArray(module, value);
             default:
                 throw Error(`boxLiteralToAny: error kind ${valueTypeKind}`);
         }
@@ -1656,18 +1690,6 @@ export namespace FunctionalFuncs {
             idxRef,
             elemTypeRef,
             false,
-        );
-    }
-
-    export function getAnyElemByIdx(
-        module: binaryen.Module,
-        ownerRef: binaryen.ExpressionRef,
-        idxRef: binaryen.ExpressionRef,
-    ) {
-        return module.call(
-            dyntype.dyntype_get_elem,
-            [getDynContextRef(module), ownerRef, idxRef],
-            dyntype.dyn_value_t,
         );
     }
 }
