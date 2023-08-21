@@ -9,13 +9,17 @@ import path from 'path';
 import os from 'os';
 import { ParserContext } from '../../src/frontend.js';
 import { WASMGen } from '../../src/backend/binaryen/index.js';
+import { setConfig } from '../../config/config_mgr.js';
 
 const doCompile = (filename: string) => {
     const compiler = new ParserContext();
-
+    setConfig({ enableException: true });
+    if (process.argv.includes('enableStringRef')) {
+        setConfig({ enableStringRef: true });
+    }
     /* Compile to a temporary file */
     try {
-        compiler.parse([filename], { enableException: true });
+        compiler.parse([filename]);
     } catch (e) {
         console.log(e);
         return null;

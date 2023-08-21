@@ -8,7 +8,7 @@ import cp from 'child_process';
 import fs, { constants } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { ParserContext, CompileArgs } from '../src/frontend.js';
+import { ParserContext } from '../src/frontend.js';
 import log4js from 'log4js';
 import { Logger, consoleLogger } from '../src/log.js';
 import { Ts2wasmBackend } from '../src/backend/index.js';
@@ -16,6 +16,7 @@ import { WASMGen } from '../src/backend/binaryen/index.js';
 import { default as logConfig } from '../config/log4js.js';
 import { SyntaxError } from '../src/error.js';
 import { DumpAST } from '../src/dump_ast.js';
+import { ConfigMgr, setConfig } from '../config/config_mgr.js';
 
 interface HelpMessageCategory {
     General: string[];
@@ -181,19 +182,23 @@ function createBackend(args: any, parserCtx: ParserContext): Ts2wasmBackend {
     return new WASMGen(parserCtx);
 }
 
+/** read configs from cli */
+function readCfgFromCli(args: minimist.ParsedArgs) {
+    const cfgs: Partial<ConfigMgr> = {};
+    for (const key in args) {
+        // eslint-disable-next-line no-prototype-builtins
+        if (args.hasOwnProperty(key)) {
+            cfgs[key as keyof ConfigMgr] = args[key];
+        }
+    }
+    setConfig(cfgs);
+}
+
 function main() {
     try {
         const args = minimist(process.argv.slice(2));
         const optionConfig = parseOptions();
         const optionKey: string[] = [];
-        const compileArgs: CompileArgs = {};
-
-        Object.keys(optionConfig).forEach((commandKey) => {
-            const option = optionConfig[commandKey];
-            if (option.category.toString() === 'Compile') {
-                compileArgs[commandKey] = args[commandKey];
-            }
-        });
 
         Object.keys(optionConfig).forEach((commandKey) => {
             optionKey.push(commandKey);
@@ -206,6 +211,8 @@ function main() {
                 console.warn("WARNING: Unknown option '" + arg + "'");
             }
         });
+
+        readCfgFromCli(args);
 
         if (args.help || args.h) {
             showHelp(optionConfig);
@@ -240,10 +247,10 @@ function main() {
 
         /* Step1: Semantic checking, construct scope tree */
         const parserCtx = new ParserContext();
-        parserCtx.parse(sourceFileList, compileArgs);
+        parserCtx.parse(sourceFileList);
         /* Step2: Backend codegen */
         const backend = createBackend(args, parserCtx);
-        backend.codegen(compileArgs);
+        backend.codegen();
 
         /* Step3: output */
         /* Set up specified base directory */
