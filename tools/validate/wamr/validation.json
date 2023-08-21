@@ -3450,6 +3450,11 @@
                 "name": "accessOptFieldOfOptField",
                 "args": [],
                 "result": "undefined \nhello \nhello"
+            },
+            {
+                "name": "accessOptionalUnionField",
+                "args": [],
+                "result": "14:f64"
             }
         ]
     },
