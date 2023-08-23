@@ -753,14 +753,17 @@ export class WASMGen extends Ts2wasmBackend {
                 this.module.call(this.globalInitFuncName, [], binaryen.none),
             );
             startFuncStmts.push(this.module.call(func.name, [], binaryen.none));
-            const wasmStartFuncRef = this.module.addFunction(
+            this.module.addFunction(
                 BuiltinNames.start,
                 binaryen.none,
                 binaryen.none,
                 [],
                 this.module.block(null, startFuncStmts),
             );
-            this.module.setStart(wasmStartFuncRef);
+            this.module.addFunctionExport(
+                BuiltinNames.start,
+                getConfig().entry,
+            );
         }
         let funcRef: binaryen.FunctionRef;
         if (

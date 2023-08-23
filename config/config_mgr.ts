@@ -8,6 +8,7 @@ export interface ConfigMgr {
     sourceMap: boolean;
     enableException: boolean;
     enableStringRef: boolean;
+    entry: string;
 }
 
 const defaultConfig: ConfigMgr = {
@@ -20,6 +21,7 @@ const defaultConfig: ConfigMgr = {
     sourceMap: false,
     enableException: false,
     enableStringRef: false,
+    entry: '_start',
 };
 
 let currentConfig: ConfigMgr = { ...defaultConfig };
