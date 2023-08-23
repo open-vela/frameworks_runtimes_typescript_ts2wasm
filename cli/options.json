@@ -77,5 +77,10 @@
         "category": "Compile",
         "description": "Enable stringref to represent typescript string",
         "default": true
+    },
+    "entry": {
+        "category": "Compile",
+        "description": "Specify the entry function",
+        "default": "_start"
     }
 }
