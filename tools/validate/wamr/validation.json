@@ -3180,17 +3180,17 @@
             {
                 "name": "JSONTest",
                 "args": [],
-                "result": "42 \n{\"result\":true,\"count\":42} \n42 \n{\"result\":true,\"count\":42}"
+                "result": "42 \n{\"result\":true,\"count\":42} \n\n42 \n{\"result\":true,\"count\":42}"
             },
             {
                 "name": "JSONTest2",
                 "args": [],
-                "result": "42 \n{\"result\":true,\"count\":42} \n42 \n{\"result\":true,\"count\":42}"
+                "result": "42 \n{\"result\":true,\"count\":42} \n\n42 \n{\"result\":true,\"count\":42}"
             },
             {
                 "name": "JSONTest3",
                 "args": [],
-                "result": "42 \n{\"result\":true,\"count\":42} \n{\"''''\\n\\r\\t\\\\1\":\"2\\n\"}"
+                "result": "42 \n{\"result\":true,\"count\":42} \n\n{\"''''\\n\\r\\t\\\\1\":\"2\\n\"}"
             }
         ]
     },
@@ -3200,12 +3200,12 @@
             {
                 "name": "DateTest1",
                 "args": [],
-                "result": "1690416000000 \n2023 \nInvalid Date \n1995 \n2023 \n1690416000000 \n1692748800000"
+                "result": "1690416000000 \n\n2023 \nInvalid Date \n1995 \n2023 \n1690416000000 \n1692748800000"
             },
             {
                 "name": "DateTest2",
                 "args": [],
-                "result": "1690416000000 \n2023 \n1690416000000"
+                "result": "1690416000000 \n\n2023 \n1690416000000"
             }
         ]
     },
