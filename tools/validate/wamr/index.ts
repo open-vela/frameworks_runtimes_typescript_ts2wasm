@@ -58,10 +58,6 @@ const IGNORE_CASES = [
     'any_func_call:anyFuncCallWithArray',
     'rec_types:recursiveType1',
     'rec_types:recursiveType2',
-
-    /* console.log error */
-    'any_box_array:boxEmptyArr',
-    'any_box_array:setArrElem',
 ];
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
