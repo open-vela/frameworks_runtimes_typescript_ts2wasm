@@ -540,6 +540,7 @@ export function addItableFunc(module: binaryen.Module) {
     const itableLib = fs.readFileSync(itableFilePath, 'utf-8');
     const watModule = binaryen.parseText(itableLib);
     UtilFuncs.addWatFuncs(watModule, 'find_index', module);
+    module.addFunctionExport('find_index', 'find_index');
     UtilFuncs.addWatFuncs(watModule, 'find_type_by_index', module);
     watModule.dispose();
 }

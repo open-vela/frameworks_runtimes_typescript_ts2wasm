@@ -9,6 +9,7 @@
 #include "type_utils.h"
 #include "quickjs.h"
 #include "dyntype.h"
+#include "wamr_utils.h"
 
 /*
     utilities for closure object
@@ -583,4 +584,60 @@ fail:
     }
 
     return new_string_struct;
+}
+
+int
+get_prop_index_of_struct(wasm_exec_env_t exec_env, void *dyn_ctx,
+                       void *dyn_obj, const char *prop,
+                       wasm_obj_t *wasm_obj, wasm_ref_type_t *field_type) {
+    wasm_module_inst_t module_inst;
+    bool is_ext_ref, is_mut;
+    void *ext_ref;
+    wasm_function_inst_t func;
+    int32_t idx_on_ext_ref;
+    wasm_struct_obj_t wasm_struct_obj;
+    WASMValue vtable_value = { 0 };
+    WASMValue meta = { 0 };
+    uint32 argc = 3, argv[3] = { 0 }, offset;
+    wasm_struct_type_t struct_type;
+
+    module_inst = wasm_runtime_get_module_inst(exec_env);
+    is_ext_ref = dyntype_is_extref((dyn_value_t)dyn_ctx, (dyn_value_t)dyn_obj);
+    if (!is_ext_ref) {
+        return -2;
+    }
+    dyntype_to_extref((dyn_value_t)dyn_ctx, (dyn_value_t)dyn_obj, &ext_ref);
+    idx_on_ext_ref = (uint32_t)(uintptr_t)ext_ref;
+    ext_ref = wamr_utils_get_table_element(exec_env, idx_on_ext_ref);
+    if (is_infc(ext_ref)) {
+        ext_ref = get_infc_obj(exec_env, ext_ref);
+    }
+    *wasm_obj = ext_ref;
+    if (!wasm_obj_is_struct_obj(*wasm_obj)) {
+        wasm_runtime_set_exception(
+            module_inst, "can't access field of non-struct reference");
+        return -1;
+    }
+    wasm_struct_obj = (wasm_struct_obj_t)(*wasm_obj);
+    wasm_struct_obj_get_field(wasm_struct_obj, 0, false, &vtable_value);
+    wasm_struct_obj_get_field((wasm_struct_obj_t)vtable_value.gc_obj, 0, false, &meta);
+    func = wasm_runtime_lookup_function(module_inst, "find_index", NULL);
+    bh_assert(!func);
+
+    argv[0] = meta.i32;
+    offset = wasm_runtime_addr_native_to_app(module_inst, (void *)prop);
+    argv[1] = offset;
+    argv[2] = 0;
+
+    if (!wasm_runtime_call_wasm(exec_env, func, argc, argv)) {
+        wasm_runtime_set_exception(module_inst, "find_index failed");
+        return -1;
+    }
+    if (argv[0] == -1) {
+        return -2;
+    }
+    struct_type = (wasm_struct_type_t)wasm_obj_get_defined_type(*wasm_obj);
+    *field_type = wasm_struct_type_get_field_type(struct_type, argv[0], &is_mut);
+
+    return argv[0];
 }

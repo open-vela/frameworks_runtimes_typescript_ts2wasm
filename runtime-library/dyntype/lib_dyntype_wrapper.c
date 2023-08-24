@@ -9,6 +9,7 @@
 #include "type_utils.h"
 #include "wamr_utils.h"
 #include "wasm.h"
+#include "lib_structdyn.h"
 
 static void
 dynamic_object_finalizer(wasm_anyref_obj_t obj, void *data)
@@ -139,32 +140,6 @@ dyntype_new_extref_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
                            void *ptr, external_ref_tag tag)
 {
     RETURN_BOX_ANYREF(dyntype_new_extref(UNBOX_ANYREF(ctx), ptr, tag, (void *)exec_env));
-}
-
-int
-dyntype_set_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
-                             wasm_anyref_obj_t obj, const char *prop,
-                             wasm_anyref_obj_t value)
-{
-    return dyntype_set_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop,
-                                UNBOX_ANYREF(value));
-}
-
-int
-dyntype_define_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
-                                wasm_anyref_obj_t obj, const char *prop,
-                                wasm_anyref_obj_t desc)
-{
-    return dyntype_define_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop,
-                                   UNBOX_ANYREF(desc));
-}
-
-dyn_value_t
-dyntype_get_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
-                             wasm_anyref_obj_t obj, const char *prop)
-{
-    RETURN_BOX_ANYREF(
-        dyntype_get_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop));
 }
 
 int
@@ -372,6 +347,108 @@ dyntype_toString_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     }
 
     return res;
+}
+
+int
+dyntype_set_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
+                             wasm_anyref_obj_t obj, const char *prop,
+                             wasm_anyref_obj_t value)
+{
+    dyn_value_t dyn_ctx = UNBOX_ANYREF(ctx);
+    dyn_value_t dyn_obj = UNBOX_ANYREF(obj);
+    dyn_value_t dyn_value = UNBOX_ANYREF(value);
+    wasm_module_inst_t module_inst;
+    wasm_module_t module;
+    wasm_obj_t wasm_obj;
+    wasm_ref_type_t field_type;
+    wasm_defined_type_t field_defined_type;
+    int index;
+
+    index = get_prop_index_of_struct(exec_env, dyn_ctx, dyn_obj, prop, &wasm_obj, &field_type);
+    if (index == -2) {
+        return dyntype_set_property(dyn_ctx, dyn_obj, prop,
+                                dyn_value);
+    }
+    module_inst = wasm_runtime_get_module_inst(exec_env);
+    if (index == -1) {
+        wasm_runtime_set_exception(
+            module_inst, "dyntype set property error");
+    }
+    module = wasm_runtime_get_module(module_inst);
+    field_defined_type = wasm_get_defined_type(module, field_type.heap_type);
+    if (field_type.value_type == VALUE_TYPE_ANYREF) {
+        struct_set_dyn_anyref(exec_env, (wasm_anyref_obj_t)wasm_obj, index, value);
+    } else if (field_type.value_type == VALUE_TYPE_I32) {
+        int field_value = dyntype_to_bool_wrapper(exec_env, ctx, value);
+        struct_set_dyn_i32(exec_env, (wasm_anyref_obj_t)wasm_obj, index, field_value);
+    } else if (field_type.value_type == VALUE_TYPE_F64) {
+        double field_value = dyntype_to_number_wrapper(exec_env, ctx, value);
+        struct_set_dyn_f64(exec_env, (wasm_anyref_obj_t)wasm_obj, index, field_value);
+    } else if (is_ts_string_type(module, field_defined_type)) {
+        void *field_value = dyntype_to_string_wrapper(exec_env, ctx, value);
+        struct_set_dyn_anyref(exec_env, (wasm_anyref_obj_t)wasm_obj, index, field_value);
+    } else {
+        // TODO： external reference
+        return -DYNTYPE_TYPEERR;
+    }
+
+    return DYNTYPE_SUCCESS;
+}
+
+dyn_value_t
+dyntype_get_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
+                             wasm_anyref_obj_t obj, const char *prop)
+{
+    wasm_module_inst_t module_inst;
+    wasm_module_t module;
+    dyn_value_t dyn_ctx = UNBOX_ANYREF(ctx);
+    dyn_value_t dyn_obj = UNBOX_ANYREF(obj);
+    wasm_obj_t wasm_obj;
+    wasm_ref_type_t field_type;
+    wasm_defined_type_t field_defined_type;
+    int index;
+    dyn_value_t res;
+
+    module_inst = wasm_runtime_get_module_inst(exec_env);
+    module = wasm_runtime_get_module(module_inst);
+    index = get_prop_index_of_struct(exec_env, dyn_ctx, dyn_obj, prop, &wasm_obj, &field_type);
+    if (index == -2) {
+        RETURN_BOX_ANYREF(dyntype_get_property(dyn_ctx, dyn_obj, prop));
+    }
+    if (index == -1) {
+        wasm_runtime_set_exception(
+            module_inst, "dyntype set property error");
+    }
+
+    if (field_type.value_type == VALUE_TYPE_ANYREF) {
+        res = struct_get_dyn_anyref(exec_env, (wasm_anyref_obj_t)wasm_obj, index);
+    } else if (field_type.value_type == VALUE_TYPE_I32) {
+        int value = struct_get_dyn_i32(exec_env, (wasm_anyref_obj_t)wasm_obj, index);
+        res = dyntype_new_boolean_wrapper(exec_env, ctx, value);
+    } else if (field_type.value_type == VALUE_TYPE_F64) {
+        double value = struct_get_dyn_f64(exec_env, (wasm_anyref_obj_t)wasm_obj, index);
+        res = dyntype_new_number_wrapper(exec_env, ctx, value);
+    } else {
+        void *value = struct_get_dyn_anyref(exec_env, (wasm_anyref_obj_t)wasm_obj, index);
+        field_defined_type = wasm_get_defined_type(module, field_type.heap_type);
+        if (is_ts_string_type(module, field_defined_type)) {
+            res = dyntype_new_string_wrapper(exec_env, ctx, (wasm_struct_obj_t)value);
+        } else {
+            // TODO: for extref, need table grow
+            res = dyntype_new_undefined_wrapper(exec_env, ctx);
+        }
+    }
+
+    return res;
+}
+
+int
+dyntype_define_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
+                                wasm_anyref_obj_t obj, const char *prop,
+                                wasm_anyref_obj_t desc)
+{
+    return dyntype_define_property(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), prop,
+                                   UNBOX_ANYREF(desc));
 }
 
 /******************* Type equivalence *******************/

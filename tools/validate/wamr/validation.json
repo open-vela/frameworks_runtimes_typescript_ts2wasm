@@ -3507,5 +3507,20 @@
                 "result": "3 \n8 \n5 \nhello world"
             }
         ]
+    },
+    {
+        "module": "mixed_type",
+        "entries": [
+            {
+                "name": "mixTypeInClass",
+                "args": [],
+                "result": "1 \ntrue \n0 \n0 \n00 \n1 \ntrue \n0 \n0"
+            },
+            {
+                "name": "mixTypeInInfc",
+                "args": [],
+                "result": "2 \ntrue \n-1 \n-1 \n--1 \n2 \ntrue \n-1 \n-1"
+            }
+        ]
     }
 ]
