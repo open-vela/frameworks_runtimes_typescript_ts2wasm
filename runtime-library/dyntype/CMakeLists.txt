@@ -11,9 +11,12 @@ set(QUICKJS_SRC_DIR ${CMAKE_CURRENT_LIST_DIR}/../deps/quickjs)
 
 set(UTILS_DIR ${CMAKE_CURRENT_LIST_DIR}/../utils)
 set(LIBQUICKJS_IMPL_DIR ${CMAKE_CURRENT_LIST_DIR}/dyntype_qjs_impl)
+set(STRUCT_DYN_DIR ${CMAKE_CURRENT_LIST_DIR}/../struct-dyn)
+
 
 include_directories(.)
 include_directories(${QUICKJS_SRC_DIR})
+include_directories(${STRUCT_DYN_DIR})
 
 include_directories(${UTILS_DIR})
 
