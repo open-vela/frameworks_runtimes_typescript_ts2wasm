@@ -429,6 +429,7 @@ main(int argc, char *argv[])
     wasm_module_t wasm_module = NULL;
     wasm_module_inst_t wasm_module_inst = NULL;
     wasm_exec_env_t exec_env = NULL;
+    wasm_function_inst_t start_func = NULL;
     RunningMode running_mode = 0;
     RuntimeInitArgs init_args;
     char error_buf[128] = { 0 };
@@ -840,9 +841,16 @@ main(int argc, char *argv[])
 #endif
 
     ret = 0;
-    if (!wasm_application_execute_func(wasm_module_inst, "_start", 0, NULL)) {
+
+    start_func = wasm_runtime_lookup_function(wasm_module_inst, "_start", NULL);
+    if (!start_func) {
+        printf("%s\n", "There is no '_start' function in app, making it "
+                       "impossible to execute global statements.\n");
+        goto fail4;
+    }
+    if (!wasm_runtime_call_wasm(exec_env, start_func, 0, NULL)) {
         printf("%s\n", wasm_runtime_get_exception(wasm_module_inst));
-        goto fail3;
+        goto fail4;
     }
 
     if (is_repl_mode) {
@@ -868,13 +876,10 @@ main(int argc, char *argv[])
     }
 #endif
 
-#if WASM_ENABLE_DEBUG_INTERP != 0
-fail4:
-#endif
-
     /* run micro tasks */
     execute_micro_tasks(exec_env, dyn_ctx);
 
+fail4:
     /* destroy the module instance */
     wasm_runtime_deinstantiate(wasm_module_inst);
 
