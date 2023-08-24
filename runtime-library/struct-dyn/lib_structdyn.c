@@ -4,7 +4,6 @@
  */
 
 #include "gc_type.h"
-#include "gc_export.h"
 #include "bh_platform.h"
 
 static wasm_struct_obj_t

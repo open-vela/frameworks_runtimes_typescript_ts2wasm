@@ -65,3 +65,11 @@ get_infc_obj(wasm_exec_env_t exec_env, wasm_obj_t obj);
 void *
 array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
                 void *separator);
+
+/* get property of a struct
+ * result: -2: not a static object, -1: error: else: static object index
+ */
+int
+get_prop_index_of_struct(wasm_exec_env_t exec_env, void *dyn_ctx,
+                       void *dyn_obj, const char *prop,
+                       wasm_obj_t *wasm_obj, wasm_ref_type_t *field_type);
