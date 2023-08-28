@@ -2157,6 +2157,11 @@
                 "name": "arrowFunctionWithoutReturn",
                 "args": [],
                 "result": "1 \n2:f64"
+            },
+            {
+                "name": "functionReturnClosure",
+                "args": [],
+                "result": "2 \nfoo \n5"
             }
         ]
     },

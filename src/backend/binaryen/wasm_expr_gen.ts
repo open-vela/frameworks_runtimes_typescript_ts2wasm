@@ -904,20 +904,30 @@ export class WASMExpressionGen {
         args?: SemanticsValue[],
     ) {
         const closureVarTypeRef = binaryen.getExpressionType(closureRef);
+        const closureTmp = this.currentFuncCtx!.insertTmpVar(closureVarTypeRef);
+        const setClosureTmp = this.module.local.set(
+            closureTmp.index,
+            closureRef,
+        );
+        const getClosureTmp = this.module.local.get(
+            closureTmp.index,
+            closureVarTypeRef,
+        );
         const context = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
             0,
-            closureRef,
+            getClosureTmp,
             closureVarTypeRef,
             false,
         );
         const funcRef = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
             1,
-            closureRef,
+            getClosureTmp,
             closureVarTypeRef,
             false,
         );
+        this.currentFuncCtx!.insert(setClosureTmp);
         return this.callFuncRef(funcType, funcRef, args, undefined, context);
     }
 
@@ -3758,8 +3768,9 @@ export class WASMExpressionGen {
             fromValue instanceof NewLiteralArrayValue
         ) {
             /* created a temVar to store dynObjValue, then set dyn property */
-            const tmpVar = this.currentFuncCtx!.insertTmpVar(Primitive.Any);
-            const tmpVarTypeRef = this.wasmTypeGen.getWASMType(tmpVar.type);
+            const tmpVar = this.currentFuncCtx!.insertTmpVar(
+                this.wasmTypeGen.getWASMType(Primitive.Any),
+            );
             const createDynObjOps: binaryen.ExpressionRef[] = [];
             createDynObjOps.push(
                 this.module.local.set(tmpVar.index, castedValueRef),
@@ -3775,7 +3786,7 @@ export class WASMExpressionGen {
                     createDynObjOps.push(
                         FunctionalFuncs.setDynObjProp(
                             this.module,
-                            this.module.local.get(tmpVar.index, tmpVarTypeRef),
+                            this.module.local.get(tmpVar.index, tmpVar.type),
                             propNameRef,
                             initValueRef,
                         ),
@@ -3784,7 +3795,7 @@ export class WASMExpressionGen {
                     createDynObjOps.push(
                         FunctionalFuncs.setDynArrElem(
                             this.module,
-                            this.module.local.get(tmpVar.index, tmpVarTypeRef),
+                            this.module.local.get(tmpVar.index, tmpVar.type),
                             this.module.i32.const(i),
                             initValueRef,
                         ),
@@ -3792,7 +3803,7 @@ export class WASMExpressionGen {
                 }
             }
             createDynObjOps.push(
-                this.module.local.get(tmpVar.index, tmpVarTypeRef),
+                this.module.local.get(tmpVar.index, tmpVar.type),
             );
             castedValueRef = this.module.block(null, createDynObjOps);
         }
@@ -3805,9 +3816,8 @@ export class WASMExpressionGen {
         type: ValueType,
     ) {
         const ctx = this.currentFuncCtx!;
-        const tmpVar = ctx.insertTmpVar(type);
-        const varType = this.wasmTypeGen.getWASMType(type);
+        const tmpVar = ctx.insertTmpVar(this.wasmTypeGen.getWASMType(type));
         ctx.insert(this.module.local.set(tmpVar.index, expr));
-        return this.module.local.get(tmpVar.index, varType);
+        return this.module.local.get(tmpVar.index, tmpVar.type);
     }
 }

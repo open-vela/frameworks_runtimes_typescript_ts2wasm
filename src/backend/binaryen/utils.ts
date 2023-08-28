@@ -77,7 +77,7 @@ export interface IfStatementInfo {
 
 export interface TmpVarInfo {
     index: number;
-    type: ValueType;
+    type: binaryenCAPI.TypeRef;
 }
 
 export enum ItableFlag {
