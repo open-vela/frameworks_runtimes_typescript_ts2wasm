@@ -121,6 +121,8 @@ export enum SemanticsValueKind {
     RET,
 
     TYPEOF,
+
+    REBINDING,
 }
 
 export type ValueBinaryOperator = ts.BinaryOperator;
@@ -1258,6 +1260,12 @@ export class BlockBranchIfValue extends SemanticsValue {
 export class ReturnValue extends SemanticsValue {
     constructor(public expr: SemanticsValue | undefined) {
         super(SemanticsValueKind.RET, expr ? expr.type : Primitive.Void);
+    }
+}
+
+export class ReBindingValue extends SemanticsValue {
+    constructor(public contextVar: VarDeclareNode) {
+        super(SemanticsValueKind.REBINDING, Primitive.Void);
     }
 }
 

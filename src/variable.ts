@@ -32,6 +32,7 @@ export class Variable {
     /* If variable is a closure context, we should record its init context to do initialize */
     public initContext?: Variable;
     public tsNode?: ts.Node;
+    public needReBinding = false;
 
     constructor(
         private name: string,

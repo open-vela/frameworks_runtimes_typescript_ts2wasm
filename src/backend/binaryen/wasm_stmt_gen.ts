@@ -35,18 +35,14 @@ import { SemanticsValue, VarValue } from '../../semantics/value.js';
 import { getConfig } from '../../../config/config_mgr.js';
 
 export class WASMStatementGen {
-    private currentFuncCtx;
     private module;
 
     constructor(private wasmCompiler: WASMGen) {
-        this.currentFuncCtx = this.wasmCompiler.currentFuncCtx!;
         this.module = this.wasmCompiler.module;
     }
 
     WASMStmtGen(stmt: SemanticsNode): binaryen.ExpressionRef {
         let res: binaryen.ExpressionRef | null = null;
-
-        this.currentFuncCtx = this.wasmCompiler.currentFuncCtx!;
         this.module = this.wasmCompiler.module;
 
         switch (stmt.kind) {
@@ -121,7 +117,7 @@ export class WASMStatementGen {
     }
 
     wasmBlock(stmt: BlockNode): binaryen.ExpressionRef {
-        this.currentFuncCtx.enterScope();
+        this.wasmCompiler.currentFuncCtx!.enterScope();
         /* assign value for block's context variable */
         if (
             stmt.varList &&
@@ -138,9 +134,9 @@ export class WASMStatementGen {
         }
         for (const child of stmt.statements) {
             const childRef = this.WASMStmtGen(child);
-            this.currentFuncCtx.insert(childRef);
+            this.wasmCompiler.currentFuncCtx!.insert(childRef);
         }
-        const statements = this.currentFuncCtx.exitScope();
+        const statements = this.wasmCompiler.currentFuncCtx!.exitScope();
         return this.module.block(null, statements);
     }
 
@@ -154,12 +150,12 @@ export class WASMStatementGen {
         );
         if (binaryen.getExpressionType(returnExprRef) !== binaryen.none) {
             const setReturnValue = this.module.local.set(
-                this.currentFuncCtx.returnIdx,
+                this.wasmCompiler.currentFuncCtx!.returnIdx,
                 returnExprRef,
             );
             this.addDebugInfoRef(stmt.expr, returnExprRef);
             this.addDebugInfoRef(stmt, setReturnValue);
-            this.currentFuncCtx.insert(setReturnValue);
+            this.wasmCompiler.currentFuncCtx!.insert(setReturnValue);
         }
 
         return brReturn;
@@ -170,7 +166,7 @@ export class WASMStatementGen {
     }
 
     wasmLoop(stmt: WhileNode): binaryen.ExpressionRef {
-        this.currentFuncCtx.enterScope();
+        this.wasmCompiler.currentFuncCtx!.enterScope();
         let WASMCond: binaryen.ExpressionRef =
             this.wasmCompiler.wasmExprComp.wasmExprGen(stmt.condition);
         const WASMStmts: binaryen.ExpressionRef = this.WASMStmtGen(stmt.body!);
@@ -196,7 +192,7 @@ export class WASMStatementGen {
             condition: WASMCond,
             statements: WASMStmts,
         };
-        this.currentFuncCtx.insert(
+        this.wasmCompiler.currentFuncCtx!.insert(
             this.module.loop(
                 stmt.label,
                 FunctionalFuncs.flattenLoopStatement(
@@ -207,19 +203,19 @@ export class WASMStatementGen {
             ),
         );
 
-        const statements = this.currentFuncCtx.exitScope();
+        const statements = this.wasmCompiler.currentFuncCtx!.exitScope();
         return this.module.block(stmt.blockLabel, statements);
     }
 
     wasmFor(stmt: ForNode): binaryen.ExpressionRef {
-        this.currentFuncCtx.enterScope();
+        this.wasmCompiler.currentFuncCtx!.enterScope();
         let WASMCond: binaryen.ExpressionRef | undefined;
         let WASMIncrementor: binaryen.ExpressionRef | undefined;
         let WASMStmts: binaryen.ExpressionRef = this.wasmCompiler.module.nop();
         if (stmt.initialize) {
             const init = this.WASMStmtGen(stmt.initialize);
             if (stmt.initialize.kind === SemanticsKind.BASIC_BLOCK) {
-                this.currentFuncCtx.insert(init);
+                this.wasmCompiler.currentFuncCtx!.insert(init);
             }
         }
         if (stmt.condition) {
@@ -244,7 +240,7 @@ export class WASMStatementGen {
             incrementor: WASMIncrementor,
         };
 
-        this.currentFuncCtx.insert(
+        this.wasmCompiler.currentFuncCtx!.insert(
             this.module.loop(
                 stmt.label,
                 FunctionalFuncs.flattenLoopStatement(
@@ -255,7 +251,7 @@ export class WASMStatementGen {
             ),
         );
 
-        const statements = this.currentFuncCtx.exitScope();
+        const statements = this.wasmCompiler.currentFuncCtx!.exitScope();
         return this.module.block(stmt.blockLabel, statements);
     }
 
@@ -317,22 +313,23 @@ export class WASMStatementGen {
     }
 
     wasmBasicExpr(stmt: BasicBlockNode): binaryen.ExpressionRef {
-        const basicStmts: binaryen.ExpressionRef[] = [];
+        this.wasmCompiler.currentFuncCtx!.enterScope();
         for (const exprStmt of stmt.valueNodes) {
             const exprRef =
                 this.wasmCompiler.wasmExprComp.wasmExprGen(exprStmt);
             this.addDebugInfoRef(exprStmt, exprRef);
-            basicStmts.push(exprRef);
+            this.wasmCompiler.currentFuncCtx!.insert(exprRef);
         }
+        const basicStmts = this.wasmCompiler.currentFuncCtx!.exitScope();
         return this.module.block(null, basicStmts);
     }
 
     wasmTry(stmt: TryNode): binaryen.ExpressionRef {
         /* set tmp var */
-        const tmpNeedRethrow = this.currentFuncCtx!.insertTmpVar(
+        const tmpNeedRethrow = this.wasmCompiler.currentFuncCtx!.insertTmpVar(
             this.wasmCompiler.wasmTypeComp.getWASMType(Primitive.Boolean),
         );
-        const tmpException = this.currentFuncCtx!.insertTmpVar(
+        const tmpException = this.wasmCompiler.currentFuncCtx!.insertTmpVar(
             this.wasmCompiler.wasmTypeComp.getWASMType(Primitive.Any),
         );
         const getTmpExceptionRef = this.module.local.get(
@@ -428,7 +425,7 @@ export class WASMStatementGen {
         ref: binaryen.ExpressionRef,
     ) {
         if (getConfig().sourceMap && irNode.location) {
-            this.currentFuncCtx.sourceMapLocs.push({
+            this.wasmCompiler.currentFuncCtx!.sourceMapLocs.push({
                 location: irNode.location,
                 ref: ref,
             });
