@@ -3514,6 +3514,16 @@
         ]
     },
     {
+        "module": "func_cast_interface",
+        "entries": [
+            {
+                "name": "test",
+                "args": [],
+                "result": "3 \n4 \n4 \n3 \n7"
+            }
+        ]
+    },
+    {
         "module": "export_func2",
         "entries": [
             {

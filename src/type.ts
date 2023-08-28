@@ -881,11 +881,12 @@ export class TypeResolver {
             }
             case ts.SyntaxKind.InterfaceDeclaration: {
                 const infcType = this.symbolTypeMap.get(node)!;
-                this.parseInfcType(
+                const type = this.parseInfcType(
                     node as ts.InterfaceDeclaration,
                     infcType as TSInterface,
                 );
-                this.addTypeToTypeMap(infcType, node);
+                this.addTypeToTypeMap(type, node);
+                this.symbolTypeMap.set(node, type);
                 return;
             }
             case ts.SyntaxKind.UnionType: {
@@ -965,6 +966,13 @@ export class TypeResolver {
             return this.parseSignature(
                 this.typechecker!.getSignatureFromDeclaration(
                     node as ts.ConstructSignatureDeclaration,
+                )!,
+            );
+        }
+        if (ts.isCallSignatureDeclaration(node)) {
+            return this.parseSignature(
+                this.typechecker!.getSignatureFromDeclaration(
+                    node as ts.CallSignatureDeclaration,
                 )!,
             );
         }
@@ -1452,27 +1460,36 @@ export class TypeResolver {
         // }
         this.parseTypeParameters(infc, node, this.currentScope);
         this.typeParameterStack.push(infc);
-
         infc.isDeclare = this.parseNestDeclare(node);
-        node.members.map((member) => {
+        for (let i = 0; i < node.members.length; ++i) {
+            const member = node.members[i];
             if (member.kind == ts.SyntaxKind.IndexSignature) {
                 this.parseIndexSignature(
                     infc,
                     member as ts.IndexSignatureDeclaration,
                 );
-                return;
+                continue;
             }
             /** Currently, we only handle PropertySignature and MethodSignature */
             if (
                 member.kind !== ts.SyntaxKind.ConstructSignature &&
                 member.kind !== ts.SyntaxKind.PropertySignature &&
                 member.kind !== ts.SyntaxKind.MethodSignature &&
+                member.kind !== ts.SyntaxKind.CallSignature &&
                 member.kind !== ts.SyntaxKind.GetAccessor &&
                 member.kind !== ts.SyntaxKind.SetAccessor
             ) {
-                return;
+                continue;
             }
             let fieldType = this.generateNodeType(member);
+            if (
+                member.kind === ts.SyntaxKind.CallSignature &&
+                node.members.length == 1
+            ) {
+                return fieldType;
+            } else if (member.kind === ts.SyntaxKind.CallSignature) {
+                continue;
+            }
             let funcKind =
                 member.kind == ts.SyntaxKind.ConstructSignature
                     ? FunctionKind.CONSTRUCTOR
@@ -1532,8 +1549,7 @@ export class TypeResolver {
                     optional: member.questionToken ? true : false,
                 });
             }
-        });
-
+        }
         this.parsedClassTypes.add(infc);
         return infc;
     }
