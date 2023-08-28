@@ -782,6 +782,13 @@ function processImportsExports(
                             `Cannot find the export "${id}" in "${g.moduleName}"`,
                         );
                     }
+                    if (
+                        ret_val instanceof VarValue &&
+                        ret_val.ref instanceof FunctionDeclareNode &&
+                        g == context.enterScope
+                    ) {
+                        ret_val.ref.isInEnterScope = true;
+                    }
                 } else {
                     ret_val = buildExpression(id, context);
                     export_name = id.expressionKind.toString();
