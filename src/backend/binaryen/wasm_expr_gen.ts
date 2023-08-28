@@ -2072,37 +2072,23 @@ export class WASMExpressionGen {
             const memberNameRef = this.module.i32.const(
                 this.wasmCompiler.generateRawString(memberName),
             );
-            const indexRef = this.createTmpVarOfSpecifiedType(
-                this.module.call(
-                    'find_index',
-                    [
-                        itableRef,
-                        memberNameRef,
-                        this.module.i32.const(ItableFlag.METHOD),
-                    ],
-                    binaryen.i32,
-                ),
-                Primitive.Int,
-            );
-
-            const indexType = this.createTmpVarOfSpecifiedType(
-                this.module.call(
-                    'find_type_by_index',
-                    [
-                        itableRef,
-                        memberNameRef,
-                        this.module.i32.const(ItableFlag.METHOD),
-                    ],
-                    binaryen.i32,
-                ),
-                Primitive.Int,
+            const indexRef = this.getPropIndexOfInfc(
+                itableRef,
+                memberNameRef,
+                ItableFlag.METHOD,
             );
             let func = this.dynGetInfcField(
                 obj,
                 indexRef,
                 typeMember.valueType,
-                indexType,
                 typeMember.isOptional,
+                typeMember.isOptional
+                    ? this.getPropTypeOnIndexOfInfc(
+                          itableRef,
+                          memberNameRef,
+                          ItableFlag.METHOD,
+                      )
+                    : undefined,
             );
             res = func;
             if (!typeMember.isOptional) {
@@ -2239,6 +2225,36 @@ export class WASMExpressionGen {
             }
         }
         return res;
+    }
+
+    private getPropIndexOfInfc(
+        itable: binaryen.ExpressionRef,
+        name: binaryen.ExpressionRef,
+        flag: ItableFlag,
+    ) {
+        return this.createTmpVarOfSpecifiedType(
+            this.module.call(
+                'find_index',
+                [itable, name, this.module.i32.const(flag)],
+                binaryen.i32,
+            ),
+            Primitive.Int,
+        );
+    }
+
+    private getPropTypeOnIndexOfInfc(
+        itable: binaryen.ExpressionRef,
+        name: binaryen.ExpressionRef,
+        flag: binaryen.ExpressionRef,
+    ) {
+        return this.createTmpVarOfSpecifiedType(
+            this.module.call(
+                'find_type_by_index',
+                [itable, name, this.module.i32.const(flag)],
+                binaryen.i32,
+            ),
+            Primitive.Int,
+        );
     }
 
     /** return method in the form of closure */
@@ -2481,23 +2497,12 @@ export class WASMExpressionGen {
             this.wasmCompiler.generateRawString(memberName),
         );
         /** here create a temp var, to avoid call `find_index` more times */
-        const indexRef = this.createTmpVarOfSpecifiedType(
-            this.module.call(
-                'find_index',
-                [itableRef, memberNameRef, this.module.i32.const(flag)],
-                binaryen.i32,
-            ),
-            Primitive.Int,
+        const indexRef = this.getPropIndexOfInfc(
+            itableRef,
+            memberNameRef,
+            flag,
         );
 
-        const indexType = this.createTmpVarOfSpecifiedType(
-            this.module.call(
-                'find_type_by_index',
-                [itableRef, memberNameRef, this.module.i32.const(flag)],
-                binaryen.i32,
-            ),
-            Primitive.Int,
-        );
         let ifTrue: binaryen.ExpressionRef = binaryen.unreachable;
         let ifFalse: binaryen.ExpressionRef;
 
@@ -2508,9 +2513,15 @@ export class WASMExpressionGen {
                 oriObjAnyRef,
                 memberValueType,
                 indexRef,
-                indexType,
                 targetValueRef!,
                 optional,
+                optional
+                    ? this.getPropTypeOnIndexOfInfc(
+                          itableRef,
+                          memberNameRef,
+                          flag,
+                      )
+                    : undefined,
             );
         } else {
             if (callMethod) {
@@ -2533,8 +2544,14 @@ export class WASMExpressionGen {
                 oriObjAnyRef,
                 indexRef,
                 memberValueType,
-                indexType,
                 optional,
+                optional
+                    ? this.getPropTypeOnIndexOfInfc(
+                          itableRef,
+                          memberNameRef,
+                          flag,
+                      )
+                    : undefined,
             );
         }
         const res = this.createInfcAccessInfo(
@@ -2673,20 +2690,26 @@ export class WASMExpressionGen {
         ref: binaryen.ExpressionRef,
         index: binaryen.ExpressionRef,
         type: ValueType,
-        indexType: binaryen.ExpressionRef,
         optional: boolean,
+        indexType?: binaryen.ExpressionRef,
     ) {
         const wasmType = this.wasmTypeGen.getWASMType(type);
         const typeKind = type.kind;
         let res: binaryen.ExpressionRef | null = null;
 
         if (optional) {
+            const fieldTypeRef = indexType!;
             let staticType = type;
             /** method always has function type */
             if (!(type instanceof FunctionType)) {
                 staticType = FunctionalFuncs.getStaticType(type);
             }
-            return this.dynGetInfcOptField(ref, index, staticType, indexType);
+            return this.dynGetInfcOptField(
+                ref,
+                index,
+                staticType,
+                fieldTypeRef,
+            );
         }
         if (typeKind === ValueTypeKind.BOOLEAN) {
             res = this.module.call(
@@ -2873,9 +2896,9 @@ export class WASMExpressionGen {
         ref: binaryen.ExpressionRef,
         type: ValueType,
         index: binaryen.ExpressionRef,
-        indexType: binaryen.ExpressionRef,
         value: binaryen.ExpressionRef,
         optional: boolean,
+        indexType?: binaryen.ExpressionRef,
     ) {
         const wasmType = this.wasmTypeGen.getWASMType(type);
         const typeKind = type.kind;
@@ -2892,7 +2915,7 @@ export class WASMExpressionGen {
                 index,
                 value,
                 staticType,
-                indexType,
+                indexType!,
             );
         }
 
