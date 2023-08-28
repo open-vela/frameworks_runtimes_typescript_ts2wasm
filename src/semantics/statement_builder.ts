@@ -66,6 +66,7 @@ import {
 } from '../statement.js';
 
 import {
+    ReBindingValue,
     SemanticsValue,
     SemanticsValueKind,
     VarValue,
@@ -133,6 +134,7 @@ export function createFromVariable(
         v.initContext
             ? createFromVariable(v.initContext, false, context)
             : undefined,
+        v.needReBinding,
     );
 }
 
@@ -476,6 +478,26 @@ function buildForStatement(
 
     const body = buildStatementAsNode(statement.forLoopBody, context);
 
+    const reBindedStmts = [body];
+    if (varList) {
+        const b = new BasicBlockNode();
+        const handledCtxs: VarDeclareNode[] = [];
+        for (const varNode of varList) {
+            if (varNode.needReBinding && varNode.belongCtx) {
+                if (!handledCtxs.includes(varNode.belongCtx)) {
+                    handledCtxs.push(varNode.belongCtx);
+                    const reBindingValue = new ReBindingValue(
+                        varNode.belongCtx,
+                    );
+                    b.pushSemanticsValue(reBindingValue);
+                }
+            }
+        }
+        reBindedStmts.push(b);
+    }
+
+    const finally_body = new BlockNode(reBindedStmts);
+
     context.pop();
 
     /*TODO: varList can be removed from ForNode, since varList is recorded in outter block scope */
@@ -486,7 +508,7 @@ function buildForStatement(
         initialize,
         condition,
         next,
-        body,
+        finally_body,
     );
 }
 

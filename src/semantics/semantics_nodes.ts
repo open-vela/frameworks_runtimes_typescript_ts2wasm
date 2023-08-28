@@ -135,7 +135,7 @@ enum VarDeclareNodeFlag {
 export class VarDeclareNode extends SemanticsNode {
     public isTmpVar = false;
     /** which context use this variable */
-    public currCtx?: VarDeclareNode;
+    public curCtx?: VarDeclareNode;
     constructor(
         public storageType: VarStorageType,
         public type: ValueType,
@@ -146,9 +146,10 @@ export class VarDeclareNode extends SemanticsNode {
         public closureIndex?: number,
         public belongCtx?: VarDeclareNode,
         public initCtx?: VarDeclareNode,
+        public needReBinding = false,
     ) {
         super(SemanticsKind.VAR_DECLARE);
-        this.currCtx = this.belongCtx;
+        this.curCtx = this.belongCtx;
     }
 
     copy() {
@@ -162,6 +163,7 @@ export class VarDeclareNode extends SemanticsNode {
             this.closureIndex,
             this.belongCtx,
             this.initCtx,
+            this.needReBinding,
         );
         return newVar;
     }

@@ -66,6 +66,7 @@ import {
     AnyCallValue,
     SuperUsageFlag,
     CommaExprValue,
+    ReBindingValue,
 } from '../../semantics/value.js';
 import {
     ArrayType,
@@ -102,20 +103,17 @@ import { stringTypeInfo } from './glue/packType.js';
 import { getConfig } from '../../../config/config_mgr.js';
 
 export class WASMExpressionGen {
-    private currentFuncCtx;
     private module: binaryen.Module;
     private wasmTypeGen;
 
     constructor(private wasmCompiler: WASMGen) {
         this.module = this.wasmCompiler.module;
         this.wasmTypeGen = this.wasmCompiler.wasmTypeComp;
-        this.currentFuncCtx = this.wasmCompiler.currentFuncCtx!;
     }
 
     wasmExprGen(value: SemanticsValue): binaryen.ExpressionRef {
         this.module = this.wasmCompiler.module;
         this.wasmTypeGen = this.wasmCompiler.wasmTypeComp;
-        this.currentFuncCtx = this.wasmCompiler.currentFuncCtx!;
 
         switch (value.kind) {
             case SemanticsValueKind.SUPER:
@@ -222,6 +220,8 @@ export class WASMExpressionGen {
             case SemanticsValueKind.VALUE_TO_STRING:
             case SemanticsValueKind.OBJECT_TO_STRING:
                 return this.wasmToString(<ToStringValue>value);
+            case SemanticsValueKind.REBINDING:
+                return this.wasmReBinding(<ReBindingValue>value);
             default:
                 throw new UnimplementError(`unexpected value: ${value}`);
         }
@@ -332,7 +332,7 @@ export class WASMExpressionGen {
             case SemanticsValueKind.LOCAL_CONST: {
                 const varDeclNode = varNode as VarDeclareNode;
                 if (varDeclNode.isUsedInClosureFunction()) {
-                    const currCtx = varDeclNode.currCtx;
+                    const currCtx = varDeclNode.curCtx;
                     const belongCtx = varDeclNode.belongCtx;
 
                     if (!currCtx || !belongCtx) {
@@ -467,7 +467,7 @@ export class WASMExpressionGen {
             case SemanticsValueKind.LOCAL_VAR:
             case SemanticsValueKind.LOCAL_CONST: {
                 if (varNode.isUsedInClosureFunction()) {
-                    const currCtx = varNode.currCtx;
+                    const currCtx = varNode.curCtx;
                     const belongCtx = varNode.belongCtx;
                     if (!currCtx || !belongCtx) {
                         throw new Error(
@@ -904,30 +904,31 @@ export class WASMExpressionGen {
         args?: SemanticsValue[],
     ) {
         const closureVarTypeRef = binaryen.getExpressionType(closureRef);
-        const closureTmp = this.currentFuncCtx!.insertTmpVar(closureVarTypeRef);
-        const setClosureTmp = this.module.local.set(
-            closureTmp.index,
+        const closureTmpVar =
+            this.wasmCompiler.currentFuncCtx!.insertTmpVar(closureVarTypeRef);
+        const setClosureTmpVarRef = this.module.local.set(
+            closureTmpVar.index,
             closureRef,
         );
-        const getClosureTmp = this.module.local.get(
-            closureTmp.index,
+        const getClosureTmpVarRef = this.module.local.get(
+            closureTmpVar.index,
             closureVarTypeRef,
         );
         const context = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
             0,
-            getClosureTmp,
+            getClosureTmpVarRef,
             closureVarTypeRef,
             false,
         );
         const funcRef = binaryenCAPI._BinaryenStructGet(
             this.module.ptr,
             1,
-            getClosureTmp,
+            getClosureTmpVarRef,
             closureVarTypeRef,
             false,
         );
-        this.currentFuncCtx!.insert(setClosureTmp);
+        this.wasmCompiler.currentFuncCtx!.insert(setClosureTmpVarRef);
         return this.callFuncRef(funcType, funcRef, args, undefined, context);
     }
 
@@ -3791,7 +3792,7 @@ export class WASMExpressionGen {
             fromValue instanceof NewLiteralArrayValue
         ) {
             /* created a temVar to store dynObjValue, then set dyn property */
-            const tmpVar = this.currentFuncCtx!.insertTmpVar(
+            const tmpVar = this.wasmCompiler.currentFuncCtx!.insertTmpVar(
                 this.wasmTypeGen.getWASMType(Primitive.Any),
             );
             const createDynObjOps: binaryen.ExpressionRef[] = [];
@@ -3838,9 +3839,44 @@ export class WASMExpressionGen {
         expr: binaryen.ExpressionRef,
         type: ValueType,
     ) {
-        const ctx = this.currentFuncCtx!;
+        const ctx = this.wasmCompiler.currentFuncCtx!;
         const tmpVar = ctx.insertTmpVar(this.wasmTypeGen.getWASMType(type));
         ctx.insert(this.module.local.set(tmpVar.index, expr));
         return this.module.local.get(tmpVar.index, tmpVar.type);
+    }
+
+    private wasmReBinding(value: ReBindingValue) {
+        const ctxVar = value.contextVar;
+        const ctxType = ctxVar.type as ClosureContextType;
+        const ctxTypeRef = this.wasmTypeGen.getWASMType(ctxType);
+        const ctxHeapTypeRef = this.wasmTypeGen.getWASMHeapType(ctxType);
+        const fields: binaryen.ExpressionRef[] = [];
+        fields.push(
+            binaryenCAPI._BinaryenStructGet(
+                this.module.ptr,
+                0,
+                this.module.local.get(ctxVar.index, ctxTypeRef),
+                ctxTypeRef,
+                false,
+            ),
+        );
+        for (let i = 0; i < ctxType.freeVarTypeList.length; i++) {
+            fields.push(
+                binaryenCAPI._BinaryenStructGet(
+                    this.module.ptr,
+                    i + 1,
+                    this.module.local.get(ctxVar.index, ctxTypeRef),
+                    ctxTypeRef,
+                    false,
+                ),
+            );
+        }
+        const newCtxStruct = binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr(fields).ptr,
+            fields.length,
+            ctxHeapTypeRef,
+        );
+        return this.module.local.set(ctxVar.index, newCtxStruct);
     }
 }

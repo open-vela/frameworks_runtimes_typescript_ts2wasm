@@ -558,6 +558,7 @@ export default class StatementProcessor {
                             forInit,
                             initStmt as VariableStatement,
                             scope,
+                            true,
                         );
                     } else {
                         initStmt = new ExpressionStatement(
@@ -794,6 +795,7 @@ export default class StatementProcessor {
         varDeclarationList: ts.VariableDeclarationList,
         varStatement: VariableStatement,
         currentScope: Scope,
+        isDefinedInInitializer = false,
     ) {
         for (const varDeclaration of varDeclarationList.declarations) {
             const varDecNode = <ts.VariableDeclaration>varDeclaration;
@@ -804,6 +806,8 @@ export default class StatementProcessor {
                     'can not find ' + varName + ' in current scope',
                 );
             }
+            variable.needReBinding =
+                isDefinedInInitializer && !variable.isFuncScopedVar();
             varStatement.addVariable(variable);
             if (variable.isFuncScopedVar() && varDecNode.initializer) {
                 const identifierExpr = new IdentifierExpression(varName);

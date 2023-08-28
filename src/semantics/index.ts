@@ -3,76 +3,36 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-import ts from 'typescript';
 import {
-    SemanticsKind,
     SemanticsNode,
     ModuleNode,
     VarDeclareNode,
     VarStorageType,
-    EmptyNode,
     BasicBlockNode,
     BlockNode,
     FunctionDeclareNode,
     FunctionOwnKind,
-    IfNode,
-    ForNode,
-    WhileNode,
-    CaseClauseNode,
-    DefaultClauseNode,
-    SwitchNode,
-    ReturnNode,
-    BreakNode,
-    ContinueNode,
     ParameterNodeFlag,
     ExternModule,
     ExternType,
     ExternTypeKind,
-    ExternModuleManager,
 } from './semantics_nodes.js';
-
 import { Logger } from '../log.js';
-
 import { ParserContext } from '../frontend.js';
-import {
-    Type,
-    TSClass,
-    TsClassField,
-    TsClassFunc,
-    FunctionKind,
-    TypeKind,
-    TSFunction,
-    TSArray,
-    TSInterface,
-} from '../type.js';
+import { TSClass, TSInterface } from '../type.js';
 import {
     ValueType,
     ValueTypeKind,
-    PrimitiveType,
     Primitive,
-    ArrayType,
-    SetType,
-    MapType,
-    UnionType,
     FunctionType,
     ObjectType,
     EnumType,
 } from './value_types.js';
 import { PredefinedTypeId } from '../utils.js';
 import { GetPredefinedType } from './predefined_types.js';
-
 import { flattenFunction } from './flatten.js';
-
-import {
-    BuildEnv,
-    BuildContext,
-    SymbolKey,
-    SymbolValue,
-    SymbolKeyToString,
-} from './builder_context.js';
-
+import { BuildContext, SymbolKey, SymbolValue } from './builder_context.js';
 import { SemanticsValueKind, SemanticsValue, VarValue } from './value.js';
-
 import {
     Scope,
     ScopeKind,
@@ -83,10 +43,8 @@ import {
     NamespaceScope,
     ClosureEnvironment,
 } from '../scope.js';
-
 import { buildExpression } from './expression_builder.js';
 import { createType, createObjectDescriptionShapes } from './type_creator.js';
-
 import {
     createFromVariable,
     buildStatement,
@@ -94,14 +52,12 @@ import {
 } from './statement_builder.js';
 import { CreateDefaultDumpWriter } from './dump.js';
 import { Variable } from '../variable.js';
-
 import {
     ProcessBuiltinObjectSpecializeList,
     ForEachBuiltinObject,
 } from './builtin.js';
 import { ModDeclStatement, Statement } from '../statement.js';
 import { IdentifierExpression } from '../expression.js';
-import { getConfig } from '../../config/config_mgr.js';
 
 function processTypes(context: BuildContext, globalScopes: Array<GlobalScope>) {
     for (const scope of globalScopes) {
