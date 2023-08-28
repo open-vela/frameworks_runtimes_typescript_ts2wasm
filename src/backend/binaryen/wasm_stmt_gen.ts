@@ -24,7 +24,11 @@ import {
     VarDeclareNode,
     WhileNode,
 } from '../../semantics/semantics_nodes.js';
-import { ClosureContextType, Primitive } from '../../semantics/value_types.js';
+import {
+    ClosureContextType,
+    Primitive,
+    ValueType,
+} from '../../semantics/value_types.js';
 import ts from 'typescript';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { SemanticsValue, VarValue } from '../../semantics/value.js';
@@ -326,12 +330,14 @@ export class WASMStatementGen {
     wasmTry(stmt: TryNode): binaryen.ExpressionRef {
         /* set tmp var */
         const tmpNeedRethrow = this.currentFuncCtx!.insertTmpVar(
-            Primitive.Boolean,
+            this.wasmCompiler.wasmTypeComp.getWASMType(Primitive.Boolean),
         );
-        const tmpException = this.currentFuncCtx!.insertTmpVar(Primitive.Any);
+        const tmpException = this.currentFuncCtx!.insertTmpVar(
+            this.wasmCompiler.wasmTypeComp.getWASMType(Primitive.Any),
+        );
         const getTmpExceptionRef = this.module.local.get(
             tmpException.index,
-            this.wasmCompiler.wasmTypeComp.getWASMType(tmpException.type),
+            tmpException.type,
         );
         const setTmpExceptionRef = this.module.local.set(
             tmpException.index,
@@ -391,9 +397,7 @@ export class WASMStatementGen {
                 this.module.i32.eq(
                     this.module.local.get(
                         tmpNeedRethrow.index,
-                        this.wasmCompiler.wasmTypeComp.getWASMType(
-                            tmpNeedRethrow.type,
-                        ),
+                        tmpNeedRethrow.type,
                     ),
                     this.module.i32.const(1),
                 ),
