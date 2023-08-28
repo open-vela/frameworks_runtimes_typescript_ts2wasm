@@ -3514,6 +3514,26 @@
         ]
     },
     {
+        "module": "export_func2",
+        "entries": [
+            {
+                "name": "defaultFunc",
+                "args": [],
+                "result": "100:f64"
+            },
+            {
+                "name": "mulFunc",
+                "args": [2,2],
+                "result": "4:f64"
+            },
+            {
+                "name": "subFunc",
+                "args": [2,2],
+                "result": "0:f64"
+            }
+        ]
+    },
+    {
         "module": "mixed_type",
         "entries": [
             {
