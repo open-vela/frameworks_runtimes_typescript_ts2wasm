@@ -130,7 +130,7 @@ export class WASMFunctionContext {
         return this.returnIndex;
     }
 
-    insertReturnVar(returnVarType: ValueType) {
+    insertReturnVar(returnVarType: binaryenCAPI.TypeRef) {
         const returnVarIdx = this.allocateTmpVarIdx();
         this.returnIndex = returnVarIdx;
         const returnVar = {
@@ -140,7 +140,7 @@ export class WASMFunctionContext {
         this.tmpBackendVars.push(returnVar);
     }
 
-    insertTmpVar(tmpVarType: ValueType) {
+    insertTmpVar(tmpVarType: binaryenCAPI.TypeRef) {
         const tmpVarIdx = this.allocateTmpVarIdx();
         const tmpVar = {
             index: tmpVarIdx,
@@ -257,9 +257,7 @@ export class WASMFunctionContext {
         const funcVarsTypeRefs = this.getFuncVarsTypeRefs(this.currentFunc);
         const backendVarsTypeRefs: binaryen.Type[] = [];
         for (const value of this.tmpBackendVars) {
-            backendVarsTypeRefs.push(
-                this.binaryenCtx.wasmTypeComp.getWASMValueType(value.type),
-            );
+            backendVarsTypeRefs.push(value.type);
             this.setLocalVarName('tempVar', value.index);
         }
         return funcVarsTypeRefs.concat(backendVarsTypeRefs);
@@ -626,7 +624,9 @@ export class WASMGen extends Ts2wasmBackend {
 
         /* add return value iff return type is not void, must ahead of parse return Statement */
         if (returnType.kind !== ValueTypeKind.VOID) {
-            this.currentFuncCtx.insertReturnVar(returnType);
+            this.currentFuncCtx.insertReturnVar(
+                this.wasmTypeComp.getWASMValueType(returnType),
+            );
         }
 
         /* for start function, need to call import start funcs */

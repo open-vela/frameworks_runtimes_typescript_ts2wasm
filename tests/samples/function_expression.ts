@@ -26,3 +26,14 @@ export function arrowFunctionWithoutReturn() {
     arrowFuncNoReturn1(1);
     return arrowFuncNoReturn(1);
 }
+
+function foo(f: (x: number, y: number) => number): (x: number, y: number) => number {
+    console.log(f(1, 1));
+    console.log("foo");
+    return f;
+}
+
+let add: (x: number, y: number)=>number = (x, y) => x + y;
+export function functionReturnClosure() {
+  console.log(foo(add)(2,3));
+}
