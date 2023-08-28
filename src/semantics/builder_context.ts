@@ -370,7 +370,7 @@ export class BuildContext {
         const new_var_decl = var_decl.copy();
         new_var_decl.setUsedByClosureFunction();
 
-        new_var_decl.currCtx = curFunc.varList![0];
+        new_var_decl.curCtx = curFunc.varList![0];
         const newValue = value.copy();
         newValue.ref = new_var_decl;
 

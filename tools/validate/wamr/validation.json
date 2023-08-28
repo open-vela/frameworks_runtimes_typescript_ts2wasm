@@ -1191,6 +1191,16 @@
         ]
     },
     {
+        "module": "block_closure",
+        "entries": [
+            {
+                "name": "getRes",
+                "args": [],
+                "result": "1 \n5 \n2 \n10 \n10 \n10 \n1 \n5 \n11 \n15 \n2 \n10 \n10 \n10 \n1 \n5"
+            }
+        ]
+    },
+    {
         "module": "block_inner_block",
         "entries": [
             {
