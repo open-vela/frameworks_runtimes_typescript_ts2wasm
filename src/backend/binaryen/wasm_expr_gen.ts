@@ -2233,13 +2233,10 @@ export class WASMExpressionGen {
         name: binaryen.ExpressionRef,
         flag: ItableFlag,
     ) {
-        return this.createTmpVarOfSpecifiedType(
-            this.module.call(
-                'find_index',
-                [itable, name, this.module.i32.const(flag)],
-                binaryen.i32,
-            ),
-            Primitive.Int,
+        return this.module.call(
+            'find_index',
+            [itable, name, this.module.i32.const(flag)],
+            binaryen.i32,
         );
     }
 
@@ -2248,13 +2245,10 @@ export class WASMExpressionGen {
         name: binaryen.ExpressionRef,
         flag: binaryen.ExpressionRef,
     ) {
-        return this.createTmpVarOfSpecifiedType(
-            this.module.call(
-                'find_type_by_index',
-                [itable, name, this.module.i32.const(flag)],
-                binaryen.i32,
-            ),
-            Primitive.Int,
+        return this.module.call(
+            'find_type_by_index',
+            [itable, name, this.module.i32.const(flag)],
+            binaryen.i32,
         );
     }
 
@@ -2381,23 +2375,64 @@ export class WASMExpressionGen {
 
     private boxObjToInfc(
         ref: binaryen.ExpressionRef,
-        oriType: ObjectType,
-        toType: ObjectType,
+        objectType: ObjectType,
+        infcType: ObjectType,
     ) {
         const itablePtr = this.module.i32.const(
-            this.wasmCompiler.generateMetaInfo(oriType),
+            this.wasmCompiler.generateMetaInfo(objectType),
         );
-        const wasmTypeId = this.module.i32.const(oriType.typeId);
-        const wasmImplId = this.module.i32.const(oriType.implId);
+        const wasmTypeId = this.module.i32.const(objectType.typeId);
+        let wasmImplId = this.module.i32.const(objectType.implId);
+
+        /** check if the shape of the object satisfied the shape the interface */
+        if (
+            objectType.typeId !== infcType.typeId &&
+            objectType.implId !== infcType.typeId
+        ) {
+            if (
+                this.isObjectCanBeImpledInfc(
+                    objectType.meta.members,
+                    infcType.meta.members,
+                )
+            ) {
+                wasmImplId = this.module.i32.const(infcType.typeId);
+            }
+        }
 
         return binaryenCAPI._BinaryenStructNew(
             this.module.ptr,
             arrayToPtr([itablePtr, wasmTypeId, wasmImplId, ref]).ptr,
             4,
-            this.wasmTypeGen.getWASMHeapType(toType),
+            this.wasmTypeGen.getWASMHeapType(infcType),
         );
     }
 
+    private isObjectCanBeImpledInfc(
+        objMembers: MemberDescription[],
+        infcMembers: MemberDescription[],
+    ) {
+        if (objMembers.length !== infcMembers.length) {
+            return false;
+        }
+        const len = objMembers.length;
+        for (let i = 0; i < len; i++) {
+            if (objMembers[i].name !== infcMembers[i].name) {
+                return false;
+            }
+            if (!objMembers[i].valueType.equals(infcMembers[i].valueType)) {
+                return false;
+            }
+            if (
+                (objMembers[i].hasGetter && !infcMembers[i].hasGetter) ||
+                (!objMembers[i].hasGetter && infcMembers[i].hasGetter) ||
+                (objMembers[i].hasSetter && !infcMembers[i].hasSetter) ||
+                (!objMembers[i].hasSetter && infcMembers[i].hasSetter)
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
     private unboxInfcToObj(
         ref: binaryen.ExpressionRef,
         oriType: ObjectType,
