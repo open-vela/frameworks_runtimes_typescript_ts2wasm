@@ -2296,12 +2296,7 @@ export class WASMExpressionGen {
                 }
             }
         }
-        const vtableRef = binaryenCAPI._BinaryenStructNew(
-            this.module.ptr,
-            arrayToPtr(vtable).ptr,
-            vtable.length,
-            vtableHeapTypeRef,
-        );
+        const vtableRef = this.wasmTypeGen.getWASMVtableInst(value.type);
         propRefList.unshift(vtableRef);
         const objectLiteralValueRef = binaryenCAPI._BinaryenStructNew(
             this.module.ptr,
