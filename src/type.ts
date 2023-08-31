@@ -1921,10 +1921,14 @@ export class TypeResolver {
         }
         const refs = this.typeRefsMap.get(type)!;
         type.fields.map((field) => {
-            this.parseTypeRefRelationship2(field.type, refs);
+            if (!field.static) {
+                this.parseTypeRefRelationship2(field.type, refs);
+            }
         });
         type.memberFuncs.map((method) => {
-            this.parseTypeRefRelationship2(method.type, refs);
+            if (!method.type.isStatic) {
+                this.parseTypeRefRelationship2(method.type, refs);
+            }
         });
     }
 
