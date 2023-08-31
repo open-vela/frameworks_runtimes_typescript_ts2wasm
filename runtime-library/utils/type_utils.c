@@ -209,6 +209,75 @@ get_array_struct_type(wasm_module_t wasm_module, int32_t array_type_idx,
     return -1;
 }
 
+wasm_struct_obj_t
+create_wasm_array_with_string(wasm_exec_env_t exec_env, void **ptr, uint32_t arrlen)
+{
+    uint32 arr_type_idx, string_type_idx;
+    wasm_value_t init = { .gc_obj = NULL }, tmp_val = { 0 },
+                 val = { .gc_obj = NULL };
+    wasm_array_type_t res_arr_type = NULL;
+    wasm_struct_type_t arr_struct_type = NULL;
+    wasm_struct_type_t string_struct_type = NULL;
+    wasm_ref_type_t arr_ref_type;
+    wasm_array_obj_t new_arr;
+    wasm_local_obj_ref_t local_ref;
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
+    wasm_module_t module = wasm_runtime_get_module(module_inst);
+
+    /* get array type_idx and the element is string */
+    string_type_idx = get_string_struct_type(module, &string_struct_type);
+
+    wasm_ref_type_set_type_idx(&arr_ref_type, true, string_type_idx);
+
+    arr_type_idx =
+        get_array_type_by_element(module, &arr_ref_type, true, &res_arr_type);
+    bh_assert(wasm_defined_type_is_array_type((wasm_defined_type_t)res_arr_type));
+
+    /* get result array struct type */
+    get_array_struct_type(module, arr_type_idx, &arr_struct_type);
+    bh_assert(
+        wasm_defined_type_is_struct_type((wasm_defined_type_t)arr_struct_type));
+
+    if(!ptr || !arrlen ) return NULL;
+
+    /* create new array */
+    new_arr = wasm_array_obj_new_with_type(exec_env, res_arr_type, arrlen, &init);
+    wasm_runtime_push_local_object_ref(exec_env, &local_ref);
+    local_ref.val = (wasm_obj_t)new_arr;
+
+    if (!new_arr) {
+        wasm_runtime_pop_local_object_ref(exec_env);
+        wasm_runtime_set_exception((wasm_module_inst_t)module_inst,
+                                   "alloc memory failed");
+        return NULL;
+    }
+
+    /* create_wasm_string for every element */
+    for (int i = 0; i < arrlen; i++) {
+        const char *p = (const char *)((void **)ptr)[i];
+        wasm_struct_obj_t string_struct = create_wasm_string(exec_env, p);
+        val.gc_obj = (wasm_obj_t)string_struct;
+        wasm_array_obj_set_elem(new_arr, i, &val);
+    }
+
+    wasm_struct_obj_t string_array_struct =
+        wasm_struct_obj_new_with_type(exec_env, arr_struct_type);
+
+    if (!string_array_struct) {
+        wasm_runtime_set_exception((wasm_module_inst_t)module_inst,
+                                   "alloc memory failed");
+        return NULL;
+    }
+
+    tmp_val.gc_obj = (wasm_obj_t)new_arr;
+    wasm_struct_obj_set_field(string_array_struct, 0, &tmp_val);
+    tmp_val.u32 = arrlen;
+    wasm_struct_obj_set_field(string_array_struct, 1, &tmp_val);
+
+    wasm_runtime_pop_local_object_ref(exec_env);
+    return string_array_struct;
+}
+
 /*
     utilities for string type
 
