@@ -34,7 +34,6 @@ import {
 } from '../../semantics/value_types.js';
 import { UnimplementError } from '../../error.js';
 import {
-    MemberDescription,
     MemberModifier,
     MemberType,
     ObjectDescription,
@@ -461,7 +460,11 @@ export class WASMTypeGen {
             this.createWASMInfcType(type);
             this.createWASMClassType(type, true);
         } else {
-            this.createWASMClassType(type);
+            if (type.meta.isObjectClass) {
+                this.createStaticFields(type);
+            } else {
+                this.createWASMClassType(type);
+            }
             if (
                 this.staticFieldsUpdateMap.has(type) &&
                 !this.staticFieldsUpdateMap.get(type)
@@ -538,7 +541,6 @@ export class WASMTypeGen {
         );
         const fieldTypeRefs = new Array<binaryenCAPI.TypeRef>();
         const fieldMuts = new Array<boolean>();
-        const staticFieldsTypeRefs = new Array<binaryenCAPI.TypeRef>();
         const classInitValues = new Array<binaryen.ExpressionRef>();
 
         this.parseObjectMembers(
@@ -547,7 +549,6 @@ export class WASMTypeGen {
             vtableFuncs,
             fieldTypeRefs,
             fieldMuts,
-            staticFieldsTypeRefs,
             classInitValues,
             buildIndex,
         );
@@ -635,14 +636,15 @@ export class WASMTypeGen {
                 this.infcObjTypeMap.set(type, wasmClassType.typeRef);
                 this.infcObjHeapTypeMap.set(type, wasmClassType.heapTypeRef);
             } else {
-                /** static fields */
-                this.createTypeForStaticFields(staticFieldsTypeRefs, type);
                 /* vtable instance */
-                const vtableInstance = binaryenCAPI._BinaryenStructNew(
-                    this.wasmComp.module.ptr,
-                    arrayToPtr(vtableFuncs).ptr,
-                    vtableFuncs.length,
+                const vtableNameRef = getCString(
+                    `vt-inst${this.structHeapTypeCnt}`,
+                );
+                const vtableInstance = this.createVtableInst(
+                    vtableNameRef,
+                    vtableType.typeRef,
                     vtableType.heapTypeRef,
+                    vtableFuncs,
                 );
                 /* this instance */
                 classInitValues.unshift(vtableInstance);
@@ -660,7 +662,7 @@ export class WASMTypeGen {
                 this.objTypeMap.set(metaInfo.name, wasmClassType.typeRef);
 
                 this.createCustomTypeName(
-                    `vt-struct${this.structHeapTypeCnt++}`,
+                    `vt-struct${this.structHeapTypeCnt}`,
                     vtableType.heapTypeRef,
                 );
                 this.createCustomTypeName(
@@ -821,14 +823,14 @@ export class WASMTypeGen {
     }
 
     getWASMStaticFieldsType(type: ValueType): binaryenCAPI.TypeRef {
-        if (!this.staticFieldsTypeMap.has(type) || needSpecialized(type)) {
+        if (!this.staticFieldsTypeMap.has(type)) {
             this.createWASMType(type);
         }
         return this.staticFieldsTypeMap.get(type) as binaryenCAPI.TypeRef;
     }
 
     getWASMStaticFieldsHeapType(type: ValueType): binaryenCAPI.HeapTypeRef {
-        if (!this.staticFieldsHeapTypeMap.has(type) || needSpecialized(type)) {
+        if (!this.staticFieldsHeapTypeMap.has(type)) {
             this.createWASMType(type);
         }
         return this.staticFieldsHeapTypeMap.get(
@@ -853,9 +855,6 @@ export class WASMTypeGen {
     updateStaticFields(type: ObjectType) {
         const metaInfo = type.meta;
         const name = metaInfo.name + '|static_fields';
-        if (!name.startsWith('@')) {
-            return;
-        }
         this.wasmComp.globalInitArray.push(
             binaryenCAPI._BinaryenGlobalSet(
                 this.wasmComp.module.ptr,
@@ -994,7 +993,7 @@ export class WASMTypeGen {
                 this.vtableTypeMap.set(type, vtableRef);
                 this.vtableHeapTypeMap.set(type, vtableHeapType);
                 this.createCustomTypeName(
-                    `vt-struct${this.structHeapTypeCnt++}`,
+                    `vt-struct${this.structHeapTypeCnt}`,
                     vtableHeapType,
                 );
 
@@ -1063,7 +1062,6 @@ export class WASMTypeGen {
                 );
                 const fieldTypeRefs = new Array<binaryenCAPI.TypeRef>();
                 const fieldMuts = new Array<boolean>();
-                const staticFieldsTypeRefs = new Array<binaryenCAPI.TypeRef>();
                 const classInitValues = new Array<binaryen.ExpressionRef>();
 
                 this.parseObjectMembers(
@@ -1072,19 +1070,23 @@ export class WASMTypeGen {
                     vtableFuncs,
                     fieldTypeRefs,
                     fieldMuts,
-                    staticFieldsTypeRefs,
                     classInitValues,
                     -1,
                 );
                 /** static fields */
-                this.createTypeForStaticFields(staticFieldsTypeRefs, type);
                 /* vtable instance */
-                const vtableInstance = binaryenCAPI._BinaryenStructNew(
-                    this.wasmComp.module.ptr,
-                    arrayToPtr(vtableFuncs).ptr,
-                    vtableFuncs.length,
-                    this.getWASMVtableHeapType(type),
+                const vtableNameRef = getCString(
+                    `vt-inst${this.structHeapTypeCnt++}`,
                 );
+                const vtableTypeRef = this.getWASMVtableType(type);
+                const vtableHeapType = this.getWASMVtableHeapType(type);
+                const vtableInstance = this.createVtableInst(
+                    vtableNameRef,
+                    vtableTypeRef,
+                    vtableHeapType,
+                    vtableFuncs,
+                );
+
                 /* this instance */
                 classInitValues.unshift(vtableInstance);
                 const thisArg = binaryenCAPI._BinaryenStructNew(
@@ -1157,7 +1159,6 @@ export class WASMTypeGen {
         vtableFuncs: binaryen.ExpressionRef[],
         fieldTypeRefs: binaryenCAPI.TypeRef[],
         fieldMuts: boolean[],
-        staticFieldsTypeRefs: binaryenCAPI.TypeRef[],
         classInitValues: binaryen.ExpressionRef[],
         buildIndex: number,
     ) {
@@ -1257,22 +1258,13 @@ export class WASMTypeGen {
                         this.wasmComp.module,
                     );
                 }
-                if (member.isStaic) {
-                    if (buildIndex === -1) {
-                        staticFieldsTypeRefs.push(
-                            this.getWASMType(member.valueType),
-                        );
-                    }
-                    /* First, give a default value based on type, then update value */
+                fieldTypeRefs.push(this.getWASMValueType(member.valueType));
+                if ((member.modifiers & MemberModifier.READONLY) !== 0) {
+                    fieldMuts.push(false);
                 } else {
-                    fieldTypeRefs.push(this.getWASMValueType(member.valueType));
-                    if ((member.modifiers & MemberModifier.READONLY) !== 0) {
-                        fieldMuts.push(false);
-                    } else {
-                        fieldMuts.push(true);
-                    }
-                    classInitValues.push(defaultValue);
+                    fieldMuts.push(true);
                 }
+                classInitValues.push(defaultValue);
             }
         }
     }
@@ -1303,19 +1295,64 @@ export class WASMTypeGen {
         );
         const name = type.meta.name + '|static_fields';
         /** clazz meta */
-        if (name.startsWith('@')) {
-            binaryenCAPI._BinaryenAddGlobal(
-                this.wasmComp.module.ptr,
-                getCString(name),
-                staticStructType.typeRef,
-                true,
-                this.wasmComp.module.ref.null(
-                    binaryenCAPI._BinaryenTypeStructref(),
-                ),
-            );
-        }
+        binaryenCAPI._BinaryenAddGlobal(
+            this.wasmComp.module.ptr,
+            getCString(name),
+            staticStructType.typeRef,
+            true,
+            this.wasmComp.module.ref.null(
+                binaryenCAPI._BinaryenTypeStructref(),
+            ),
+        );
         this.staticFieldsTypeMap.set(type, staticStructType.typeRef);
         this.staticFieldsHeapTypeMap.set(type, staticStructType.heapTypeRef);
         this.staticFieldsUpdateMap.set(type, false);
+    }
+
+    private createStaticFields(type: ObjectType) {
+        const staticFieldsTypeRefs = new Array<binaryenCAPI.TypeRef>();
+        const metaInfo = type.meta;
+        for (const member of metaInfo.members) {
+            if (member.type === MemberType.FIELD && member.isStaic) {
+                staticFieldsTypeRefs.push(
+                    this.getWASMValueType(member.valueType),
+                );
+            }
+        }
+        this.createTypeForStaticFields(staticFieldsTypeRefs, type);
+    }
+
+    private createVtableInst(
+        vtableNameRef: binaryen.ExpressionRef,
+        vtableTypeRef: binaryenCAPI.TypeRef,
+        vtableHeapType: binaryenCAPI.HeapTypeRef,
+        methods: binaryen.ExpressionRef[],
+    ) {
+        binaryenCAPI._BinaryenAddGlobal(
+            this.wasmComp.module.ptr,
+            vtableNameRef,
+            vtableTypeRef,
+            true,
+            binaryenCAPI._BinaryenRefNull(
+                this.wasmComp.module.ptr,
+                vtableTypeRef,
+            ),
+        );
+        const initVtableInst = binaryenCAPI._BinaryenGlobalSet(
+            this.wasmComp.module.ptr,
+            vtableNameRef,
+            binaryenCAPI._BinaryenStructNew(
+                this.wasmComp.module.ptr,
+                arrayToPtr(methods).ptr,
+                methods.length,
+                vtableHeapType,
+            ),
+        );
+        this.wasmComp.globalInitArray.push(initVtableInst);
+        return binaryenCAPI._BinaryenGlobalGet(
+            this.wasmComp.module.ptr,
+            vtableNameRef,
+            vtableTypeRef,
+        );
     }
 }
