@@ -36,6 +36,9 @@ int32_t
 get_array_struct_type(wasm_module_t wasm_module, int32_t array_type_idx,
                       wasm_struct_type_t *p_struct_type);
 
+wasm_struct_obj_t
+create_wasm_array_with_string(wasm_exec_env_t exec_env, void **ptr, uint32_t arrlen);
+
 /* get string struct type*/
 int32_t
 get_string_struct_type(wasm_module_t wasm_module,
