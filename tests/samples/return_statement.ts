@@ -14,8 +14,16 @@ export function deadCodeAfterReturn(a: number, b: number) {
 function helper() {
     return;
 }
+function foo(i: number, j: number) {
+    if (i > j) {
+        return console.log(i);
+    } else {
+        return console.log(j);
+    }
+}
 export function returnVoid(): void {
     console.log('before');
+    foo(1, 2);
     return helper();
     console.log('after');
 }

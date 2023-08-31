@@ -148,14 +148,16 @@ export class WASMStatementGen {
         const returnExprRef = this.wasmCompiler.wasmExprComp.wasmExprGen(
             stmt.expr,
         );
+        this.addDebugInfoRef(stmt.expr, returnExprRef);
         if (binaryen.getExpressionType(returnExprRef) !== binaryen.none) {
             const setReturnValue = this.module.local.set(
                 this.wasmCompiler.currentFuncCtx!.returnIdx,
                 returnExprRef,
             );
-            this.addDebugInfoRef(stmt.expr, returnExprRef);
             this.addDebugInfoRef(stmt, setReturnValue);
             this.wasmCompiler.currentFuncCtx!.insert(setReturnValue);
+        } else {
+            this.wasmCompiler.currentFuncCtx!.insert(returnExprRef);
         }
 
         return brReturn;
