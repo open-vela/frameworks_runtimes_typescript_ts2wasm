@@ -3622,5 +3622,40 @@
                 "result": "2 \ntrue \n-1 \n-1 \n--1 \n2 \ntrue \n-1 \n-1"
             }
         ]
+    },
+    {
+        "module": "for_of",
+        "entries": [
+            {
+                "name": "forOfForArray",
+                "args": [],
+                "result": "1 \n4 \n6 \n1 \n4 \n6 \n2 \n3 \n5 \n2 \n3 \n5"
+            },
+            {
+                "name": "forOfForString",
+                "args": [],
+                "result": "a \nb \nc"
+            },
+            {
+                "name": "forOfForMapKeys",
+                "args": [],
+                "result": "key1 \nkey2 \nkey1 \nkey2"
+            },
+            {
+                "name": "forOfForMapValues",
+                "args": [],
+                "result": "value1 \nvalue2 \nvalue1 \nvalue2"
+            },
+            {
+                "name": "forOfForMapEntries",
+                "args": [],
+                "result": "[key1,value1] \n[key2,value2] \n[key1,value1] \n[key2,value2]"
+            },
+            {
+                "name": "forOfForSetValues",
+                "args": [],
+                "result": "value1 \nvalue2 \nvalue1 \nvalue2"
+            }
+        ]
     }
 ]

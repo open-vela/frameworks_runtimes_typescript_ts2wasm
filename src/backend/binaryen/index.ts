@@ -59,7 +59,7 @@ import {
     META_INDEX_MASK,
     META_FLAG_MASK,
     SourceMapLoc,
-    TmpVarInfo,
+    BackendLocalVar,
     UtilFuncs,
 } from './utils.js';
 import {
@@ -82,10 +82,10 @@ export class WASMFunctionContext {
     private returnOpcode: binaryen.ExpressionRef;
     private returnIndex = 0;
     private currentFunc: FunctionDeclareNode;
-    private varsTypeRef: Array<binaryen.ExpressionRef> = [];
-    private tmpVarsTypeRefs: Array<binaryen.ExpressionRef> = [];
+    private varsTypeRef: Array<BackendLocalVar> = [];
+    private tmpVarsTypeRefs: Array<BackendLocalVar> = [];
     private hasGenerateVarsTypeRefs = false;
-    private tmpBackendVars: Array<TmpVarInfo> = [];
+    private tmpBackendVars: Array<BackendLocalVar> = [];
     private _sourceMapLocs: SourceMapLoc[] = [];
     public localVarIdxNameMap = new Map<string, number>();
 
@@ -155,19 +155,17 @@ export class WASMFunctionContext {
             /* funtion vars */
             if (varNode.varList) {
                 for (const variable of varNode.varList) {
+                    const backendVar = {
+                        type: this.binaryenCtx.wasmTypeComp.getWASMValueType(
+                            variable.type,
+                        ),
+                        index: variable.index,
+                    };
                     if (!variable.isTmpVar) {
-                        this.varsTypeRef.push(
-                            this.binaryenCtx.wasmTypeComp.getWASMValueType(
-                                variable.type,
-                            ),
-                        );
+                        this.varsTypeRef.push(backendVar);
                         this.setLocalVarName(variable.name, variable.index);
                     } else {
-                        this.tmpVarsTypeRefs.push(
-                            this.binaryenCtx.wasmTypeComp.getWASMValueType(
-                                variable.type,
-                            ),
-                        );
+                        this.tmpVarsTypeRefs.push(backendVar);
                         this.setLocalVarName('tempVar', variable.index);
                     }
                 }
@@ -177,19 +175,17 @@ export class WASMFunctionContext {
             /* block vars */
             if (varNode.varList) {
                 for (const variable of varNode.varList) {
+                    const backendVar = {
+                        type: this.binaryenCtx.wasmTypeComp.getWASMValueType(
+                            variable.type,
+                        ),
+                        index: variable.index,
+                    };
                     if (!variable.isTmpVar) {
-                        this.varsTypeRef.push(
-                            this.binaryenCtx.wasmTypeComp.getWASMValueType(
-                                variable.type,
-                            ),
-                        );
+                        this.varsTypeRef.push(backendVar);
                         this.setLocalVarName(variable.name, variable.index);
                     } else {
-                        this.tmpVarsTypeRefs.push(
-                            this.binaryenCtx.wasmTypeComp.getWASMValueType(
-                                variable.type,
-                            ),
-                        );
+                        this.tmpVarsTypeRefs.push(backendVar);
                         this.setLocalVarName('tempVar', variable.index);
                     }
                 }
@@ -255,9 +251,9 @@ export class WASMFunctionContext {
 
     getAllFuncVarsTypeRefs() {
         const funcVarsTypeRefs = this.getFuncVarsTypeRefs(this.currentFunc);
-        const backendVarsTypeRefs: binaryen.Type[] = [];
+        const backendVarsTypeRefs: BackendLocalVar[] = [];
         for (const value of this.tmpBackendVars) {
-            backendVarsTypeRefs.push(value.type);
+            backendVarsTypeRefs.push(value);
             this.setLocalVarName('tempVar', value.index);
         }
         return funcVarsTypeRefs.concat(backendVarsTypeRefs);
@@ -702,7 +698,12 @@ export class WASMGen extends Ts2wasmBackend {
             }
         }
         /* get all vars wasm types, must behind the parseBody */
-        const allVarsTypeRefs = this.currentFuncCtx.getAllFuncVarsTypeRefs();
+        const backendLocalVars = this.currentFuncCtx.getAllFuncVarsTypeRefs();
+        /** sort the local variables array by index */
+        backendLocalVars.sort((a, b) => {
+            return a.index - b.index;
+        });
+        const allVarsTypeRefs = backendLocalVars.map((value) => value.type);
 
         /* For class's constructor, should assign to return idx manually */
         if (

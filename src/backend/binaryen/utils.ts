@@ -75,9 +75,9 @@ export interface IfStatementInfo {
     ifFalse: binaryen.ExpressionRef;
 }
 
-export interface TmpVarInfo {
+export interface BackendLocalVar {
+    type: binaryen.Type;
     index: number;
-    type: binaryenCAPI.TypeRef;
 }
 
 export enum ItableFlag {
