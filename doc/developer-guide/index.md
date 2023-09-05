@@ -1,8 +1,10 @@
 # ts2wasm developer guide
 
-TypeScript is a typed superset of JavaScript, its rich type information has been used by several tools to achieve refactoring, linting and so on, but it need to be transpiled to pure JavaScript code before executing, which lost all the type information.
+TypeScript is a typed superset of JavaScript, its rich type information has been employed by numerous tools to facilitate tasks such as refactoring and linting. However, TypeScript code must be transpiled into pure JavaScript before execution, resulting in the loss of all type information.
 
-Ts2wasm compiler leverage WasmGC to apply static compilation as much as possible, and reserves some escape hatch for dynamic types. This documents describe the supported language features and some known limitations.
+The ts2wasm compiler works like a backend to the TypeScript Compiler (tsc), it utilize the power of WebAssembly Garbage Collection proposal (WasmGC) to perform static compilation wherever possible. It also provides some escape hatches to accommodate dynamic types. The ts2wasm-compiler now supports a strict subset of TypeScript and continuously strives to accommodate more semantics.
+
+This document serves as an overview of the supported language features and highlights certain known limitations.
 
 ## Type system overview
 
