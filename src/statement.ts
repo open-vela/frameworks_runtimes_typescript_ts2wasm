@@ -8,9 +8,14 @@ import { assert } from 'console';
 import { ParserContext } from './frontend.js';
 import {
     BinaryExpression,
+    CallExpression,
+    ElementAccessExpression,
     Expression,
     IdentifierExpression,
+    NumberLiteralExpression,
     PropertyAccessExpression,
+    UnaryExpression,
+    UndefinedKeywordExpression,
     SuperExpression,
 } from './expression.js';
 import { Scope, ScopeKind, FunctionScope } from './scope.js';
@@ -24,9 +29,9 @@ import {
     getCurScope,
 } from './utils.js';
 import { Variable } from './variable.js';
-import { TSClass, Type, TypeKind } from './type.js';
+import { TSClass, Type, TypeKind, builtinTypes } from './type.js';
 import { Logger } from './log.js';
-import { StatementError } from './error.js';
+import { StatementError, UnimplementError } from './error.js';
 import { getConfig } from '../config/config_mgr.js';
 
 type StatementKind = ts.SyntaxKind;
@@ -613,6 +618,32 @@ export default class StatementProcessor {
                 block.setScope(scope);
                 return block;
             }
+            case ts.SyntaxKind.ForOfStatement: {
+                const forOfStmtNode = <ts.ForOfStatement>node;
+                this.currentScope = this.parserCtx.getScopeByNode(node)!;
+                const scope = this.currentScope;
+                const loopLabel = 'for_loop_' + this.loopLabelStack.size();
+                const breakLabels = this.breakLabelsStack;
+                breakLabels.push(loopLabel + 'block');
+                const blockLabel = breakLabels.peek();
+                this.loopLabelStack.push(loopLabel);
+
+                const forStatement = this.convertForOfToForLoop(
+                    forOfStmtNode,
+                    scope,
+                    loopLabel,
+                    blockLabel,
+                );
+                this.breakLabelsStack.pop();
+                forStatement.setScope(scope);
+                scope.addStatement(forStatement);
+                const block = new BlockStatement();
+                if (this.emitSourceMap) {
+                    addSourceMapLoc(block, node);
+                }
+                block.setScope(scope);
+                return block;
+            }
             case ts.SyntaxKind.ExpressionStatement: {
                 const exprStatement = <ts.ExpressionStatement>node;
                 const exprStmt = new ExpressionStatement(
@@ -864,5 +895,247 @@ export default class StatementProcessor {
         );
         assignExpr.setExprType(fieldType);
         return new ExpressionStatement(assignExpr);
+    }
+
+    private convertForOfToForLoop(
+        forOfStmtNode: ts.ForOfStatement,
+        scope: Scope,
+        loopLabel: string,
+        blockLabel: string,
+    ): Statement {
+        let elementExpr: IdentifierExpression;
+        const forOfInitializer = forOfStmtNode.initializer;
+        if (ts.isVariableDeclarationList(forOfInitializer)) {
+            elementExpr = this.parserCtx.expressionProcessor.visitNode(
+                forOfInitializer.declarations[0].name,
+            ) as IdentifierExpression;
+        } else {
+            // ts.Identifier
+            elementExpr = this.parserCtx.expressionProcessor.visitNode(
+                forOfInitializer,
+            ) as IdentifierExpression;
+        }
+
+        const expr = this.parserCtx.expressionProcessor.visitNode(
+            forOfStmtNode.expression,
+        );
+
+        const isStaticExpr =
+            expr.exprType.kind === TypeKind.STRING ||
+            expr.exprType.kind === TypeKind.ARRAY;
+
+        const loopIndexLabel = `@loop_index`;
+        const lastIndexLabel = `@last_index`;
+        const iteratorLabel = `@loop_next_iter`;
+
+        const numberType = builtinTypes.get('number')!;
+        const booleanType = builtinTypes.get('boolean')!;
+        const anyType = builtinTypes.get('any')!;
+
+        const indexExpr = new IdentifierExpression(loopIndexLabel);
+        const iterExpr = new IdentifierExpression(iteratorLabel);
+        let initializer: Statement;
+        let cond: Expression;
+        let incrementor: Expression;
+
+        // TODO: use i32 for index
+        if (isStaticExpr) {
+            const loopIndex = new Variable(
+                loopIndexLabel,
+                numberType,
+                undefined,
+                scope.allocateIndexForInsertedVars(),
+            );
+            const lastIndex = new Variable(
+                lastIndexLabel,
+                numberType,
+                undefined,
+                scope.allocateIndexForInsertedVars(),
+            );
+            scope.addVariable(loopIndex);
+            scope.addVariable(lastIndex);
+
+            // const indexExpr = new IdentifierExpression(loopIndexLabel);
+            indexExpr.setExprType(loopIndex.varType);
+            const lastExpr = new IdentifierExpression(lastIndexLabel);
+            lastExpr.setExprType(lastIndex.varType);
+
+            const indexInitExpr = new BinaryExpression(
+                ts.SyntaxKind.EqualsToken,
+                indexExpr,
+                new NumberLiteralExpression(0),
+            );
+            indexInitExpr.setExprType(loopIndex.varType);
+
+            const exprPropExpr = new IdentifierExpression('length');
+            exprPropExpr.setExprType(numberType);
+            const propAccessExpr = new PropertyAccessExpression(
+                expr,
+                exprPropExpr,
+            );
+            propAccessExpr.setExprType(numberType);
+
+            const lastIndexInitExpr = new BinaryExpression(
+                ts.SyntaxKind.EqualsToken,
+                lastExpr,
+                propAccessExpr,
+            );
+            lastIndexInitExpr.setExprType(lastIndex.varType);
+            scope.addStatement(new ExpressionStatement(lastIndexInitExpr));
+
+            initializer = new ExpressionStatement(indexInitExpr);
+            cond = new BinaryExpression(
+                ts.SyntaxKind.LessThanToken,
+                indexExpr,
+                lastExpr,
+            );
+            cond.setExprType(booleanType);
+            incrementor = new UnaryExpression(
+                ts.SyntaxKind.PostfixUnaryExpression,
+                ts.SyntaxKind.PlusPlusToken,
+                indexExpr,
+            );
+            incrementor.setExprType(numberType);
+        } else {
+            const loopIter = new Variable(
+                iteratorLabel,
+                anyType,
+                undefined,
+                scope.allocateIndexForInsertedVars(),
+            );
+            scope.addVariable(loopIter);
+            // const iterExpr = new IdentifierExpression(iteratorLabel);
+            iterExpr.setExprType(loopIter.varType);
+
+            // for dynamic array, should get its iterator firstly
+            const tempIter = new Variable(
+                '@temp_iter',
+                anyType,
+                undefined,
+                scope.allocateIndexForInsertedVars(),
+            );
+            scope.addVariable(tempIter);
+            const tempIterExpr = new IdentifierExpression('@temp_iter');
+            tempIterExpr.setExprType(tempIter.varType);
+
+            // tempIter = expr.value();
+            const valueExpr = new IdentifierExpression('values');
+            valueExpr.setExprType(anyType);
+            const valueAccessExpr = new PropertyAccessExpression(
+                expr,
+                valueExpr,
+            );
+            valueAccessExpr.setExprType(anyType);
+            const valueCallExpr = new CallExpression(valueAccessExpr);
+            valueCallExpr.setExprType(anyType);
+
+            const lengthPropExpr = new IdentifierExpression('length');
+            lengthPropExpr.setExprType(anyType);
+            const lengthAccessExpr = new PropertyAccessExpression(
+                expr,
+                lengthPropExpr,
+            );
+            lengthAccessExpr.setExprType(anyType);
+            const isArray = new BinaryExpression(
+                ts.SyntaxKind.ExclamationEqualsEqualsToken,
+                lengthAccessExpr,
+                new UndefinedKeywordExpression(),
+            );
+            isArray.rightOperand.setExprType(anyType);
+            isArray.setExprType(booleanType);
+
+            // if isArray is true, assign expr.values() to tempIter
+            const assignForArrayExpr = new BinaryExpression(
+                ts.SyntaxKind.EqualsToken,
+                tempIterExpr,
+                valueCallExpr,
+            );
+            assignForArrayExpr.setExprType(anyType);
+            // if isArray is false, assign expr to tempIter
+            const assignForNonArrayExpr = new BinaryExpression(
+                ts.SyntaxKind.EqualsToken,
+                tempIterExpr,
+                expr,
+            );
+            assignForNonArrayExpr.setExprType(anyType);
+            const ifStmt = new IfStatement(
+                isArray,
+                new ExpressionStatement(assignForArrayExpr),
+                new ExpressionStatement(assignForNonArrayExpr),
+            );
+            scope.addStatement(ifStmt);
+
+            const nextExpr = new IdentifierExpression('next');
+            nextExpr.setExprType(anyType);
+            const iterNextExpr = new PropertyAccessExpression(
+                tempIterExpr,
+                nextExpr,
+            );
+            iterNextExpr.setExprType(anyType);
+            const callIterNextExpr = new CallExpression(iterNextExpr);
+            callIterNextExpr.setExprType(anyType);
+
+            const doneExpr = new IdentifierExpression('done');
+            doneExpr.setExprType(anyType);
+            const iterDoneExpr = new PropertyAccessExpression(
+                iterExpr,
+                doneExpr,
+            );
+            const initExpr = new BinaryExpression(
+                ts.SyntaxKind.EqualsToken,
+                iterExpr,
+                callIterNextExpr,
+            );
+            initExpr.setExprType(anyType);
+            initializer = new ExpressionStatement(initExpr);
+            cond = new UnaryExpression(
+                ts.SyntaxKind.PrefixUnaryExpression,
+                ts.SyntaxKind.ExclamationToken,
+                iterDoneExpr,
+            );
+            cond.setExprType(booleanType);
+            incrementor = initExpr;
+        }
+
+        const statement = this.visitNode(forOfStmtNode.statement)!;
+        if (!(statement instanceof BlockStatement)) {
+            throw new UnimplementError('unimpl for of without a block scope');
+        }
+        const scopeStmts = statement.getScope()!.statements;
+        if (isStaticExpr) {
+            const elemAccessExpr = new ElementAccessExpression(expr, indexExpr);
+            elemAccessExpr.setExprType(elementExpr.exprType);
+            const elemAssignmentExpr = new BinaryExpression(
+                ts.SyntaxKind.EqualsToken,
+                elementExpr,
+                elemAccessExpr,
+            );
+            elemAssignmentExpr.setExprType(elementExpr.exprType);
+            scopeStmts.unshift(new ExpressionStatement(elemAssignmentExpr));
+        } else {
+            const valueExpr = new IdentifierExpression('value');
+            valueExpr.setExprType(anyType);
+            const valueAccessExpr = new PropertyAccessExpression(
+                iterExpr,
+                valueExpr,
+            );
+            valueAccessExpr.setExprType(anyType);
+            const valueAssignExpr = new BinaryExpression(
+                ts.SyntaxKind.EqualsToken,
+                elementExpr,
+                valueAccessExpr,
+            );
+            valueAssignExpr.setExprType(elementExpr.exprType);
+            scopeStmts.unshift(new ExpressionStatement(valueAssignExpr));
+        }
+        const forStatement = new ForStatement(
+            loopLabel,
+            blockLabel,
+            cond,
+            statement,
+            initializer,
+            incrementor,
+        );
+        return forStatement;
     }
 }

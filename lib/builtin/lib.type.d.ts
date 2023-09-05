@@ -9,6 +9,19 @@ type f32 = any;
 type f64 = any;
 type anyref = any;
 
+interface SymbolConstructor {
+    readonly iterator: unique symbol;
+}
+declare var Symbol: SymbolConstructor;
+
+interface Iterable<T> {
+    [Symbol.iterator](): Iterator<T>;
+}
+
+interface IterableIterator<T> extends Iterator<T> {
+    [Symbol.iterator](): IterableIterator<T>;
+}
+
 interface ConcatArray<T> {
     readonly length: number;
     readonly [n: number]: T;
@@ -86,6 +99,7 @@ interface Array<T> {
     includes(searchElement: T, fromIndex?: number): boolean;
 
     [n: number]: T;
+    [Symbol.iterator](): IterableIterator<T>;
 }
 
 interface Boolean {}
@@ -123,6 +137,7 @@ interface String {
     trim(): string;
     substring(start: number, end?: number): string;
     charCodeAt(index: number): number;
+    [Symbol.iterator](): IterableIterator<string>;
 }
 
 interface StringConstructor {
