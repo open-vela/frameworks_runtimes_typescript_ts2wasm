@@ -3140,6 +3140,36 @@
         ]
     },
     {
+        "module": "string_binary_operation",
+        "entries": [
+            {
+                "name": "staticStringAdd",
+                "args": [],
+                "result": "helloworld"
+            },
+            {
+                "name": "dynStringAdd",
+                "args": [],
+                "result": "helloworld"
+            },
+            {
+                "name": "staticDynStringAdd",
+                "args": [],
+                "result": "helloworld"
+            },
+            {
+                "name": "staticToStringAdd",
+                "args": [],
+                "result": "hello123 \nhellotrue"
+            },
+            {
+                "name": "dynToStringAdd",
+                "args": [],
+                "result": "hello123 \nhellotrue"
+            }
+        ]
+    },
+    {
         "module": "string_or",
         "entries": [
             {
