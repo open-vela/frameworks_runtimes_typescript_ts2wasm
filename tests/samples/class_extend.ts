@@ -233,3 +233,23 @@ export function implInfc() {
     const ia: IA = d;
     console.log(ia.func2());
 }
+
+
+class Car {
+    price = 0;
+    constructor(p: number) {
+        this.price = p;
+    }
+}
+
+class Bus extends Car {
+    price = 100;
+    constructor() {
+        super(-1);
+    }
+}
+
+export function fieldInitOrder() {
+    const b = new Bus();
+    return b.price;
+}

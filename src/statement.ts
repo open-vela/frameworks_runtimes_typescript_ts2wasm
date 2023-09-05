@@ -11,6 +11,7 @@ import {
     Expression,
     IdentifierExpression,
     PropertyAccessExpression,
+    SuperExpression,
 } from './expression.js';
 import { Scope, ScopeKind, FunctionScope } from './scope.js';
 import {
@@ -435,7 +436,15 @@ export default class StatementProcessor {
                     if (!compiledStmt) {
                         continue;
                     }
-                    scope.addStatement(compiledStmt);
+                    if (
+                        compiledStmt instanceof ExpressionStatement &&
+                        compiledStmt.expression instanceof SuperExpression &&
+                        scope.statements.length > 0 // must be the first statement
+                    ) {
+                        scope.statements.unshift(compiledStmt);
+                    } else {
+                        scope.addStatement(compiledStmt);
+                    }
                 }
 
                 /* Block of function scope, just add statements to parent scope,
