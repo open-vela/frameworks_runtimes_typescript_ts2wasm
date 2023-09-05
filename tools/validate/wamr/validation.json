@@ -1637,6 +1637,11 @@
                 "name": "implInfc",
                 "args": [],
                 "result": "1 \nfalse"
+            },
+            {
+                "name": "fieldInitOrder",
+                "args": [],
+                "result": "100:f64"
             }
         ]
     },
