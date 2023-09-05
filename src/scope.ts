@@ -108,10 +108,6 @@ export class Scope {
         }
     }
 
-    allocateLocalIndex() {
-        return this.localIndex++;
-    }
-
     assignVariableIndex(scope: Scope) {
         if (scope instanceof FunctionScope || scope instanceof BlockScope) {
             scope.varArray.forEach((v) => {
@@ -501,6 +497,15 @@ export class Scope {
         for (const child of this.children) {
             child.traverseScopTree(traverseMethod);
         }
+    }
+
+    public allocateIndexForInsertedVars() {
+        const scope =
+            this.getNearestFunctionScope() ?? this.getRootGloablScope();
+        if (!scope || scope.localIndex === -1) {
+            throw new ScopeError('allocate index for inserted vars failed');
+        }
+        return scope.localIndex++;
     }
 }
 
@@ -965,6 +970,11 @@ export class ScopeScanner {
                 this.createLoopBlockScope(forStatementNode);
                 break;
             }
+            case ts.SyntaxKind.ForOfStatement: {
+                const forOfStmtNode = <ts.ForOfStatement>node;
+                this.createLoopBlockScope(forOfStmtNode);
+                break;
+            }
             case ts.SyntaxKind.WhileStatement: {
                 const whileStatementNode = <ts.WhileStatement>node;
                 this.createLoopBlockScope(whileStatementNode);
@@ -1047,9 +1057,7 @@ export class ScopeScanner {
         }
     }
 
-    createLoopBlockScope(
-        node: ts.ForStatement | ts.WhileStatement | ts.DoStatement,
-    ) {
+    createLoopBlockScope(node: ts.IterationStatement) {
         const parentScope = this.currentScope!;
         const parentName = parentScope.getName();
         const maybeFuncScope = parentScope.getNearestFunctionScope();

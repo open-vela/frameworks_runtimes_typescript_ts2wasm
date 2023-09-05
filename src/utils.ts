@@ -128,11 +128,7 @@ export function parentIsFunctionLike(node: ts.Node) {
 }
 
 export function parentIsLoopLike(node: ts.Node) {
-    if (
-        node.parent.kind === ts.SyntaxKind.ForStatement ||
-        node.parent.kind === ts.SyntaxKind.DoStatement ||
-        node.parent.kind === ts.SyntaxKind.WhileStatement
-    ) {
+    if (ts.isIterationStatement(node.parent, false)) {
         return true;
     }
 
@@ -163,6 +159,7 @@ export function isScopeNode(node: ts.Node) {
         node.kind === ts.SyntaxKind.Constructor ||
         node.kind === ts.SyntaxKind.MethodDeclaration ||
         node.kind === ts.SyntaxKind.ForStatement ||
+        node.kind === ts.SyntaxKind.ForOfStatement ||
         node.kind === ts.SyntaxKind.WhileStatement ||
         node.kind === ts.SyntaxKind.DoStatement ||
         node.kind === ts.SyntaxKind.CaseClause ||

@@ -654,9 +654,6 @@ export function buildStatement(
                 break;
             case ts.SyntaxKind.ForInStatement:
             /* falls through */
-            case ts.SyntaxKind.ForOfStatement:
-                // TODO
-                break;
             case ts.SyntaxKind.ExpressionStatement:
                 res = buildExpression(
                     (statement as ExpressionStatement).expression,

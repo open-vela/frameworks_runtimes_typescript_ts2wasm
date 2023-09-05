@@ -2572,7 +2572,13 @@ export function buildExpression(
         return res;
     } catch (e: any) {
         Logger.error(e);
-        const tsNode = expr.tsNode!;
+        const tsNode = expr.tsNode;
+        /** sometimes Expression maybe convert from other Expression for convenience
+         * so the tsNode maybe undefined
+         */
+        if (!tsNode) {
+            throw Error(e);
+        }
         const sourceFile = tsNode.getSourceFile();
         const start = tsNode.getStart(sourceFile);
         const startLineInfo = sourceFile.getLineAndCharacterOfPosition(start);
