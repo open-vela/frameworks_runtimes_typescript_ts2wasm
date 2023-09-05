@@ -799,7 +799,7 @@ function updateMemberDescriptions(
                     {
                         method: getGlobalFunction(
                             context,
-                            `${clazz.mangledName}|${m.name}`,
+                            `${clazz.mangledName}|@${m.name}`,
                         ),
                     },
                     true,
