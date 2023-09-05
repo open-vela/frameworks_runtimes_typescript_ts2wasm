@@ -119,22 +119,6 @@ dyntype_add_elem_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
 {
 }
 
-void
-dyntype_set_elem_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
-                         wasm_anyref_obj_t obj, int index,
-                         wasm_anyref_obj_t elem)
-{
-    dyntype_set_elem(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), index,
-                     UNBOX_ANYREF(elem));
-}
-
-dyn_value_t
-dyntype_get_elem_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
-                         wasm_anyref_obj_t obj, int index)
-{
-    RETURN_BOX_ANYREF(dyntype_get_elem(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), index));
-}
-
 dyn_value_t
 dyntype_new_extref_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
                            void *ptr, external_ref_tag tag)
@@ -344,99 +328,6 @@ dyntype_toString_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
         }
         res = create_wasm_string(exec_env, str);
         dyntype_free_cstring(dyn_ctx, str);
-    }
-
-    return res;
-}
-
-int
-dyntype_set_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
-                             wasm_anyref_obj_t obj, const char *prop,
-                             wasm_anyref_obj_t value)
-{
-    dyn_value_t dyn_ctx = UNBOX_ANYREF(ctx);
-    dyn_value_t dyn_obj = UNBOX_ANYREF(obj);
-    dyn_value_t dyn_value = UNBOX_ANYREF(value);
-    wasm_module_inst_t module_inst;
-    wasm_module_t module;
-    wasm_obj_t wasm_obj;
-    wasm_ref_type_t field_type;
-    wasm_defined_type_t field_defined_type;
-    int index;
-
-    index = get_prop_index_of_struct(exec_env, dyn_ctx, dyn_obj, prop, &wasm_obj, &field_type);
-    if (index == -2) {
-        return dyntype_set_property(dyn_ctx, dyn_obj, prop,
-                                dyn_value);
-    }
-    module_inst = wasm_runtime_get_module_inst(exec_env);
-    if (index == -1) {
-        wasm_runtime_set_exception(
-            module_inst, "dyntype set property error");
-    }
-    module = wasm_runtime_get_module(module_inst);
-    field_defined_type = wasm_get_defined_type(module, field_type.heap_type);
-    if (field_type.value_type == VALUE_TYPE_ANYREF) {
-        struct_set_dyn_anyref(exec_env, (wasm_anyref_obj_t)wasm_obj, index, value);
-    } else if (field_type.value_type == VALUE_TYPE_I32) {
-        int field_value = dyntype_to_bool_wrapper(exec_env, ctx, value);
-        struct_set_dyn_i32(exec_env, (wasm_anyref_obj_t)wasm_obj, index, field_value);
-    } else if (field_type.value_type == VALUE_TYPE_F64) {
-        double field_value = dyntype_to_number_wrapper(exec_env, ctx, value);
-        struct_set_dyn_f64(exec_env, (wasm_anyref_obj_t)wasm_obj, index, field_value);
-    } else if (is_ts_string_type(module, field_defined_type)) {
-        void *field_value = dyntype_to_string_wrapper(exec_env, ctx, value);
-        struct_set_dyn_anyref(exec_env, (wasm_anyref_obj_t)wasm_obj, index, field_value);
-    } else {
-        // TODO： external reference
-        return -DYNTYPE_TYPEERR;
-    }
-
-    return DYNTYPE_SUCCESS;
-}
-
-dyn_value_t
-dyntype_get_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
-                             wasm_anyref_obj_t obj, const char *prop)
-{
-    wasm_module_inst_t module_inst;
-    wasm_module_t module;
-    dyn_value_t dyn_ctx = UNBOX_ANYREF(ctx);
-    dyn_value_t dyn_obj = UNBOX_ANYREF(obj);
-    wasm_obj_t wasm_obj;
-    wasm_ref_type_t field_type;
-    wasm_defined_type_t field_defined_type;
-    int index;
-    dyn_value_t res;
-
-    module_inst = wasm_runtime_get_module_inst(exec_env);
-    module = wasm_runtime_get_module(module_inst);
-    index = get_prop_index_of_struct(exec_env, dyn_ctx, dyn_obj, prop, &wasm_obj, &field_type);
-    if (index == -2) {
-        RETURN_BOX_ANYREF(dyntype_get_property(dyn_ctx, dyn_obj, prop));
-    }
-    if (index == -1) {
-        wasm_runtime_set_exception(
-            module_inst, "dyntype set property error");
-    }
-
-    if (field_type.value_type == VALUE_TYPE_ANYREF) {
-        res = struct_get_dyn_anyref(exec_env, (wasm_anyref_obj_t)wasm_obj, index);
-    } else if (field_type.value_type == VALUE_TYPE_I32) {
-        int value = struct_get_dyn_i32(exec_env, (wasm_anyref_obj_t)wasm_obj, index);
-        res = dyntype_new_boolean_wrapper(exec_env, ctx, value);
-    } else if (field_type.value_type == VALUE_TYPE_F64) {
-        double value = struct_get_dyn_f64(exec_env, (wasm_anyref_obj_t)wasm_obj, index);
-        res = dyntype_new_number_wrapper(exec_env, ctx, value);
-    } else {
-        void *value = struct_get_dyn_anyref(exec_env, (wasm_anyref_obj_t)wasm_obj, index);
-        field_defined_type = wasm_get_defined_type(module, field_type.heap_type);
-        if (is_ts_string_type(module, field_defined_type)) {
-            res = dyntype_new_string_wrapper(exec_env, ctx, (wasm_struct_obj_t)value);
-        } else {
-            // TODO: for extref, need table grow
-            res = dyntype_new_undefined_wrapper(exec_env, ctx);
-        }
     }
 
     return res;
@@ -830,35 +721,63 @@ dyntype_call_func_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
 
 static void *
 box_value_to_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
-                     void *value, wasm_ref_type_t type, uint32 slot_count)
+                     void *value, wasm_ref_type_t type, uint32 slot_count,
+                     bool is_get_property, int index)
 {
     void *ret = NULL;
     wasm_defined_type_t ret_defined_type = { 0 };
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
     wasm_module_t module = wasm_runtime_get_module(module_inst);
+    wasm_function_inst_t new_extref_func = NULL;
+    uint32 extref_agc = 6;
+    uint32 extref_argv[6] = { 0 };
+    uint32 occupied_slots = 0;
     int tag = 0;
-    uint32 table_idx = 0;
 
     if (type.value_type == VALUE_TYPE_I32) {
         uint32 ori_value = 0;
-        bh_assert(slot_count == 1);
-        bh_memcpy_s(&ori_value, sizeof(uint32), value, sizeof(uint32));
+        if (is_get_property) {
+            ori_value =
+                struct_get_dyn_i32(exec_env, (wasm_anyref_obj_t)value, index);
+        }
+        else {
+            bh_assert(slot_count == 1);
+            bh_memcpy_s(&ori_value, sizeof(uint32), value, sizeof(uint32));
+        }
         ret = dyntype_new_boolean_wrapper(exec_env, ctx, (bool)ori_value);
     }
     else if (type.value_type == VALUE_TYPE_F64) {
         double ori_value = 0;
-        bh_assert(slot_count == 2);
-        bh_memcpy_s(&ori_value, sizeof(double), value, sizeof(double));
+        if (is_get_property) {
+            ori_value =
+                struct_get_dyn_f64(exec_env, (wasm_anyref_obj_t)value, index);
+        }
+        else {
+            bh_assert(slot_count == 2);
+            bh_memcpy_s(&ori_value, sizeof(double), value, sizeof(double));
+        }
         ret = dyntype_new_number_wrapper(exec_env, ctx, ori_value);
     }
     else if (type.value_type == REF_TYPE_ANYREF) {
         void *ori_value = NULL;
-        bh_memcpy_s(&ori_value, sizeof(void *), value, sizeof(void *));
+        if (is_get_property) {
+            ori_value = struct_get_dyn_anyref(exec_env,
+                                              (wasm_anyref_obj_t)value, index);
+        }
+        else {
+            bh_memcpy_s(&ori_value, sizeof(void *), value, sizeof(void *));
+        }
         ret = ori_value;
     }
     else {
         void *ori_value = NULL;
-        bh_memcpy_s(&ori_value, sizeof(void *), value, sizeof(void *));
+        if (is_get_property) {
+            ori_value = struct_get_dyn_anyref(exec_env,
+                                              (wasm_anyref_obj_t)value, index);
+        }
+        else {
+            bh_memcpy_s(&ori_value, sizeof(void *), value, sizeof(void *));
+        }
 
         ret_defined_type = wasm_get_defined_type(module, type.heap_type);
         if (wasm_defined_type_is_struct_type(ret_defined_type)) {
@@ -867,11 +786,6 @@ box_value_to_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
                                                  (wasm_struct_obj_t)ori_value);
             }
             else {
-                wasm_runtime_set_exception(
-                    wasm_runtime_get_module_inst(exec_env),
-                    "Not support box to extref in native yet");
-                // TODO: put value into table
-                // TODO: get table idx
                 if (is_infc((wasm_obj_t)ori_value)) {
                     tag = ExtInfc;
                 }
@@ -884,8 +798,30 @@ box_value_to_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
                 else {
                     tag = ExtObj;
                 }
-                ret = dyntype_new_extref_wrapper(
-                    exec_env, ctx, (void *)(uintptr_t)table_idx, tag);
+
+                new_extref_func = wasm_runtime_lookup_function(
+                    module_inst, "newExtRef", NULL);
+                bh_assert(new_extref_func);
+
+                bh_memcpy_s(extref_argv + occupied_slots,
+                            sizeof(wasm_anyref_obj_t), &ctx,
+                            sizeof(wasm_anyref_obj_t));
+                occupied_slots += sizeof(wasm_anyref_obj_t) / sizeof(uint32);
+                bh_memcpy_s(extref_argv + occupied_slots, sizeof(uint32), &tag,
+                            sizeof(uint32));
+                occupied_slots += sizeof(uint32) / sizeof(uint32);
+                bh_memcpy_s(extref_argv + occupied_slots,
+                            sizeof(wasm_anyref_obj_t), &ori_value,
+                            sizeof(wasm_anyref_obj_t));
+                occupied_slots += sizeof(wasm_anyref_obj_t) / sizeof(uint32);
+                extref_agc = occupied_slots;
+
+                if (!wasm_runtime_call_wasm(exec_env, new_extref_func,
+                                            extref_agc, extref_argv)) {
+                    return NULL;
+                }
+                bh_memcpy_s(&ret, sizeof(wasm_anyref_obj_t), extref_argv,
+                            sizeof(wasm_anyref_obj_t));
             }
         }
     }
@@ -896,7 +832,7 @@ box_value_to_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
 static void
 unbox_value_from_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
                          void *obj, wasm_ref_type_t type, void *unboxed_value,
-                         uint32 slot_count)
+                         uint32 slot_count, bool is_set_property, int index)
 {
     uint32 table_idx = 0;
     wasm_defined_type_t ret_defined_type = { 0 };
@@ -905,32 +841,68 @@ unbox_value_from_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
 
     if (type.value_type == VALUE_TYPE_I32) {
         int ret_value = dyntype_to_bool_wrapper(exec_env, ctx, obj);
-        bh_assert(slot_count == 1);
-        bh_memcpy_s(unboxed_value, sizeof(uint32), &ret_value, sizeof(uint32));
+        if (is_set_property) {
+            struct_set_dyn_i32(exec_env, (wasm_anyref_obj_t)unboxed_value,
+                               index, ret_value);
+        }
+        else {
+            bh_assert(slot_count == 1);
+            bh_memcpy_s(unboxed_value, sizeof(uint32), &ret_value,
+                        sizeof(uint32));
+        }
     }
     else if (type.value_type == VALUE_TYPE_F64) {
         double ret_value = dyntype_to_number_wrapper(exec_env, ctx, obj);
-        bh_assert(slot_count == 2);
-        bh_memcpy_s(unboxed_value, sizeof(double), &ret_value, sizeof(double));
+        if (is_set_property) {
+            struct_set_dyn_f64(exec_env, (wasm_anyref_obj_t)unboxed_value,
+                               index, ret_value);
+        }
+        else {
+            bh_assert(slot_count == 2);
+            bh_memcpy_s(unboxed_value, sizeof(double), &ret_value,
+                        sizeof(double));
+        }
     }
     else if (type.value_type == REF_TYPE_ANYREF) {
-        bh_memcpy_s(unboxed_value, sizeof(void *), &obj, sizeof(void *));
+        void *ret_value = obj;
+        if (is_set_property) {
+            struct_set_dyn_anyref(exec_env, (wasm_anyref_obj_t)unboxed_value,
+                                  index, ret_value);
+        }
+        else {
+            bh_memcpy_s(unboxed_value, sizeof(void *), &ret_value,
+                        sizeof(void *));
+        }
     }
     else {
         ret_defined_type = wasm_get_defined_type(module, type.heap_type);
         if (wasm_defined_type_is_struct_type(ret_defined_type)) {
             if (is_ts_string_type(module, ret_defined_type)) {
                 void *ret_value = dyntype_to_string_wrapper(exec_env, ctx, obj);
-                bh_memcpy_s(unboxed_value, sizeof(void *), &ret_value,
-                            sizeof(void *));
+                if (is_set_property) {
+                    struct_set_dyn_anyref(exec_env,
+                                          (wasm_anyref_obj_t)unboxed_value,
+                                          index, ret_value);
+                }
+                else {
+                    bh_memcpy_s(unboxed_value, sizeof(void *), &ret_value,
+                                sizeof(void *));
+                }
             }
             else {
                 void *ret_value;
                 table_idx = (uint32)(uintptr_t)dyntype_to_extref_wrapper(
                     exec_env, ctx, obj);
                 ret_value = wamr_utils_get_table_element(exec_env, table_idx);
-                bh_memcpy_s(unboxed_value, sizeof(void *), &ret_value,
-                            sizeof(void *));
+                if (is_set_property) {
+                    struct_set_dyn_anyref(exec_env,
+                                          (wasm_anyref_obj_t)unboxed_value,
+                                          index, ret_value);
+                }
+                else {
+                    bh_memcpy_s(unboxed_value, sizeof(void *), &ret_value,
+                                sizeof(void *));
+                }
             }
         }
     }
@@ -948,6 +920,162 @@ get_slot_count(wasm_ref_type_t type)
     else {
         return sizeof(void *) / sizeof(uint32);
     }
+}
+
+void
+dyntype_set_elem_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
+                         wasm_anyref_obj_t obj, int index,
+                         wasm_anyref_obj_t elem)
+{
+    bool is_ext_ref = false;
+    wasm_array_obj_t arr_ref = { 0 };
+    uint32 slot_count = 0;
+    wasm_value_t unboxed_elem_value = { 0 };
+    wasm_ref_type_t arr_elem_ref_type = { 0 };
+    uint64 arr_info[3] = { 0 };
+
+    is_ext_ref = get_static_array_info(exec_env, UNBOX_ANYREF(ctx),
+                                       UNBOX_ANYREF(obj), index, arr_info);
+
+    if (is_ext_ref) {
+        arr_ref = *(wasm_array_obj_t *)(intptr_t)(arr_info[0]);
+        arr_elem_ref_type = *(wasm_ref_type_t *)(intptr_t)(arr_info[1]);
+        slot_count = get_slot_count(arr_elem_ref_type);
+        unbox_value_from_dyntype(exec_env, ctx, elem, arr_elem_ref_type,
+                                 &unboxed_elem_value, slot_count, false, -1);
+        wasm_array_obj_set_elem(arr_ref, index, &unboxed_elem_value);
+    }
+    else {
+        dyntype_set_elem(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), index,
+                         UNBOX_ANYREF(elem));
+    }
+}
+
+dyn_value_t
+dyntype_get_elem_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
+                         wasm_anyref_obj_t obj, int index)
+{
+    bool is_ext_ref = false;
+    uint32 slot_count = 0;
+    wasm_ref_type_t arr_elem_ref_type = { 0 };
+    uint64 arr_info[3] = { 0 };
+    wasm_value_t elem_res = { 0 };
+    void *elem_res_any = NULL;
+
+    is_ext_ref = get_static_array_info(exec_env, UNBOX_ANYREF(ctx),
+                                       UNBOX_ANYREF(obj), index, arr_info);
+
+    if (is_ext_ref) {
+        arr_elem_ref_type = *(wasm_ref_type_t *)(intptr_t)(arr_info[1]);
+        elem_res = *(wasm_value_t *)(intptr_t)(arr_info[2]);
+        slot_count = get_slot_count(arr_elem_ref_type);
+        elem_res_any = box_value_to_dyntype(
+            exec_env, ctx, &elem_res, arr_elem_ref_type, slot_count, false, -1);
+        return elem_res_any;
+    }
+    else {
+        RETURN_BOX_ANYREF(
+            dyntype_get_elem(UNBOX_ANYREF(ctx), UNBOX_ANYREF(obj), index));
+    }
+}
+
+int
+dyntype_set_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
+                             wasm_anyref_obj_t obj, const char *prop,
+                             wasm_anyref_obj_t value)
+{
+    dyn_value_t dyn_ctx = UNBOX_ANYREF(ctx);
+    dyn_value_t dyn_obj = UNBOX_ANYREF(obj);
+    dyn_value_t dyn_value = UNBOX_ANYREF(value);
+    wasm_obj_t wasm_obj;
+    wasm_ref_type_t field_type;
+    int index;
+    uint32 obj_info[2] = { 0 };
+    void *ext_ref;
+    int res = DYNTYPE_SUCCESS;
+
+    get_dyn_obj_info(dyn_ctx, dyn_obj, obj_info);
+
+    if (obj_info[0] == DynObject) {
+        res = dyntype_set_property(dyn_ctx, dyn_obj, prop, dyn_value);
+    }
+    else {
+        ext_ref = wamr_utils_get_table_element(exec_env, obj_info[1]);
+        if (obj_info[0] == DynExtRefInfc || obj_info[0] == DynExtRefObj) {
+            if (obj_info[0] == DynExtRefInfc) {
+                wasm_obj = (wasm_obj_t)get_infc_obj(exec_env, ext_ref);
+            }
+            else {
+                wasm_obj = (wasm_obj_t)ext_ref;
+            }
+            bh_assert(wasm_obj_is_struct_obj(wasm_obj));
+            index = get_prop_index_of_struct(exec_env, prop, &wasm_obj,
+                                             &field_type);
+            if (index < 0) {
+                res = dyntype_set_property(dyn_ctx, dyn_obj, prop, dyn_value);
+            }
+            else {
+                unbox_value_from_dyntype(exec_env, ctx, value, field_type,
+                                         wasm_obj, -1, true, index);
+            }
+        }
+        else {
+            res = -DYNTYPE_EXCEPTION;
+        }
+    }
+
+    return res;
+}
+
+dyn_value_t
+dyntype_get_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
+                             wasm_anyref_obj_t obj, const char *prop)
+{
+    dyn_value_t dyn_ctx = UNBOX_ANYREF(ctx);
+    dyn_value_t dyn_obj = UNBOX_ANYREF(obj);
+    wasm_obj_t wasm_obj;
+    wasm_ref_type_t field_type;
+    int index;
+    dyn_value_t res = NULL;
+    uint64 arr_info[3] = { 0 };
+    uint64 arr_len = 0;
+    uint32 obj_info[2] = { 0 };
+    void *ext_ref;
+
+    get_dyn_obj_info(dyn_ctx, dyn_obj, obj_info);
+
+    if (obj_info[0] == DynObject) {
+        RETURN_BOX_ANYREF(dyntype_get_property(dyn_ctx, dyn_obj, prop));
+    }
+    else {
+        ext_ref = wamr_utils_get_table_element(exec_env, obj_info[1]);
+        if (obj_info[0] == DynExtRefInfc || obj_info[0] == DynExtRefObj) {
+            if (obj_info[0] == DynExtRefInfc) {
+                wasm_obj = (wasm_obj_t)get_infc_obj(exec_env, ext_ref);
+            }
+            else {
+                wasm_obj = (wasm_obj_t)ext_ref;
+            }
+            bh_assert(wasm_obj_is_struct_obj(wasm_obj));
+            index = get_prop_index_of_struct(exec_env, prop, &wasm_obj,
+                                             &field_type);
+            if (index < 0) {
+                RETURN_BOX_ANYREF(dyntype_get_property(dyn_ctx, dyn_obj, prop));
+            }
+            else {
+                res = box_value_to_dyntype(exec_env, ctx, wasm_obj, field_type,
+                                           -1, true, index);
+            }
+        }
+        else if (obj_info[0] == DynExtRefArray) {
+            bh_assert(strcmp(prop, "length") == 0);
+            get_static_array_info(exec_env, dyn_ctx, dyn_obj, -1, arr_info);
+            arr_len = arr_info[2];
+            res = dyntype_new_number_wrapper(exec_env, ctx, (double)arr_len);
+        }
+    }
+
+    return res;
 }
 
 void *
@@ -1011,8 +1139,8 @@ call_wasm_func_with_boxing(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
                     wasm_func_type_get_param_type(func_type, i + 1);
                 slot_count = get_slot_count(tmp_param_type);
                 unbox_value_from_dyntype(exec_env, ctx, func_args[i],
-                                         tmp_param_type, &tmp_param,
-                                         slot_count);
+                                         tmp_param_type, &tmp_param, slot_count,
+                                         false, -1);
             }
             else {
                 /* workaround: in onfulfilled func, the wasm function's param
@@ -1036,7 +1164,7 @@ call_wasm_func_with_boxing(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
                     slot_count = get_slot_count(tmp_param_type);
                     unbox_value_from_dyntype(exec_env, ctx, func_args[i],
                                              tmp_param_type, &tmp_param,
-                                             slot_count);
+                                             slot_count, false, -1);
                 }
             }
             bh_memcpy_s(argv + occupied_slots,
@@ -1048,8 +1176,6 @@ call_wasm_func_with_boxing(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
         is_success =
             wasm_runtime_call_func_ref(exec_env, func_obj, bsize, argv);
         if (!is_success) {
-            wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
-                                       "Call wasm func failed");
             wasm_runtime_free(argv);
             /* static throw or dynamic throw can not be defined in compilation
              */
@@ -1066,7 +1192,7 @@ call_wasm_func_with_boxing(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
             bh_memcpy_s(&tmp_result, slot_count * sizeof(uint32), argv,
                         slot_count * sizeof(uint32));
             ret = box_value_to_dyntype(exec_env, ctx, &tmp_result, result_type,
-                                       slot_count);
+                                       slot_count, false, -1);
         }
         else {
             ret = dyntype_new_undefined_wrapper(exec_env, ctx);
