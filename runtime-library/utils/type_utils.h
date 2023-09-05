@@ -69,10 +69,20 @@ void *
 array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
                 void *separator);
 
+/* get obj's tag and ext table index if obj is an extref, store in obj_info */
+void
+get_dyn_obj_info(void *dyn_ctx, void *dyn_obj, uint32 *obj_info);
+
+/* get static array's information, store in arr_info
+ * return true if dyn_obj is an extref, else return false
+ */
+bool
+get_static_array_info(wasm_exec_env_t exec_env, void *dyn_ctx, void *dyn_obj,
+                      int index, uint64 *arr_info);
+
 /* get property of a struct
  * result: -2: not a static object, -1: error: else: static object index
  */
 int
-get_prop_index_of_struct(wasm_exec_env_t exec_env, void *dyn_ctx,
-                       void *dyn_obj, const char *prop,
-                       wasm_obj_t *wasm_obj, wasm_ref_type_t *field_type);
+get_prop_index_of_struct(wasm_exec_env_t exec_env, const char *prop,
+                         wasm_obj_t *wasm_obj, wasm_ref_type_t *field_type);

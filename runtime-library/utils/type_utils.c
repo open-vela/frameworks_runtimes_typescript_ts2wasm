@@ -655,15 +655,85 @@ fail:
     return new_string_struct;
 }
 
-int
-get_prop_index_of_struct(wasm_exec_env_t exec_env, void *dyn_ctx,
-                       void *dyn_obj, const char *prop,
-                       wasm_obj_t *wasm_obj, wasm_ref_type_t *field_type) {
-    wasm_module_inst_t module_inst;
-    bool is_ext_ref, is_mut;
+void
+get_dyn_obj_info(void *dyn_ctx, void *dyn_obj, uint32 *obj_info)
+{
+    bool is_ext_ref;
     void *ext_ref;
+    int tag = 0;
+
+    is_ext_ref = dyntype_is_extref((dyn_value_t)dyn_ctx, (dyn_value_t)dyn_obj);
+    /* if !is_ext_ref, the obj is a pure dynamic obj */
+    if (!is_ext_ref) {
+        obj_info[0] = DynObject;
+    }
+    else {
+        /* else, get ext_ref from table */
+        tag = dyntype_to_extref((dyn_value_t)dyn_ctx, (dyn_value_t)dyn_obj,
+                                &ext_ref);
+        if (tag == ExtObj) {
+            obj_info[0] = DynExtRefObj;
+        }
+        else if (tag == ExtInfc) {
+            obj_info[0] = DynExtRefInfc;
+        }
+        else if (tag == ExtArray) {
+            obj_info[0] = DynExtRefArray;
+        }
+        else if (tag == ExtFunc) {
+            obj_info[0] = DynExtRefFunc;
+        }
+        /* store table index */
+        obj_info[1] = (uint32_t)(uintptr_t)ext_ref;
+    }
+}
+
+bool
+get_static_array_info(wasm_exec_env_t exec_env, void *dyn_ctx, void *dyn_obj,
+                      int index, uint64 *arr_info)
+{
+    void *static_arr_struct = NULL;
+    wasm_defined_type_t static_arr_arr_type = { 0 };
+    bool mutable = false;
+    wasm_array_obj_t arr_ref = { 0 };
+    uint64 arr_len = 0;
+    wasm_ref_type_t arr_elem_ref_type = { 0 };
+    wasm_value_t elem_res = { 0 };
+    uint32 obj_info[2] = { 0 };
+
+    get_dyn_obj_info(dyn_ctx, dyn_obj, obj_info);
+    if (obj_info[0] == DynExtRefArray) {
+        static_arr_struct = (wasm_struct_obj_t)wamr_utils_get_table_element(
+            exec_env, obj_info[1]);
+        arr_ref = get_array_ref(static_arr_struct);
+        arr_len = get_array_length(static_arr_struct);
+        static_arr_arr_type = wasm_obj_get_defined_type((wasm_obj_t)arr_ref);
+        arr_elem_ref_type = wasm_array_type_get_elem_type(
+            (wasm_array_type_t)static_arr_arr_type, &mutable);
+        arr_info[0] = (uint64)(intptr_t)&arr_ref;
+        arr_info[1] = (uint64)(intptr_t)&arr_elem_ref_type;
+        if (index < 0) {
+            arr_info[2] = arr_len;
+        }
+        else {
+            bh_assert(arr_len > index);
+            wasm_array_obj_get_elem(arr_ref, index, false, &elem_res);
+            arr_info[2] = (uint64)(intptr_t)&elem_res;
+        }
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+int
+get_prop_index_of_struct(wasm_exec_env_t exec_env, const char *prop,
+                         wasm_obj_t *wasm_obj, wasm_ref_type_t *field_type)
+{
+    wasm_module_inst_t module_inst;
+    bool is_mut;
     wasm_function_inst_t func;
-    int32_t idx_on_ext_ref;
     wasm_struct_obj_t wasm_struct_obj;
     WASMValue vtable_value = { 0 };
     WASMValue meta = { 0 };
@@ -671,39 +741,20 @@ get_prop_index_of_struct(wasm_exec_env_t exec_env, void *dyn_ctx,
     wasm_struct_type_t struct_type;
 
     module_inst = wasm_runtime_get_module_inst(exec_env);
-    is_ext_ref = dyntype_is_extref((dyn_value_t)dyn_ctx, (dyn_value_t)dyn_obj);
-    if (!is_ext_ref) {
-        return -2;
-    }
-    dyntype_to_extref((dyn_value_t)dyn_ctx, (dyn_value_t)dyn_obj, &ext_ref);
-    idx_on_ext_ref = (uint32_t)(uintptr_t)ext_ref;
-    ext_ref = wamr_utils_get_table_element(exec_env, idx_on_ext_ref);
-    if (is_infc(ext_ref)) {
-        ext_ref = get_infc_obj(exec_env, ext_ref);
-    }
-    *wasm_obj = ext_ref;
-    if (!wasm_obj_is_struct_obj(*wasm_obj)) {
-        wasm_runtime_set_exception(
-            module_inst, "can't access field of non-struct reference");
-        return -1;
-    }
     wasm_struct_obj = (wasm_struct_obj_t)(*wasm_obj);
     wasm_struct_obj_get_field(wasm_struct_obj, 0, false, &vtable_value);
     wasm_struct_obj_get_field((wasm_struct_obj_t)vtable_value.gc_obj, 0, false, &meta);
     func = wasm_runtime_lookup_function(module_inst, "find_index", NULL);
-    bh_assert(!func);
+    bh_assert(func);
 
     argv[0] = meta.i32;
     offset = wasm_runtime_addr_native_to_app(module_inst, (void *)prop);
     argv[1] = offset;
     argv[2] = 0;
 
-    if (!wasm_runtime_call_wasm(exec_env, func, argc, argv)) {
-        wasm_runtime_set_exception(module_inst, "find_index failed");
-        return -1;
-    }
+    wasm_runtime_call_wasm(exec_env, func, argc, argv);
     if (argv[0] == -1) {
-        return -2;
+        return -1;
     }
     struct_type = (wasm_struct_type_t)wasm_obj_get_defined_type(*wasm_obj);
     *field_type = wasm_struct_type_get_field_type(struct_type, argv[0], &is_mut);
