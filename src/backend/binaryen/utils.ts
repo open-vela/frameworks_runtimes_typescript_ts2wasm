@@ -581,6 +581,7 @@ export namespace FunctionalFuncs {
             case ValueTypeKind.STRING:
             case ValueTypeKind.NULL:
             case ValueTypeKind.ANY:
+            case ValueTypeKind.UNION:
             case ValueTypeKind.UNDEFINED:
                 return unboxAnyToBase(module, anyExprRef, typeKind);
             case ValueTypeKind.INTERFACE:
@@ -602,6 +603,7 @@ export namespace FunctionalFuncs {
         let condFuncName = '';
         let cvtFuncName = '';
         let binaryenType: binaryen.Type;
+
         if (
             typeKind === ValueTypeKind.ANY ||
             typeKind === ValueTypeKind.UNION
@@ -617,6 +619,11 @@ export namespace FunctionalFuncs {
         if (typeKind === ValueTypeKind.UNDEFINED) {
             return generateDynUndefined(module);
         }
+
+        /* native API's dynamic params */
+        const dynParam = [getDynContextRef(module), anyExprRef];
+        /* if false */
+        let ifFalseRef = module.unreachable();
         switch (typeKind) {
             case ValueTypeKind.NUMBER: {
                 condFuncName = dyntype.dyntype_is_number;
@@ -633,9 +640,17 @@ export namespace FunctionalFuncs {
             }
             case ValueTypeKind.RAW_STRING:
             case ValueTypeKind.STRING: {
+                const wasmStringType = getConfig().enableStringRef
+                    ? binaryenCAPI._BinaryenTypeStringref()
+                    : stringTypeInfo.typeRef;
                 condFuncName = dyntype.dyntype_is_string;
                 cvtFuncName = dyntype.dyntype_to_string;
-                binaryenType = dyntype.dyn_value_t;
+                binaryenType = wasmStringType;
+                ifFalseRef = module.call(
+                    dyntype.dyntype_toString,
+                    dynParam,
+                    wasmStringType,
+                );
                 break;
             }
             default: {
@@ -645,31 +660,9 @@ export namespace FunctionalFuncs {
             }
         }
         const isBaseTypeRef = isBaseType(module, anyExprRef, condFuncName);
-
-        // iff True
-        const dynParam = [getDynContextRef(module), anyExprRef];
-
-        let value = module.call(cvtFuncName, dynParam, binaryenType);
-
-        if (
-            typeKind === ValueTypeKind.STRING ||
-            typeKind === ValueTypeKind.RAW_STRING
-        ) {
-            const wasmStringType = getConfig().enableStringRef
-                ? binaryenCAPI._BinaryenTypeStringref()
-                : stringTypeInfo.typeRef;
-            const string_value = value;
-            value = binaryenCAPI._BinaryenRefCast(
-                module.ptr,
-                string_value,
-                wasmStringType,
-            );
-        }
-
-        // iff False
-        const unreachableRef = module.unreachable();
-
-        const blockStmt = module.if(isBaseTypeRef, value, unreachableRef);
+        /* if true */
+        const ifTrueRef = module.call(cvtFuncName, dynParam, binaryenType);
+        const blockStmt = module.if(isBaseTypeRef, ifTrueRef, ifFalseRef);
         return module.block(null, [blockStmt], binaryenType);
     }
 
@@ -1499,40 +1492,61 @@ export namespace FunctionalFuncs {
         return res;
     }
 
+    export function judgeRealType(
+        module: binaryen.Module,
+        valueRef: binaryen.ExpressionRef,
+        realType: ValueTypeKind,
+    ) {
+        const dynTypeCtx = getDynContextRef(module);
+        let res = module.unreachable();
+        switch (realType) {
+            case ValueTypeKind.STRING: {
+                res = module.call(
+                    dyntype.dyntype_is_string,
+                    [dynTypeCtx, valueRef],
+                    binaryen.i32,
+                );
+                break;
+            }
+            case ValueTypeKind.NUMBER: {
+                res = module.call(
+                    dyntype.dyntype_is_number,
+                    [dynTypeCtx, valueRef],
+                    binaryen.i32,
+                );
+                break;
+            }
+        }
+        return res;
+    }
+
     export function operateStaticToDyn(
         module: binaryen.Module,
         leftValueRef: binaryen.ExpressionRef,
         rightValueRef: binaryen.ExpressionRef,
         opKind: ts.SyntaxKind,
     ) {
-        const dynTypeCtx = getDynContextRef(module);
-        const isTypeEq = module.call(
-            dyntype.dyntype_type_eq,
-            [dynTypeCtx, leftValueRef, rightValueRef],
-            binaryen.i32,
+        const needStringOp = module.select(
+            judgeRealType(module, leftValueRef, ValueTypeKind.STRING),
+            judgeRealType(module, leftValueRef, ValueTypeKind.STRING),
+            judgeRealType(module, rightValueRef, ValueTypeKind.STRING),
         );
+        const needNumberOp = module.select(
+            judgeRealType(module, leftValueRef, ValueTypeKind.NUMBER),
+            judgeRealType(module, rightValueRef, ValueTypeKind.NUMBER),
+            judgeRealType(module, rightValueRef, ValueTypeKind.NUMBER),
+        );
+
         const ifFalseRef = module.unreachable();
-        const isNumber = module.call(
-            dyntype.dyntype_is_number,
-            [dynTypeCtx, leftValueRef],
-            binaryen.i32,
-        );
-        const isString = module.call(
-            dyntype.dyntype_is_string,
-            [dynTypeCtx, leftValueRef],
-            binaryen.i32,
-        );
-        const ifTrueRef = module.if(
-            isNumber,
-            operateF64F64ToDyn(module, leftValueRef, rightValueRef, opKind),
+        return module.if(
+            needStringOp,
+            operateStrStrToDyn(module, leftValueRef, rightValueRef, opKind),
             module.if(
-                isString,
-                operateStrStrToDyn(module, leftValueRef, rightValueRef, opKind),
+                needNumberOp,
+                operateF64F64ToDyn(module, leftValueRef, rightValueRef, opKind),
                 ifFalseRef,
             ),
         );
-
-        return module.if(isTypeEq, ifTrueRef, ifFalseRef);
     }
 
     export function operateF64F64ToDyn(

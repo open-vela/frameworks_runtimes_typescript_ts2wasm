@@ -158,7 +158,6 @@ export default class SemanticChecker {
             this.binaryOperateCheck(
                 expr.leftOperand.exprType,
                 expr.rightOperand.exprType,
-                expr.operatorKind,
             );
             if (expr.rightOperand instanceof PropertyAccessExpression) {
                 this.invokeAnyObjCheck(
@@ -172,11 +171,7 @@ export default class SemanticChecker {
     private varInitAccept(expr: Variable | Parameter) {
         if (expr.initExpression) {
             this.voidTypeCheck(expr.varType.kind);
-            this.binaryOperateCheck(
-                expr.varType,
-                expr.initExpression.exprType,
-                ts.SyntaxKind.EqualsToken,
-            );
+            this.binaryOperateCheck(expr.varType, expr.initExpression.exprType);
             if (expr.initExpression instanceof PropertyAccessExpression) {
                 this.invokeAnyObjCheck(
                     expr.varType,
@@ -253,22 +248,12 @@ export default class SemanticChecker {
         }
     }
 
-    private binaryOperateCheck(
-        left: Type,
-        right: Type,
-        operateKind: ts.SyntaxKind,
-    ) {
+    private binaryOperateCheck(left: Type, right: Type) {
         this.nominalClassCheck(
             left,
             right,
             ErrorFlag.BinaryOperationOnNominalClass,
             `binary operation between different nominal classes`,
-        );
-        this.diffTypesOprtCheck(
-            left,
-            right,
-            ErrorFlag.BinaryOperationOnDifferentTypes,
-            operateKind,
         );
     }
 
@@ -330,31 +315,6 @@ export default class SemanticChecker {
                 message: `invoke any object without cast to a specific type`,
                 scopeName: this.getScopeName(this.curScope!),
             });
-        }
-    }
-
-    // current checking `number + string` and `string + number`
-    private diffTypesOprtCheck(
-        left: Type,
-        right: Type,
-        flag: ErrorFlag,
-        operator: ts.SyntaxKind,
-    ) {
-        if (
-            operator === ts.SyntaxKind.PlusToken ||
-            operator === ts.SyntaxKind.PlusEqualsToken
-        ) {
-            if (
-                (left.kind == TypeKind.NUMBER &&
-                    right.kind == TypeKind.STRING) ||
-                (left.kind == TypeKind.STRING && right.kind == TypeKind.NUMBER)
-            )
-                this.errors.push({
-                    errorKind: ErrorKind.OperateDiffTypes,
-                    errorFlag: flag,
-                    message: `binary operation between ${left.kind} and ${right.kind}`,
-                    scopeName: this.getScopeName(this.curScope!),
-                });
         }
     }
 

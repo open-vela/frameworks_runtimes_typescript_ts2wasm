@@ -316,7 +316,9 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.module_name,
         dyntype.dyntype_to_string,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.dyn_value_t]),
-        dyntype.dyn_value_t,
+        getConfig().enableStringRef
+            ? _BinaryenTypeStringref()
+            : stringTypeInfo.typeRef,
     );
     module.addFunctionImport(
         dyntype.dyntype_free_cstring,
