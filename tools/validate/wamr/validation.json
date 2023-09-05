@@ -1858,6 +1858,26 @@
         "entries": []
     },
     {
+        "module": "default_param",
+        "entries": [
+            {
+                "name": "defaultParamInMethod",
+                "args": [],
+                "result": "8"
+            },
+            {
+                "name": "defaultParamInStaticMethod",
+                "args": [],
+                "result": "8"
+            },
+            {
+                "name": "defaultParamInFunction",
+                "args": [],
+                "result": "8"
+            }
+        ]
+    },
+    {
         "module": "export_class",
         "entries": []
     },

@@ -938,9 +938,12 @@ export class WASMExpressionGen {
         args?: SemanticsValue[],
         isBuiltin = false,
     ) {
+        let funcDecl = undefined;
         let methodName = `${target}|${member.name}`;
         if (member.isStaic) {
             methodName = `${target}|` + '@' + `${member.name}`;
+            funcDecl = (<VarValue>member.methodOrAccessor!.method!)
+                .ref as FunctionDeclareNode;
         }
         if (isBuiltin) {
             methodName = UtilFuncs.getFuncName(
@@ -961,7 +964,7 @@ export class WASMExpressionGen {
             methodName,
             returnTypeRef,
             args,
-            undefined,
+            funcDecl,
             undefined,
             isBuiltin ? thisArg : undefined,
         );
