@@ -51,11 +51,6 @@ const IGNORE_CASES = [
     'promise_throw:promiseCatchInCB',
     'promise_throw:promiseNotCatchInCB',
 
-    /* workaround: any func call to return extref */
-    'any_func_call:anyFuncCallWithFunc',
-    'any_func_call:anyFuncCallWithObj',
-    'any_func_call:anyFuncCallWithInfc',
-    'any_func_call:anyFuncCallWithArray',
     'rec_types:recursiveType1',
     'rec_types:recursiveType2',
 ];

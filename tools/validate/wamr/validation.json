@@ -223,19 +223,34 @@
                 "result": "8"
             },
             {
-                "name": "anyFuncCallWithObj",
+                "name": "anyFuncCallWithClass",
                 "args": [],
-                "result": "3 \ntrue"
+                "result": "3 \ntrue \n1"
             },
             {
-                "name": "anyFuncCallWithInfc",
+                "name": "anyFuncCallWithObj_static",
                 "args": [],
-                "result": "3 \ntrue"
+                "result": "3 \ntrue \n1"
             },
             {
-                "name": "anyFuncCallWithArray",
+                "name": "anyFuncCallWithInfc_class",
                 "args": [],
-                "result": "9 \n2"
+                "result": "3 \ntrue \n1"
+            },
+            {
+                "name": "anyFuncCallWithInfc_obj",
+                "args": [],
+                "result": "3 \ntrue \n1"
+            },
+            {
+                "name": "anyFuncCallWithArray_static",
+                "args": [],
+                "result": "9 \n10 \n2"
+            },
+            {
+                "name": "anyFuncCallWithArray_extref",
+                "args": [],
+                "result": "9 \n10 \n2"
             },
             {
                 "name": "anyFuncCallInMap",

@@ -69,7 +69,24 @@ export function anyFuncCallWithFunc() {
     console.log(b);
 }
 
-export function anyFuncCallWithObj() {
+class A {
+    x = 3;
+    y = true;
+}
+
+export function anyFuncCallWithClass() {
+    const fn: any = (a: A): A => {
+        return a;
+    };
+    const obj: A = new A();
+    const a = fn(obj);
+    console.log(a.x);
+    console.log(a.y);
+    a.x = 1;
+    console.log(a.x);
+}
+
+export function anyFuncCallWithObj_static() {
     const fn: any = (a: {x: number, y:boolean}):{x: number, y:boolean}  => {
         return a;
     };
@@ -77,6 +94,8 @@ export function anyFuncCallWithObj() {
     const a = fn(obj);
     console.log(a.x);
     console.log(a.y);
+    a.x = 1;
+    console.log(a.x);
 }
 
 interface I {
@@ -84,7 +103,19 @@ interface I {
     y: boolean;
 }
 
-export function anyFuncCallWithInfc() {
+export function anyFuncCallWithInfc_class() {
+    const fn: any = (a: I): I => {
+        return a;
+    };
+    const obj:I = new A();
+    const a = fn(obj);
+    console.log(a.x);
+    console.log(a.y);
+    a.x = 1;
+    console.log(a.x);
+}
+
+export function anyFuncCallWithInfc_obj() {
     const fn: any = (a: I): I => {
         return a;
     };
@@ -92,9 +123,11 @@ export function anyFuncCallWithInfc() {
     const a = fn(obj);
     console.log(a.x);
     console.log(a.y);
+    a.x = 1;
+    console.log(a.x);
 }
 
-export function anyFuncCallWithArray() {
+export function anyFuncCallWithArray_static() {
     const fn: any = (a: number[]): number[] => {
         return a;
     };
@@ -102,6 +135,23 @@ export function anyFuncCallWithArray() {
     const a = fn(arr);
     const b = a[0];
     console.log(b);
+    a[1] = 10;
+    console.log(a[1]);
+    const len = a.length;
+    console.log(len);
+}
+
+export function anyFuncCallWithArray_extref() {
+    const fn: any = (a: number[]): number[] => {
+        return a;
+    };
+    const arr = [9, 6];
+    const arr_any: any = arr;
+    const a = fn(arr_any);
+    const b = a[0];
+    console.log(b);
+    a[1] = 10;
+    console.log(a[1]);
     const len = a.length;
     console.log(len);
 }

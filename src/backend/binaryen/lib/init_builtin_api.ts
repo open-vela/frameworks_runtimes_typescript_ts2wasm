@@ -3293,6 +3293,10 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         [binaryen.i32, binaryen.i32, charArrayTypeInfo.typeRef],
         newExternRef(module),
     );
+    module.addFunctionExport(
+        getBuiltInFuncName(BuiltinNames.newExternRef),
+        BuiltinNames.newExternRef,
+    );
     /** string */
     if (getConfig().enableStringRef) {
         module.addFunction(
