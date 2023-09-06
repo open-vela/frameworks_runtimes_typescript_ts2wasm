@@ -2264,6 +2264,16 @@
                 "name": "stringAsCond",
                 "args": [],
                 "result": "b \nb"
+            },
+            {
+                "name": "paramUndefined",
+                "args": [],
+                "result": "else when not undefined \nparams is undefined"
+            },
+            {
+                "name": "paramNotUndefined",
+                "args": [],
+                "result": "params is not undefined"
             }
         ]
     },
