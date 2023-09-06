@@ -107,12 +107,26 @@ export class WASMStatementGen {
             stmt.condition.type.kind,
         );
         this.addDebugInfoRef(stmt.condition, wasmCond);
-        const wasmIfTrue: binaryen.ExpressionRef = this.WASMStmtGen(
-            stmt.trueNode,
+        /* if ture need to enter into a new scope */
+        this.wasmCompiler.currentFuncCtx!.enterScope();
+        this.wasmCompiler.currentFuncCtx!.insert(
+            this.WASMStmtGen(stmt.trueNode),
         );
-        const wasmIfFalse = stmt.falseNode
-            ? this.WASMStmtGen(stmt.falseNode)
-            : undefined;
+        const ifTrueStmts = this.wasmCompiler.currentFuncCtx!.exitScope();
+        const wasmIfTrue: binaryen.ExpressionRef = this.module.block(
+            null,
+            ifTrueStmts,
+        );
+        /* if false need to enter into a new scope */
+        let wasmIfFalse = undefined;
+        if (stmt.falseNode) {
+            this.wasmCompiler.currentFuncCtx!.enterScope();
+            this.wasmCompiler.currentFuncCtx!.insert(
+                this.WASMStmtGen(stmt.falseNode),
+            );
+            const ifFalseStmts = this.wasmCompiler.currentFuncCtx!.exitScope();
+            wasmIfFalse = this.module.block(null, ifFalseStmts);
+        }
         return this.module.if(wasmCond, wasmIfTrue, wasmIfFalse);
     }
 

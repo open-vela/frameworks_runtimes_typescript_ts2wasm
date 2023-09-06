@@ -70,3 +70,22 @@ export function stringAsCond() {
         console.log(b);
     }
 }
+
+function noBlockInIfStmt(params?: string) {
+    if (params) 
+        return console.log('params is not undefined');
+    else
+        console.log('else when not undefined');
+    if (!params) 
+        return console.log('params is undefined');
+    else
+        return console.log('else when undefined');
+}
+
+export function paramNotUndefined() {
+    noBlockInIfStmt('a');
+}
+
+export function paramUndefined() {
+    noBlockInIfStmt();
+}
