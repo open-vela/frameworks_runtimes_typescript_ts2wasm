@@ -6,23 +6,14 @@ The ts2wasm compiler works like a backend to the TypeScript Compiler (tsc), it u
 
 This document serves as an overview of the supported language features and highlights certain known limitations.
 
-## Type system overview
+## Suggestions for reading
 
-Ts2wasm compiler treats TypeScript as a mixed typed language, there are static types such as `Class`, `Primitives`, as well as dynamic types such as `any` and `union`, the developers should be aware that different types will have different performance impact, it is always recommended to reduce the usage of dynamic types.
-
-|  ts type | wasm type | access strategy | performance overhead |
-| :----: | :----: | :----: | :----: |
-| boolean | i32 | static | low |
-| number | f64 | static | low |
-| string | struct / stringref | static | low |
-| class | struct | static | low |
-| function | func | static | low |
-| interface | struct | static + reflection | medium |
-| union | externref | dynamic | high |
-| any | externref | dynamic | high |
+1. read [basic concepts](./basic_concepts.md) to understand the fundamental design principal of ts2wasm.
+2. go through [feature list](./feature_list.md) to understand the supported language features.
+3. jump to the detail through the link of specific feature in [feature list](./feature_list.md) if you are interested.
 
 ## Supported features
 
-Please refer to [feature list](./ts2wasm_feature_list.md)
+Please refer to [feature list](./feature_list.md)
 
 It's hard to enumerate every detailed syntax in the list, please refer to our [test cases](../../tests/samples/) for more samples.

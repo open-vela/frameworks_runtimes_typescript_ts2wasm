@@ -94,3 +94,16 @@ unbox any follow these rules:
 
 ts2wasm-compiler doesn't define operation between any-objects, when any-objects are involved in operations, the compiler will auto unbox them to static primitive values, and then perform the operation in static world.
 
+![](./img/any_involved_operation.excalidraw.png)
+
+``` TypeScript
+let any_number: any = 123;
+let any_string : any = 'Hello';
+let any_object: any = { x: 1 };
+let any_object2: any = new A();
+
+let static_number: number = any_number + 1;         // OK, any_number is unboxed to number
+static_number = any_number + any_number;            // OK, any_number is unboxed to number
+static_number = any_string + 1;                     // runtime error, unbox any_string to number failed
+let static_object: A = any_object + any_object2;    // runtime error, any_object and any_object2 are not primitive types
+```

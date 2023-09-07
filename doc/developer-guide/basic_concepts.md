@@ -1,4 +1,4 @@
-# Types
+# Basic concepts
 
 ## Types in TypeScript
 
@@ -16,7 +16,7 @@ In TypeScript, every variable is associated with a type annotation, these annota
 
         Provide limited information about the type, but these information is not enough for defining the memory layout at compile time. E.g. `interface` defines least required fields of the type, but the field layout is not defined; `union` defines the possible types of a variable, but we can't know what it will be during compilation.
 
-3. `any`
+2. `any`
 
     `any` is a pure JavaScript dynamic object, compiler have no information about `any-objects` (any-typed objects)
 
@@ -34,4 +34,17 @@ As shown in the graph above, the fundamental processing principles for different
 
         - Simultaneously, we are working on static compilation solutions for selected built-in objects (e.g. `String`, `Array`) to improve performance. The priority of static compilation for these objects is determined based on their actual usage frequency.
 
+## Type system overview
 
+Ts2wasm compiler treats TypeScript as a mixed typed language, there are static types such as `Class`, `Primitives`, as well as dynamic types such as `any` and `union`, the developers should be aware that different types will have different performance impact, it is always recommended to reduce the usage of dynamic types.
+
+|  ts type | category | wasm type | access strategy | performance overhead |
+| :----: | :----: | :----: | :----: | :----: |
+| boolean | fully typed | i32 | static | low |
+| number | fully typed |f64 | static | low |
+| string | fully typed |struct / stringref | static | low |
+| class | fully typed |struct | static | low |
+| function | fully typed |func | static | low |
+| interface | incompletely typed |struct | static + reflection | medium |
+| union | incompletely typed |externref | dynamic | high |
+| any | any |externref | dynamic | high |
