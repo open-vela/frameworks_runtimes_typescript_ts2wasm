@@ -169,42 +169,6 @@ export class BuildContext {
         return this.stackEnv[this.stackEnv.length - 1];
     }
 
-    getTmpVarLenByScope(scope: Scope) {
-        for (let i = this.stackEnv.length - 1; i >= 0; i--) {
-            if (this.stackEnv[i].scope === scope) {
-                return this.stackEnv[i].tmpVarLen;
-            }
-        }
-        return 0;
-    }
-
-    updateTmpVarLenByScope(scope: Scope, tmpVarLen: number) {
-        for (let i = this.stackEnv.length - 1; i >= 0; i--) {
-            if (this.stackEnv[i].scope === scope) {
-                this.stackEnv[i].tmpVarLen = tmpVarLen;
-                break;
-            }
-        }
-    }
-
-    getVarsLenByScope(scope: Scope) {
-        for (let i = this.stackEnv.length - 1; i >= 0; i--) {
-            if (this.stackEnv[i].scope === scope) {
-                return this.stackEnv[i].varsLen;
-            }
-        }
-        return 0;
-    }
-
-    updateVarsLenByScope(scope: Scope, varsLen: number) {
-        for (let i = this.stackEnv.length - 1; i >= 0; i--) {
-            if (this.stackEnv[i].scope === scope) {
-                this.stackEnv[i].varsLen = varsLen;
-                break;
-            }
-        }
-    }
-
     updateNamedSymbolByScope(
         scope: Scope,
         symbols: Map<SymbolKey, SymbolValue>,

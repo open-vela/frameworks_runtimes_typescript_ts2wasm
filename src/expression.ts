@@ -751,6 +751,7 @@ export default class ExpressionProcessor {
                 res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
             }
+            case ts.SyntaxKind.FunctionDeclaration:
             case ts.SyntaxKind.FunctionExpression:
             case ts.SyntaxKind.ArrowFunction: {
                 const funcScope = getCurScope(node, this.nodeScopeMap)!;

@@ -133,7 +133,6 @@ enum VarDeclareNodeFlag {
 }
 
 export class VarDeclareNode extends SemanticsNode {
-    public isTmpVar = false;
     /** which context use this variable */
     public curCtx?: VarDeclareNode;
     constructor(

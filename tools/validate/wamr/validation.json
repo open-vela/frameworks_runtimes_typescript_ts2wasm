@@ -1786,6 +1786,21 @@
         ]
     },
     {
+        "module": "closure_inner_func",
+        "entries": [
+            {
+                "name": "outerFunc",
+                "args": [],
+                "result": "2 \n1"
+            },
+            {
+                "name": "outerFuncWithBlock",
+                "args": [],
+                "result": "52 \n100"
+            }
+        ]
+    },
+    {
         "module": "closure_set_ctx_value",
         "entries": [
             {
