@@ -28,7 +28,7 @@ import {
     addSourceMapLoc,
     getCurScope,
 } from './utils.js';
-import { Variable } from './variable.js';
+import { ModifierKind, Variable } from './variable.js';
 import { TSClass, Type, TypeKind, builtinTypes } from './type.js';
 import { Logger } from './log.js';
 import { StatementError, UnimplementError } from './error.js';
@@ -256,6 +256,8 @@ export class BreakStatement extends Statement {
 }
 
 export class FunctionDeclarationStatement extends Statement {
+    public tmpVar?: Variable;
+
     constructor(private _funcScope: FunctionScope) {
         super(ts.SyntaxKind.FunctionDeclaration);
     }
@@ -756,10 +758,23 @@ export default class StatementProcessor {
                 const funcScope = getCurScope(
                     node,
                     this.parserCtx.nodeScopeMap,
-                );
+                ) as FunctionScope;
                 const funcDeclStmt = new FunctionDeclarationStatement(
-                    funcScope! as FunctionScope,
+                    funcScope,
                 );
+                const rootFuncScope = funcScope.getRootFunctionScope();
+                if (rootFuncScope && rootFuncScope !== funcScope) {
+                    const tmpVar = new Variable(
+                        funcScope.getName(),
+                        funcScope.funcType,
+                        [ModifierKind.const],
+                        -1,
+                        false,
+                        this.parserCtx.expressionProcessor.visitNode(node),
+                    );
+                    funcScope.parent!.addVariable(tmpVar);
+                    funcDeclStmt.tmpVar = tmpVar;
+                }
                 return funcDeclStmt;
             }
             case ts.SyntaxKind.ModuleDeclaration: {
@@ -940,18 +955,8 @@ export default class StatementProcessor {
 
         // TODO: use i32 for index
         if (isStaticExpr) {
-            const loopIndex = new Variable(
-                loopIndexLabel,
-                numberType,
-                undefined,
-                scope.allocateIndexForInsertedVars(),
-            );
-            const lastIndex = new Variable(
-                lastIndexLabel,
-                numberType,
-                undefined,
-                scope.allocateIndexForInsertedVars(),
-            );
+            const loopIndex = new Variable(loopIndexLabel, numberType);
+            const lastIndex = new Variable(lastIndexLabel, numberType);
             scope.addVariable(loopIndex);
             scope.addVariable(lastIndex);
 
@@ -997,23 +1002,13 @@ export default class StatementProcessor {
             );
             incrementor.setExprType(numberType);
         } else {
-            const loopIter = new Variable(
-                iteratorLabel,
-                anyType,
-                undefined,
-                scope.allocateIndexForInsertedVars(),
-            );
+            const loopIter = new Variable(iteratorLabel, anyType);
             scope.addVariable(loopIter);
             // const iterExpr = new IdentifierExpression(iteratorLabel);
             iterExpr.setExprType(loopIter.varType);
 
             // for dynamic array, should get its iterator firstly
-            const tempIter = new Variable(
-                '@temp_iter',
-                anyType,
-                undefined,
-                scope.allocateIndexForInsertedVars(),
-            );
+            const tempIter = new Variable('@temp_iter', anyType);
             scope.addVariable(tempIter);
             const tempIterExpr = new IdentifierExpression('@temp_iter');
             tempIterExpr.setExprType(tempIter.varType);

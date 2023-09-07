@@ -498,15 +498,6 @@ export class Scope {
             child.traverseScopTree(traverseMethod);
         }
     }
-
-    public allocateIndexForInsertedVars() {
-        const scope =
-            this.getNearestFunctionScope() ?? this.getRootGloablScope();
-        if (!scope || scope.localIndex === -1) {
-            throw new ScopeError('allocate index for inserted vars failed');
-        }
-        return scope.localIndex++;
-    }
 }
 
 export class ClosureEnvironment extends Scope {
@@ -739,6 +730,8 @@ export class ScopeScanner {
     nodeScopeMap: Map<ts.Node, Scope>;
     /* anonymous function index */
     anonymousIndex = 0;
+    /* block index to represent current block's count */
+    blockIndex = 0;
 
     constructor(private parserCtx: ParserContext) {
         this.globalScopes = this.parserCtx.globalScopes;
@@ -1038,7 +1031,7 @@ export class ScopeScanner {
             const maybeFuncScope = parentScope.getNearestFunctionScope();
             const blockScope = new BlockScope(
                 parentScope,
-                `${parentName}.${blockName}`,
+                `${parentName}.${blockName}.${this.blockIndex++}`,
                 maybeFuncScope,
             );
             this.setCurrentScope(blockScope);
@@ -1063,7 +1056,7 @@ export class ScopeScanner {
         const maybeFuncScope = parentScope.getNearestFunctionScope();
         const outOfLoopBlock = new BlockScope(
             parentScope,
-            `${parentName}.loop`,
+            `${parentName}.loop.${this.blockIndex++}`,
             maybeFuncScope,
         );
         this.setCurrentScope(outOfLoopBlock);

@@ -18,14 +18,11 @@ import { generateChildrenFunctionScope } from './index.js';
 import {
     SemanticsKind,
     SemanticsNode,
-    ModuleNode,
     VarDeclareNode,
     VarStorageType,
     EmptyNode,
     BasicBlockNode,
     BlockNode,
-    FunctionDeclareNode,
-    FunctionOwnKind,
     IfNode,
     ForNode,
     WhileNode,
@@ -40,9 +37,9 @@ import {
     ThrowNode,
 } from './semantics_nodes.js';
 
-import { Variable, ModifierKind } from '../variable.js';
+import { Variable } from '../variable.js';
 
-import { Scope, ScopeKind, FunctionScope } from '../scope.js';
+import { Scope, ScopeKind } from '../scope.js';
 
 import {
     Statement,
@@ -52,7 +49,6 @@ import {
     BaseLoopStatement,
     ForStatement,
     ExpressionStatement,
-    EmptyStatement,
     CaseClause,
     DefaultClause,
     CaseBlock,
@@ -73,13 +69,7 @@ import {
     VarValueKind,
 } from './value.js';
 
-import {
-    ValueType,
-    ValueTypeKind,
-    Primitive,
-    PrimitiveType,
-    ClosureContextType,
-} from './value_types.js';
+import { ValueType, ValueTypeKind, Primitive } from './value_types.js';
 
 import {
     BuildContext,
@@ -144,22 +134,6 @@ export function createLocalSymbols(
 ): [VarDeclareNode[] | undefined, Map<SymbolKey, SymbolValue> | undefined] {
     let varList: VarDeclareNode[] | undefined = undefined;
     let symbols: Map<SymbolKey, SymbolValue> | undefined = undefined;
-    let varBelongScope: Scope;
-    const nearestFuncScope = scope.getNearestFunctionScope();
-    let allVarsLen = 0;
-    if (nearestFuncScope) {
-        varBelongScope = nearestFuncScope;
-        const nearestVarsLen = context.getVarsLenByScope(nearestFuncScope);
-        allVarsLen =
-            nearestVarsLen +
-            nearestFuncScope.paramArray.length +
-            nearestFuncScope.envParamLen;
-    } else {
-        const rootScope = scope.getRootGloablScope()!;
-        varBelongScope = rootScope;
-        allVarsLen = context.getVarsLenByScope(rootScope);
-    }
-    let tmpVarLength = context.getTmpVarLenByScope(varBelongScope);
 
     const vararr = scope!.varArray;
     if (vararr.length > 0) {
@@ -199,50 +173,8 @@ export function createLocalSymbols(
                 child.getName(),
             );
             symbols.set(child, value);
-        } else if (child.kind == ScopeKind.FunctionScope) {
-            // has the closure
-            const func_scope = child as FunctionScope;
-            if (!func_scope.isAnonymose) {
-                // function <name> (..) { .. }
-                // treat as local var
-                // find the func from global
-                const func_decl = context.globalSymbols.get(func_scope);
-                if (!func_decl) {
-                    throw Error(
-                        `Cannot find the closure function var "${func_scope.getName()}"`,
-                    );
-                }
-                const func = func_decl as FunctionDeclareNode;
-
-                if (!symbols) symbols = new Map<SymbolKey, SymbolValue>();
-                if (!varList) varList = [];
-
-                const node = new VarDeclareNode(
-                    SemanticsValueKind.LOCAL_CONST,
-                    func.funcType,
-                    func.name,
-                    allVarsLen + tmpVarLength,
-                    0,
-                );
-                node.isTmpVar = true;
-                const var_func = new VarValue(
-                    SemanticsValueKind.LOCAL_CONST,
-                    func.funcType,
-                    node,
-                    func.name,
-                );
-                Logger.debug(
-                    `==== createLocalSymbols create closure function declare [${node}], var: [${var_func}] for function "${func_scope.getName()}"`,
-                );
-
-                varList!.push(node);
-                symbols!.set(func_scope, var_func);
-                tmpVarLength++;
-            }
         }
     }
-
-    context.updateTmpVarLenByScope(varBelongScope, tmpVarLength);
 
     return [varList, symbols];
 }
@@ -688,9 +620,9 @@ export function buildStatement(
                 );
             case ts.SyntaxKind.FunctionDeclaration: {
                 if (!context.currentFunction()) return new EmptyNode(); // global statement
-                const funcScope = (statement as FunctionDeclarationStatement)
-                    .funcScope;
-                const var_value_tmp = context.findSymbolKey(funcScope);
+                const funcStmt = statement as FunctionDeclarationStatement;
+                const funcScope = funcStmt.funcScope;
+                const var_value_tmp = context.findSymbolKey(funcStmt.tmpVar!);
                 if (!var_value_tmp) {
                     throw Error(
                         `Cannot found the function scope var ${funcScope.getName()}`,

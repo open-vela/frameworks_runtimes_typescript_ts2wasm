@@ -83,7 +83,6 @@ export class WASMFunctionContext {
     private returnIndex = 0;
     private currentFunc: FunctionDeclareNode;
     private varsTypeRef: Array<BackendLocalVar> = [];
-    private tmpVarsTypeRefs: Array<BackendLocalVar> = [];
     private hasGenerateVarsTypeRefs = false;
     private tmpBackendVars: Array<BackendLocalVar> = [];
     private _sourceMapLocs: SourceMapLoc[] = [];
@@ -161,13 +160,8 @@ export class WASMFunctionContext {
                         ),
                         index: variable.index,
                     };
-                    if (!variable.isTmpVar) {
-                        this.varsTypeRef.push(backendVar);
-                        this.setLocalVarName(variable.name, variable.index);
-                    } else {
-                        this.tmpVarsTypeRefs.push(backendVar);
-                        this.setLocalVarName('tempVar', variable.index);
-                    }
+                    this.varsTypeRef.push(backendVar);
+                    this.setLocalVarName(variable.name, variable.index);
                 }
             }
             this.generateFuncVarsTypeRefs(varNode.body);
@@ -181,13 +175,8 @@ export class WASMFunctionContext {
                         ),
                         index: variable.index,
                     };
-                    if (!variable.isTmpVar) {
-                        this.varsTypeRef.push(backendVar);
-                        this.setLocalVarName(variable.name, variable.index);
-                    } else {
-                        this.tmpVarsTypeRefs.push(backendVar);
-                        this.setLocalVarName('tempVar', variable.index);
-                    }
+                    this.varsTypeRef.push(backendVar);
+                    this.setLocalVarName(variable.name, variable.index);
                 }
             }
             varNode.statements.forEach((s) => {
@@ -235,7 +224,7 @@ export class WASMFunctionContext {
             this.generateFuncVarsTypeRefs(varNode);
             this.hasGenerateVarsTypeRefs = true;
         }
-        return this.varsTypeRef.concat(this.tmpVarsTypeRefs);
+        return this.varsTypeRef;
     }
 
     allocateTmpVarIdx() {

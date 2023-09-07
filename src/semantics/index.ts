@@ -108,7 +108,6 @@ function processGlobalStatements(context: BuildContext, g: GlobalScope) {
     /* calculate all vars contained in this scope */
     const allVars: Variable[] = [];
     getAllVars(g, allVars, g);
-    context.updateVarsLenByScope(g, allVars.length);
 
     /* get all global statements, including globalScope's statements and namespaceScope's statements */
     /* Hint: the statements' order can't be guaranteed */
@@ -446,7 +445,6 @@ function generateFunctionScopeNodes(
     getAllVars(scope, allVars, scope);
 
     context.push(scope, params, func);
-    context.updateVarsLenByScope(scope, allVars.length);
 
     const [local_varlist, local_symbols] = createLocalSymbols(scope, context);
     func.varList = local_varlist;
