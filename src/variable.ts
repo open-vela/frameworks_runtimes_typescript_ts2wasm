@@ -166,20 +166,6 @@ export class VariableScanner {
             this.currentScope = scope;
             ts.forEachChild(node, this.visitNode.bind(this));
         });
-
-        for (let i = 0; i < this.globalScopes.length; ++i) {
-            const scope = this.globalScopes[i];
-            scope.traverseScopTree((scope) => {
-                if (
-                    scope instanceof FunctionScope ||
-                    scope instanceof GlobalScope
-                ) {
-                    /* Assign index for function variables */
-                    scope.initVariableIndex();
-                    scope.initParamIndex();
-                }
-            });
-        }
     }
 
     visitNode(node: ts.Node): void {

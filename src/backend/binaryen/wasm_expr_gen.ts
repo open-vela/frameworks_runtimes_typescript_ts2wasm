@@ -337,7 +337,7 @@ export class WASMExpressionGen {
 
                     if (!currCtx || !belongCtx) {
                         throw new Error(
-                            `get context of closure failed, varNode is ${varDeclNode.name}`,
+                            `get value failed in getting context of closure, varNode is ${varDeclNode.name}`,
                         );
                     }
                     let currCtxType = currCtx.type as ClosureContextType;
@@ -471,7 +471,7 @@ export class WASMExpressionGen {
                     const belongCtx = varNode.belongCtx;
                     if (!currCtx || !belongCtx) {
                         throw new Error(
-                            `get context of closure failed, varNode is ${varNode.name}`,
+                            `set value failed in getting context of closure, varNode is ${varNode.name}`,
                         );
                     }
                     let currCtxType = currCtx.type as ClosureContextType;

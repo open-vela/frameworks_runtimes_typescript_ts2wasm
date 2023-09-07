@@ -2273,6 +2273,16 @@ export class CustomTypeResolver {
 
     visit() {
         for (const globalScope of this.globalScopes) {
+            globalScope.traverseScopTree((scope) => {
+                if (
+                    scope instanceof FunctionScope ||
+                    scope instanceof GlobalScope
+                ) {
+                    /* Assign index for function variables */
+                    scope.initVariableIndex();
+                    scope.initParamIndex();
+                }
+            });
             this.parseThis(globalScope);
             this.parseContext(globalScope);
         }
