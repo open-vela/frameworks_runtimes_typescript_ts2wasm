@@ -27,16 +27,15 @@ Wasmnizer-ts project reused some components from other open source project:
 
 
 ## Contributors for initial version
-
+- [xujuntwt95329](https://github.com/xujuntwt95329) - **Jun Xu**, <jun1.xu@intel.com> (Champion)
+- [coderebot](https://github.com/coderebot) - **Junjie dong**, <dongjunjie@xiaomi.com> (Champion)
 - [brucehuke](https://github.com/brucehuke) - **Ke Hu**, <huke@xiaomi.com>
-- [coderebot](https://github.com/coderebot) - **Junjie dong**, <dongjunjie@xiaomi.com>
 - [LevelCA](https://github.com/LevelCA) - **Liangyu Zhang**, <zhangliangyu3@xiaomi.com>
 - [penghuizhen347](https://github.com/penghuizhen347) - **Huizhen Peng**, <penghuizhen@xiaomi.com>
 - [Shanks0224](https://github.com/Shanks0224) - **Jing Gan**, <ganjing@xiaomi.com>
 - [shubulan](https://github.com/shubulan) - **Yulong Gao**, <gaoyulong@xiaomi.com>
 - [WenLY1](https://github.com/WenLY1) - **LingYun Wen**, <wenlingyun1@xiaomi.com>
 - [wenyongh](https://github.com/wenyongh) - **Wenyong Huang**, <wenyong.huang@intel.com>
-- [xujuntwt95329](https://github.com/xujuntwt95329) - **Jun Xu**, <jun1.xu@intel.com>
 - [xwang98](https://github.com/xwang98) - **Xin Wang**, <xin.wang@intel.com>
 - [yviansu](https://github.com/yviansu) - **Yihan Su**, <yihan.su@intel.com>
 - [zhenweijin](https://github.com/zhenweijin) - **Zhenwei Jin**, <zhenwei.jin@intel.com>
