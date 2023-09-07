@@ -1,33 +1,6 @@
 # Dynamic type library
 
-Dynamic type library is an independent library which provide APIs to create/operate the dynamic values, it's part of the ts2wasm compiler.
-
-## Building
-
-This document helps to configure dyntype library.
-
-#### step 1
-
-```shell
-cd ts2wasm/runtime-library/dyntype/
-```
-
-then run command below to initiate quickjs library.
-
-```shell
-git pull --recurse-submodules
-git submodule update --remote --recursive
-```
-
-#### step 2
-
-run commands below to build it.
-
-``` shell
-mkdir build && cd build
-cmake ../
-make
-```
+Dynamic type library is an independent library which provide APIs to create/operate the dynamic values, it's part of the ts2wasm-runtime-library.
 
 ## Unit test
 
@@ -63,4 +36,3 @@ Sanitizer helps to detect invalid memory access, memory leak, undefined behavior
 ``` bash
 cmake .. -DUNITTEST_USE_SANITIZER=1
 ```
-
