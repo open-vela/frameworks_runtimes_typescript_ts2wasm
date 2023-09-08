@@ -60,7 +60,7 @@ interface Array<T> {
     every(predicate: (value: T, index: number, array: T[]) => boolean): boolean;
     some(predicate: (value: T, index: number, array: T[]) => boolean): boolean;
 
-    forEach(callbackfn: (value: T, index: number, array: T[]) => void): any;
+    forEach(callbackfn: (value: T, index: number, array: T[]) => void): void;
 
     map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[];
 
