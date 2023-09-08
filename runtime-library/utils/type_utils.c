@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "gc_export.h"
 #include "bh_platform.h"
 #include "wasm.h"
 #include "type_utils.h"
@@ -11,6 +10,18 @@
 #include "dyntype.h"
 #include "wamr_utils.h"
 
+#define OFFSET_OF_COUNT 4
+#define OFFSET_OF_META_FIELDS 8
+#define SIZEOF_META_FIELD 12
+
+#define META_FLAG_MASK 0x0000000F
+#define META_INDEX_MASK 0xFFFFFFF0
+
+#define OFFSET_OF_FIELD_FLAG_AND_INDEX 4
+#define OFFSET_OF_FIELD_TYPE 8
+
+/** start type id of custom type */
+#define CUSTOM_TYPE_BEGIN 1052
 /*
     utilities for closure object
 
@@ -760,4 +771,132 @@ get_prop_index_of_struct(wasm_exec_env_t exec_env, const char *prop,
     *field_type = wasm_struct_type_get_field_type(struct_type, argv[0], &is_mut);
 
     return argv[0];
+}
+
+/**********Utils for search field value of object through meta information*************/
+static inline int32
+get_meta_fields_count(void *meta) {
+    return *(int32 *)(meta + OFFSET_OF_COUNT);
+}
+
+static inline void *
+get_meta_field_by_index(void *meta, int32 index) {
+    return (meta + OFFSET_OF_META_FIELDS + index * SIZEOF_META_FIELD);
+}
+
+static inline enum field_flag
+get_meta_field_flag(void *meta_field) {
+    int flag = *((int32 *)(meta_field + OFFSET_OF_FIELD_FLAG_AND_INDEX))
+                & META_FLAG_MASK;
+
+    return (enum field_flag)flag;
+}
+
+static inline int32
+get_meta_field_index(void *meta_field) {
+    return (*((int32 *)(meta_field + OFFSET_OF_FIELD_FLAG_AND_INDEX))
+            & META_INDEX_MASK) >> 4;
+}
+
+static inline int32
+get_meta_field_type(void *meta_field) {
+    return *((int32 *)(meta_field + OFFSET_OF_FIELD_TYPE));
+}
+
+static inline int32
+get_meta_field_name(void *meta_field) {
+    return *((int32 *)meta_field);
+}
+
+static int32
+get_object_field_index_by_mata(wasm_exec_env_t exec_env,
+                               void *meta,
+                               const char *field_name,
+                               enum field_flag flag,
+                               ts_value_type_t *field_type) {
+    int32 count;
+    void *meta_field;
+    enum field_flag meta_field_flag;
+    int32 meta_field_name_offset;
+    const char *meta_field_name;
+    int32 meta_field_index;
+    int32 field_type_id;
+
+    count = get_meta_fields_count(meta);
+    meta_field_index = -1;
+
+    for (int index = 0; index < count; index++) {
+        meta_field = get_meta_field_by_index(meta, index);
+        meta_field_flag = get_meta_field_flag(meta_field);
+        meta_field_name_offset = get_meta_field_name(meta_field);
+        meta_field_name = wasm_runtime_addr_app_to_native(wasm_runtime_get_module_inst(exec_env),
+                                                          meta_field_name_offset);
+
+        if (meta_field_flag == flag
+            && strcmp(field_name, meta_field_name) == 0) {
+            meta_field_index = get_meta_field_index(meta_field);
+            if (field_type) {
+                field_type_id = get_meta_field_type(meta_field);
+                if (field_type_id >= CUSTOM_TYPE_BEGIN) {
+                    *field_type = TS_OBJECT;
+                } else {
+                    *field_type = (ts_value_type_t)field_type_id;
+                }
+            }
+            break;
+        }
+    }
+
+    return meta_field_index;
+}
+
+int
+get_object_field(wasm_exec_env_t exec_env,
+                 wasm_obj_t obj,
+                 const char *field_name,
+                 enum field_flag flag,
+                 ts_value_t *field_value) {
+    wasm_obj_t wasm_obj;
+    wasm_struct_obj_t struct_obj;
+    WASMValue vtable_value = { 0 };
+    wasm_struct_obj_t vtable_struct;
+    wasm_value_t value = { 0 };
+    wasm_value_t meta = { 0 };
+    void *meta_addr;
+    int32 field_index;
+
+    wasm_obj = obj;
+    if (is_infc(obj)) {
+        wasm_obj = (wasm_obj_t)get_infc_obj(exec_env, obj);
+    }
+
+    /* get meta addr */
+    struct_obj = (wasm_struct_obj_t)wasm_obj;
+    wasm_struct_obj_get_field(struct_obj, 0, false, &vtable_value);
+    vtable_struct = (wasm_struct_obj_t)vtable_value.gc_obj;
+    wasm_struct_obj_get_field(vtable_struct, 0, false, &meta);
+    meta_addr = wasm_runtime_addr_app_to_native(wasm_runtime_get_module_inst(exec_env), meta.i32);
+
+    /* get field index */
+    field_index = get_object_field_index_by_mata(exec_env, meta_addr, field_name, flag, &field_value->type);
+    if (field_index == -1) {
+        return -1;
+    }
+
+    if (flag == FIELD) {
+        wasm_struct_obj_get_field(struct_obj, field_index, false, &value);
+    } else {
+        wasm_struct_obj_get_field(vtable_struct, field_index, false, &value);
+    }
+
+    if (field_value->type == TS_BOOLEAN
+        || field_value->type == TS_INT) {
+        field_value->of.i32 = value.i32;
+    } else if (field_value->type == TS_NUMBER) {
+        field_value->of.f64 = value.f64;
+    } else {
+        field_value->of.ref = value.gc_obj;
+    }
+
+    return 0;
 }
