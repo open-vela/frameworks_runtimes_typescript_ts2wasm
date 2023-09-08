@@ -927,7 +927,7 @@ array_some_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     return array_every_some_generic(exec_env, ctx, obj, closure, false);
 }
 
-void *
+void
 array_forEach_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                       void *closure)
 {
@@ -942,7 +942,7 @@ array_forEach_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     if (!dyn_ctx) {
         wasm_runtime_set_exception((wasm_module_inst_t)module_inst,
                                    "dynamic context not initialized");
-        return NULL;
+        return;
     }
 
     len = get_array_length(obj);
@@ -980,8 +980,6 @@ array_forEach_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
         wasm_runtime_call_func_ref(exec_env, (wasm_func_obj_t)func_obj.gc_obj,
                                    argc, argv);
     }
-
-    RETURN_BOX_ANYREF(dyntype_new_undefined(dyn_ctx));
 }
 
 void *
@@ -1693,7 +1691,7 @@ static NativeSymbol native_symbols[] = {
     REG_NATIVE_FUNC(array_lastIndexOf_anyref, "(rrrr)F"),
     REG_NATIVE_FUNC(array_every_generic, "(rrr)i"),
     REG_NATIVE_FUNC(array_some_generic, "(rrr)i"),
-    REG_NATIVE_FUNC(array_forEach_generic, "(rrr)r"),
+    REG_NATIVE_FUNC(array_forEach_generic, "(rrr)"),
     REG_NATIVE_FUNC(array_map_generic, "(rrr)r"),
     REG_NATIVE_FUNC(array_filter_generic, "(rrr)r"),
     REG_NATIVE_FUNC(array_reduce_f64, "(rrrF)F"),
