@@ -5,6 +5,39 @@
 
 #include "gc_export.h"
 
+enum field_flag {
+    FIELD = 0,
+    METHOD = 1,
+    GETTER = 2,
+    SETTER = 3,
+};
+
+typedef enum ts_value_type_t {
+    TS_OBJECT = 0,
+    TS_NULL = 3,
+    TS_INT = 5,
+    TS_NUMBER = 6,
+    TS_BOOLEAN = 7,
+    TS_STRING = 9,
+    TS_ANY = 10,
+    TS_ARRAY = 16,
+    TS_FUNCTION = 24,
+} ts_value_type_t;
+
+typedef struct ts_value_t {
+    ts_value_type_t type;
+    /**
+     * Type of the ts value, if it's TS_BOOLEAN or TS_INT, value can be retrieved from of.i32,
+     * if it's TS_NUMBER, value can be retrived from f64, otherwise get value from of.ref.
+    */
+    union {
+        int32_t i32;
+        double f64;
+        void *ref;
+    } of;
+
+} ts_value_t;
+
 /* whether the type is struct(struct_func) */
 bool
 is_ts_closure_type(wasm_module_t wasm_module, wasm_defined_type_t type);
@@ -86,3 +119,19 @@ get_static_array_info(wasm_exec_env_t exec_env, void *dyn_ctx, void *dyn_obj,
 int
 get_prop_index_of_struct(wasm_exec_env_t exec_env, const char *prop,
                          wasm_obj_t *wasm_obj, wasm_ref_type_t *field_type);
+
+/**
+ * @brief Access object field through meta information
+ *
+ * @param obj object
+ * @param field_name the specified field name
+ * @param flag field flag
+ * @param field_value if the field is found, it represents field value
+ * @result 0: if field is found, -1: if field is not found
+*/
+int
+get_object_field(wasm_exec_env_t exec_env,
+                 wasm_obj_t obj,
+                 const char *field_name,
+                 enum field_flag flag,
+                 ts_value_t *field_value);
