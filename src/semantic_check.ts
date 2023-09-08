@@ -208,6 +208,7 @@ export default class SemanticChecker {
                     ErrorFlag.ArgsAndParamsTypesAreNominalClass,
                     `argument type and parameter type are nominal class types`,
                 );
+                this.voidTypeCheck(argExpr.exprType.kind);
                 if (argExpr instanceof PropertyAccessExpression) {
                     this.invokeAnyObjCheck(
                         paramType,
@@ -333,7 +334,7 @@ export default class SemanticChecker {
             this.errors.push({
                 errorKind: ErrorKind.VoidTypeAsVarType,
                 errorFlag: ErrorFlag.VoidTypeAsVarType,
-                message: `void type as variable type is not allowed`,
+                message: `Doesn't allow void type value as variable, or as function argument`,
                 scopeName: this.getScopeName(this.curScope!),
             });
         }
