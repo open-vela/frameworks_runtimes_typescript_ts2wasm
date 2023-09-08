@@ -1037,7 +1037,10 @@ export class WASMGen extends Ts2wasmBackend {
     private getDefinedTypeId(type: ValueType) {
         switch (type.kind) {
             case ValueTypeKind.UNDEFINED:
-                return PredefinedTypeId.UNDEFINED;
+            case ValueTypeKind.UNION:
+            case ValueTypeKind.ANY: {
+                return PredefinedTypeId.ANY;
+            }
             case ValueTypeKind.NULL:
                 return PredefinedTypeId.NULL;
             case ValueTypeKind.INT:
@@ -1047,16 +1050,13 @@ export class WASMGen extends Ts2wasmBackend {
             case ValueTypeKind.BOOLEAN:
                 return PredefinedTypeId.BOOLEAN;
             case ValueTypeKind.RAW_STRING:
-                return PredefinedTypeId.RAW_STRING;
             case ValueTypeKind.STRING:
                 return PredefinedTypeId.STRING;
-            case ValueTypeKind.ANY:
-                return PredefinedTypeId.ANY;
             case ValueTypeKind.FUNCTION:
                 /** TODO: create type id for function type base on signature */
                 return PredefinedTypeId.FUNCTION;
-            case ValueTypeKind.UNION:
-                return PredefinedTypeId.UNION;
+            case ValueTypeKind.ARRAY:
+                return PredefinedTypeId.ARRAY;
             case ValueTypeKind.INTERFACE:
             case ValueTypeKind.OBJECT: {
                 const objType = type as ObjectType;
