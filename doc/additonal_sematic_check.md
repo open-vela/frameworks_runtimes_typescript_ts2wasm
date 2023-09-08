@@ -10,7 +10,7 @@ This doc records additional sematic checking information of the ts2wasm. We add 
 | operate between different types | for example, 1 + 'str'(plus operation between `number` type and `string` type) |
 | invoke any object               | treat any type as an object and access its properties        |
 | array without a specified element type     | declare `Array` without a typeargument, for exampe `new Array()` |
-| void type as variable type    | `const a: void = undefined` |
+| void type value as variable, or as function argument    | `const a: void = undefined` |
 
 If those rules above are triggered, an error will be throwed, the details will be dump to the log file.
 
