@@ -611,7 +611,6 @@ export class FunctionScope extends ClosureEnvironment {
     private functionType = new TSFunction();
     /* iff the function is a member function, which class it belong to */
     private _className = '';
-    /** iff it explicitly declares constructor */
     realParamCtxType = new TSContext();
     /* ori func name iff func is declare */
     oriFuncName: string | undefined = undefined;

@@ -284,14 +284,24 @@ export default class SemanticChecker {
             return;
         }
 
-        if (left.typeId === right.typeId) {
-            return;
+        /** for object literal, compare the two's type ids */
+        if (left.isLiteral && right.isLiteral) {
+            if (left.typeId === right.typeId) {
+                return;
+            }
+        }
+        if (!left.isLiteral && !right.isLiteral) {
+            const leftName = left.className,
+                rightName = right.className;
+            if (leftName === rightName) {
+                return;
+            }
         }
 
         // downcast
         let base = right.getBase();
         while (base) {
-            if (base.typeId === left.typeId) {
+            if (base.className === left.className) {
                 return;
             }
             base = base.getBase();
@@ -302,7 +312,7 @@ export default class SemanticChecker {
             errorFlag: flag,
             message:
                 msg +
-                ` object(${right.typeId}) is not able to assgn to object(${left.typeId})`,
+                ` object(${right.className}[${right.typeId}]) is not able to assgn to object(${left.className}[${left.typeId}])`,
             scopeName: this.getScopeName(this.curScope!),
         });
     }
