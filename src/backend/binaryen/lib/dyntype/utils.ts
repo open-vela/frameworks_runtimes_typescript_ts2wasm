@@ -99,19 +99,19 @@ export namespace dyntype {
 }
 
 export namespace structdyn {
-    export const module_name = 'libstructdyn';
+    export const module_name = 'libstruct_indirect';
     export const enum StructDyn {
-        struct_get_dyn_i32 = 'struct_get_dyn_i32',
-        struct_get_dyn_i64 = 'struct_get_dyn_i64',
-        struct_get_dyn_f32 = 'struct_get_dyn_f32',
-        struct_get_dyn_f64 = 'struct_get_dyn_f64',
-        struct_get_dyn_anyref = 'struct_get_dyn_anyref',
-        struct_get_dyn_funcref = 'struct_get_dyn_funcref',
-        struct_set_dyn_i32 = 'struct_set_dyn_i32',
-        struct_set_dyn_i64 = 'struct_set_dyn_i64',
-        struct_set_dyn_f32 = 'struct_set_dyn_f32',
-        struct_set_dyn_f64 = 'struct_set_dyn_f64',
-        struct_set_dyn_anyref = 'struct_set_dyn_anyref',
-        struct_set_dyn_funcref = 'struct_set_dyn_funcref',
+        struct_get_indirect_i32 = 'struct_get_indirect_i32',
+        struct_get_indirect_i64 = 'struct_get_indirect_i64',
+        struct_get_indirect_f32 = 'struct_get_indirect_f32',
+        struct_get_indirect_f64 = 'struct_get_indirect_f64',
+        struct_get_indirect_anyref = 'struct_get_indirect_anyref',
+        struct_get_indirect_funcref = 'struct_get_indirect_funcref',
+        struct_set_indirect_i32 = 'struct_set_indirect_i32',
+        struct_set_indirect_i64 = 'struct_set_indirect_i64',
+        struct_set_indirect_f32 = 'struct_set_indirect_f32',
+        struct_set_indirect_f64 = 'struct_set_indirect_f64',
+        struct_set_indirect_anyref = 'struct_set_indirect_anyref',
+        struct_set_indirect_funcref = 'struct_set_indirect_funcref',
     }
 }

@@ -42,7 +42,7 @@ check_struct_obj_type(wasm_exec_env_t exec_env, wasm_obj_t obj, int index,
 }
 
 int
-struct_get_dyn_i32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
+struct_get_indirect_i32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
 {
     wasm_value_t result = { 0 };
     wasm_struct_obj_t struct_obj =
@@ -57,7 +57,7 @@ struct_get_dyn_i32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
 }
 
 long long
-struct_get_dyn_i64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
+struct_get_indirect_i64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
 {
     wasm_value_t result = { 0 };
     wasm_struct_obj_t struct_obj =
@@ -72,7 +72,7 @@ struct_get_dyn_i64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
 }
 
 float
-struct_get_dyn_f32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
+struct_get_indirect_f32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
 {
     wasm_value_t result = { 0 };
     wasm_struct_obj_t struct_obj =
@@ -87,7 +87,7 @@ struct_get_dyn_f32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
 }
 
 double
-struct_get_dyn_f64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
+struct_get_indirect_f64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
 {
     wasm_value_t result = { 0 };
     wasm_struct_obj_t struct_obj =
@@ -102,7 +102,7 @@ struct_get_dyn_f64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index)
 }
 
 void *
-struct_get_dyn_anyref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
+struct_get_indirect_anyref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
                       int index)
 {
     wasm_value_t result = { 0 };
@@ -118,7 +118,7 @@ struct_get_dyn_anyref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
 }
 
 void *
-struct_get_dyn_funcref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
+struct_get_indirect_funcref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
                        int index)
 {
     wasm_value_t result = { 0 };
@@ -133,7 +133,7 @@ struct_get_dyn_funcref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
 }
 
 void
-struct_set_dyn_i32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
+struct_set_indirect_i32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
                    int value)
 {
     wasm_value_t val = { .i32 = value };
@@ -147,7 +147,7 @@ struct_set_dyn_i32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
 }
 
 void
-struct_set_dyn_i64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
+struct_set_indirect_i64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
                    long long value)
 {
     wasm_value_t val = { .i64 = value };
@@ -161,7 +161,7 @@ struct_set_dyn_i64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
 }
 
 void
-struct_set_dyn_f32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
+struct_set_indirect_f32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
                    float value)
 {
     wasm_value_t val = { .f32 = value };
@@ -175,7 +175,7 @@ struct_set_dyn_f32(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
 }
 
 void
-struct_set_dyn_f64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
+struct_set_indirect_f64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
                    double value)
 {
     wasm_value_t val = { .f64 = value };
@@ -189,7 +189,7 @@ struct_set_dyn_f64(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj, int index,
 }
 
 void
-struct_set_dyn_anyref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
+struct_set_indirect_anyref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
                       int index, void *value)
 {
     wasm_value_t val = { .gc_obj = value };
@@ -203,7 +203,7 @@ struct_set_dyn_anyref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
 }
 
 void
-struct_set_dyn_funcref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
+struct_set_indirect_funcref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
                        int index, void *value)
 {
     wasm_value_t val = { .gc_obj = value };
@@ -220,25 +220,25 @@ struct_set_dyn_funcref(wasm_exec_env_t exec_env, wasm_anyref_obj_t obj,
     { #func_name, func_name, signature, NULL }
 
 static NativeSymbol native_symbols[] = {
-    REG_NATIVE_FUNC(struct_get_dyn_i32, "(ri)i"),
-    REG_NATIVE_FUNC(struct_get_dyn_i64, "(ri)I"),
-    REG_NATIVE_FUNC(struct_get_dyn_f32, "(ri)f"),
-    REG_NATIVE_FUNC(struct_get_dyn_f64, "(ri)F"),
-    REG_NATIVE_FUNC(struct_get_dyn_anyref, "(ri)r"),
-    REG_NATIVE_FUNC(struct_get_dyn_funcref, "(ri)r"),
-    REG_NATIVE_FUNC(struct_set_dyn_i32, "(rii)"),
-    REG_NATIVE_FUNC(struct_set_dyn_i64, "(riI)"),
-    REG_NATIVE_FUNC(struct_set_dyn_f32, "(rif)"),
-    REG_NATIVE_FUNC(struct_set_dyn_f64, "(riF)"),
-    REG_NATIVE_FUNC(struct_set_dyn_anyref, "(rir)"),
-    REG_NATIVE_FUNC(struct_set_dyn_funcref, "(rir)"),
+    REG_NATIVE_FUNC(struct_get_indirect_i32, "(ri)i"),
+    REG_NATIVE_FUNC(struct_get_indirect_i64, "(ri)I"),
+    REG_NATIVE_FUNC(struct_get_indirect_f32, "(ri)f"),
+    REG_NATIVE_FUNC(struct_get_indirect_f64, "(ri)F"),
+    REG_NATIVE_FUNC(struct_get_indirect_anyref, "(ri)r"),
+    REG_NATIVE_FUNC(struct_get_indirect_funcref, "(ri)r"),
+    REG_NATIVE_FUNC(struct_set_indirect_i32, "(rii)"),
+    REG_NATIVE_FUNC(struct_set_indirect_i64, "(riI)"),
+    REG_NATIVE_FUNC(struct_set_indirect_f32, "(rif)"),
+    REG_NATIVE_FUNC(struct_set_indirect_f64, "(riF)"),
+    REG_NATIVE_FUNC(struct_set_indirect_anyref, "(rir)"),
+    REG_NATIVE_FUNC(struct_set_indirect_funcref, "(rir)"),
 };
 /* clang-format on */
 
 uint32_t
-get_struct_dyn_symbols(char **p_module_name, NativeSymbol **p_native_symbols)
+get_struct_indirect_symbols(char **p_module_name, NativeSymbol **p_native_symbols)
 {
-    *p_module_name = "libstructdyn";
+    *p_module_name = "libstruct_indirect";
     *p_native_symbols = native_symbols;
     return sizeof(native_symbols) / sizeof(NativeSymbol);
 }

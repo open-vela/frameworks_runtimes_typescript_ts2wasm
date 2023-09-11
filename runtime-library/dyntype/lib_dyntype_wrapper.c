@@ -9,7 +9,7 @@
 #include "type_utils.h"
 #include "wamr_utils.h"
 #include "wasm.h"
-#include "lib_structdyn.h"
+#include "lib_struct_indirect.h"
 
 static void
 dynamic_object_finalizer(wasm_anyref_obj_t obj, void *data)
@@ -738,7 +738,7 @@ box_value_to_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
         uint32 ori_value = 0;
         if (is_get_property) {
             ori_value =
-                struct_get_dyn_i32(exec_env, (wasm_anyref_obj_t)value, index);
+                struct_get_indirect_i32(exec_env, (wasm_anyref_obj_t)value, index);
         }
         else {
             bh_assert(slot_count == 1);
@@ -750,7 +750,7 @@ box_value_to_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
         double ori_value = 0;
         if (is_get_property) {
             ori_value =
-                struct_get_dyn_f64(exec_env, (wasm_anyref_obj_t)value, index);
+                struct_get_indirect_f64(exec_env, (wasm_anyref_obj_t)value, index);
         }
         else {
             bh_assert(slot_count == 2);
@@ -761,7 +761,7 @@ box_value_to_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     else if (type.value_type == REF_TYPE_ANYREF) {
         void *ori_value = NULL;
         if (is_get_property) {
-            ori_value = struct_get_dyn_anyref(exec_env,
+            ori_value = struct_get_indirect_anyref(exec_env,
                                               (wasm_anyref_obj_t)value, index);
         }
         else {
@@ -772,7 +772,7 @@ box_value_to_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     else {
         void *ori_value = NULL;
         if (is_get_property) {
-            ori_value = struct_get_dyn_anyref(exec_env,
+            ori_value = struct_get_indirect_anyref(exec_env,
                                               (wasm_anyref_obj_t)value, index);
         }
         else {
@@ -842,7 +842,7 @@ unbox_value_from_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     if (type.value_type == VALUE_TYPE_I32) {
         int ret_value = dyntype_to_bool_wrapper(exec_env, ctx, obj);
         if (is_set_property) {
-            struct_set_dyn_i32(exec_env, (wasm_anyref_obj_t)unboxed_value,
+            struct_set_indirect_i32(exec_env, (wasm_anyref_obj_t)unboxed_value,
                                index, ret_value);
         }
         else {
@@ -854,7 +854,7 @@ unbox_value_from_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     else if (type.value_type == VALUE_TYPE_F64) {
         double ret_value = dyntype_to_number_wrapper(exec_env, ctx, obj);
         if (is_set_property) {
-            struct_set_dyn_f64(exec_env, (wasm_anyref_obj_t)unboxed_value,
+            struct_set_indirect_f64(exec_env, (wasm_anyref_obj_t)unboxed_value,
                                index, ret_value);
         }
         else {
@@ -866,7 +866,7 @@ unbox_value_from_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     else if (type.value_type == REF_TYPE_ANYREF) {
         void *ret_value = obj;
         if (is_set_property) {
-            struct_set_dyn_anyref(exec_env, (wasm_anyref_obj_t)unboxed_value,
+            struct_set_indirect_anyref(exec_env, (wasm_anyref_obj_t)unboxed_value,
                                   index, ret_value);
         }
         else {
@@ -880,7 +880,7 @@ unbox_value_from_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
             if (is_ts_string_type(module, ret_defined_type)) {
                 void *ret_value = dyntype_to_string_wrapper(exec_env, ctx, obj);
                 if (is_set_property) {
-                    struct_set_dyn_anyref(exec_env,
+                    struct_set_indirect_anyref(exec_env,
                                           (wasm_anyref_obj_t)unboxed_value,
                                           index, ret_value);
                 }
@@ -895,7 +895,7 @@ unbox_value_from_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
                     exec_env, ctx, obj);
                 ret_value = wamr_utils_get_table_element(exec_env, table_idx);
                 if (is_set_property) {
-                    struct_set_dyn_anyref(exec_env,
+                    struct_set_indirect_anyref(exec_env,
                                           (wasm_anyref_obj_t)unboxed_value,
                                           index, ret_value);
                 }

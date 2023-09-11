@@ -65,13 +65,13 @@ set(STDLIB_SOURCE
     ${STDLIB_DIR}/lib_timer.c
 )
 
-## struct-dyn
-set(STRUCT_DYN_DIR ${CMAKE_CURRENT_LIST_DIR}/struct-dyn)
+## struct-indirect
+set(STRUCT_INDIRECT_DIR ${CMAKE_CURRENT_LIST_DIR}/struct-indirect)
 
-include_directories(${STRUCT_DYN_DIR})
+include_directories(${STRUCT_INDIRECT_DIR})
 
-set(STRUCT_DYN_SOURCE
-    ${STRUCT_DYN_DIR}/lib_structdyn.c
+set(STRUCT_INDIRECT_SOURCE
+    ${STRUCT_INDIRECT_DIR}/lib_struct_indirect.c
 )
 
 ## utils
@@ -99,7 +99,7 @@ add_executable(iwasm_gc main.c
     ${QUICKJS_SOURCE}
     ${LIBDYNTYPE_SOURCE}
     ${STDLIB_SOURCE}
-    ${STRUCT_DYN_SOURCE}
+    ${STRUCT_INDIRECT_SOURCE}
     ${UTILS_SOURCE}
     ${WAMR_UTILS_SOURCE}
 )

@@ -28,7 +28,7 @@ extern uint32_t
 get_lib_timer_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
 
 extern uint32_t
-get_struct_dyn_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
+get_struct_indirect_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
 
 extern dyn_value_t
 dyntype_callback_wasm_dispatcher(void *exec_env_v, dyn_ctx_t ctx, void *vfunc,
@@ -763,7 +763,7 @@ main(int argc, char *argv[])
         goto fail1;
     }
 
-    symbol_count = get_struct_dyn_symbols(&module_name, &native_symbols);
+    symbol_count = get_struct_indirect_symbols(&module_name, &native_symbols);
     if (!wasm_runtime_register_natives(module_name, native_symbols,
                                        symbol_count)) {
         printf("Register struct-dyn APIs failed.\n");
