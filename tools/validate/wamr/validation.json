@@ -3181,6 +3181,11 @@
                 "name": "unicode",
                 "args": [],
                 "result": "ref.struct"
+            },
+            {
+                "name": "noSubstitutionTplLiteral",
+                "args": [],
+                "result": "hello \n \n\n        This is\n        a multiline\n        string."
             }
         ]
     },

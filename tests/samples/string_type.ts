@@ -27,3 +27,15 @@ export function unicode() {
     const a: string = '🀄';
     return a;
 }
+
+export function noSubstitutionTplLiteral() {
+    const a = `hello`;
+    console.log(a);
+    const b = ``;
+    console.log(b);
+    const c = `
+        This is
+        a multiline
+        string.`;
+    console.log(c);
+}
