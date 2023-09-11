@@ -441,6 +441,13 @@ export default class ExpressionProcessor {
                 res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
             }
+            case ts.SyntaxKind.NoSubstitutionTemplateLiteral: {
+                res = new StringLiteralExpression(
+                    (<ts.StringLiteral>node).getText().slice(1, -1),
+                );
+                res.setExprType(this.typeResolver.generateNodeType(node));
+                break;
+            }
             case ts.SyntaxKind.FalseKeyword: {
                 res = new FalseLiteralExpression();
                 res.setExprType(this.typeResolver.generateNodeType(node));
