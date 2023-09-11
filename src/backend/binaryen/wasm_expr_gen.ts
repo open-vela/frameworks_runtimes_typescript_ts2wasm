@@ -2747,50 +2747,50 @@ export class WASMExpressionGen {
         }
         if (typeKind === ValueTypeKind.BOOLEAN) {
             res = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_i32,
+                structdyn.StructDyn.struct_get_indirect_i32,
                 [ref, index],
                 binaryen.i32,
             );
         } else if (typeKind === ValueTypeKind.NUMBER) {
             res = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_f64,
+                structdyn.StructDyn.struct_get_indirect_f64,
                 [ref, index],
                 binaryen.f64,
             );
         } else if (typeKind === ValueTypeKind.FUNCTION) {
             /** get vtable firstly */
             res = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_anyref,
+                structdyn.StructDyn.struct_get_indirect_anyref,
                 [ref, this.module.i32.const(0)],
                 binaryen.anyref,
             );
             res = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_funcref,
+                structdyn.StructDyn.struct_get_indirect_funcref,
                 [res, index],
                 binaryen.funcref,
             );
             res = binaryenCAPI._BinaryenRefCast(this.module.ptr, res, wasmType);
         } else if (wasmType === binaryen.i64) {
             res = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_i64,
+                structdyn.StructDyn.struct_get_indirect_i64,
                 [ref, index],
                 binaryen.i32,
             );
         } else if (wasmType === binaryen.f32) {
             res = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_f32,
+                structdyn.StructDyn.struct_get_indirect_f32,
                 [ref, index],
                 binaryen.f32,
             );
         } else if (wasmType === binaryen.anyref) {
             res = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_anyref,
+                structdyn.StructDyn.struct_get_indirect_anyref,
                 [ref, index],
                 binaryen.anyref,
             );
         } else {
             const obj = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_anyref,
+                structdyn.StructDyn.struct_get_indirect_anyref,
                 [ref, index],
                 binaryen.anyref,
             );
@@ -2817,7 +2817,7 @@ export class WASMExpressionGen {
             typeKind === ValueTypeKind.UNDEFINED
         ) {
             return this.module.call(
-                structdyn.StructDyn.struct_get_dyn_anyref,
+                structdyn.StructDyn.struct_get_indirect_anyref,
                 [ref, index],
                 binaryen.anyref,
             );
@@ -2832,7 +2832,7 @@ export class WASMExpressionGen {
                 this.module.i32.const(PredefinedTypeId.BOOLEAN),
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_i32,
+                structdyn.StructDyn.struct_get_indirect_i32,
                 [ref, index],
                 binaryen.i32,
             );
@@ -2847,7 +2847,7 @@ export class WASMExpressionGen {
                 this.module.i32.const(PredefinedTypeId.NUMBER),
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_f64,
+                structdyn.StructDyn.struct_get_indirect_f64,
                 [ref, index],
                 binaryen.f64,
             );
@@ -2862,12 +2862,12 @@ export class WASMExpressionGen {
                 this.module.i32.const(PredefinedTypeId.FUNCTION),
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_anyref,
+                structdyn.StructDyn.struct_get_indirect_anyref,
                 [ref, this.module.i32.const(0)],
                 binaryen.anyref,
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_funcref,
+                structdyn.StructDyn.struct_get_indirect_funcref,
                 [ifTrue, index],
                 binaryen.funcref,
             );
@@ -2907,7 +2907,7 @@ export class WASMExpressionGen {
                 ),
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_anyref,
+                structdyn.StructDyn.struct_get_indirect_anyref,
                 [ref, index],
                 binaryen.anyref,
             );
@@ -2955,42 +2955,42 @@ export class WASMExpressionGen {
 
         if (typeKind === ValueTypeKind.BOOLEAN) {
             res = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_i32,
+                structdyn.StructDyn.struct_set_indirect_i32,
                 [ref, index, value],
                 binaryen.none,
             );
         } else if (typeKind === ValueTypeKind.NUMBER) {
             res = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_f64,
+                structdyn.StructDyn.struct_set_indirect_f64,
                 [ref, index, value],
                 binaryen.none,
             );
         } else if (typeKind === ValueTypeKind.FUNCTION) {
             res = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_anyref,
+                structdyn.StructDyn.struct_get_indirect_anyref,
                 [ref, this.module.i32.const(0)],
                 binaryen.anyref,
             );
             res = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_funcref,
+                structdyn.StructDyn.struct_set_indirect_funcref,
                 [res, index, value],
                 binaryen.none,
             );
         } else if (wasmType === binaryen.i64) {
             res = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_i64,
+                structdyn.StructDyn.struct_set_indirect_i64,
                 [ref, index, value],
                 binaryen.none,
             );
         } else if (wasmType === binaryen.f32) {
             res = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_f32,
+                structdyn.StructDyn.struct_set_indirect_f32,
                 [ref, index, value],
                 binaryen.none,
             );
         } else {
             res = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_anyref,
+                structdyn.StructDyn.struct_set_indirect_anyref,
                 [ref, index, value],
                 binaryen.none,
             );
@@ -3018,7 +3018,7 @@ export class WASMExpressionGen {
             typeKind === ValueTypeKind.UNDEFINED
         ) {
             return this.module.call(
-                structdyn.StructDyn.struct_set_dyn_anyref,
+                structdyn.StructDyn.struct_set_indirect_anyref,
                 [ref, index, value],
                 binaryen.anyref,
             );
@@ -3038,7 +3038,7 @@ export class WASMExpressionGen {
                 ValueTypeKind.BOOLEAN,
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_i32,
+                structdyn.StructDyn.struct_set_indirect_i32,
                 [ref, index, ifTrue],
                 binaryen.none,
             );
@@ -3053,7 +3053,7 @@ export class WASMExpressionGen {
                 ValueTypeKind.NUMBER,
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_f64,
+                structdyn.StructDyn.struct_set_indirect_f64,
                 [ref, index, ifTrue],
                 binaryen.f64,
             );
@@ -3063,7 +3063,7 @@ export class WASMExpressionGen {
                 this.module.i32.const(PredefinedTypeId.FUNCTION),
             );
             const vtable = this.module.call(
-                structdyn.StructDyn.struct_get_dyn_anyref,
+                structdyn.StructDyn.struct_get_indirect_anyref,
                 [ref, this.module.i32.const(0)],
                 binaryen.anyref,
             );
@@ -3073,7 +3073,7 @@ export class WASMExpressionGen {
                 ValueTypeKind.FUNCTION,
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_funcref,
+                structdyn.StructDyn.struct_set_indirect_funcref,
                 [vtable, index, ifTrue],
                 binaryen.none,
             );
@@ -3088,7 +3088,7 @@ export class WASMExpressionGen {
                 ValueTypeKind.STRING,
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_anyref,
+                structdyn.StructDyn.struct_set_indirect_anyref,
                 [ref, index, ifTrue],
                 binaryen.none,
             );
@@ -3110,7 +3110,7 @@ export class WASMExpressionGen {
                 wasmType,
             );
             ifTrue = this.module.call(
-                structdyn.StructDyn.struct_set_dyn_anyref,
+                structdyn.StructDyn.struct_set_indirect_anyref,
                 [ref, index, ifTrue],
                 binaryen.none,
             );
