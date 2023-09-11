@@ -19,3 +19,8 @@ export function getArrElem() {
     const b = a[0];
     console.log(b);   // 10
 }
+
+export function boxNestedArr() {
+    let arr: any = [1, [1, 2]];
+    console.log(arr[1][1]);
+}

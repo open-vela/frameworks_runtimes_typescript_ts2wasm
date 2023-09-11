@@ -1000,10 +1000,15 @@ export class TypeResolver {
                 ts.isNewExpression(parentNode) ||
                 ts.isArrayLiteralExpression(parentNode)
             ) {
-                type = (<TSArray>this.generateNodeType(parentNode)).elementType;
+                const parentType = <TSArray>this.generateNodeType(parentNode);
+                if (parentType.kind == TypeKind.ANY) {
+                    type = parentType;
+                } else {
+                    type = (<TSArray>this.generateNodeType(parentNode))
+                        .elementType;
+                }
             }
         }
-
         this.nodeTypeCache.set(node, type);
         return type;
     }

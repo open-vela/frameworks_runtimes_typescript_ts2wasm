@@ -81,6 +81,11 @@
                 "name": "getArrElem",
                 "args": [],
                 "result": "10"
+            },
+            {
+                "name": "boxNestedArr",
+                "args": [],
+                "result": "2"
             }
         ]
     },
