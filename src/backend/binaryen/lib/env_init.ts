@@ -391,97 +391,97 @@ export function importAnyLibAPI(module: binaryen.Module) {
 
 export function importInfcLibAPI(module: binaryen.Module) {
     module.addFunctionImport(
-        structdyn.StructDyn.struct_get_dyn_i32,
+        structdyn.StructDyn.struct_get_indirect_i32,
         structdyn.module_name,
-        structdyn.StructDyn.struct_get_dyn_i32,
+        structdyn.StructDyn.struct_get_indirect_i32,
         binaryen.createType([binaryen.anyref, binaryen.i32]),
         binaryen.i32,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_get_dyn_i64,
+        structdyn.StructDyn.struct_get_indirect_i64,
         structdyn.module_name,
-        structdyn.StructDyn.struct_get_dyn_i64,
+        structdyn.StructDyn.struct_get_indirect_i64,
         binaryen.createType([binaryen.anyref, binaryen.i32]),
         binaryen.i64,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_get_dyn_f32,
+        structdyn.StructDyn.struct_get_indirect_f32,
         structdyn.module_name,
-        structdyn.StructDyn.struct_get_dyn_f32,
+        structdyn.StructDyn.struct_get_indirect_f32,
         binaryen.createType([binaryen.anyref, binaryen.i32]),
         binaryen.f32,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_get_dyn_f64,
+        structdyn.StructDyn.struct_get_indirect_f64,
         structdyn.module_name,
-        structdyn.StructDyn.struct_get_dyn_f64,
+        structdyn.StructDyn.struct_get_indirect_f64,
         binaryen.createType([binaryen.anyref, binaryen.i32]),
         binaryen.f64,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_get_dyn_anyref,
+        structdyn.StructDyn.struct_get_indirect_anyref,
         structdyn.module_name,
-        structdyn.StructDyn.struct_get_dyn_anyref,
+        structdyn.StructDyn.struct_get_indirect_anyref,
         binaryen.createType([binaryen.anyref, binaryen.i32]),
         binaryen.anyref,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_get_dyn_funcref,
+        structdyn.StructDyn.struct_get_indirect_funcref,
         structdyn.module_name,
-        structdyn.StructDyn.struct_get_dyn_funcref,
+        structdyn.StructDyn.struct_get_indirect_funcref,
         binaryen.createType([binaryen.anyref, binaryen.i32]),
         binaryen.funcref,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_set_dyn_i32,
+        structdyn.StructDyn.struct_set_indirect_i32,
         structdyn.module_name,
-        structdyn.StructDyn.struct_set_dyn_i32,
+        structdyn.StructDyn.struct_set_indirect_i32,
         binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.i32]),
         binaryen.none,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_set_dyn_i64,
+        structdyn.StructDyn.struct_set_indirect_i64,
         structdyn.module_name,
-        structdyn.StructDyn.struct_set_dyn_i64,
+        structdyn.StructDyn.struct_set_indirect_i64,
         binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.i64]),
         binaryen.none,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_set_dyn_f32,
+        structdyn.StructDyn.struct_set_indirect_f32,
         structdyn.module_name,
-        structdyn.StructDyn.struct_set_dyn_f32,
+        structdyn.StructDyn.struct_set_indirect_f32,
         binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.f32]),
         binaryen.none,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_set_dyn_f64,
+        structdyn.StructDyn.struct_set_indirect_f64,
         structdyn.module_name,
-        structdyn.StructDyn.struct_set_dyn_f64,
+        structdyn.StructDyn.struct_set_indirect_f64,
         binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.f64]),
         binaryen.none,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_set_dyn_anyref,
+        structdyn.StructDyn.struct_set_indirect_anyref,
         structdyn.module_name,
-        structdyn.StructDyn.struct_set_dyn_anyref,
+        structdyn.StructDyn.struct_set_indirect_anyref,
         binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.anyref]),
         binaryen.none,
     );
 
     module.addFunctionImport(
-        structdyn.StructDyn.struct_set_dyn_funcref,
+        structdyn.StructDyn.struct_set_indirect_funcref,
         structdyn.module_name,
-        structdyn.StructDyn.struct_set_dyn_anyref,
+        structdyn.StructDyn.struct_set_indirect_anyref,
         binaryen.createType([binaryen.anyref, binaryen.i32, binaryen.funcref]),
         binaryen.none,
     );
