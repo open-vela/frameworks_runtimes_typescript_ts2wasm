@@ -336,9 +336,10 @@ export class WASMGen extends Ts2wasmBackend {
         this._binaryenModule.setFeatures(binaryen.Features.All);
         this._binaryenModule.autoDrop();
 
-        if (getConfig().opt > 0) {
-            binaryen.setOptimizeLevel(getConfig().opt);
-            this._binaryenModule.optimize();
+        if (getConfig().opt >= 0) {
+            binaryenCAPI._BinaryenSetOptimizeLevel(getConfig().opt);
+            binaryenCAPI._BinaryenSetShrinkLevel(0);
+            binaryenCAPI._BinaryenModuleOptimize(this._binaryenModule.ptr);
         }
 
         const validationResult = this._binaryenModule.validate();
