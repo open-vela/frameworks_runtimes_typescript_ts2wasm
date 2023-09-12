@@ -289,6 +289,29 @@ create_wasm_array_with_string(wasm_exec_env_t exec_env, void **ptr, uint32_t arr
     return string_array_struct;
 }
 
+/* get_array_element_type_with_index */
+#define GET_ARRAY_ELEMENT_WITH_INDEX_API(return_value, wasm_type, wasm_field) \
+    int get_array_element_##wasm_type##_with_index(                           \
+        wasm_struct_obj_t obj, uint32_t idx, return_value *val)               \
+    {                                                                         \
+        uint32_t len;                                                         \
+        wasm_array_obj_t arr_ref = get_array_ref(obj);                        \
+        len = get_array_length(obj);                                          \
+        if (idx >= 0 && idx < len) {                                          \
+            wasm_value_t value = { 0 };                                       \
+            wasm_array_obj_get_elem(arr_ref, idx, false, &value);             \
+            *val = value.wasm_field;                                          \
+            return 1;                                                         \
+        }                                                                     \
+        return -1;                                                            \
+    }
+
+GET_ARRAY_ELEMENT_WITH_INDEX_API(double, f64, f64);
+GET_ARRAY_ELEMENT_WITH_INDEX_API(float, f32, f32);
+GET_ARRAY_ELEMENT_WITH_INDEX_API(uint64, i64, i64);
+GET_ARRAY_ELEMENT_WITH_INDEX_API(uint32, i32, i32);
+GET_ARRAY_ELEMENT_WITH_INDEX_API(void*, anyref, gc_obj);
+
 /*
     utilities for string type
 
@@ -472,6 +495,132 @@ wasm_struct_obj_t create_wasm_string(wasm_exec_env_t exec_env, const char *value
 
     (void)p_end;
     return new_string_struct;
+}
+
+static wasm_array_obj_t
+create_new_array_with_primitive_type(wasm_exec_env_t exec_env,
+                                     wasm_struct_type_t *arr_struct_type,
+                                     wasm_value_type_t value_type,
+                                     bool is_mutable, uint32_t arrlen)
+{
+    uint32 i, type_count, arr_type_idx = 0;
+    bool mutable;
+    wasm_value_t init = { .gc_obj = NULL };
+    wasm_array_obj_t new_arr = NULL;
+    wasm_local_obj_ref_t local_ref;
+    wasm_ref_type_t arr_elem_ref_type;
+    wasm_defined_type_t type;
+    wasm_struct_type_t struct_type = NULL;
+    wasm_array_type_t res_arr_type = NULL;
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
+    wasm_module_t module = wasm_runtime_get_module(module_inst);
+
+    type_count = wasm_get_defined_type_count(module);
+    for (i = 0; i < type_count; i++) {
+        type = wasm_get_defined_type(module, i);
+        if (!wasm_defined_type_is_array_type(type))
+            continue;
+        arr_elem_ref_type =
+            wasm_array_type_get_elem_type((wasm_array_type_t)type, &mutable);
+        if (arr_elem_ref_type.value_type == value_type
+            && (mutable == is_mutable)) {
+            res_arr_type = (wasm_array_type_t)type;
+            arr_type_idx = i;
+        }
+    }
+
+    bh_assert(
+        wasm_defined_type_is_array_type((wasm_defined_type_t)res_arr_type));
+
+    /* get result array struct type */
+    get_array_struct_type(module, arr_type_idx, &struct_type);
+    bh_assert(
+        wasm_defined_type_is_struct_type((wasm_defined_type_t)struct_type));
+    *arr_struct_type = struct_type;
+
+    /* create new array */
+    new_arr =
+        wasm_array_obj_new_with_type(exec_env, res_arr_type, arrlen, &init);
+    wasm_runtime_push_local_object_ref(exec_env, &local_ref);
+    local_ref.val = (wasm_obj_t)new_arr;
+
+    if (!new_arr) {
+        wasm_runtime_pop_local_object_ref(exec_env);
+        wasm_runtime_set_exception((wasm_module_inst_t)module_inst,
+                                   "alloc memory failed");
+        return NULL;
+    }
+    wasm_runtime_pop_local_object_ref(exec_env);
+    return new_arr;
+}
+
+static wasm_struct_obj_t
+create_wasm_array_with_type(wasm_exec_env_t exec_env,
+                            wasm_value_type_t value_type, void *ptr,
+                            uint32_t arrlen)
+{
+    if (!ptr || !arrlen) return NULL;
+
+    wasm_value_t tmp_val = { 0 }, val = { .gc_obj = NULL };
+    wasm_struct_type_t arr_struct_type;
+    wasm_array_obj_t new_arr = NULL;
+    wasm_struct_obj_t new_array_struct;
+    wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
+
+    /* create new array */
+    new_arr = create_new_array_with_primitive_type(exec_env, &arr_struct_type,
+                                                   value_type, true, arrlen);
+
+    /* traverse each element and assign values ​​to array elements */
+    for (int i = 0; i < arrlen; i++) {
+        if (value_type == VALUE_TYPE_I32) {
+            int32_t ele_val = ((bool *)ptr)[i];
+            val.i32 = ele_val;
+        }
+        else if (value_type == VALUE_TYPE_F64) {
+            double ele_val = ((double *)ptr)[i];
+            val.f64 = ele_val;
+        }
+        wasm_array_obj_set_elem(new_arr, i, &val);
+    }
+
+    /* create new array struct */
+    new_array_struct = wasm_struct_obj_new_with_type(exec_env, arr_struct_type);
+
+    if (!new_array_struct) {
+        wasm_runtime_set_exception((wasm_module_inst_t)module_inst,
+                                   "alloc memory failed");
+        return NULL;
+    }
+
+    tmp_val.gc_obj = (wasm_obj_t)new_arr;
+    wasm_struct_obj_set_field(new_array_struct, 0, &tmp_val);
+    tmp_val.u32 = arrlen;
+    wasm_struct_obj_set_field(new_array_struct, 1, &tmp_val);
+
+    return new_array_struct;
+}
+
+wasm_struct_obj_t
+create_wasm_array_with_i32(wasm_exec_env_t exec_env, void *ptr, uint32_t arrlen)
+{
+    return create_wasm_array_with_type(exec_env, VALUE_TYPE_I32, ptr, arrlen);
+}
+
+wasm_struct_obj_t
+create_wasm_array_with_f64(wasm_exec_env_t exec_env, void *ptr, uint32_t arrlen)
+{
+    return create_wasm_array_with_type(exec_env, VALUE_TYPE_F64, ptr, arrlen);
+}
+
+const char *
+get_str_from_string_struct(wasm_struct_obj_t obj)
+{
+    wasm_value_t str_val = { 0 };
+    wasm_struct_obj_get_field(obj, 1, false, &str_val);
+    wasm_array_obj_t string_arr = (wasm_array_obj_t)str_val.gc_obj;
+    const char *str = (const char *)wasm_array_obj_first_elem_addr(string_arr);
+    return str;
 }
 
 bool

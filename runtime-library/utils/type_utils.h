@@ -135,3 +135,40 @@ get_object_field(wasm_exec_env_t exec_env,
                  const char *field_name,
                  enum field_flag flag,
                  ts_value_t *field_value);
+
+/* get str from a string struct */
+const char *
+get_str_from_string_struct(wasm_struct_obj_t obj);
+
+/**
+* @brief get_array_element_type_with_index:
+* @param obj: array struct obj
+* @param idx: find element index
+* @param val: return value pointer
+* @result 1: if element is find, -1: if element is not found
+*/
+int
+get_array_element_f64_with_index(wasm_struct_obj_t obj, uint32_t idx,
+                                 double *val);
+int
+get_array_element_f32_with_index(wasm_struct_obj_t obj, uint32_t idx,
+                                 float *val);
+int
+get_array_element_i64_with_index(wasm_struct_obj_t obj, uint32_t idx,
+                                 uint64 *val);
+int
+get_array_element_i32_with_index(wasm_struct_obj_t obj, uint32_t idx,
+                                 uint32 *val);
+int
+get_array_element_anyref_with_index(wasm_struct_obj_t obj, uint32_t idx,
+                                    void **val);
+
+/* create wasm_array and it's element type is f64 */
+wasm_struct_obj_t
+create_wasm_array_with_f64(wasm_exec_env_t exec_env, void *ptr,
+                           uint32_t arrlen);
+
+/* create wasm_array and it's element type is i32 */
+wasm_struct_obj_t
+create_wasm_array_with_i32(wasm_exec_env_t exec_env, void *ptr,
+                           uint32_t arrlen);
