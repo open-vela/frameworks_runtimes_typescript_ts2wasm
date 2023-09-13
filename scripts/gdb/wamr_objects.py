@@ -27,9 +27,9 @@ class HMU:
 class WASMRtt:
     def __init__(self, rtt_ref):
         self.rtt_ref = rtt_ref
-        if (int(rtt_ref) == WASM_OBJ_EXTERNREF_OBJ_FLAG):
+        if ((int(rtt_ref) & WASM_OBJ_EXTERNREF_OBJ_FLAG) == WASM_OBJ_EXTERNREF_OBJ_FLAG):
             self.type_flag = 'WASM_TYPE_EXTERNREF'
-        elif (int(rtt_ref) == WASM_OBJ_ANYREF_OBJ_FLAG):
+        elif ((int(rtt_ref) & WASM_OBJ_ANYREF_OBJ_FLAG) == WASM_OBJ_ANYREF_OBJ_FLAG):
             self.type_flag = 'WASM_TYPE_ANYREF'
         else:
             self.rtt = rtt_ref.dereference()
