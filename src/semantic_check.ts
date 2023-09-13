@@ -286,17 +286,15 @@ export default class SemanticChecker {
         }
 
         /** for object literal, compare the two's type ids */
-        if (left.isLiteral && right.isLiteral) {
+        if (left.isLiteral || right.isLiteral) {
             if (left.typeId === right.typeId) {
                 return;
             }
         }
-        if (!left.isLiteral && !right.isLiteral) {
-            const leftName = left.className,
-                rightName = right.className;
-            if (leftName === rightName) {
-                return;
-            }
+        const leftName = left.className,
+            rightName = right.className;
+        if (leftName === rightName) {
+            return;
         }
 
         // downcast
