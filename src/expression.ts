@@ -8,7 +8,7 @@ import { ParserContext } from './frontend.js';
 import { ClosureEnvironment, FunctionScope } from './scope.js';
 import { Variable } from './variable.js';
 import { getCurScope, addSourceMapLoc } from './utils.js';
-import { Type, TypeKind } from './type.js';
+import { Type, TypeKind, builtinTypes } from './type.js';
 import { Logger } from './log.js';
 import { SourceMapLoc } from './backend/binaryen/utils.js';
 import { ExpressionError } from './error.js';
@@ -395,6 +395,39 @@ export class TypeOfExpression extends Expression {
     }
 }
 
+export class TemplateExpression extends Expression {
+    constructor(
+        private _head: StringLiteralExpression,
+        private _spans: TmplSpanExpression[],
+    ) {
+        super(ts.SyntaxKind.TemplateExpression);
+    }
+
+    get head() {
+        return this._head;
+    }
+
+    get spans() {
+        return this._spans;
+    }
+}
+
+export class TmplSpanExpression extends Expression {
+    constructor(
+        private _expr: Expression,
+        private _literal: StringLiteralExpression, // middle or tail expr
+    ) {
+        super(ts.SyntaxKind.TemplateSpan);
+    }
+
+    get expr() {
+        return this._expr;
+    }
+
+    get literal() {
+        return this._literal;
+    }
+}
 export default class ExpressionProcessor {
     private typeResolver;
     private nodeScopeMap;
@@ -781,6 +814,32 @@ export default class ExpressionProcessor {
             }
             case ts.SyntaxKind.SuperKeyword: {
                 res = new SuperExpression();
+                res.setExprType(this.typeResolver.generateNodeType(node));
+                break;
+            }
+            case ts.SyntaxKind.TemplateHead:
+            case ts.SyntaxKind.TemplateMiddle:
+            case ts.SyntaxKind.TemplateTail: {
+                const head = <ts.TemplateLiteralLikeNode>node;
+                res = new StringLiteralExpression(head.text);
+                // tsc will infer its type as any
+                res.setExprType(builtinTypes.get('string')!);
+                break;
+            }
+            case ts.SyntaxKind.TemplateExpression: {
+                const tplExpr = <ts.TemplateExpression>node;
+                const head = this.visitNode(
+                    tplExpr.head,
+                ) as StringLiteralExpression;
+                const spans = tplExpr.templateSpans.map((span) => {
+                    const expr = this.visitNode(span.expression);
+                    const literal = this.visitNode(span.literal);
+                    return new TmplSpanExpression(
+                        expr,
+                        literal as StringLiteralExpression,
+                    );
+                });
+                res = new TemplateExpression(head, spans);
                 res.setExprType(this.typeResolver.generateNodeType(node));
                 break;
             }

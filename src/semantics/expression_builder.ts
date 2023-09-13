@@ -97,6 +97,7 @@ import {
     AnyCallValue,
     SuperUsageFlag,
     CommaExprValue,
+    TemplateExprValue,
 } from './value.js';
 
 import {
@@ -134,6 +135,7 @@ import {
     FunctionExpression,
     TypeOfExpression,
     CommaExpression,
+    TemplateExpression,
 } from '../expression.js';
 
 import {
@@ -792,6 +794,25 @@ function buildTypeOfExpression(
             throw new Error(`unimpl typeof's expression type ${typeKind}`);
     }
     return res;
+}
+
+// convert `Hello ${name} World` to the format
+// "Hello " [name, " World"], and then call
+// `String.concat` to concat them in the backend
+function buildTemplateExpression(
+    expr: TemplateExpression,
+    context: BuildContext,
+): SemanticsValue {
+    const head = buildExpression(expr.head, context);
+    const follows: SemanticsValue[] = [];
+    for (const span of expr.spans) {
+        let expr = buildExpression(span.expr, context);
+        expr = newCastValue(Primitive.String, expr);
+        follows.push(expr);
+        const middle_or_tail = buildExpression(span.literal, context);
+        follows.push(middle_or_tail);
+    }
+    return new TemplateExprValue(head, follows);
 }
 
 function findObjectLiteralType(
@@ -2562,6 +2583,13 @@ export function buildExpression(
             case ts.SyntaxKind.TypeOfExpression:
                 res = buildTypeOfExpression(expr as TypeOfExpression, context);
                 break;
+            case ts.SyntaxKind.TemplateExpression: {
+                res = buildTemplateExpression(
+                    expr as TemplateExpression,
+                    context,
+                );
+                break;
+            }
         }
         if (res == null) {
             res = new UnimplementValue(expr.tsNode!);
