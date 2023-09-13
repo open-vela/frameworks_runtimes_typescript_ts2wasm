@@ -121,7 +121,7 @@ export enum SemanticsValueKind {
     RET,
 
     TYPEOF,
-
+    TEMPLATE_EXPRESSION,
     REBINDING,
 }
 
@@ -742,6 +742,17 @@ export class TypeofValue extends SemanticsValue {
 
     forEachChild(visitor: SemanticsValueVisitor) {
         visitor(this.value);
+    }
+}
+
+export class TemplateExprValue extends SemanticsValue {
+    constructor(public head: SemanticsValue, public follows: SemanticsValue[]) {
+        super(SemanticsValueKind.TEMPLATE_EXPRESSION, Primitive.String);
+    }
+
+    forEachChild(visitor: SemanticsValueVisitor): void {
+        visitor(this.head);
+        (this.follows || []).forEach((v) => visitor(v));
     }
 }
 

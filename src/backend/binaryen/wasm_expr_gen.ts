@@ -67,6 +67,7 @@ import {
     SuperUsageFlag,
     CommaExprValue,
     ReBindingValue,
+    TemplateExprValue,
 } from '../../semantics/value.js';
 import {
     ArrayType,
@@ -96,7 +97,12 @@ import {
 import { NewConstructorObjectValue } from '../../semantics/value.js';
 import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { dyntype, structdyn } from './lib/dyntype/utils.js';
-import { anyArrayTypeInfo, infcTypeInfo } from './glue/packType.js';
+import {
+    anyArrayTypeInfo,
+    infcTypeInfo,
+    stringArrayStructTypeInfo,
+    stringArrayTypeInfo,
+} from './glue/packType.js';
 import { GetBuiltinObjectType } from '../../semantics/builtin.js';
 import { getBuiltInFuncName } from '../../utils.js';
 import { stringTypeInfo } from './glue/packType.js';
@@ -217,6 +223,8 @@ export class WASMExpressionGen {
                 );
             case SemanticsValueKind.TYPEOF:
                 return this.wasmTypeof(<TypeofValue>value);
+            case SemanticsValueKind.TEMPLATE_EXPRESSION:
+                return this.wasmTemplateExpr(<TemplateExprValue>value);
             case SemanticsValueKind.VALUE_TO_STRING:
             case SemanticsValueKind.OBJECT_TO_STRING:
                 return this.wasmToString(<ToStringValue>value);
@@ -2530,7 +2538,6 @@ export class WASMExpressionGen {
         const memberNameRef = this.module.i32.const(
             this.wasmCompiler.generateRawString(memberName),
         );
-        /** here create a temp var, to avoid call `find_index` more times */
         const indexRef = this.getPropIndexOfInfc(
             itableRef,
             memberNameRef,
@@ -3774,6 +3781,41 @@ export class WASMExpressionGen {
         return res;
     }
 
+    private wasmTemplateExpr(value: TemplateExprValue): binaryen.ExpressionRef {
+        const head = this.wasmExprGen(value.head);
+        // create a string array;
+        const follows = value.follows;
+        const followsExprRef: binaryen.ExpressionRef[] = [];
+
+        for (const follow of follows) {
+            followsExprRef.push(this.wasmExprGen(follow));
+        }
+        const arrayValue = binaryenCAPI._BinaryenArrayNewFixed(
+            this.module.ptr,
+            stringArrayTypeInfo.heapTypeRef,
+            arrayToPtr(followsExprRef).ptr,
+            followsExprRef.length,
+        );
+        const arrayStructValue = binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr([arrayValue, this.module.i32.const(follows.length)]).ptr,
+            2,
+            stringArrayStructTypeInfo.heapTypeRef,
+        );
+        return this.module.call(
+            UtilFuncs.getFuncName(
+                BuiltinNames.builtinModuleName,
+                BuiltinNames.stringConcatFuncName,
+            ),
+            [
+                this.module.ref.null(stringArrayTypeInfo.typeRef),
+                head,
+                arrayStructValue,
+            ],
+            stringTypeInfo.typeRef,
+        );
+    }
+
     private wasmToString(value: ToStringValue): binaryen.ExpressionRef {
         const expr = this.wasmExprGen(value.value);
         const boxedExpr = FunctionalFuncs.boxToAny(
@@ -3867,7 +3909,6 @@ export class WASMExpressionGen {
         return castedValueRef;
     }
 
-    /** create a temp var, and return it by local index */
     private createTmpVarOfSpecifiedType(
         expr: binaryen.ExpressionRef,
         type: ValueType,
