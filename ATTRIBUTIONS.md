@@ -28,9 +28,10 @@ Wasmnizer-ts project reused some components from other open source project:
 
 ## Contributors for initial version
 - [xujuntwt95329](https://github.com/xujuntwt95329) - **Jun Xu**, <jun1.xu@intel.com> (Champion)
-- [coderebot](https://github.com/coderebot) - **Junjie dong**, <dongjunjie@xiaomi.com> (Champion)
+- [coderebot](https://github.com/coderebot) - **Junjie Dong**, <dongjunjie@xiaomi.com> (Champion)
 - [brucehuke](https://github.com/brucehuke) - **Ke Hu**, <huke@xiaomi.com>
 - [LevelCA](https://github.com/LevelCA) - **Liangyu Zhang**, <zhangliangyu3@xiaomi.com>
+- [lum1n0us](https://github.com/lum1n0us) - **Liang He**, <liang.he@intel.com>
 - [penghuizhen347](https://github.com/penghuizhen347) - **Huizhen Peng**, <penghuizhen@xiaomi.com>
 - [Shanks0224](https://github.com/Shanks0224) - **Jing Gan**, <ganjing@xiaomi.com>
 - [shubulan](https://github.com/shubulan) - **Yulong Gao**, <gaoyulong@xiaomi.com>
