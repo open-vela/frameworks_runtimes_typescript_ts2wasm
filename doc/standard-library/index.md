@@ -13,6 +13,8 @@ Three methods are used to implement standard library in `Wasmnizer-ts`:
 
 If the standard library API is implemented in `native`, then corresponding `libstd API` is required; if the standard library API is implemented in `source code` or `binaryen API`, then will be contained inside generated wasm module, and don't requre any APIs from runtime environment. Please navigate to below pages to check the API list and implementation method for every APIs.
 
+If those APIs differ from the Core Library or Standard Library, there will be a description provided below to explain its usage.
+
 - [console](./console.md)
 - [string](./string.md)
 - [array](./array.md)
