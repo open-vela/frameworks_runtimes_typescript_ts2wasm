@@ -172,3 +172,30 @@ create_wasm_array_with_f64(wasm_exec_env_t exec_env, void *ptr,
 wasm_struct_obj_t
 create_wasm_array_with_i32(wasm_exec_env_t exec_env, void *ptr,
                            uint32_t arrlen);
+
+/**
+ * @brief get meta info addr through wasm_obj_t
+ * @param obj object
+ * @result : meta info addr
+ */
+void *
+get_meta_of_object(wasm_exec_env_t exec_env, wasm_obj_t obj);
+
+/**
+ * @brief get member count through meta info addr.
+ * @param meta meta info addr.
+ * @result : member field count.
+ */
+int32
+get_meta_fields_count(void *meta);
+
+/**
+ * @brief get meta info and field member count through wasm_obj_t
+ * @param meta meta pointer
+ * @param flag field flag
+ * @param index get field name through index
+ * @result : return field name if call success or return NULL.
+ */
+const char *
+get_field_name_from_meta_index(wasm_exec_env_t exec_env, void *meta,
+                               enum field_flag flag, uint32_t index);
