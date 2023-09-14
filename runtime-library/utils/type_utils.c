@@ -923,8 +923,9 @@ get_prop_index_of_struct(wasm_exec_env_t exec_env, const char *prop,
 }
 
 /**********Utils for search field value of object through meta information*************/
-static inline int32
-get_meta_fields_count(void *meta) {
+int32
+get_meta_fields_count(void *meta)
+{
     return *(int32 *)(meta + OFFSET_OF_COUNT);
 }
 
@@ -1005,26 +1006,17 @@ get_object_field(wasm_exec_env_t exec_env,
                  const char *field_name,
                  enum field_flag flag,
                  ts_value_t *field_value) {
-    wasm_obj_t wasm_obj;
-    wasm_struct_obj_t struct_obj;
-    WASMValue vtable_value = { 0 };
-    wasm_struct_obj_t vtable_struct;
-    wasm_value_t value = { 0 };
-    wasm_value_t meta = { 0 };
     void *meta_addr;
     int32 field_index;
+    wasm_struct_obj_t vtable_struct;
+    WASMValue vtable_value = { 0 };
+    wasm_value_t value = { 0 };
 
-    wasm_obj = obj;
-    if (is_infc(obj)) {
-        wasm_obj = (wasm_obj_t)get_infc_obj(exec_env, obj);
-    }
-
-    /* get meta addr */
-    struct_obj = (wasm_struct_obj_t)wasm_obj;
-    wasm_struct_obj_get_field(struct_obj, 0, false, &vtable_value);
+    wasm_struct_obj_get_field((wasm_struct_obj_t)obj, 0, false, &vtable_value);
     vtable_struct = (wasm_struct_obj_t)vtable_value.gc_obj;
-    wasm_struct_obj_get_field(vtable_struct, 0, false, &meta);
-    meta_addr = wasm_runtime_addr_app_to_native(wasm_runtime_get_module_inst(exec_env), meta.i32);
+
+    /* get meta addr of obj */
+    meta_addr = get_meta_of_object(exec_env, obj);
 
     /* get field index */
     field_index = get_object_field_index_by_mata(exec_env, meta_addr, field_name, flag, &field_value->type);
@@ -1033,7 +1025,7 @@ get_object_field(wasm_exec_env_t exec_env,
     }
 
     if (flag == FIELD) {
-        wasm_struct_obj_get_field(struct_obj, field_index, false, &value);
+        wasm_struct_obj_get_field((wasm_struct_obj_t)obj, field_index, false,&value);
     } else {
         wasm_struct_obj_get_field(vtable_struct, field_index, false, &value);
     }
@@ -1048,4 +1040,53 @@ get_object_field(wasm_exec_env_t exec_env,
     }
 
     return 0;
+}
+
+void *
+get_meta_of_object(wasm_exec_env_t exec_env, wasm_obj_t obj)
+{
+    wasm_obj_t wasm_obj;
+    wasm_struct_obj_t struct_obj;
+    wasm_struct_obj_t vtable_struct;
+    WASMValue vtable_value = { 0 };
+    wasm_value_t meta = { 0 };
+    void *meta_addr;
+
+    wasm_obj = obj;
+    if (is_infc(obj)) {
+        wasm_obj = (wasm_obj_t)get_infc_obj(exec_env, obj);
+    }
+
+    /* get meta addr */
+    struct_obj = (wasm_struct_obj_t)wasm_obj;
+    wasm_struct_obj_get_field(struct_obj, 0, false, &vtable_value);
+    vtable_struct = (wasm_struct_obj_t)vtable_value.gc_obj;
+    wasm_struct_obj_get_field(vtable_struct, 0, false, &meta);
+    meta_addr = wasm_runtime_addr_app_to_native(
+        wasm_runtime_get_module_inst(exec_env), meta.i32);
+    return meta_addr;
+}
+
+const char *
+get_field_name_from_meta_index(wasm_exec_env_t exec_env, void *meta,
+                               enum field_flag flag, uint32_t index)
+{
+    int32 count;
+    void *meta_field;
+    enum field_flag meta_field_flag;
+    int32 meta_field_name_offset;
+    const char *meta_field_name;
+
+    count = get_meta_fields_count(meta);
+
+    if (index >= 0 && index < count) {
+        meta_field = get_meta_field_by_index(meta, index);
+        meta_field_flag = get_meta_field_flag(meta_field);
+        meta_field_name_offset = get_meta_field_name(meta_field);
+        meta_field_name = wasm_runtime_addr_app_to_native(
+            wasm_runtime_get_module_inst(exec_env), meta_field_name_offset);
+        if (meta_field_name && meta_field_flag == flag)
+            return meta_field_name;
+    }
+    return NULL;
 }
