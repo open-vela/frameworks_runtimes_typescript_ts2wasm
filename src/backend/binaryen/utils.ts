@@ -43,6 +43,7 @@ import {
 } from '../../semantics/value.js';
 import { ObjectDescriptionType } from '../../semantics/runtime.js';
 import { getConfig } from '../../../config/config_mgr.js';
+import { WASMExpressionGen } from './wasm_expr_gen.js';
 
 /** typeof an any type object */
 export const enum DynType {
@@ -370,12 +371,11 @@ export namespace FunctionalFuncs {
 
     export function generateDynArray(
         module: binaryen.Module,
-        value: SemanticsValue,
+        arrLenRef: binaryen.ExpressionRef,
     ) {
-        const arrLen = (<NewLiteralArrayValue>value).initValues.length;
         return module.call(
             dyntype.dyntype_new_array_with_length,
-            [getDynContextRef(module), module.i32.const(arrLen)],
+            [getDynContextRef(module), arrLenRef],
             dyntype.dyn_value_t,
         );
     }
@@ -863,6 +863,7 @@ export namespace FunctionalFuncs {
         module: binaryen.Module,
         valueRef: binaryen.ExpressionRef,
         value: SemanticsValue,
+        arrLenRef?: binaryen.ExpressionRef,
     ) {
         let valueTypeKind = value.type.kind;
         /* value.type may be specialized, we should update the specialized type kind */
@@ -897,7 +898,7 @@ export namespace FunctionalFuncs {
                 switch (semanticsValueKind) {
                     case SemanticsValueKind.NEW_LITERAL_ARRAY:
                     case SemanticsValueKind.NEW_LITERAL_OBJECT:
-                        return boxLiteralToAny(module, value);
+                        return boxLiteralToAny(module, value, arrLenRef);
                     default: {
                         return boxNonLiteralToAny(
                             module,
@@ -949,13 +950,14 @@ export namespace FunctionalFuncs {
     export function boxLiteralToAny(
         module: binaryen.Module,
         value: SemanticsValue,
+        arrLenRef?: binaryen.ExpressionRef,
     ): binaryen.ExpressionRef {
         const valueTypeKind = value.type.kind;
         switch (valueTypeKind) {
             case ValueTypeKind.OBJECT:
                 return generateDynObj(module);
             case ValueTypeKind.ARRAY:
-                return generateDynArray(module, value);
+                return generateDynArray(module, arrLenRef!);
             default:
                 throw Error(`boxLiteralToAny: error kind ${valueTypeKind}`);
         }
@@ -1638,21 +1640,39 @@ export namespace FunctionalFuncs {
 
     export function getArrayRefLen(
         module: binaryen.Module,
-        arrRef: binaryen.ExpressionRef,
+        arrStructRef: binaryen.ExpressionRef,
+        arrayValue?: SemanticsValue,
+        propLenRef?: binaryen.ExpressionRef,
+        returnI32?: boolean,
     ): binaryen.ExpressionRef {
-        const arrLenI32 = binaryenCAPI._BinaryenStructGet(
-            module.ptr,
-            1,
-            arrRef,
-            binaryen.getExpressionType(arrRef),
-            false,
-        );
-        const arrLenF64 = convertTypeToF64(
-            module,
-            arrLenI32,
-            binaryen.getExpressionType(arrLenI32),
-        );
-        return arrLenF64;
+        let arrLenI32Ref: binaryen.ExpressionRef | undefined;
+        if (!arrayValue || arrayValue.type.kind == ValueTypeKind.ARRAY) {
+            arrLenI32Ref = binaryenCAPI._BinaryenStructGet(
+                module.ptr,
+                1,
+                arrStructRef,
+                binaryen.getExpressionType(arrStructRef),
+                false,
+            );
+        } else if (arrayValue.type.kind == ValueTypeKind.ANY && propLenRef) {
+            const anyArrRef = arrStructRef;
+            arrLenI32Ref = module.i32.trunc_u.f64(
+                unboxAnyToBase(
+                    module,
+                    getDynObjProp(module, anyArrRef, propLenRef),
+                    ValueTypeKind.NUMBER,
+                ),
+            );
+        }
+        if (returnI32) {
+            return arrLenI32Ref!;
+        } else {
+            return convertTypeToF64(
+                module,
+                arrLenI32Ref!,
+                binaryen.getExpressionType(arrLenI32Ref!),
+            );
+        }
     }
 
     export function getStringRefLen(

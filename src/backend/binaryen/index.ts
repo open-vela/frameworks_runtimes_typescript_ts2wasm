@@ -96,6 +96,12 @@ export class WASMFunctionContext {
         this.currentFunc = func;
     }
 
+    i32Local() {
+        return this.insertTmpVar(
+            this.binaryenCtx.wasmTypeComp.getWASMType(Primitive.Int),
+        );
+    }
+
     insert(insn: binaryen.ExpressionRef) {
         this.opcodeArrayStack.peek().push(insn);
     }

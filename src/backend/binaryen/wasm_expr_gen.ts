@@ -22,6 +22,8 @@ import {
     ItableFlag,
     InfcFieldIndex,
     utf16ToUtf8,
+    FlattenLoop,
+    BackendLocalVar,
 } from './utils.js';
 import { PredefinedTypeId, processEscape } from '../../utils.js';
 import {
@@ -67,6 +69,7 @@ import {
     SuperUsageFlag,
     CommaExprValue,
     ReBindingValue,
+    SpreadValue,
     TemplateExprValue,
 } from '../../semantics/value.js';
 import {
@@ -86,6 +89,7 @@ import {
 import { UnimplementError } from '../../error.js';
 import {
     FunctionDeclareNode,
+    SemanticsKind,
     VarDeclareNode,
 } from '../../semantics/semantics_nodes.js';
 import {
@@ -230,6 +234,8 @@ export class WASMExpressionGen {
                 return this.wasmToString(<ToStringValue>value);
             case SemanticsValueKind.REBINDING:
                 return this.wasmReBinding(<ReBindingValue>value);
+            case SemanticsValueKind.SPREAD:
+                return this.wasmSpread(<SpreadValue>value);
             default:
                 throw new UnimplementError(`unexpected value: ${value}`);
         }
@@ -1407,12 +1413,12 @@ export class WASMExpressionGen {
 
     private wasmAnyCast(value: CastValue): binaryen.ExpressionRef {
         const fromValue = value.value;
-        const fromValueRef = this.wasmExprGen(fromValue);
         const fromType = fromValue.type;
         const toType = value.type;
         switch (value.kind) {
             case SemanticsValueKind.ANY_CAST_VALUE:
             case SemanticsValueKind.UNION_CAST_VALUE: {
+                const fromValueRef = this.wasmExprGen(fromValue);
                 return FunctionalFuncs.unboxAnyToBase(
                     this.module,
                     fromValueRef,
@@ -1422,6 +1428,7 @@ export class WASMExpressionGen {
             case SemanticsValueKind.VALUE_CAST_ANY:
             case SemanticsValueKind.UNION_CAST_ANY:
             case SemanticsValueKind.VALUE_CAST_UNION: {
+                const fromValueRef = this.wasmExprGen(fromValue);
                 return FunctionalFuncs.boxToAny(
                     this.module,
                     fromValueRef,
@@ -1433,6 +1440,7 @@ export class WASMExpressionGen {
             }
             case SemanticsValueKind.ANY_CAST_OBJECT:
             case SemanticsValueKind.UNION_CAST_OBJECT: {
+                const fromValueRef = this.wasmExprGen(fromValue);
                 const toTypeRef = this.wasmTypeGen.getWASMValueType(toType);
                 return FunctionalFuncs.unboxAnyToExtref(
                     this.module,
@@ -1466,6 +1474,7 @@ export class WASMExpressionGen {
                         fromType instanceof ObjectType &&
                         !fromType.meta.isInterface
                     ) {
+                        const fromValueRef = this.wasmExprGen(fromValue);
                         const boxedValueRef = this.boxObjToInfc(
                             fromValueRef,
                             fromType,
@@ -1478,11 +1487,17 @@ export class WASMExpressionGen {
                         );
                     }
                 }
-                return FunctionalFuncs.boxToAny(
-                    this.module,
-                    fromValueRef,
-                    fromValue,
-                );
+                if (fromValue instanceof NewLiteralArrayValue) {
+                    // box the literal array to any
+                    return this.wasmObjTypeCastToAny(value);
+                } else {
+                    const fromValueRef = this.wasmExprGen(fromValue);
+                    return FunctionalFuncs.boxToAny(
+                        this.module,
+                        fromValueRef,
+                        fromValue,
+                    );
+                }
             }
             default:
                 throw new UnimplementError(`wasmCastValue: ${value}`);
@@ -1625,34 +1640,7 @@ export class WASMExpressionGen {
     }
 
     private initArray(arrType: ArrayType, elements: SemanticsValue[]) {
-        const arrayLen = elements.length;
-        const array = [];
-        for (let i = 0; i < arrayLen; i++) {
-            const elemExpr = elements[i];
-            const elemExprRef: binaryen.ExpressionRef =
-                this.wasmExprGen(elemExpr);
-            array.push(elemExprRef);
-        }
-        const arrayWasmType = this.wasmTypeGen.getWASMArrayOriType(arrType);
-        const arrayHeapType = this.wasmTypeGen.getWASMArrayOriHeapType(arrType);
-        const arrayStructTypeInfo = generateArrayStructTypeInfo({
-            typeRef: arrayWasmType,
-            heapTypeRef: arrayHeapType,
-        });
-        const arrayValue = binaryenCAPI._BinaryenArrayNewFixed(
-            this.module.ptr,
-            arrayHeapType,
-            arrayToPtr(array).ptr,
-            arrayLen,
-        );
-        const arrayStructValue = binaryenCAPI._BinaryenStructNew(
-            this.module.ptr,
-            arrayToPtr([arrayValue, this.module.i32.const(array.length)]).ptr,
-            2,
-            arrayStructTypeInfo.heapTypeRef,
-        );
-
-        return arrayStructValue;
+        return this.wasmElemsToArr(elements, arrType);
     }
 
     /* Currently we don't believe the index provided by semantic tree, semantic
@@ -3470,37 +3458,7 @@ export class WASMExpressionGen {
     }
 
     private wasmNewLiteralArray(value: NewLiteralArrayValue) {
-        const arrayLen = value.initValues.length;
-        const elemRefs: binaryen.ExpressionRef[] = [];
-        const arrayOriHeapType = this.wasmTypeGen.getWASMArrayOriHeapType(
-            value.type,
-        );
-        const arrayStructHeapType = this.wasmTypeGen.getWASMHeapType(
-            value.type,
-        );
-        for (let i = 0; i < arrayLen; i++) {
-            let elemRef = this.wasmExprGen(value.initValues[i]);
-            if (value.initValues[i].type.kind === ValueTypeKind.INT) {
-                /* Currently there is no Array<int>, int in array init
-                    sequence should be coverted to number */
-                elemRef = this.module.f64.convert_u.i32(elemRef);
-            }
-            elemRefs.push(elemRef);
-        }
-        const arrayRef = binaryenCAPI._BinaryenArrayNewFixed(
-            this.module.ptr,
-            arrayOriHeapType,
-            arrayToPtr(elemRefs).ptr,
-            arrayLen,
-        );
-        const arraySizeRef = this.module.i32.const(arrayLen);
-        const arrayStructRef = binaryenCAPI._BinaryenStructNew(
-            this.module.ptr,
-            arrayToPtr([arrayRef, arraySizeRef]).ptr,
-            2,
-            arrayStructHeapType,
-        );
-        return arrayStructRef;
+        return this.wasmElemsToArr(value.initValues, value.type as ArrayType);
     }
 
     private wasmNewArray(value: NewArrayValue | NewArrayLenValue) {
@@ -3855,12 +3813,68 @@ export class WASMExpressionGen {
         ) {
             return fromValueRef;
         }
-
-        let castedValueRef = FunctionalFuncs.boxToAny(
-            this.module,
-            fromValueRef,
-            fromValue,
-        );
+        let castedValueRef: binaryen.ExpressionRef;
+        if (fromValue instanceof NewLiteralArrayValue) {
+            const arrLen = fromValue.initValues.length;
+            const currentFuncCtx = this.wasmCompiler.currentFuncCtx!;
+            const arrLenVar = currentFuncCtx.i32Local();
+            const initArrLenStmt = this.module.local.set(
+                arrLenVar.index,
+                this.module.i32.const(0),
+            );
+            currentFuncCtx.insert(initArrLenStmt);
+            // compute the true length of new array
+            for (let i = 0; i < arrLen; ++i) {
+                const initValue = fromValue.initValues[i];
+                if (initValue instanceof SpreadValue) {
+                    const propLenRef = this.module.i32.const(
+                        this.wasmCompiler.generateRawString('length'),
+                    );
+                    const arrLenRef = FunctionalFuncs.getArrayRefLen(
+                        this.module,
+                        this.wasmExprGen(initValue.target),
+                        initValue.target,
+                        propLenRef,
+                        true,
+                    );
+                    const incStmt = this.module.local.set(
+                        arrLenVar.index,
+                        this.module.i32.add(
+                            this.module.local.get(
+                                arrLenVar.index,
+                                arrLenVar.type,
+                            ),
+                            arrLenRef,
+                        ),
+                    );
+                    currentFuncCtx.insert(incStmt);
+                } else {
+                    const incStmt = this.module.local.set(
+                        arrLenVar.index,
+                        this.module.i32.add(
+                            this.module.local.get(
+                                arrLenVar.index,
+                                arrLenVar.type,
+                            ),
+                            this.module.i32.const(1),
+                        ),
+                    );
+                    currentFuncCtx.insert(incStmt);
+                }
+            }
+            castedValueRef = FunctionalFuncs.boxToAny(
+                this.module,
+                fromValueRef,
+                fromValue,
+                this.module.local.get(arrLenVar.index, arrLenVar.type),
+            );
+        } else {
+            castedValueRef = FunctionalFuncs.boxToAny(
+                this.module,
+                fromValueRef,
+                fromValue,
+            );
+        }
 
         if (
             fromValue instanceof NewLiteralObjectValue ||
@@ -3874,9 +3888,17 @@ export class WASMExpressionGen {
             createDynObjOps.push(
                 this.module.local.set(tmpVar.index, castedValueRef),
             );
+            const forLoopIdx = this.wasmCompiler.currentFuncCtx!.i32Local();
+            const curElemIdx = this.wasmCompiler.currentFuncCtx!.i32Local();
+            this.wasmCompiler.currentFuncCtx!.insert(
+                this.module.local.set(
+                    curElemIdx.index,
+                    this.module.i32.const(0),
+                ),
+            );
             for (let i = 0; i < fromValue.initValues.length; i++) {
                 const initValue = fromValue.initValues[i];
-                const initValueRef = this.wasmExprGen(initValue);
+                let initValueRef = this.wasmExprGen(initValue);
                 if (fromValue instanceof NewLiteralObjectValue) {
                     const propName = fromObjType.meta.members[i].name;
                     const propNameRef = this.module.i32.const(
@@ -3891,14 +3913,163 @@ export class WASMExpressionGen {
                         ),
                     );
                 } else {
-                    createDynObjOps.push(
-                        FunctionalFuncs.setDynArrElem(
+                    if (initValue instanceof SpreadValue) {
+                        const spreadValue = initValue;
+                        const propLenRef = this.module.i32.const(
+                            this.wasmCompiler.generateRawString('length'),
+                        );
+                        const arrLenRef = FunctionalFuncs.getArrayRefLen(
                             this.module,
-                            this.module.local.get(tmpVar.index, tmpVar.type),
-                            this.module.i32.const(i),
+                            this.wasmExprGen(spreadValue.target),
+                            spreadValue.target,
+                            propLenRef,
+                            true,
+                        );
+                        const for_label = 'for_loop_block';
+                        const for_init = this.module.local.set(
+                            forLoopIdx.index,
+                            this.module.i32.const(0),
+                        );
+                        const for_condition = this.module.i32.lt_u(
+                            this.module.local.get(
+                                forLoopIdx.index,
+                                forLoopIdx.type,
+                            ),
+                            arrLenRef,
+                        );
+                        const for_incrementor = this.module.local.set(
+                            forLoopIdx.index,
+                            this.module.i32.add(
+                                this.module.local.get(
+                                    forLoopIdx.index,
+                                    forLoopIdx.type,
+                                ),
+                                this.module.i32.const(1),
+                            ),
+                        );
+                        let getArrElemStmt: binaryen.ExpressionRef | undefined;
+                        if (
+                            spreadValue.target.type.kind == ValueTypeKind.ARRAY
+                        ) {
+                            const arrayOriHeapType =
+                                this.wasmTypeGen.getWASMArrayOriHeapType(
+                                    spreadValue.target.type,
+                                );
+                            const arrRef = initValueRef;
+                            getArrElemStmt = binaryenCAPI._BinaryenArrayGet(
+                                this.module.ptr,
+                                arrRef,
+                                this.module.local.get(
+                                    forLoopIdx.index,
+                                    forLoopIdx.type,
+                                ),
+                                arrayOriHeapType,
+                                false,
+                            );
+                            // box the element by dyntype_new_xxx
+                            const elemType = (
+                                spreadValue.target.type as ArrayType
+                            ).element;
+                            if (elemType.isPrimitive) {
+                                getArrElemStmt =
+                                    FunctionalFuncs.boxBaseTypeToAny(
+                                        this.module,
+                                        getArrElemStmt,
+                                        elemType.kind,
+                                    );
+                            } else {
+                                getArrElemStmt = FunctionalFuncs.boxToAny(
+                                    this.module,
+                                    this.wasmExprGen(spreadValue.target),
+                                    spreadValue.target,
+                                );
+                            }
+                        } else if (
+                            spreadValue.target.type.kind == ValueTypeKind.ANY
+                        ) {
+                            getArrElemStmt = FunctionalFuncs.getDynArrElem(
+                                this.module,
+                                initValueRef,
+                                this.module.local.get(
+                                    forLoopIdx.index,
+                                    forLoopIdx.type,
+                                ),
+                            );
+                        }
+                        const for_body = this.module.block(null, [
+                            FunctionalFuncs.setDynArrElem(
+                                this.module,
+                                this.module.local.get(
+                                    tmpVar.index,
+                                    tmpVar.type,
+                                ),
+                                this.module.local.get(
+                                    curElemIdx.index,
+                                    curElemIdx.type,
+                                ),
+                                getArrElemStmt!,
+                            ),
+                            this.module.local.set(
+                                curElemIdx.index,
+                                this.module.i32.add(
+                                    this.module.local.get(
+                                        curElemIdx.index,
+                                        curElemIdx.type,
+                                    ),
+                                    this.module.i32.const(1),
+                                ),
+                            ),
+                        ]);
+
+                        const flattenLoop: FlattenLoop = {
+                            label: for_label,
+                            condition: for_condition,
+                            statements: for_body,
+                            incrementor: for_incrementor,
+                        };
+
+                        createDynObjOps.push(for_init);
+                        createDynObjOps.push(
+                            this.module.loop(
+                                for_label,
+                                FunctionalFuncs.flattenLoopStatement(
+                                    this.module,
+                                    flattenLoop,
+                                    SemanticsKind.FOR,
+                                ),
+                            ),
+                        );
+                    } else {
+                        initValueRef = FunctionalFuncs.boxToAny(
+                            this.module,
                             initValueRef,
-                        ),
-                    );
+                            initValue,
+                        );
+                        createDynObjOps.push(
+                            FunctionalFuncs.setDynArrElem(
+                                this.module,
+                                this.module.local.get(
+                                    tmpVar.index,
+                                    tmpVar.type,
+                                ),
+                                this.module.local.get(
+                                    curElemIdx.index,
+                                    curElemIdx.type,
+                                ),
+                                initValueRef,
+                            ),
+                            this.module.local.set(
+                                curElemIdx.index,
+                                this.module.i32.add(
+                                    this.module.local.get(
+                                        curElemIdx.index,
+                                        curElemIdx.type,
+                                    ),
+                                    this.module.i32.const(1),
+                                ),
+                            ),
+                        );
+                    }
                 }
             }
             createDynObjOps.push(
@@ -3952,5 +4123,463 @@ export class WASMExpressionGen {
             ctxHeapTypeRef,
         );
         return this.module.local.set(ctxVar.index, newCtxStruct);
+    }
+
+    private wasmSpread(value: SpreadValue) {
+        const target = value.target;
+        if (target.type.kind == ValueTypeKind.ARRAY) {
+            const arrayStructRef = this.wasmExprGen(target);
+            const arrayStructHeapType = this.wasmTypeGen.getWASMHeapType(
+                target.type,
+            );
+            const arrayRef = binaryenCAPI._BinaryenStructGet(
+                this.module.ptr,
+                0,
+                arrayStructRef,
+                arrayStructHeapType,
+                false,
+            );
+            return arrayRef;
+        } else if (target.type.kind == ValueTypeKind.ANY) {
+            return this.wasmExprGen(target);
+        }
+        throw Error('not implemented');
+    }
+
+    private wasmElemsToArr(values: SemanticsValue[], arrType: ArrayType) {
+        const arrayLen = values.length;
+        let elemRefs: binaryen.ExpressionRef[] = [];
+        const srcArrRefs: binaryen.ExpressionRef[] = [];
+        const arrayOriHeapType =
+            this.wasmTypeGen.getWASMArrayOriHeapType(arrType);
+        const arrayStructHeapType = this.wasmTypeGen.getWASMHeapType(arrType);
+        const elemType = arrType.element;
+        const statementArray: binaryenCAPI.ExpressionRef[] = [];
+        for (let i = 0; i < arrayLen; i++) {
+            let elemValue = values[i];
+            if (
+                elemType.kind != ValueTypeKind.ANY &&
+                (elemValue.kind == SemanticsValueKind.VALUE_CAST_ANY ||
+                    elemValue.kind == SemanticsValueKind.OBJECT_CAST_ANY)
+            ) {
+                elemValue = (elemValue as CastValue).value;
+            }
+            let elemRef = this.wasmExprGen(elemValue);
+            if (elemValue.type.kind === ValueTypeKind.INT) {
+                /* Currently there is no Array<int>, int in array init
+                    sequence should be coverted to number */
+                elemRef = this.module.f64.convert_u.i32(elemRef);
+            }
+            if (elemValue.kind == SemanticsValueKind.SPREAD) {
+                if (elemRefs.length != 0) {
+                    const elemArrRef = binaryenCAPI._BinaryenArrayNewFixed(
+                        this.module.ptr,
+                        arrayOriHeapType,
+                        arrayToPtr(elemRefs).ptr,
+                        elemRefs.length,
+                    );
+                    const elemArrLocal =
+                        this.wasmCompiler.currentFuncCtx!.insertTmpVar(
+                            binaryen.getExpressionType(elemArrRef),
+                        );
+
+                    const setElemArrLocalStmt = this.module.local.set(
+                        elemArrLocal.index,
+                        elemArrRef,
+                    );
+                    const getElemArrLocalStmt = this.module.local.get(
+                        elemArrLocal.index,
+                        elemArrLocal.type,
+                    );
+                    statementArray.push(setElemArrLocalStmt);
+                    srcArrRefs.push(getElemArrLocalStmt);
+                    elemRefs = [];
+                }
+                const target = (elemValue as SpreadValue).target;
+                if (target.type.kind == ValueTypeKind.ARRAY) {
+                    // box to interface
+                    const targetElemType = (target.type as ArrayType).element;
+                    if (
+                        elemType instanceof ObjectType &&
+                        elemType.meta.isInterface &&
+                        targetElemType instanceof ObjectType &&
+                        (targetElemType.meta.type ==
+                            ObjectDescriptionType.OBJECT_INSTANCE ||
+                            targetElemType.meta.type ==
+                                ObjectDescriptionType.OBJECT_CLASS ||
+                            targetElemType.meta.type ==
+                                ObjectDescriptionType.OBJECT_LITERAL)
+                    ) {
+                        const arrLenRef = binaryenCAPI._BinaryenArrayLen(
+                            this.module.ptr,
+                            elemRef,
+                        );
+                        const newArrRef = binaryenCAPI._BinaryenArrayNew(
+                            this.module.ptr,
+                            arrayOriHeapType,
+                            arrLenRef,
+                            binaryen.none,
+                        );
+                        const newArrLocal =
+                            this.wasmCompiler.currentFuncCtx!.insertTmpVar(
+                                binaryen.getExpressionType(newArrRef),
+                            );
+                        const setNewArrLocalStmt = this.module.local.set(
+                            newArrLocal.index,
+                            newArrRef,
+                        );
+                        statementArray.push(setNewArrLocalStmt);
+                        const getNewArrLocalStmt = this.module.local.get(
+                            newArrLocal.index,
+                            newArrLocal.type,
+                        );
+                        const fromType = targetElemType;
+                        const toType = elemType;
+                        // create a loop to box every element to interface
+                        const forLoopIdx =
+                            this.wasmCompiler.currentFuncCtx!.i32Local();
+                        const for_label = 'for_loop';
+                        const for_init = this.module.local.set(
+                            forLoopIdx.index,
+                            this.module.i32.const(0),
+                        );
+                        const for_condition = this.module.i32.lt_u(
+                            this.module.local.get(
+                                forLoopIdx.index,
+                                forLoopIdx.type,
+                            ),
+                            arrLenRef,
+                        );
+                        const for_incrementor = this.module.local.set(
+                            forLoopIdx.index,
+                            this.module.i32.add(
+                                this.module.local.get(
+                                    forLoopIdx.index,
+                                    forLoopIdx.type,
+                                ),
+                                this.module.i32.const(1),
+                            ),
+                        );
+                        const for_body = binaryenCAPI._BinaryenArraySet(
+                            this.module.ptr,
+                            getNewArrLocalStmt,
+                            this.module.local.get(
+                                forLoopIdx.index,
+                                forLoopIdx.type,
+                            ),
+                            this.boxObjToInfc(
+                                binaryenCAPI._BinaryenArrayGet(
+                                    this.module.ptr,
+                                    elemRef,
+                                    this.module.local.get(
+                                        forLoopIdx.index,
+                                        forLoopIdx.type,
+                                    ),
+                                    arrayOriHeapType,
+                                    false,
+                                ),
+                                fromType,
+                                toType,
+                            ),
+                        );
+                        const flattenLoop: FlattenLoop = {
+                            label: for_label,
+                            condition: for_condition,
+                            statements: for_body,
+                            incrementor: for_incrementor,
+                        };
+                        statementArray.push(for_init);
+                        statementArray.push(
+                            this.module.loop(
+                                for_label,
+                                FunctionalFuncs.flattenLoopStatement(
+                                    this.module,
+                                    flattenLoop,
+                                    SemanticsKind.FOR,
+                                ),
+                            ),
+                        );
+                        srcArrRefs.push(getNewArrLocalStmt);
+                    } else {
+                        const arrRef = elemRef;
+                        srcArrRefs.push(arrRef);
+                    }
+                } else if (target.type.kind == ValueTypeKind.ANY) {
+                    const anyArrRef = elemRef;
+                    const propNameRef = this.module.i32.const(
+                        this.wasmCompiler.generateRawString('length'),
+                    );
+                    // get the length of any array
+                    const arrLenLocal =
+                        this.wasmCompiler.currentFuncCtx!.i32Local();
+                    const setArrLenStmt = this.module.local.set(
+                        arrLenLocal.index,
+                        this.module.i32.trunc_u.f64(
+                            FunctionalFuncs.unboxAnyToBase(
+                                this.module,
+                                FunctionalFuncs.getDynObjProp(
+                                    this.module,
+                                    anyArrRef,
+                                    propNameRef,
+                                ),
+                                ValueTypeKind.NUMBER,
+                            ),
+                        ),
+                    );
+                    statementArray.push(setArrLenStmt);
+                    // create a new array
+                    const newArr = binaryenCAPI._BinaryenArrayNew(
+                        this.module.ptr,
+                        arrayOriHeapType,
+                        this.module.local.get(
+                            arrLenLocal.index,
+                            arrLenLocal.type,
+                        ),
+                        binaryen.none,
+                    );
+                    const newArrLocal =
+                        this.wasmCompiler.currentFuncCtx!.insertTmpVar(
+                            binaryen.getExpressionType(newArr),
+                        );
+                    const setNewArrLocalStmt = this.module.local.set(
+                        newArrLocal.index,
+                        newArr,
+                    );
+                    statementArray.push(setNewArrLocalStmt);
+                    // create a loop to set the new array
+                    const forLoopIdx =
+                        this.wasmCompiler.currentFuncCtx!.i32Local();
+                    const for_label = 'for_loop';
+                    const for_init = this.module.local.set(
+                        forLoopIdx.index,
+                        this.module.i32.const(0),
+                    );
+                    const for_condition = this.module.i32.lt_u(
+                        this.module.local.get(
+                            forLoopIdx.index,
+                            forLoopIdx.type,
+                        ),
+                        this.module.local.get(
+                            arrLenLocal.index,
+                            arrLenLocal.type,
+                        ),
+                    );
+                    const for_incrementor = this.module.local.set(
+                        forLoopIdx.index,
+                        this.module.i32.add(
+                            this.module.local.get(
+                                forLoopIdx.index,
+                                forLoopIdx.type,
+                            ),
+                            this.module.i32.const(1),
+                        ),
+                    );
+                    let getDynArrElemStmt: binaryenCAPI.ExpressionRef;
+                    if (elemType.isPrimitive) {
+                        getDynArrElemStmt = FunctionalFuncs.unboxAnyToBase(
+                            this.module,
+                            FunctionalFuncs.getDynArrElem(
+                                this.module,
+                                anyArrRef,
+                                this.module.local.get(
+                                    forLoopIdx.index,
+                                    forLoopIdx.type,
+                                ),
+                            ),
+                            elemType.kind,
+                        );
+                    } else {
+                        getDynArrElemStmt = FunctionalFuncs.getDynArrElem(
+                            this.module,
+                            anyArrRef,
+                            this.module.local.get(
+                                forLoopIdx.index,
+                                forLoopIdx.type,
+                            ),
+                        );
+                    }
+                    const for_body = binaryenCAPI._BinaryenArraySet(
+                        this.module.ptr,
+                        this.module.local.get(
+                            newArrLocal.index,
+                            newArrLocal.type,
+                        ),
+                        this.module.local.get(
+                            forLoopIdx.index,
+                            forLoopIdx.type,
+                        ),
+                        getDynArrElemStmt,
+                    );
+                    const flattenLoop: FlattenLoop = {
+                        label: for_label,
+                        condition: for_condition,
+                        statements: for_body,
+                        incrementor: for_incrementor,
+                    };
+                    statementArray.push(for_init);
+                    statementArray.push(
+                        this.module.loop(
+                            for_label,
+                            FunctionalFuncs.flattenLoopStatement(
+                                this.module,
+                                flattenLoop,
+                                SemanticsKind.FOR,
+                            ),
+                        ),
+                    );
+                    srcArrRefs.push(
+                        this.module.local.get(
+                            newArrLocal.index,
+                            newArrLocal.type,
+                        ),
+                    );
+                } else {
+                    throw Error('not implemented');
+                }
+            } else {
+                elemRefs.push(elemRef);
+            }
+        }
+        if (elemRefs.length != 0) {
+            const elemArrRef = binaryenCAPI._BinaryenArrayNewFixed(
+                this.module.ptr,
+                arrayOriHeapType,
+                arrayToPtr(elemRefs).ptr,
+                elemRefs.length,
+            );
+            const elemArrLocal = this.wasmCompiler.currentFuncCtx!.insertTmpVar(
+                binaryen.getExpressionType(elemArrRef),
+            );
+            const setElemArrLocalStmt = this.module.local.set(
+                elemArrLocal.index,
+                elemArrRef,
+            );
+            const getElemArrLocalStmt = this.module.local.get(
+                elemArrLocal.index,
+                elemArrLocal.type,
+            );
+            statementArray.push(setElemArrLocalStmt);
+            srcArrRefs.push(getElemArrLocalStmt);
+            elemRefs = [];
+        }
+        const resConcatArr = this.wasmArrayConcat(
+            srcArrRefs,
+            arrayOriHeapType,
+            statementArray,
+        );
+        const newArrLenRef = binaryenCAPI._BinaryenArrayLen(
+            this.module.ptr,
+            this.module.local.get(
+                resConcatArr.local.index,
+                resConcatArr.local.type,
+            ),
+        );
+        const arrayStructRef = binaryenCAPI._BinaryenStructNew(
+            this.module.ptr,
+            arrayToPtr([resConcatArr.ref, newArrLenRef]).ptr,
+            2,
+            arrayStructHeapType,
+        );
+        const newArrStructLocal =
+            this.wasmCompiler.currentFuncCtx!.insertTmpVar(
+                binaryen.getExpressionType(arrayStructRef),
+            );
+        const setNewArrStructLocal = this.module.local.set(
+            newArrStructLocal.index,
+            arrayStructRef,
+        );
+        const getNewArrStructLocal = this.module.local.get(
+            newArrStructLocal.index,
+            newArrStructLocal.type,
+        );
+        this.wasmCompiler.currentFuncCtx!.insert(setNewArrStructLocal);
+        return getNewArrStructLocal;
+    }
+
+    private wasmArrayConcat(
+        srcArrRefs: binaryenCAPI.ExpressionRef[],
+        arrTypeRef: binaryenCAPI.ExpressionRef,
+        statementArray: binaryen.ExpressionRef[],
+    ) {
+        // 1. compute the total length of new array
+        // 1.1 create a tmp stores the length
+        const totoal_length = this.wasmCompiler.currentFuncCtx!.i32Local();
+        const initTotalLenStmt = this.module.local.set(
+            totoal_length.index,
+            this.module.i32.const(0),
+        );
+        statementArray.push(initTotalLenStmt);
+        const totoal_length_ref = this.module.local.get(
+            totoal_length.index,
+            totoal_length.type,
+        );
+        // 1.2 caculate the total length
+        for (let i = 0; i < srcArrRefs.length; ++i) {
+            const arrLenRef = binaryenCAPI._BinaryenArrayLen(
+                this.module.ptr,
+                srcArrRefs[i],
+            );
+            const stmt = this.module.local.set(
+                totoal_length.index,
+                this.module.i32.add(totoal_length_ref, arrLenRef),
+            );
+            statementArray.push(stmt);
+        }
+
+        // 2. create a new array
+        // 2.1 create a local variable to store the new array
+        const newArr = binaryenCAPI._BinaryenArrayNew(
+            this.module.ptr,
+            arrTypeRef,
+            totoal_length_ref,
+            binaryen.none,
+        );
+        const newArrLocal = this.wasmCompiler.currentFuncCtx!.insertTmpVar(
+            binaryen.getExpressionType(newArr),
+        );
+        // 2.2 set the new array
+        const initArrStmt = this.module.local.set(newArrLocal.index, newArr);
+        statementArray.push(initArrStmt);
+        const newArrRef = this.module.local.get(
+            newArrLocal.index,
+            newArrLocal.type,
+        );
+        //3. create a local variable to store the num of copied elems
+        const copiedNum = this.wasmCompiler.currentFuncCtx!.i32Local();
+        const initCopiedNumStmt = this.module.local.set(
+            copiedNum.index,
+            this.module.i32.const(0),
+        );
+        statementArray.push(initCopiedNumStmt);
+        const copiedNumRef = this.module.local.get(
+            copiedNum.index,
+            copiedNum.type,
+        );
+        //4. copy all of the elements to the new array
+        for (let i = 0; i < srcArrRefs.length; ++i) {
+            const srcArrLenRef = binaryenCAPI._BinaryenArrayLen(
+                this.module.ptr,
+                srcArrRefs[i],
+            );
+            const copyStmt = binaryenCAPI._BinaryenArrayCopy(
+                this.module.ptr,
+                newArrRef,
+                copiedNumRef,
+                srcArrRefs[i],
+                this.module.i32.const(0),
+                srcArrLenRef,
+            );
+            statementArray.push(copyStmt);
+            const incCopiedNumStmt = this.module.local.set(
+                copiedNum.index,
+                this.module.i32.add(copiedNumRef, srcArrLenRef),
+            );
+            statementArray.push(incCopiedNumStmt);
+        }
+        statementArray.push(newArrRef);
+        return {
+            local: newArrLocal,
+            ref: this.module.block(null, statementArray),
+        };
     }
 }
