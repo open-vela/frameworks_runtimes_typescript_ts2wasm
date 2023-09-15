@@ -3712,5 +3712,55 @@
                 "result": "value1 \nvalue2 \nvalue1 \nvalue2"
             }
         ]
+    },
+    {
+        "module": "spread_operator",
+        "entries": [
+            {
+                "name": "spread_number_array",
+                "args": [],
+                "result": "8 \n2 \n4 \n1 \n0 \n0 \n0"
+            },
+            {
+                "name": "spread_boolean_array",
+                "args": [],
+                "result": "5 \ntrue \nfalse"
+            },
+            {
+                "name": "spread_string_array",
+                "args": [],
+                "result": "3 \n1"
+            },
+            {
+                "name": "spread_object_array",
+                "args": [],
+                "result": "3 \nA1 \nA4 \nA4"
+            },
+            {
+                "name": "spread_interface_array",
+                "args": [],
+                "result": "3 \nA1"
+            },
+            {
+                "name": "spread_literal_array",
+                "args": [],
+                "result": "5 \n1 \n2 \n4 \n3 \n1 \n2 \n3 \nfalse \ntrue \n3 \nA2 \nA3 \n3 \n1 \n2 \n2 \n2 \n3"
+            },
+            {
+                "name": "spread_any_array",
+                "args": [],
+                "result": "4 \n1 \n4 \nA1 \n7 \nA1 \n10"
+            },
+            {
+                "name": "spread_nested_array",
+                "args": [],
+                "result": "3 \n2 \n4 \n5"
+            },
+            {
+                "name": "pass_spread_to_rest_param",
+                "args": [],
+                "result": "5 \n20 \n30 \n4 \n20 \n3 \n4 \nA20 \nA30 \n3 \nA20 \nA2 \n8 \n2 \nA3 \nA1"
+            }
+        ]
     }
 ]

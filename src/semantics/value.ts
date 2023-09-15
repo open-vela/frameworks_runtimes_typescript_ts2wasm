@@ -123,6 +123,7 @@ export enum SemanticsValueKind {
     TYPEOF,
     TEMPLATE_EXPRESSION,
     REBINDING,
+    SPREAD,
 }
 
 export type ValueBinaryOperator = ts.BinaryOperator;
@@ -1277,6 +1278,12 @@ export class ReturnValue extends SemanticsValue {
 export class ReBindingValue extends SemanticsValue {
     constructor(public contextVar: VarDeclareNode) {
         super(SemanticsValueKind.REBINDING, Primitive.Void);
+    }
+}
+
+export class SpreadValue extends SemanticsValue {
+    constructor(type: ValueType, public target: SemanticsValue) {
+        super(SemanticsValueKind.SPREAD, type);
     }
 }
 
