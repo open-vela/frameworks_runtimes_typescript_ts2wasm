@@ -1205,20 +1205,14 @@ export class WASMExpressionGen {
     }
 
     private wasmAnyCall(value: AnyCallValue) {
-        /* any function call */
+        /* call dynamic js function, which will callback to wasm finally */
         const anyFuncRef = this.wasmExprGen(value.anyFunc);
-        const oriFuncRefWithAnyType = FunctionalFuncs.unboxAny(
-            this.module,
-            anyFuncRef,
-            ValueTypeKind.FUNCTION,
-            binaryen.anyref,
-        );
         const argStruct = this.generateArgStruct(value.parameters);
         return this.module.call(
             dyntype.invoke_func,
             [
                 FunctionalFuncs.getDynContextRef(this.module),
-                oriFuncRefWithAnyType,
+                anyFuncRef,
                 argStruct,
             ],
             binaryen.anyref,
