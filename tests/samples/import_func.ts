@@ -12,6 +12,8 @@ import defaultFunction, {
 
 import { exportedFunc } from './export_func_invoked';
 
+import {testLog}  from './export_from/libA/index'
+
 export function importFuncAdd() {
     const a = add(1, 2);
     return a;
@@ -39,4 +41,9 @@ export function importDefaultFunc() {
 export function importFuncInvoked() {
     const importedFunc = exportedFunc;
     return importedFunc();
+}
+
+
+export function importFuncByExportFrom(){
+    testLog();
 }

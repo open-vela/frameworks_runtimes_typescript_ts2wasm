@@ -3,4 +3,4 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-export {A} from './lib/classA'
+export {A, testLog} from './lib/classA'

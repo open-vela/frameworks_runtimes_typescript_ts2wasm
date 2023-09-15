@@ -373,13 +373,17 @@ export default class StatementProcessor {
 
     visitNodeInternal(node: ts.Node): Statement | null {
         switch (node.kind) {
+            case ts.SyntaxKind.ExportDeclaration:
             case ts.SyntaxKind.ImportDeclaration: {
-                const importDeclaration = <ts.ImportDeclaration>node;
+                const importDeclaration = <
+                    ts.ImportDeclaration | ts.ExportDeclaration
+                >node;
                 // Get the import module name according to the relative position of current scope
                 const importModuleName = getModulePath(
                     importDeclaration,
                     this.currentScope!.getRootGloablScope()!,
                 );
+                if (importModuleName === undefined) return null;
                 const importModuleScope = getGlobalScopeByModuleName(
                     importModuleName!,
                     this.parserCtx.globalScopes,
