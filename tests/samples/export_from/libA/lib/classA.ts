@@ -10,3 +10,9 @@ export class A{
         this.a = 14;
     }
 }
+
+let name:string = "hello"
+
+export function testLog(){
+    console.log(name);
+}
