@@ -29,6 +29,7 @@ typedef struct MetaField {
 
 typedef struct Meta {
     int type_id;
+    int impl_id;
     int count;
     MetaField fields[0];
 } Meta;

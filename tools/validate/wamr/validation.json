@@ -2603,7 +2603,7 @@
             {
                 "name": "infcToClass",
                 "args": [],
-                "result": "Exception: cast failure",
+                "result": "Exception: unreachable",
                 "ret": 1
             },
             {
@@ -2629,7 +2629,7 @@
             {
                 "name": "returnClass",
                 "args": [],
-                "result": "Exception: cast failure",
+                "result": "Exception: unreachable",
                 "ret": 1
             }
         ]
