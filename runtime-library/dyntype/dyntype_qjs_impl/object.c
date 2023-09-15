@@ -394,7 +394,7 @@ dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, void *opaque)
 {
     JSValue tag_v, ref_v, v;
 
-    if (tag != ExtObj && tag != ExtFunc && tag != ExtInfc && tag != ExtArray) {
+    if (tag != ExtObj && tag != ExtFunc && tag != ExtArray) {
         return NULL;
     }
 
@@ -750,9 +750,6 @@ dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj)
         }
         else if (tag == ExtFunc) {
             return DynExtRefFunc;
-        }
-        else if (tag == ExtInfc) {
-            return DynExtRefInfc;
         }
         else if (tag == ExtArray) {
             return DynExtRefArray;

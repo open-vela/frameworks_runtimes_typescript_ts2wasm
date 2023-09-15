@@ -982,16 +982,17 @@ export class WASMGen extends Ts2wasmBackend {
         const members = objType.meta.members;
         let dataLength = members.length;
         dataLength += members.filter((m) => m.hasSetter && m.hasGetter).length;
-        const buffer = new Uint32Array(2 + 3 * dataLength);
+        const buffer = new Uint32Array(3 + 3 * dataLength);
         buffer[0] = objType.typeId;
-        buffer[1] = dataLength;
+        buffer[1] = objType.implId;
+        buffer[2] = dataLength;
         // if (buffer[1] > (1 << 27) - 1) {
         //     throw new Error('Too many members in object type');
         // }
         let memberMethodsCnt = 1;
         const cnt = Math.min(dataLength, members.length);
         let memberFieldsCnt = 1; // In obj, the first field is vtable.
-        for (let i = 0, j = 2; i < cnt; i++, j += 3) {
+        for (let i = 0, j = 3; i < cnt; i++, j += 3) {
             const member = members[i];
             const memberName = member.name;
             buffer[j] = this.generateRawString(memberName);

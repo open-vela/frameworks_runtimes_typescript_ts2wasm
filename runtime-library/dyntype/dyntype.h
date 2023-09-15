@@ -35,7 +35,6 @@ typedef dyn_value_t (*dyntype_callback_dispatcher_t)(void *env, dyn_ctx_t ctx,
 typedef enum external_ref_tag {
     ExtObj,
     ExtFunc,
-    ExtInfc,
     ExtArray,
 } external_ref_tag;
 
@@ -52,7 +51,6 @@ typedef enum dyn_type_t {
     DynBigInt,
     DynExtRefObj,
     DynExtRefFunc,
-    DynExtRefInfc,
     DynExtRefArray,
 } dyn_type_t;
 

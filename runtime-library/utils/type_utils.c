@@ -623,57 +623,6 @@ get_str_from_string_struct(wasm_struct_obj_t obj)
     return str;
 }
 
-bool
-is_infc(wasm_obj_t obj) {
-    wasm_struct_type_t struct_type;
-
-    if (!obj || !wasm_obj_is_struct_obj(obj)) {
-        return false;
-    }
-    struct_type = (wasm_struct_type_t)wasm_obj_get_defined_type(obj);
-
-    uint32_t fields_count;
-    bool mut;
-    wasm_ref_type_t field_type;
-
-    fields_count = wasm_struct_type_get_field_count(struct_type);
-    if (fields_count != 4) {
-        return false;
-    }
-    field_type = wasm_struct_type_get_field_type(struct_type, 0, &mut);
-    if (field_type.value_type != VALUE_TYPE_I32 || mut) {
-        return false;
-    }
-    field_type = wasm_struct_type_get_field_type(struct_type, 1, &mut);
-    if (field_type.value_type != VALUE_TYPE_I32 || mut) {
-        return false;
-    }
-    field_type = wasm_struct_type_get_field_type(struct_type, 2, &mut);
-    if (field_type.value_type != VALUE_TYPE_I32 || mut) {
-        return false;
-    }
-    field_type = wasm_struct_type_get_field_type(struct_type, 3, &mut);
-    if (field_type.value_type != VALUE_TYPE_ANYREF || !mut) {
-        return false;
-    }
-
-    return true;
-}
-
-void *
-get_infc_obj(wasm_exec_env_t exec_env, wasm_obj_t obj) {
-    wasm_value_t res = { 0 };
-    wasm_struct_obj_t struct_obj;
-
-    if (!is_infc(obj)) {
-        return NULL;
-    }
-    struct_obj = (wasm_struct_obj_t)obj;
-    wasm_struct_obj_get_field(struct_obj, 3, false, &res);
-
-    return res.gc_obj;
-}
-
 void *
 array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
                 void *separator) {
@@ -833,9 +782,6 @@ get_dyn_obj_info(void *dyn_ctx, void *dyn_obj, uint32 *obj_info)
                                 &ext_ref);
         if (tag == ExtObj) {
             obj_info[0] = DynExtRefObj;
-        }
-        else if (tag == ExtInfc) {
-            obj_info[0] = DynExtRefInfc;
         }
         else if (tag == ExtArray) {
             obj_info[0] = DynExtRefArray;
@@ -1045,20 +991,14 @@ get_object_field(wasm_exec_env_t exec_env,
 void *
 get_meta_of_object(wasm_exec_env_t exec_env, wasm_obj_t obj)
 {
-    wasm_obj_t wasm_obj;
     wasm_struct_obj_t struct_obj;
     wasm_struct_obj_t vtable_struct;
     WASMValue vtable_value = { 0 };
     wasm_value_t meta = { 0 };
     void *meta_addr;
 
-    wasm_obj = obj;
-    if (is_infc(obj)) {
-        wasm_obj = (wasm_obj_t)get_infc_obj(exec_env, obj);
-    }
-
     /* get meta addr */
-    struct_obj = (wasm_struct_obj_t)wasm_obj;
+    struct_obj = (wasm_struct_obj_t)obj;
     wasm_struct_obj_get_field(struct_obj, 0, false, &vtable_value);
     vtable_struct = (wasm_struct_obj_t)vtable_value.gc_obj;
     wasm_struct_obj_get_field(vtable_struct, 0, false, &meta);

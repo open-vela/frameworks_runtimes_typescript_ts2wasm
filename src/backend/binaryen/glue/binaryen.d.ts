@@ -1715,7 +1715,7 @@ export declare function _BinaryenCallRefSetReturn(
 export declare function _BinaryenRefTest(
     module: ModuleRef,
     refExpr: ExpressionRef,
-    castType: HeapTypeRef,
+    castType: TypeRef,
 ): ExpressionRef;
 export declare function _BinaryenRefTestGetRef(
     expr: ExpressionRef,

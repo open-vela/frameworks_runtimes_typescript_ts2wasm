@@ -14,7 +14,7 @@
    (if
     (i32.gt_s
      (local.tee $5
-      (i32.load offset=4
+      (i32.load offset=8
        (local.get $0)
       )
      )
@@ -24,7 +24,7 @@
      (local.set $0
       (i32.add
        (local.get $0)
-       (i32.const 12)
+       (i32.const 16)
       )
      )
      (loop $label$2
@@ -34,8 +34,8 @@
        )
       )
       (br_if $label$0
-       (i32.and
-        (i32.eqz
+       (i32.eqz
+        (i32.or
          (call $strcmp
           (i32.load
            (i32.sub
@@ -45,13 +45,13 @@
           )
           (local.get $1)
          )
-        )
-        (i32.eq
          (i32.and
-          (local.get $4)
+          (i32.xor
+           (local.get $2)
+           (local.get $4)
+          )
           (i32.const 15)
          )
-         (local.get $2)
         )
        )
       )
@@ -91,7 +91,7 @@
    (if
     (i32.gt_s
      (local.tee $4
-      (i32.load offset=4
+      (i32.load offset=8
        (local.get $0)
       )
      )
@@ -101,7 +101,7 @@
      (local.set $0
       (i32.add
        (local.get $0)
-       (i32.const 16)
+       (i32.const 20)
       )
      )
      (loop $label$2

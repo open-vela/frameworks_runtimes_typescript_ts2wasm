@@ -35,8 +35,7 @@ export namespace dyntype {
     export const enum ExtObjKind {
         ExtObj = 0,
         ExtFunc = 1,
-        ExtInfc = 2,
-        ExtArray = 3,
+        ExtArray = 2,
     }
 
     // export dyntype functions

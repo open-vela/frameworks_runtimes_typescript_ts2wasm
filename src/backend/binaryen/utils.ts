@@ -28,7 +28,6 @@ import {
     stringArrayTypeForStringRef,
 } from './glue/transform.js';
 import {
-    infcTypeInfo,
     stringTypeInfo,
     charArrayTypeInfo,
     stringArrayTypeInfo,
@@ -43,7 +42,7 @@ import {
 } from '../../semantics/value.js';
 import { ObjectDescriptionType } from '../../semantics/runtime.js';
 import { getConfig } from '../../../config/config_mgr.js';
-import { WASMExpressionGen } from './wasm_expr_gen.js';
+import { LinearMemoryAlign } from './memory.js';
 
 /** typeof an any type object */
 export const enum DynType {
@@ -449,16 +448,13 @@ export namespace FunctionalFuncs {
         );
         let extObjKind: dyntype.ExtObjKind = 0;
         switch (extrefTypeKind) {
-            case ValueTypeKind.OBJECT: {
+            case ValueTypeKind.OBJECT:
+            case ValueTypeKind.INTERFACE: {
                 extObjKind = dyntype.ExtObjKind.ExtObj;
                 break;
             }
             case ValueTypeKind.FUNCTION: {
                 extObjKind = dyntype.ExtObjKind.ExtFunc;
-                break;
-            }
-            case ValueTypeKind.INTERFACE: {
-                extObjKind = dyntype.ExtObjKind.ExtInfc;
                 break;
             }
             case ValueTypeKind.ARRAY: {
@@ -549,24 +545,6 @@ export namespace FunctionalFuncs {
             );
         }
         return res;
-    }
-
-    export function getInterfaceObj(
-        module: binaryen.Module,
-        expr: binaryen.ExpressionRef,
-    ) {
-        const obj = binaryenCAPI._BinaryenStructGet(
-            module.ptr,
-            InfcFieldIndex.DATA_INDEX,
-            expr,
-            infcTypeInfo.typeRef,
-            false,
-        );
-        return binaryenCAPI._BinaryenRefCast(
-            module.ptr,
-            obj,
-            emptyStructType.typeRef,
-        );
     }
 
     export function unboxAny(
@@ -782,13 +760,12 @@ export namespace FunctionalFuncs {
         anyExprRef: binaryen.ExpressionRef,
         wasmType: binaryen.Type,
     ) {
-        const isExternRef = module.call(
+        const isExternalRef = module.call(
             dyntype.dyntype_is_extref,
             [getDynContextRef(module), anyExprRef],
             dyntype.bool,
         );
-        const isExtrefCond = module.i32.eq(isExternRef, module.i32.const(1));
-        // const wasmType = this.wasmType.getWASMType(targetType);
+        const isExtrefCond = module.i32.eq(isExternalRef, module.i32.const(1));
         // iff True
         const tableIndex = module.call(
             dyntype.dyntype_to_extref,
@@ -811,42 +788,6 @@ export namespace FunctionalFuncs {
                 module.ptr,
                 externalRef,
                 wasmType,
-            );
-        }
-        if (wasmType !== infcTypeInfo.typeRef && wasmType !== binaryen.anyref) {
-            /** try to get inteface
-             * const i: I = new A()
-             * const a: any = i;
-             * const b = a as A
-             */
-            const infc = binaryenCAPI._BinaryenRefCast(
-                module.ptr,
-                externalRef,
-                infcTypeInfo.typeRef,
-            );
-            const infcData = binaryenCAPI._BinaryenStructGet(
-                module.ptr,
-                InfcFieldIndex.DATA_INDEX,
-                infc,
-                infcTypeInfo.typeRef,
-                false,
-            );
-            const infcValue = binaryenCAPI._BinaryenRefCast(
-                module.ptr,
-                infcData,
-                wasmType,
-            );
-            value = module.if(
-                module.i32.eq(
-                    module.call(
-                        dyntype.dyntype_typeof1,
-                        [getDynContextRef(module), anyExprRef],
-                        dyntype.int,
-                    ),
-                    module.i32.const(DynType.DynExtRefInfc),
-                ),
-                infcValue,
-                value,
             );
         }
         // iff False
@@ -877,10 +818,7 @@ export namespace FunctionalFuncs {
             }
         }
         const semanticsValueKind = value.kind;
-        let objDespType: ObjectDescriptionType | undefined = undefined;
-        if (value.type instanceof ObjectType) {
-            objDespType = value.type.meta.type;
-        }
+
         switch (valueTypeKind) {
             case ValueTypeKind.NUMBER:
             case ValueTypeKind.INT:
@@ -904,7 +842,6 @@ export namespace FunctionalFuncs {
                             module,
                             valueRef,
                             valueTypeKind,
-                            objDespType,
                         );
                     }
                 }
@@ -967,7 +904,6 @@ export namespace FunctionalFuncs {
         module: binaryen.Module,
         valueRef: binaryen.ExpressionRef,
         valueTypeKind: ValueTypeKind,
-        objDespType?: ObjectDescriptionType,
     ): binaryen.ExpressionRef {
         switch (valueTypeKind) {
             case ValueTypeKind.NUMBER:
@@ -982,11 +918,7 @@ export namespace FunctionalFuncs {
             case ValueTypeKind.ARRAY:
             case ValueTypeKind.OBJECT:
             case ValueTypeKind.FUNCTION: {
-                let kind = valueTypeKind;
-                if (objDespType === ObjectDescriptionType.INTERFACE) {
-                    kind = ValueTypeKind.INTERFACE;
-                }
-                return generateDynExtref(module, valueRef, kind);
+                return generateDynExtref(module, valueRef, valueTypeKind);
             }
             default:
                 throw Error(`boxNonLiteralToAny: error kind  ${valueTypeKind}`);
@@ -1189,17 +1121,9 @@ export namespace FunctionalFuncs {
     export function operateRefRef(
         module: binaryen.Module,
         leftExprRef: binaryen.ExpressionRef,
-        leftExprType: ValueType,
         rightExprRef: binaryen.ExpressionRef,
-        rightExprType: ValueType,
         operatorKind: ts.SyntaxKind,
     ) {
-        if (leftExprType.kind === ValueTypeKind.INTERFACE) {
-            leftExprRef = getInterfaceObj(module, leftExprRef);
-        }
-        if (rightExprType.kind === ValueTypeKind.INTERFACE) {
-            rightExprRef = getInterfaceObj(module, rightExprRef);
-        }
         switch (operatorKind) {
             case ts.SyntaxKind.EqualsEqualsToken:
             case ts.SyntaxKind.EqualsEqualsEqualsToken: {
@@ -1768,12 +1692,26 @@ export function clearWasmStringMap() {
     wasmStringMap.clear();
 }
 
-/** Describe the meaning of each field index of the infc type  */
-export const enum InfcFieldIndex {
-    ITABLE_INDEX,
-    TYPEID_INDEX,
-    IMPLID_INDEX,
-    DATA_INDEX,
+export const enum StructFieldIndex {
+    VTABLE_INDEX = 0,
+}
+
+export const enum VtableFieldIndex {
+    META_INDEX = 0,
+}
+
+export const enum MetaFieldOffset {
+    TYPE_ID_OFFSET = 0,
+    IMPL_ID_OFFSET = 4,
+    COUNT_OFFSET = 8,
+}
+
+export function getFieldFromMetaByOffset(
+    module: binaryen.Module,
+    meta: binaryen.ExpressionRef,
+    offset: number,
+) {
+    return module.i32.load(offset, LinearMemoryAlign, meta);
 }
 
 export interface SourceMapLoc {
