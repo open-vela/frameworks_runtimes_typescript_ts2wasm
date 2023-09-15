@@ -578,7 +578,6 @@ export namespace FunctionalFuncs {
         anyExprRef: binaryen.ExpressionRef,
         typeKind: ValueTypeKind,
     ) {
-        let condFuncName = '';
         let cvtFuncName = '';
         let binaryenType: binaryen.Type;
 
@@ -600,17 +599,13 @@ export namespace FunctionalFuncs {
 
         /* native API's dynamic params */
         const dynParam = [getDynContextRef(module), anyExprRef];
-        /* if false */
-        let ifFalseRef = module.unreachable();
         switch (typeKind) {
             case ValueTypeKind.NUMBER: {
-                condFuncName = dyntype.dyntype_is_number;
                 cvtFuncName = dyntype.dyntype_to_number;
                 binaryenType = binaryen.f64;
                 break;
             }
             case ValueTypeKind.BOOLEAN: {
-                condFuncName = dyntype.dyntype_is_bool;
                 cvtFuncName = dyntype.dyntype_to_bool;
                 binaryenType = binaryen.i32;
                 /* Auto generate condition for boolean type */
@@ -621,14 +616,8 @@ export namespace FunctionalFuncs {
                 const wasmStringType = getConfig().enableStringRef
                     ? binaryenCAPI._BinaryenTypeStringref()
                     : stringTypeInfo.typeRef;
-                condFuncName = dyntype.dyntype_is_string;
-                cvtFuncName = dyntype.dyntype_to_string;
+                cvtFuncName = dyntype.dyntype_toString;
                 binaryenType = wasmStringType;
-                ifFalseRef = module.call(
-                    dyntype.dyntype_toString,
-                    dynParam,
-                    wasmStringType,
-                );
                 break;
             }
             default: {
@@ -637,11 +626,7 @@ export namespace FunctionalFuncs {
                 );
             }
         }
-        const isBaseTypeRef = isBaseType(module, anyExprRef, condFuncName);
-        /* if true */
-        const ifTrueRef = module.call(cvtFuncName, dynParam, binaryenType);
-        const blockStmt = module.if(isBaseTypeRef, ifTrueRef, ifFalseRef);
-        return module.block(null, [blockStmt], binaryenType);
+        return module.call(cvtFuncName, dynParam, binaryenType);
     }
 
     export function isBaseType(
@@ -760,44 +745,29 @@ export namespace FunctionalFuncs {
         anyExprRef: binaryen.ExpressionRef,
         wasmType: binaryen.Type,
     ) {
-        const isExternalRef = module.call(
-            dyntype.dyntype_is_extref,
-            [getDynContextRef(module), anyExprRef],
-            dyntype.bool,
-        );
-        const isExtrefCond = module.i32.eq(isExternalRef, module.i32.const(1));
-        // iff True
-        const tableIndex = module.call(
-            dyntype.dyntype_to_extref,
-            [getDynContextRef(module), anyExprRef],
-            dyntype.int,
-        );
-        const externalRef = module.table.get(
-            BuiltinNames.extrefTable,
-            tableIndex,
-            binaryen.anyref,
-        );
-        let value = externalRef;
-        /*
-         * When handling any_func_call, we need to get the function from table.
-         * But we don't know the real wasmType, so we will pass wasmType as anyref.
-         * When wasmType is anyref, we should avoid type cast.
-         */
-        if (wasmType !== binaryen.anyref) {
+        let value: binaryen.ExpressionRef;
+        if (wasmType === binaryen.anyref) {
+            /* if wasm type is anyref type, then value may be a pure Quickjs value */
+            value = anyExprRef;
+        } else {
+            /* unbox to externalRef */
+            const tableIndex = module.call(
+                dyntype.dyntype_to_extref,
+                [getDynContextRef(module), anyExprRef],
+                dyntype.int,
+            );
+            const externalRef = module.table.get(
+                BuiltinNames.extrefTable,
+                tableIndex,
+                binaryen.anyref,
+            );
             value = binaryenCAPI._BinaryenRefCast(
                 module.ptr,
                 externalRef,
                 wasmType,
             );
         }
-        // iff False
-        let falseRef = module.unreachable();
-        /* if wasmType is anyref, then the value may be a pure Quickjs value */
-        if (wasmType === binaryen.anyref) {
-            falseRef = anyExprRef;
-        }
-        const toExtrefBlockRef = module.if(isExtrefCond, value, falseRef);
-        return module.block(null, [toExtrefBlockRef], wasmType);
+        return value;
     }
 
     export function boxToAny(
