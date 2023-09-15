@@ -11,6 +11,8 @@ import {
     arrayToPtr,
     emptyStructType,
     generateArrayStructTypeInfo,
+    baseStructType,
+    baseVtableType,
 } from './glue/transform.js';
 import { assert } from 'console';
 import { WASMGen } from './index.js';
@@ -20,10 +22,12 @@ import {
     FunctionalFuncs,
     getCString,
     ItableFlag,
-    InfcFieldIndex,
     utf16ToUtf8,
     FlattenLoop,
-    BackendLocalVar,
+    StructFieldIndex,
+    getFieldFromMetaByOffset,
+    MetaFieldOffset,
+    VtableFieldIndex,
 } from './utils.js';
 import { PredefinedTypeId, processEscape } from '../../utils.js';
 import {
@@ -103,7 +107,6 @@ import { BuiltinNames } from '../../../lib/builtin/builtin_name.js';
 import { dyntype, structdyn } from './lib/dyntype/utils.js';
 import {
     anyArrayTypeInfo,
-    infcTypeInfo,
     stringArrayStructTypeInfo,
     stringArrayTypeInfo,
 } from './glue/packType.js';
@@ -704,9 +707,7 @@ export class WASMExpressionGen {
             return FunctionalFuncs.operateRefRef(
                 this.module,
                 leftValueRef,
-                leftValueType,
                 rightValueRef,
-                rightValueType,
                 opKind,
             );
         }
@@ -1058,12 +1059,6 @@ export class WASMExpressionGen {
         let ownerTypeRef = this.wasmTypeGen.getWASMValueType(owner.type);
 
         if ((owner.type as ObjectType).meta.isInterface) {
-            /* This is a resolved interface access, "this" should be the object hold by the interface */
-            thisArg = this.getInfcInstInfo(
-                thisArg,
-                infcTypeInfo.typeRef,
-                InfcFieldIndex.DATA_INDEX,
-            );
             /* workaround: need to get the actual typeRef based on owner.shape */
             ownerTypeRef = this.wasmTypeGen.objTypeMap.get(meta.name)!;
             thisArg = binaryenCAPI._BinaryenRefCast(
@@ -1466,27 +1461,6 @@ export class WASMExpressionGen {
                 }
             }
             case SemanticsValueKind.OBJECT_CAST_UNION: {
-                if (FunctionalFuncs.isUnionWithUndefined(toType)) {
-                    const staticType = FunctionalFuncs.getStaticType(toType);
-                    if (
-                        staticType instanceof ObjectType &&
-                        staticType.meta.isInterface &&
-                        fromType instanceof ObjectType &&
-                        !fromType.meta.isInterface
-                    ) {
-                        const fromValueRef = this.wasmExprGen(fromValue);
-                        const boxedValueRef = this.boxObjToInfc(
-                            fromValueRef,
-                            fromType,
-                            staticType,
-                        );
-                        return FunctionalFuncs.generateDynExtref(
-                            this.module,
-                            boxedValueRef,
-                            ValueTypeKind.INTERFACE,
-                        );
-                    }
-                }
                 if (fromValue instanceof NewLiteralArrayValue) {
                     // box the literal array to any
                     return this.wasmObjTypeCastToAny(value);
@@ -1965,22 +1939,7 @@ export class WASMExpressionGen {
                 false,
                 true,
             );
-            const oriObjAnyRef = this.getInfcInstInfo(
-                thisRef,
-                infcTypeInfo.typeRef,
-                InfcFieldIndex.DATA_INDEX,
-            );
-            const castedObjRef = binaryenCAPI._BinaryenRefCast(
-                this.module.ptr,
-                oriObjAnyRef,
-                emptyStructType.typeRef,
-            );
-            res = this.callFuncRef(
-                setterType,
-                res,
-                [targetValue],
-                castedObjRef,
-            );
+            res = this.callFuncRef(setterType, res, [targetValue], thisRef);
         }
         return res;
     }
@@ -2059,32 +2018,32 @@ export class WASMExpressionGen {
         let res: binaryen.ExpressionRef;
         if (meta.isInterface) {
             const infcTypeRef = this.wasmTypeGen.getWASMType(ownerType);
-            const itableRef = this.getInfcInstInfo(
+            const vtable = this.getWasmStructFieldByIndex(
                 thisRef,
                 infcTypeRef,
-                InfcFieldIndex.ITABLE_INDEX,
+                StructFieldIndex.VTABLE_INDEX,
             );
-            const obj = this.getInfcInstInfo(
-                thisRef,
-                infcTypeRef,
-                InfcFieldIndex.DATA_INDEX,
+            const metaRef = this.getWasmStructFieldByIndex(
+                vtable,
+                baseVtableType.typeRef,
+                VtableFieldIndex.META_INDEX,
             );
             const memberNameRef = this.module.i32.const(
                 this.wasmCompiler.generateRawString(memberName),
             );
             const indexRef = this.getPropIndexOfInfc(
-                itableRef,
+                metaRef,
                 memberNameRef,
                 ItableFlag.METHOD,
             );
             let func = this.dynGetInfcField(
-                obj,
+                thisRef,
                 indexRef,
                 typeMember.valueType,
                 typeMember.isOptional,
                 typeMember.isOptional
                     ? this.getPropTypeOnIndexOfInfc(
-                          itableRef,
+                          metaRef,
                           memberNameRef,
                           ItableFlag.METHOD,
                       )
@@ -2145,17 +2104,7 @@ export class WASMExpressionGen {
                 member.type === MemberType.ACCESSOR ||
                 (member.type === MemberType.METHOD && isCall)
             ) {
-                const oriObjAnyRef = this.getInfcInstInfo(
-                    thisRef,
-                    infcTypeInfo.typeRef,
-                    InfcFieldIndex.DATA_INDEX,
-                );
                 const memberFuncType = memberValueType as FunctionType;
-                const castedObjRef = binaryenCAPI._BinaryenRefCast(
-                    this.module.ptr,
-                    oriObjAnyRef,
-                    emptyStructType.typeRef,
-                );
                 /**
                  * TODO: Not support optional method in class, that means optional method in interface
                  * point to undefined or closure. Because of mixed type, so here we only allow
@@ -2189,7 +2138,7 @@ export class WASMExpressionGen {
                         false,
                     );
                 }
-                res = this.callFuncRef(memberFuncType, res, args, castedObjRef);
+                res = this.callFuncRef(memberFuncType, res, args, thisRef);
             }
         }
         return res;
@@ -2228,25 +2177,25 @@ export class WASMExpressionGen {
     }
 
     private getPropIndexOfInfc(
-        itable: binaryen.ExpressionRef,
+        meta: binaryen.ExpressionRef,
         name: binaryen.ExpressionRef,
         flag: ItableFlag,
     ) {
         return this.module.call(
             'find_index',
-            [itable, name, this.module.i32.const(flag)],
+            [meta, name, this.module.i32.const(flag)],
             binaryen.i32,
         );
     }
 
     private getPropTypeOnIndexOfInfc(
-        itable: binaryen.ExpressionRef,
+        meta: binaryen.ExpressionRef,
         name: binaryen.ExpressionRef,
         flag: binaryen.ExpressionRef,
     ) {
         return this.module.call(
             'find_type_by_index',
-            [itable, name, this.module.i32.const(flag)],
+            [meta, name, this.module.i32.const(flag)],
             binaryen.i32,
         );
     }
@@ -2326,123 +2275,51 @@ export class WASMExpressionGen {
             case ObjectDescriptionType.OBJECT_CLASS:
             case ObjectDescriptionType.OBJECT_LITERAL: {
                 if (toValueType.meta.isInterface) {
-                    /* obj to interface */
-                    return this.boxObjToInfc(
-                        oriValueRef,
-                        oriValueType,
-                        toValueType,
-                    );
-                } else {
-                    /* obj to obj */
-                    /** check if it is upcasting  */
-                    let fromType: ObjectType | undefined = oriValueType;
-                    while (fromType) {
-                        if (fromType.equals(toValueType)) {
-                            return oriValueRef;
-                        }
-                        fromType = fromType.super;
-                    }
-                    const toValueWasmType =
-                        this.wasmTypeGen.getWASMType(toValueType);
-                    return binaryenCAPI._BinaryenRefCast(
-                        this.module.ptr,
-                        oriValueRef,
-                        toValueWasmType,
-                    );
+                    return oriValueRef;
                 }
+                /** check if it is upcasting  */
+                let fromType: ObjectType | undefined = oriValueType;
+                while (fromType) {
+                    if (fromType.equals(toValueType)) {
+                        return oriValueRef;
+                    }
+                    fromType = fromType.super;
+                }
+
+                const toValueWasmType =
+                    this.wasmTypeGen.getWASMType(toValueType);
+                return binaryenCAPI._BinaryenRefCast(
+                    this.module.ptr,
+                    oriValueRef,
+                    toValueWasmType,
+                );
             }
             case ObjectDescriptionType.INTERFACE: {
                 if (toValueType.meta.isInterface) {
                     /* interfaceObj to interfaceObj */
                     return oriValueRef;
                 } else {
-                    /* interfaceObj to obj */
-                    return this.unboxInfcToObj(
-                        oriValueRef,
-                        oriValueType,
-                        toValueType,
-                    );
+                    /** need to check the cast can be successful */
+                    return this.infcCastToObj(oriValueRef, toValueType);
                 }
             }
         }
     }
 
-    private boxObjToInfc(
-        ref: binaryen.ExpressionRef,
-        objectType: ObjectType,
-        infcType: ObjectType,
-    ) {
-        const itablePtr = this.module.i32.const(
-            this.wasmCompiler.generateMetaInfo(objectType),
-        );
-        const wasmTypeId = this.module.i32.const(objectType.typeId);
-        let wasmImplId = this.module.i32.const(objectType.implId);
-
-        /** check if the shape of the object satisfied the shape the interface */
-        if (
-            objectType.typeId !== infcType.typeId &&
-            objectType.implId !== infcType.typeId
-        ) {
-            if (
-                this.isObjectCanBeImpledInfc(
-                    objectType.meta.members,
-                    infcType.meta.members,
-                )
-            ) {
-                wasmImplId = this.module.i32.const(infcType.typeId);
-            }
-        }
-
-        return binaryenCAPI._BinaryenStructNew(
+    private infcCastToObj(ref: binaryen.ExpressionRef, toType: ObjectType) {
+        const canbeCasted = binaryenCAPI._BinaryenRefTest(
             this.module.ptr,
-            arrayToPtr([itablePtr, wasmTypeId, wasmImplId, ref]).ptr,
-            4,
-            this.wasmTypeGen.getWASMHeapType(infcType),
-        );
-    }
-
-    private isObjectCanBeImpledInfc(
-        objMembers: MemberDescription[],
-        infcMembers: MemberDescription[],
-    ) {
-        if (objMembers.length !== infcMembers.length) {
-            return false;
-        }
-        const len = objMembers.length;
-        for (let i = 0; i < len; i++) {
-            if (objMembers[i].name !== infcMembers[i].name) {
-                return false;
-            }
-            if (!objMembers[i].valueType.equals(infcMembers[i].valueType)) {
-                return false;
-            }
-            if (
-                (objMembers[i].hasGetter && !infcMembers[i].hasGetter) ||
-                (!objMembers[i].hasGetter && infcMembers[i].hasGetter) ||
-                (objMembers[i].hasSetter && !infcMembers[i].hasSetter) ||
-                (!objMembers[i].hasSetter && infcMembers[i].hasSetter)
-            ) {
-                return false;
-            }
-        }
-        return true;
-    }
-    private unboxInfcToObj(
-        ref: binaryen.ExpressionRef,
-        oriType: ObjectType,
-        toType: ObjectType,
-    ) {
-        const obj = binaryenCAPI._BinaryenStructGet(
-            this.module.ptr,
-            3,
             ref,
-            this.wasmTypeGen.getWASMHeapType(oriType),
-            false,
-        );
-        return binaryenCAPI._BinaryenRefCast(
-            this.module.ptr,
-            obj,
             this.wasmTypeGen.getWASMType(toType),
+        );
+        return this.module.if(
+            canbeCasted,
+            binaryenCAPI._BinaryenRefCast(
+                this.module.ptr,
+                ref,
+                this.wasmTypeGen.getWASMType(toType),
+            ),
+            this.module.unreachable(),
         );
     }
 
@@ -2486,33 +2363,34 @@ export class WASMExpressionGen {
         const memberType = member.type;
         const optional = member.isOptional;
 
-        const infcTypeRef = this.wasmTypeGen.getWASMType(infcType);
-        const oriObjTypeRef = this.wasmTypeGen.getWASMObjOriType(infcType);
+        const infcTypeRef = baseStructType.typeRef;
+        /** the type of interface description */
+        const infcDescTypeRef = this.wasmTypeGen.getWASMObjOriType(infcType);
         const infcTypeIdRef = this.module.i32.const(infcType.typeId);
-        const itableRef = this.getInfcInstInfo(
+        const vtable = this.getWasmStructFieldByIndex(
             infcRef,
             infcTypeRef,
-            InfcFieldIndex.ITABLE_INDEX,
+            StructFieldIndex.VTABLE_INDEX,
         );
-        const typeIdRef = this.getInfcInstInfo(
-            infcRef,
-            infcTypeRef,
-            InfcFieldIndex.TYPEID_INDEX,
+        const metaRef = this.getWasmStructFieldByIndex(
+            vtable,
+            baseVtableType.typeRef,
+            VtableFieldIndex.META_INDEX,
         );
-        const implIdRef = this.getInfcInstInfo(
+        const canbeCasted = binaryenCAPI._BinaryenRefTest(
+            this.module.ptr,
             infcRef,
-            infcTypeRef,
-            InfcFieldIndex.IMPLID_INDEX,
+            infcDescTypeRef,
         );
-        const oriObjAnyRef = this.getInfcInstInfo(
-            infcRef,
-            infcTypeRef,
-            InfcFieldIndex.DATA_INDEX,
+        const implIdRef = getFieldFromMetaByOffset(
+            this.module,
+            metaRef,
+            MetaFieldOffset.IMPL_ID_OFFSET,
         );
         const castedObjRef = binaryenCAPI._BinaryenRefCast(
             this.module.ptr,
-            oriObjAnyRef,
-            oriObjTypeRef,
+            infcRef,
+            infcDescTypeRef,
         );
         const flag =
             memberType === MemberType.FIELD
@@ -2526,57 +2404,40 @@ export class WASMExpressionGen {
         const memberNameRef = this.module.i32.const(
             this.wasmCompiler.generateRawString(memberName),
         );
-        const indexRef = this.getPropIndexOfInfc(
-            itableRef,
-            memberNameRef,
-            flag,
-        );
+        const indexRef = this.getPropIndexOfInfc(metaRef, memberNameRef, flag);
 
         let ifTrue: binaryen.ExpressionRef = binaryen.unreachable;
         let ifFalse: binaryen.ExpressionRef;
 
         if (isSet) {
-            // TODO
             ifTrue = this.setObjField(castedObjRef, valueIdx, targetValueRef!);
+            ifFalse = this.module.unreachable();
             ifFalse = this.dynSetInfcField(
-                oriObjAnyRef,
+                infcRef,
                 memberValueType,
                 indexRef,
                 targetValueRef!,
                 optional,
                 optional
                     ? this.getPropTypeOnIndexOfInfc(
-                          itableRef,
+                          metaRef,
                           memberNameRef,
                           flag,
                       )
                     : undefined,
             );
         } else {
-            if (callMethod) {
-                ifTrue = this.getObjMethod(
-                    castedObjRef,
-                    valueIdx,
-                    oriObjTypeRef,
-                );
-            } else {
-                ifTrue = this.getObjField(
-                    castedObjRef,
-                    valueIdx,
-                    oriObjTypeRef,
-                );
-            }
             ifTrue = callMethod
-                ? this.getObjMethod(castedObjRef, valueIdx, oriObjTypeRef)
-                : this.getObjField(castedObjRef, valueIdx, oriObjTypeRef);
+                ? this.getObjMethod(castedObjRef, valueIdx, infcDescTypeRef)
+                : this.getObjField(castedObjRef, valueIdx, infcDescTypeRef);
             ifFalse = this.dynGetInfcField(
-                oriObjAnyRef,
+                infcRef,
                 indexRef,
                 memberValueType,
                 optional,
                 optional
                     ? this.getPropTypeOnIndexOfInfc(
-                          itableRef,
+                          metaRef,
                           memberNameRef,
                           flag,
                       )
@@ -2586,7 +2447,7 @@ export class WASMExpressionGen {
         const res = this.createInfcAccessInfo(
             this.module,
             infcTypeIdRef,
-            typeIdRef,
+            canbeCasted,
             implIdRef,
             ifTrue,
             ifFalse,
@@ -2701,7 +2562,7 @@ export class WASMExpressionGen {
         }
     }
 
-    private getInfcInstInfo(
+    private getWasmStructFieldByIndex(
         ref: binaryenCAPI.ExpressionRef,
         typeRef: binaryen.Type,
         idx: number,
@@ -3116,7 +2977,7 @@ export class WASMExpressionGen {
     private createInfcAccessInfo(
         module: binaryen.Module,
         infcTypeId: binaryen.ExpressionRef,
-        objTypeId: binaryen.ExpressionRef,
+        canbeCasted: binaryen.ExpressionRef,
         objImplId: binaryen.ExpressionRef,
         ifTrue: binaryen.ExpressionRef,
         ifFalse: binaryen.ExpressionRef,
@@ -3144,10 +3005,7 @@ export class WASMExpressionGen {
         }
         /** for class, we are not support optional method, so it can't be undefined */
         const cond = module.if(
-            module.i32.or(
-                module.i32.eq(infcTypeId, objTypeId),
-                module.i32.eq(infcTypeId, objImplId),
-            ),
+            module.i32.or(canbeCasted, module.i32.eq(infcTypeId, objImplId)),
             ifTrue,
             falseExpr,
         );
@@ -3159,23 +3017,9 @@ export class WASMExpressionGen {
     private wasmDirectGetter(value: DirectGetterValue) {
         const owner = value.owner as VarValue;
         const returnTypeRef = this.wasmTypeGen.getWASMType(value.type);
-        let objRef = this.wasmExprGen(owner);
+        const objRef = this.wasmExprGen(owner);
 
         const methodMangledName = (value.getter as any).index as string;
-
-        if ((owner.type as ObjectType).meta.isInterface) {
-            /* This is a resolved interface access, "this" should be the object hold by the interface */
-            objRef = this.getInfcInstInfo(
-                objRef,
-                infcTypeInfo.typeRef,
-                InfcFieldIndex.DATA_INDEX,
-            );
-            objRef = binaryenCAPI._BinaryenRefCast(
-                this.module.ptr,
-                objRef,
-                emptyStructType.typeRef,
-            );
-        }
 
         const context = binaryenCAPI._BinaryenRefNull(
             this.module.ptr,
@@ -3192,23 +3036,9 @@ export class WASMExpressionGen {
     private wasmDirectSetter(value: DirectSetterValue) {
         const owner = value.owner as VarValue;
         const returnTypeRef = this.wasmTypeGen.getWASMType(value.type);
-        let objRef = this.wasmExprGen(owner);
+        const objRef = this.wasmExprGen(owner);
 
         const methodMangledName = (value.setter as any).index as string;
-
-        if ((owner.type as ObjectType).meta.isInterface) {
-            /* This is a resolved interface access, "this" should be the object hold by the interface */
-            objRef = this.getInfcInstInfo(
-                objRef,
-                infcTypeInfo.typeRef,
-                InfcFieldIndex.DATA_INDEX,
-            );
-            objRef = binaryenCAPI._BinaryenRefCast(
-                this.module.ptr,
-                objRef,
-                emptyStructType.typeRef,
-            );
-        }
 
         const context = binaryenCAPI._BinaryenRefNull(
             this.module.ptr,
@@ -4233,8 +4063,6 @@ export class WASMExpressionGen {
                             newArrLocal.index,
                             newArrLocal.type,
                         );
-                        const fromType = targetElemType;
-                        const toType = elemType;
                         // create a loop to box every element to interface
                         const forLoopIdx =
                             this.wasmCompiler.currentFuncCtx!.i32Local();
@@ -4267,19 +4095,15 @@ export class WASMExpressionGen {
                                 forLoopIdx.index,
                                 forLoopIdx.type,
                             ),
-                            this.boxObjToInfc(
-                                binaryenCAPI._BinaryenArrayGet(
-                                    this.module.ptr,
-                                    elemRef,
-                                    this.module.local.get(
-                                        forLoopIdx.index,
-                                        forLoopIdx.type,
-                                    ),
-                                    arrayOriHeapType,
-                                    false,
+                            binaryenCAPI._BinaryenArrayGet(
+                                this.module.ptr,
+                                elemRef,
+                                this.module.local.get(
+                                    forLoopIdx.index,
+                                    forLoopIdx.type,
                                 ),
-                                fromType,
-                                toType,
+                                arrayOriHeapType,
+                                false,
                             ),
                         );
                         const flattenLoop: FlattenLoop = {

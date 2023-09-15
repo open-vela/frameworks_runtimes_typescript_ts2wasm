@@ -11,11 +11,13 @@ import {
     initArrayType,
     initStructType,
     createSignatureTypeRefAndHeapTypeRef,
-    Pakced,
+    Packed,
     generateArrayStructTypeInfo,
     builtinFunctionType,
     generateArrayStructTypeForRec,
     ptrToArray,
+    baseVtableType,
+    baseStructType,
 } from './glue/transform.js';
 import { assert } from 'console';
 import { infcTypeInfo, stringTypeInfo } from './glue/packType.js';
@@ -233,7 +235,7 @@ export class WASMTypeGen {
 
             const fieldPackedTypesList: binaryenCAPI.PackedType[] = new Array(
                 contextStructLength,
-            ).fill(Pakced.Not);
+            ).fill(Packed.Not);
             const fieldMutablesList: boolean[] = new Array(
                 contextStructLength,
             ).fill(true);
@@ -328,7 +330,7 @@ export class WASMTypeGen {
 
         const closureStructType = initStructType(
             [emptyStructType.typeRef, signature.typeRef],
-            [Pakced.Not, Pakced.Not],
+            [Packed.Not, Packed.Not],
             [true, false],
             2,
             true,
@@ -419,7 +421,7 @@ export class WASMTypeGen {
 
         const arrayTypeInfo = initArrayType(
             elemTypeRef,
-            Pakced.Not,
+            Packed.Not,
             true,
             true,
             buildIndex,
@@ -554,7 +556,7 @@ export class WASMTypeGen {
         );
         const methodPacked = new Array<binaryenCAPI.PackedType>(
             methodTypeRefs.length,
-        ).fill(Pakced.Not);
+        ).fill(Packed.Not);
         const methodMuts = new Array<boolean>(methodTypeRefs.length).fill(
             false,
         );
@@ -573,6 +575,9 @@ export class WASMTypeGen {
         } else if (type.impl) {
             baseVtableWasmType = this.getWASMVtableHeapType(type.impl);
             baseWasmType = this.getWASMObjOriHeapType(type.impl);
+        } else {
+            baseVtableWasmType = baseVtableType.heapTypeRef;
+            baseWasmType = baseStructType.heapTypeRef;
         }
 
         let vtableIndex = -1;
@@ -613,7 +618,7 @@ export class WASMTypeGen {
         fieldMuts.unshift(false);
         const fieldPacked = new Array<binaryenCAPI.PackedType>(
             fieldTypeRefs.length,
-        ).fill(Pakced.Not);
+        ).fill(Packed.Not);
 
         const wasmClassType = initStructType(
             fieldTypeRefs,
@@ -660,16 +665,15 @@ export class WASMTypeGen {
                 this.typeMap.set(type, wasmClassType.typeRef);
                 this.heapTypeMap.set(type, wasmClassType.heapTypeRef);
                 this.objTypeMap.set(metaInfo.name, wasmClassType.typeRef);
-
-                this.createCustomTypeName(
-                    `vt-struct${this.structHeapTypeCnt}`,
-                    vtableType.heapTypeRef,
-                );
-                this.createCustomTypeName(
-                    `cls-struct${this.structHeapTypeCnt++}`,
-                    wasmClassType.heapTypeRef,
-                );
             }
+            this.createCustomTypeName(
+                `vt-struct${this.structHeapTypeCnt}`,
+                vtableType.heapTypeRef,
+            );
+            this.createCustomTypeName(
+                `cls-struct${this.structHeapTypeCnt++}`,
+                wasmClassType.heapTypeRef,
+            );
         }
 
         if (
@@ -1278,7 +1282,7 @@ export class WASMTypeGen {
         }
         const staticPacked = new Array<binaryenCAPI.PackedType>(
             typeRefs.length,
-        ).fill(Pakced.Not);
+        ).fill(Packed.Not);
         const staticMuts = new Array<boolean>(typeRefs.length).fill(true);
         const staticStructType = initStructType(
             typeRefs,

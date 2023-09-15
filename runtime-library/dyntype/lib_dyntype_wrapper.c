@@ -373,7 +373,6 @@ dyntype_typeof_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
         case DynNull:
         case DynObject:
         case DynExtRefObj:
-        case DynExtRefInfc:
         case DynExtRefArray:
             value = "object";
             break;
@@ -430,7 +429,7 @@ dyntype_cmp_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     if (dyntype_is_null(UNBOX_ANYREF(ctx), UNBOX_ANYREF(rhs))) {
         r_is_null = true;
     }
-    // iff undefined
+    // if one of them is undefined, and the other is not undefined
     if (type_l != type_r && (type_l == DynUndefined || type_r == DynUndefined)) {
         if (operator_kind == ExclamationEqualsToken
             || operator_kind == ExclamationEqualsEqualsToken) {
@@ -452,9 +451,6 @@ dyntype_cmp_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
         dyntype_to_extref(UNBOX_ANYREF(ctx), UNBOX_ANYREF(lhs), &lhs_ref);
         lhs_idx = (int32_t)(intptr_t)lhs_ref;
         lhs_ref = wamr_utils_get_table_element(exec_env, lhs_idx);
-        if (is_infc(lhs_ref)) {
-            lhs_ref = get_infc_obj(exec_env, lhs_ref);
-        }
     } else {
         lhs_ref = NULL;
     }
@@ -462,9 +458,6 @@ dyntype_cmp_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
         dyntype_to_extref(UNBOX_ANYREF(ctx), UNBOX_ANYREF(rhs), &rhs_ref);
         rhs_idx = (int32_t)(intptr_t)rhs_ref;
         rhs_ref = wamr_utils_get_table_element(exec_env, rhs_idx);
-        if (is_infc(rhs_ref)) {
-            rhs_ref = get_infc_obj(exec_env, rhs_ref);
-        }
     } else {
         rhs_ref = NULL;
     }
@@ -539,9 +532,6 @@ dyntype_instanceof_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     dyntype_to_extref(dyn_ctx, dyn_src, &table_elem);
     table_idx = (int32_t)(intptr_t)table_elem;
     table_elem = wamr_utils_get_table_element(exec_env, table_idx);
-    if (is_infc(table_elem)) {
-        table_elem = get_infc_obj(exec_env, table_elem);
-    }
 
     obj = (wasm_obj_t)table_elem;
     inst_obj = (wasm_obj_t)dst_obj;
@@ -786,10 +776,7 @@ box_value_to_dyntype(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
                                                  (wasm_struct_obj_t)ori_value);
             }
             else {
-                if (is_infc((wasm_obj_t)ori_value)) {
-                    tag = ExtInfc;
-                }
-                else if (is_ts_array_type(module, ret_defined_type)) {
+                if (is_ts_array_type(module, ret_defined_type)) {
                     tag = ExtArray;
                 }
                 else if (is_ts_closure_type(module, ret_defined_type)) {
@@ -1001,13 +988,8 @@ dyntype_set_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     }
     else {
         ext_ref = wamr_utils_get_table_element(exec_env, obj_info[1]);
-        if (obj_info[0] == DynExtRefInfc || obj_info[0] == DynExtRefObj) {
-            if (obj_info[0] == DynExtRefInfc) {
-                wasm_obj = (wasm_obj_t)get_infc_obj(exec_env, ext_ref);
-            }
-            else {
-                wasm_obj = (wasm_obj_t)ext_ref;
-            }
+        if (obj_info[0] == DynExtRefObj) {
+            wasm_obj = (wasm_obj_t)ext_ref;
             bh_assert(wasm_obj_is_struct_obj(wasm_obj));
             index = get_prop_index_of_struct(exec_env, prop, &wasm_obj,
                                              &field_type);
@@ -1049,13 +1031,8 @@ dyntype_get_property_wrapper(wasm_exec_env_t exec_env, wasm_anyref_obj_t ctx,
     }
     else {
         ext_ref = wamr_utils_get_table_element(exec_env, obj_info[1]);
-        if (obj_info[0] == DynExtRefInfc || obj_info[0] == DynExtRefObj) {
-            if (obj_info[0] == DynExtRefInfc) {
-                wasm_obj = (wasm_obj_t)get_infc_obj(exec_env, ext_ref);
-            }
-            else {
-                wasm_obj = (wasm_obj_t)ext_ref;
-            }
+        if (obj_info[0] == DynExtRefObj) {
+            wasm_obj = (wasm_obj_t)ext_ref;
             bh_assert(wasm_obj_is_struct_obj(wasm_obj));
             index = get_prop_index_of_struct(exec_env, prop, &wasm_obj,
                                              &field_type);

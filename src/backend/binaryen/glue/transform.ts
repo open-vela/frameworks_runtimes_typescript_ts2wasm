@@ -25,7 +25,7 @@ export namespace BinaryenType {
 }
 
 /** packed types */
-export namespace Pakced {
+export namespace Packed {
     // _BinaryenPackedTypeNotPacked
     export const Not: binaryenCAPI.PackedType = 0;
     // _BinaryenPackedTypeInt8
@@ -167,10 +167,33 @@ export const emptyStructType = initStructType(
     -1,
     binaryenCAPI._TypeBuilderCreate(1),
 );
-/** TS Function */
+
+/** vtable base type */
+export const baseVtableType = initStructType(
+    [binaryen.i32],
+    [Packed.Not],
+    [false],
+    1,
+    true,
+    -1,
+    binaryenCAPI._TypeBuilderCreate(1),
+);
+
+/** object base Type / interface Type */
+export const baseStructType = initStructType(
+    [baseVtableType.typeRef],
+    [Packed.Not],
+    [false],
+    1,
+    true,
+    -1,
+    binaryenCAPI._TypeBuilderCreate(1),
+);
+
+/** TS Function ${${}, funcref}*/
 export const builtinFunctionType = initStructType(
     [emptyStructType.typeRef, binaryenCAPI._BinaryenTypeFuncref()],
-    [Pakced.Not, Pakced.Not],
+    [Packed.Not, Packed.Not],
     [true, false],
     2,
     true,
@@ -252,7 +275,7 @@ export function generateArrayStructTypeInfo(arrayTypeInfo: typeInfo): typeInfo {
             ),
             BinaryenType.I32,
         ],
-        [Pakced.Not, Pakced.Not],
+        [Packed.Not, Packed.Not],
         [true, true],
         2,
         true,
@@ -269,7 +292,7 @@ export function generateArrayStructTypeForRec(
 ): typeInfo {
     const arrayStructTypeInfo = initStructType(
         [arrayTypeInfo.typeRef, BinaryenType.I32],
-        [Pakced.Not, Pakced.Not],
+        [Packed.Not, Packed.Not],
         [true, true],
         2,
         true,
@@ -283,7 +306,7 @@ export function generateArrayStructTypeForRec(
 function genarateCharArrayTypeInfo(): typeInfo {
     const charArrayTypeInfo = initArrayType(
         BinaryenType.I32,
-        Pakced.I8,
+        Packed.I8,
         true,
         true,
         -1,
@@ -303,7 +326,7 @@ function generateStringTypeInfo(): typeInfo {
                 true,
             ),
         ],
-        [Pakced.Not, Pakced.Not],
+        [Packed.Not, Packed.Not],
         [true, true],
         2,
         true,
@@ -317,7 +340,7 @@ function generateStringTypeInfo(): typeInfo {
 function genarateNumberArrayTypeInfo(): typeInfo {
     const numberArrayTypeInfo = initArrayType(
         BinaryenType.F64,
-        Pakced.Not,
+        Packed.Not,
         true,
         true,
         -1,
@@ -331,7 +354,7 @@ function genarateStringArrayTypeInfo(struct_wrap: boolean): typeInfo {
     const stringTypeInfo = stringTypeInformation;
     const stringArrayTypeInfo = initArrayType(
         stringTypeInfo.typeRef,
-        Pakced.Not,
+        Packed.Not,
         true,
         true,
         -1,
@@ -348,7 +371,7 @@ function genarateStringArrayTypeInfo(struct_wrap: boolean): typeInfo {
 function genarateArrayTypeForStringRef(struct_wrap: boolean): typeInfo {
     const stringArrayTypeInfo = initArrayType(
         binaryenCAPI._BinaryenTypeStringref(),
-        Pakced.Not,
+        Packed.Not,
         true,
         true,
         -1,
@@ -363,22 +386,14 @@ function genarateArrayTypeForStringRef(struct_wrap: boolean): typeInfo {
 }
 
 function generateInfcTypeInfo(): typeInfo {
-    return initStructType(
-        [binaryen.i32, binaryen.i32, binaryen.i32, binaryen.anyref],
-        [Pakced.Not, Pakced.Not, Pakced.Not, Pakced.Not],
-        [false, false, false, true],
-        4,
-        true,
-        -1,
-        binaryenCAPI._TypeBuilderCreate(1),
-    );
+    return baseStructType;
 }
 
 // generate bool array type
 function genarateBoolArrayTypeInfo(): typeInfo {
     const boolArrayTypeInfo = initArrayType(
         BinaryenType.I32,
-        Pakced.Not,
+        Packed.Not,
         true,
         true,
         -1,
@@ -391,7 +406,7 @@ function genarateBoolArrayTypeInfo(): typeInfo {
 function genarateAnyArrayTypeInfo(): typeInfo {
     const anyArrayTypeInfo = initArrayType(
         binaryenCAPI._BinaryenTypeAnyref(),
-        Pakced.Not,
+        Packed.Not,
         true,
         true,
         -1,
