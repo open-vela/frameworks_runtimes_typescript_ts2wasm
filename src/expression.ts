@@ -395,6 +395,15 @@ export class TypeOfExpression extends Expression {
     }
 }
 
+export class SpreadExpression extends Expression {
+    constructor(private _target: Expression) {
+        super(ts.SyntaxKind.SpreadElement);
+    }
+    get target() {
+        return this._target;
+    }
+}
+
 export class TemplateExpression extends Expression {
     constructor(
         private _head: StringLiteralExpression,
@@ -815,6 +824,17 @@ export default class ExpressionProcessor {
             case ts.SyntaxKind.SuperKeyword: {
                 res = new SuperExpression();
                 res.setExprType(this.typeResolver.generateNodeType(node));
+                break;
+            }
+            case ts.SyntaxKind.SpreadElement: {
+                const spreadElement = node as ts.SpreadElement;
+                const target = this.visitNode(spreadElement.expression);
+                res = new SpreadExpression(target);
+                res.setExprType(
+                    this.typeResolver.generateNodeType(
+                        spreadElement.expression,
+                    ),
+                );
                 break;
             }
             case ts.SyntaxKind.TemplateHead:

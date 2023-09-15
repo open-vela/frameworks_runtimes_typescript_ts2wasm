@@ -97,6 +97,7 @@ import {
     AnyCallValue,
     SuperUsageFlag,
     CommaExprValue,
+    SpreadValue,
     TemplateExprValue,
 } from './value.js';
 
@@ -135,6 +136,7 @@ import {
     FunctionExpression,
     TypeOfExpression,
     CommaExpression,
+    SpreadExpression,
     TemplateExpression,
 } from '../expression.js';
 
@@ -896,8 +898,18 @@ function buildArrayLiteralExpression(
         }
         context.popReference();
         init_values.push(v);
+        // if v is SpreadValue, add it's elem-type to init_types
+        let v_type = v.type;
+        if (v instanceof SpreadValue) {
+            const target = v.target;
+            if (target.type.kind == ValueTypeKind.ARRAY) {
+                v_type = (target.type as ArrayType).element;
+            } else if (target.type.kind == ValueTypeKind.ANY) {
+                v_type = target.type;
+            }
+        }
         if (init_types) {
-            init_types.add(v.type);
+            init_types.add(v_type);
         }
     }
 
@@ -979,6 +991,7 @@ export function newCastValue(
     value: SemanticsValue,
 ): SemanticsValue {
     if (type.equals(value.type)) return value;
+    if (value instanceof SpreadValue) return value;
     else if (type.kind == ValueTypeKind.TYPE_PARAMETER)
         type = (type as TypeParameterType).wideType;
     else if (type.kind == ValueTypeKind.ENUM)
@@ -2583,6 +2596,14 @@ export function buildExpression(
             case ts.SyntaxKind.TypeOfExpression:
                 res = buildTypeOfExpression(expr as TypeOfExpression, context);
                 break;
+            case ts.SyntaxKind.SpreadElement: {
+                const targetValue = buildExpression(
+                    (expr as SpreadExpression).target,
+                    context,
+                );
+                res = new SpreadValue(targetValue.type, targetValue);
+                break;
+            }
             case ts.SyntaxKind.TemplateExpression: {
                 res = buildTemplateExpression(
                     expr as TemplateExpression,
