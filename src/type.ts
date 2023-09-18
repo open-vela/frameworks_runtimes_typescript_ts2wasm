@@ -1769,6 +1769,34 @@ export class TypeResolver {
             }
         }
 
+        /** Reset baseInfcType if the base interface contains optional properties, which the class doesn't have */
+        if (baseInfcType) {
+            for (const field of baseInfcType.fields) {
+                if (field.optional) {
+                    const found = classType.getMemberField(field.name);
+                    if (!found || !found.optional) {
+                        baseInfcType = null;
+                        classType.setImplInfc(baseInfcType);
+                        break;
+                    }
+                }
+            }
+            if (baseInfcType) {
+                for (const method of baseInfcType.memberFuncs) {
+                    if (method.optional) {
+                        const found = classType.getMethod(
+                            method.name,
+                            method.type.funcKind,
+                        );
+                        if (found.index === -1 || found.method!.optional) {
+                            baseInfcType = null;
+                            classType.setImplInfc(baseInfcType);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
         /** reorder member orders for optimization */
         if (baseInfcType) {
             const baseFields = baseInfcType.fields;
