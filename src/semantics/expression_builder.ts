@@ -581,7 +581,6 @@ function createDirectGet(
                     accessor.getterValue!,
                 );
             }
-            break;
         }
         case MemberType.METHOD: {
             const method = shape_member as ShapeMethod;
