@@ -10,8 +10,10 @@
 #include "dyntype.h"
 #include "wamr_utils.h"
 
-#define OFFSET_OF_COUNT 4
-#define OFFSET_OF_META_FIELDS 8
+#define OFFSET_OF_TYPE_ID 0
+#define OFFSET_OF_IMPL_ID 4
+#define OFFSET_OF_COUNT 8
+#define OFFSET_OF_META_FIELDS 12
 #define SIZEOF_META_FIELD 12
 
 #define META_FLAG_MASK 0x0000000F
