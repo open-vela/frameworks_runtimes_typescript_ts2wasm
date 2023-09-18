@@ -76,3 +76,22 @@ export function removeInfcFromRecGroup() {
     a.arr.push({ x: 1, y: new A1() });
     return a.arr[0].x;
 }
+
+interface I3 {
+    x: number;
+    y?: string;
+}
+
+class C implements I3 {
+    y: string;
+    x: number;
+    constructor() {
+        this.x = 1;
+        this.y = '2';
+    }
+}
+
+export function infcImplWithOptionalField() {
+    const i: I3 = new C();
+    console.log(i.y);
+}

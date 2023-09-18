@@ -2519,6 +2519,11 @@
                 "name": "removeInfcFromRecGroup",
                 "args": [],
                 "result": "1:f64"
+            },
+            {
+                "name": "infcImplWithOptionalField",
+                "args": [],
+                "result": "2"
             }
         ]
     },
