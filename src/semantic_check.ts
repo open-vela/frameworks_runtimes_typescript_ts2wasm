@@ -43,26 +43,18 @@ import { SemanticCheckError } from './error.js';
 
 const enum ErrorKind {
     NominalClass = 'nominal class',
-    InnerFuncDefaultParam = 'inner closure with default parameters',
-    nonAnyAndAny = 'operate between non-any type and any type',
-    OperateDiffTypes = 'operate between different types',
+    ClosureOrInnerFunctionDefaultParam = 'closure or inner function with default parameters',
     InvokeAnyObj = 'invoke any object',
     VoidTypeAsVarType = 'void type as variable type',
-    CalleeError = 'callee is not function or any or union type',
 }
 
 const enum ErrorFlag {
     BinaryOperationOnNominalClass,
-    BinaryOperationOnNonAnyAndAnyType,
-    BinaryOperationOnDifferentTypes,
     ReturnTypesAreNominalClass,
-    ReturnTypesAreNonAnyAndAnyTypes,
-    InnerFuncHasDefaultParams,
-    InvokeAnyObject,
     ArgsAndParamsTypesAreNominalClass,
-    ArgsAndParamsTypesAreNonAnyAndAnyTypes,
+    ClosureOrInnerFuncHasDefaultParams,
+    InvokeAnyObject,
     VoidTypeAsVarType,
-    CalleeError,
 }
 
 interface SematicError {
@@ -97,6 +89,7 @@ export default class SemanticChecker {
                         if (init) {
                             hasDefaultParam = true;
                         }
+                        this.voidTypeCheck(p.varType.kind);
                         this.exprAccept(init);
                         this.varInitAccept(p);
                     });
@@ -220,13 +213,6 @@ export default class SemanticChecker {
             Logger.info('callee expr is any type');
         } else if (calleeType.kind === TypeKind.UNION) {
             Logger.info('callee expr is union type');
-        } else {
-            this.errors.push({
-                errorKind: ErrorKind.CalleeError,
-                errorFlag: ErrorFlag.CalleeError,
-                message: `callee type is not function or any or union, can not be called`,
-                scopeName: this.getScopeName(this.curScope!),
-            });
         }
     }
 
@@ -263,8 +249,8 @@ export default class SemanticChecker {
         const parentLevelFuncScope = parent!.getNearestFunctionScope();
         if (parentLevelFuncScope) {
             this.errors.push({
-                errorKind: ErrorKind.InnerFuncDefaultParam,
-                errorFlag: ErrorFlag.InnerFuncHasDefaultParams,
+                errorKind: ErrorKind.ClosureOrInnerFunctionDefaultParam,
+                errorFlag: ErrorFlag.ClosureOrInnerFuncHasDefaultParams,
                 message: `inner function has default parameters`,
                 scopeName: this.getScopeName(this.curScope!),
             });
@@ -332,7 +318,7 @@ export default class SemanticChecker {
             this.errors.push({
                 errorKind: ErrorKind.VoidTypeAsVarType,
                 errorFlag: ErrorFlag.VoidTypeAsVarType,
-                message: `Doesn't allow void type value as variable, or as function argument`,
+                message: `Does not allow void type value as variable, or as function argument`,
                 scopeName: this.getScopeName(this.curScope!),
             });
         }
