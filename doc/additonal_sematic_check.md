@@ -1,97 +1,162 @@
 # Additional Sematic Check
 
-This doc records additional sematic checking information of the ts2wasm. We add restrictions for some features of TypeScript as below
+## Motivation
+Due to the partially features of TypeScript and the current limitations of WebAssembly, the compiler has imposed some restrictions on the usage of TypeScript syntax. This doc records additional sematic checking information of the `Wasmnizer-ts`.
+
+## Items
+
+The following terms outline specific additional sematic checks.
 
 | item                            | description                                                  |
 | ------------------------------- | ------------------------------------------------------------ |
-| nominal class                   | the operation between two nomial classes(no inheritance relationship) |
-| inner closure with default parameters | innter function or closure with default parameters           |
-| operate between non-any type and any type                 | the operation between any type and non-any type              |
-| operate between different types | for example, 1 + 'str'(plus operation between `number` type and `string` type) |
+| nominal class                   | the operation between two nomial classes(different class name, or t the two classes do not have a subtyping relationship) |
+| closure with default parameters | innter function or closure with default parameters           |
 | invoke any object               | treat any type as an object and access its properties        |
 | array without a specified element type     | declare `Array` without a typeargument, for exampe `new Array()` |
 | void type value as variable, or as function argument    | `const a: void = undefined` |
 
 If those rules above are triggered, an error will be throwed, the details will be dump to the log file.
 
-The check of `array without a specified element type` will not be process in `sematic_check.ts`, because we lost the AST information when traversing `Expression`, it will be handled when parsing `new Array` on AST.
+Note that the most of these terms are implemented in the `sematic_check` file except the check of `array without a specified element type`, because we lost the AST information when traversing `Expression`, it will be handled when parsing on sematic tree.
+
 
 ## Details
 
-Here are some examples and other details about additional sematic checking.
+Here are some examples and details about additional sematic checking.
 
-the format of error message as below.
++ the format of error message
 
-`[error type] in [function name where the error occurred], flag , message xxx`
+    `[error type]: in [function name where the error occurred], error flag: xxx , message: xxx`
 
-For example
+    For example
 
-``` shell
-[inner closure with default parameters]: in [tests/samples/call-expression-case6|callInternalReturnTest|callReturnTest], flag 6, message: 'inner function has default parameters'
-```
-
-this message shows that in function `tests/samples/call-expression-case6|callInternalReturnTest|callReturnTest`, there occurs a function with defalut parameters error, its error flag is 6.
-
-the meaning of error flags as below.
-
-1. Operation between any and non-primitive object without explicit casting. For example:
-
-    ``` typescript
-    Foo f;
-    let a: any = f;
-    let b: Foo = {...};
-    b = a; // error
-    // b = a as Foo; // correct
+    ``` shell
+    [closure with default parameters]: in [test|foo|bar], error flag: '2', message: 'inner function has default parameters'
     ```
 
-2. binary operation between different types(not contain any type), it aims to handling implicitly type casting. For example:
+    this message shows that in function `test|foo|bar`, there occurs a inner function with defalut parameters error, its error flag is 2.
 
-    ``` typescript
-    let a = '123'
-    let b = 1;
-    let c = a + b; // error
-    ```
++  meaning of error flags
 
-3. invoke any type(point to an object). For example,
+    **\[0]: BinaryOperationOnNominalClass**
+
+    `Wasmnizer-ts` treats class type as nominal, because different named class types have distinct meanings and purposes. So operating on different types will not pass through the additional semantic checks.
+
+    For example:
 
     ```typescript
-    Foo f;
-    let a: any = f;
-    let b = 1;
-    let c = b + a.x; // error
-    // let c = b + (a as F).x // correct
-    ```
-
-4. inner function has default parameters. For example,
-
-    ```typescript
-    function callInternalReturnTest(a: number, b = 2) {
-        function callReturnTest(a = 10, b = 1, c = 99) { // error
-            return a + b + c;
+    class Foo {
+        x: number;
+        constructor(xx: number) {
+            this.x = xx;
         }
-        // function callReturnTest(a: number, b: number, c: number) { // correct
-        //   return a + b + c;
-        // }
+    }
+    class Bar {
+        x: number;
+        constructor(xx: number) {
+            this.x = xx;
+        }
+    }
+    const f = new Foo(0);
+    const b: Bar = f; // not pass
+    ```
+
+    **\[1]: ReturnTypesAreNominalClass**
+
+    The reason is the same as mentioned in `BinaryOperationOnNominalClass` above, here is an example:
+
+    ```typescript
+    class Foo {
+        x: number;
+        constructor(xx: number) {
+            this.x = xx;
+        }
+    }
+    class Bar {
+        x: number;
+        constructor(xx: number) {
+            this.x = xx;
+        }
+    }
+    export function baz(): Bar {
+        return new Foo(0); // not pass
     }
     ```
 
-5. operation on nominal class types(unless the two types have inheritance relationship). For example,
+    **\[2]: ArgsAndParamsTypesAreNominalClass**
+
+    The reason is the same as mentioned in `BinaryOperationOnNominalClass` above, here is an example:
 
     ```typescript
-    class A {
+    class Foo {
+        x: number;
+        constructor(xx: number) {
+            this.x = xx;
+        }
     }
-    class B {
+    class Bar {
+        x: number;
+        constructor(xx: number) {
+            this.x = xx;
+        }
     }
-    function foo(a: A) {
-        //xxx
+    export function baz(f: Foo) {
+        // ...
     }
-    const b = new B();
-    foo(b); // error
+    baz(new Bar());
     ```
 
-6. `new Array` without a explicit type argument. For example,
+    **\[3]: ClosureOrInnerFuncHasDefaultParams**
+
+    Currently in `Wasmnizer-ts`, only top-level functions are allowed to have default parameters. so inner function or closure with default parameters will not pass the checks.
 
     ```typescript
-    const a: number[] = new Array(); // error
-    // const a: number[] = new Array<number>(); // correct
+    function foo() {
+        // inner function 'bar' has default parameters, so it won't pass the check.
+        function bar(x = 10) {
+            //
+        }
+    }
+    ```
+
+    **\[4]: InvokeAnyObject**
+
+    `Wasmnizer-ts`  provides the capability to work with dynamic types, but it imposes restrictions on accessing properties of dynamic types and assigning them to static types. For exmaple:
+
+    ```typescript
+    class Foo {
+        x: number;
+        constructor(xx: number) {
+            this.x = xx;
+        }
+    }
+    const f: any = new Foo(0);
+    const x: number = f.x; // not pass
+    ```
+
+    it requires type casting if want to access the property of dynamic types and assign it to static types:
+
+    ```typescript
+    // ...
+    const x: number = f.x as number; // passed
+    ```
+
+    **\[5]: VoidTypeAsVarType**
+
+    `Wasmnizer-ts` does not yet support 'void' as a variable type, so using 'void' as a variable type will not pass the check:
+
+    ```typescript
+    const v: void = undefined; // not pass
+    function foo(v: void) { // not pass
+        // ...
+    }
+    ```
+
+    **array without a specified element type**
+
+    ```typescript
+    const arr: number[] = new Array(); // not pass
+    const arr = new  Array(); // passed, `arr` has type any[]
+    const arr: number[] = new Array<number>(); // passed
+    const arr = new Array<number>(); // passed, `arr` has type number[]
     ```
