@@ -43,7 +43,7 @@ import {
     NamespaceScope,
     ClosureEnvironment,
 } from '../scope.js';
-import { buildExpression } from './expression_builder.js';
+import { buildExpression, shapeAssignCheck } from './expression_builder.js';
 import { createType, createObjectDescriptionShapes } from './type_creator.js';
 import {
     createFromVariable,
@@ -372,13 +372,38 @@ function processGlobalObjs(context: BuildContext, scope: Scope) {
             );
 
             context.module.globalVars.push(var_decl); // TODO removed
-            context.globalSymbols.set(v, var_decl);
+            context.globalSymbols.set(v, var_value);
             context.addGlobalValue(v.mangledName, var_value);
         }
     }
 
     processScopesGlobalObjs(context, scope.children);
     context.pushTask(() => context.pop());
+}
+
+function InitGlobalObj(context: BuildContext, g: GlobalScope) {
+    for (const v of g.varArray) {
+        if (v.isLocalVar()) continue;
+        Logger.debug(
+            `=== InitGlobalObj ${v.mangledName} ${
+                v.varName
+            } declare ${v.isDeclare()}`,
+        );
+
+        const varValue = context.globalSymbols.get(v)! as VarValue;
+        let init_value: SemanticsValue | undefined;
+        if (v.initExpression != null) {
+            init_value = buildExpression(v.initExpression, context);
+            if (varValue.ref instanceof VarDeclareNode) {
+                varValue.ref.initValue = init_value;
+                if (
+                    shapeAssignCheck(varValue.effectType, init_value.effectType)
+                ) {
+                    varValue.shape = init_value.shape;
+                }
+            }
+        }
+    }
 }
 
 function foreachScopeChildren(context: BuildContext, scope: Scope) {
@@ -537,6 +562,9 @@ function processGlobals(context: BuildContext, parserContext: ParserContext) {
     for (const g of parserContext.globalScopes) {
         context.push(g);
         context.startStmts.set(g, []);
+        // global variables may be processed in the 'generateScopeNodes' function.
+        // So we need to initialize global variables before using them.
+        InitGlobalObj(context, g);
         generateScopeNodes(context, g);
         processGlobalStatements(context, g);
         context.pop();
