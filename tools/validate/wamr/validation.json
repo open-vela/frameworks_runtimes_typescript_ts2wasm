@@ -3414,12 +3414,27 @@
         ]
     },
     {
-        "module": "generics_class",
+        "module": "generic_class",
         "entries": [
             {
-                "name": "test",
+                "name": "test_GenericClassWithSingleGenericType",
                 "args": [],
-                "result": "cat \nmimi \n12345 \n54321"
+                "result": "MObjectBase constructor:  0 \nMObject constructor:  cat \nhello \nMObjectBase constructor:  0 \nMObject constructor:  12345 \n54321"
+            },
+            {
+                "name": "test_GenericClassWithMultipleGenericTypes",
+                "args": [],
+                "result": "Generic constructor:  hello \nGenericBase1 constructor:  true hello \nGenericClass1 constructor:  hello 1 true \nworld \n123 \nGeneric constructor:  1 \nGenericBase1 constructor:  3 1 \nGenericClass1 constructor:  1 2 3 \n11 \n111"
+            },
+            {
+                "name": "test_GenericClassWithSameBase",
+                "args": [],
+                "result": "Generic constructor:  hello \nGenericBase2 constructor:  hello \nGenericClass2 constructor:  1 hello \n2 \nworld \nGeneric constructor:  11 \nGenericBase2 constructor:  11 \nGenericClass2 constructor:  world 11 \nhello \n111"
+            },
+            {
+                "name": "test_GenericClassWithImplementsInfc",
+                "args": [],
+                "result": "hello \nworld \nworld \n2 \n111"
             }
         ]
     },

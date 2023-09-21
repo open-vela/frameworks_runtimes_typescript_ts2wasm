@@ -24,11 +24,9 @@ const IGNORE_CASES = [
     /* ignored in compilation test */
     'complexType_case1:complexTypeTest',
     'complexType_case2:cpxCase2Func3',
-    'generics_class:test',
     'global_generics_function:test',
     'inner_generics_function:test',
     'namespace_generics_function:test',
-    // 'generics_class:test',
     'ignore_parameter_in_variable.ts',
 
     /* require host API */

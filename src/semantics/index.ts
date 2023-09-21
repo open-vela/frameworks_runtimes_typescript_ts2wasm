@@ -204,9 +204,21 @@ function createFunctionDeclareNode(
     const func_type = createType(context, f.funcType) as FunctionType;
     const this_type = getMethodClassType(f, context);
     const parameters: VarDeclareNode[] = [];
+    if (f.genericOwner) {
+        f.genericOwner.paramArray.forEach((p) => {
+            f.addParameter(p);
+        });
+        /* at this time, we set parameters for the specialized FunctionScope,
+         * so we need to initialize their index once
+         */
+        f.resetLocalIndex();
+        f.initVariableIndex();
+        f.initParamIndex();
+    }
+    const paramArray = f.paramArray;
 
-    for (let i = 0; i < f.paramArray.length; i++) {
-        const p = f.paramArray[i];
+    for (let i = 0; i < paramArray.length; i++) {
+        const p = paramArray[i];
         let p_type: ValueType | undefined = undefined;
         p_type = func_type.argumentsType[i];
         const initValue = p.initExpression
@@ -455,6 +467,11 @@ function generateFunctionScopeNodes(
 
     generateChildrenFunctionScope(context, scope);
 
+    if (scope.genericOwner) {
+        scope.genericOwner.statements.forEach((s) => {
+            scope.addStatement(s);
+        });
+    }
     const statements = buildStatements(context, scope.statements);
     func.body.statements = statements;
 

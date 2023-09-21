@@ -9,7 +9,6 @@ import { TypeResolver, Type, TypeKind, TSFunction } from './type.js';
 import { ParserContext } from './frontend.js';
 import {
     addSourceMapLoc,
-    adjustPrimitiveNodeType,
     generateNodeExpression,
     isScopeNode,
 } from './utils.js';
@@ -265,13 +264,7 @@ export class VariableScanner {
                 if (maybeWasmType) {
                     typeName = maybeWasmType.getName();
                 }
-
                 let variableType = currentScope.findType(typeName);
-                variableType = adjustPrimitiveNodeType(
-                    variableType!,
-                    node,
-                    this.currentScope,
-                );
 
                 /* Sometimes the variable's type is inferred as a TSFunction with
                     isDeclare == true, we need to treat it as non declare function

@@ -491,6 +491,14 @@ export function createObjectType(
         }
     }
 
+    let genericOwner: ObjectType | undefined;
+    if (clazz.genericOwner) {
+        genericOwner = context.module.findValueTypeByType(
+            clazz.genericOwner,
+        ) as ObjectType;
+        inst_type.setGenericOwner(genericOwner.instanceType!);
+    }
+
     if (inst_meta.isObjectInstance) {
         clazz_meta = new ObjectDescription(
             clazzName,
@@ -515,6 +523,9 @@ export function createObjectType(
 
         clazz_type.instanceType = inst_type;
         inst_type.classType = clazz_type;
+        if (genericOwner) {
+            clazz_type.setGenericOwner(genericOwner.classType!);
+        }
     }
 
     // set the index signature

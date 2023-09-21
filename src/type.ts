@@ -18,7 +18,11 @@ import {
 import { Parameter, Variable } from './variable.js';
 import { Expression, IdentifierExpression } from './expression.js';
 import { Logger } from './log.js';
-import { DefaultTypeId, adjustPrimitiveNodeType } from './utils.js';
+import {
+    DefaultTypeId,
+    createClassScopeByClassType,
+    isTypeGeneric,
+} from './utils.js';
 import { TypeError, UnimplementError } from './error.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
 
@@ -282,6 +286,8 @@ export interface ClassMethod {
 
 export class TSTypeWithArguments extends Type {
     private _typeArguments?: TSTypeParameter[];
+    private _genericOwner?: TSTypeWithArguments;
+    private _belongedScope?: Scope;
 
     constructor() {
         super();
@@ -307,6 +313,22 @@ export class TSTypeWithArguments extends Type {
             if (param) return param;
         }
         return undefined;
+    }
+
+    get genericOwner(): TSTypeWithArguments | undefined {
+        return this._genericOwner;
+    }
+
+    setGenericOwner(owner: TSTypeWithArguments | undefined) {
+        this._genericOwner = owner;
+    }
+
+    get belongedScope(): Scope | undefined {
+        return this._belongedScope;
+    }
+
+    setBelongedScope(scope: Scope | undefined) {
+        this._belongedScope = scope;
     }
 }
 
@@ -447,6 +469,7 @@ export class TSClass extends TSTypeWithArguments {
 
     addMethod(classMethod: TsClassFunc): void {
         classMethod.type.isMethod = true;
+        classMethod.type.belongedClass = this;
         this._methods.push(classMethod);
     }
 
@@ -530,6 +553,8 @@ export class TSFunction extends TSTypeWithArguments {
     private _isStatic = false;
     private _isBinaryenImpl = false;
     private _isExport = false;
+    // iff the function is a member function of a class
+    private _belongedClass?: TSClass = undefined;
     public envParamLen = 0;
 
     toString(): string {
@@ -623,18 +648,32 @@ export class TSFunction extends TSTypeWithArguments {
         this._isExport = value;
     }
 
+    set belongedClass(clazz: TSClass | undefined) {
+        this._belongedClass = clazz;
+    }
+
+    get belongedClass() {
+        return this._belongedClass;
+    }
+
     // shadow copy, content of parameterTypes and returnType is not copied
     public clone(): TSFunction {
         const func = new TSFunction(this.funcKind);
-        func.returnType = this.returnType;
-        func._parameterTypes = this._parameterTypes;
+        func.typeKind = this.typeKind;
+        func._isBinaryenImpl = this._isBinaryenImpl;
+        func._isDeclare = this._isDeclare;
+        func._isExport = this._isExport;
+        func._isMethod = this._isMethod;
         func._isOptionalParams = this._isOptionalParams;
+        func._isStatic = this._isStatic;
+        func._parameterTypes = this._parameterTypes;
         func._restParamIdex = this._restParamIdex;
-        func.isMethod = this.isMethod;
-        func.isDeclare = this.isDeclare;
-        func.isStatic = this.isStatic;
-        func.envParamLen = this.envParamLen;
+        func._returnType = this._returnType;
         func.setTypeParameters(this.typeArguments);
+        func.envParamLen = this.envParamLen;
+        func.setBelongedScope(this.belongedScope);
+        func.belongedClass = this.belongedClass;
+
         return func;
     }
 }
@@ -744,6 +783,7 @@ export class TypeResolver {
     builtInTsTypeMap = new Map<ts.Type, Type>();
     private symbolTypeMap = new Map<ts.Node, Type>();
     nodeTypeCache = new Map<ts.Node, Type>();
+    specializedTypeCache = new Map<Type, Map<string, Type>[]>();
 
     private loopEntry: TSClass | null = null;
     private typeRefsMap = new Map<TSClass, Set<TSClass>>();
@@ -938,11 +978,13 @@ export class TypeResolver {
             ts.isFunctionLike(node)
         ) {
             (<FunctionScope>this.currentScope!).setFuncType(type as TSFunction);
+            (type as TSFunction).setBelongedScope(this.currentScope!);
         }
         if (ts.isClassDeclaration(node)) {
             this.currentScope!.parent!.addType(tsTypeString, type);
             if (this.currentScope! instanceof ClassScope) {
                 this.currentScope!.setClassType(type as TSClass);
+                (type as TSClass).setBelongedScope(this.currentScope!);
             }
         } else {
             this.currentScope!.addType(tsTypeString, type);
@@ -981,9 +1023,7 @@ export class TypeResolver {
             /* For "this" keyword, tsc will inference the actual type */
             tsType = this.typechecker!.getDeclaredTypeOfSymbol(tsType.symbol);
         }
-
         let type = this.tsTypeToType(tsType);
-        type = adjustPrimitiveNodeType(type, node, this.currentScope)!;
 
         /* for example, a: string[] = new Array(), the type of new Array() should be string[]
          instead of any[]*/
@@ -1102,7 +1142,57 @@ export class TypeResolver {
                         `class/interface/object type not found, type name <${type.symbol.name}>. `,
                     );
                 }
-                res = tsType;
+                // Type references (ObjectFlags.Reference)
+                if (
+                    /* The 'isTypeReference' function uses bit operators to determine whether the type is a Reference
+                     * But this result is not always correct
+                     */
+                    this.isTypeReference(type) &&
+                    type.objectFlags == ts.ObjectFlags.Reference
+                ) {
+                    const typeArguments = this.typechecker!.getTypeArguments(
+                        type as ts.TypeReference,
+                    ).map((t) => {
+                        return this.tsTypeToType(t);
+                    });
+
+                    // generate a string signature of typeArguments to facilitate information storage
+                    const typeNames = new Array<string>();
+                    typeArguments.forEach((v) => {
+                        typeNames.push(`${v.kind}`);
+                    });
+                    const typeSignature = '<' + typeNames.join(',') + '>';
+
+                    // Determine whether a specialized type already exists
+                    // If it exists, return it directly
+                    const cache = this.specializedTypeCache.get(tsType);
+                    if (cache) {
+                        let found: Type | undefined;
+                        cache.forEach((v) => {
+                            if (v.has(typeSignature)) {
+                                found = v.get(typeSignature);
+                            }
+                        });
+                        if (found) return found;
+                    }
+
+                    res = TypeResolver.createSpecializedType(
+                        tsType,
+                        typeArguments,
+                        tsType as TSClass,
+                    );
+                    if (this.specializedTypeCache.has(tsType)) {
+                        const value = new Map();
+                        value.set(typeSignature, res);
+                        this.specializedTypeCache.get(tsType)!.push(value);
+                    } else {
+                        const value = new Map();
+                        value.set(typeSignature, res);
+                        this.specializedTypeCache.set(tsType, [value]);
+                    }
+                } else {
+                    res = tsType;
+                }
             } else if (type.symbol.flags & ts.TypeFlags.Substitution) {
                 /** TODO: symbol.declarations == undefined, means type always
                  * has TypeFlags.Substitution flag??
@@ -1466,6 +1556,102 @@ export class TypeResolver {
         this.parseTypeParameters(infc, node, this.currentScope);
         this.typeParameterStack.push(infc);
         infc.isDeclare = this.parseNestDeclare(node);
+
+        const heritages = node.heritageClauses;
+        const baseClassType: TSClass | null = null;
+        let baseInfcType: TSInterface | null = null;
+        const effectTypeArguments = new Array<TSTypeParameter>();
+        /** if extends more than two classes, an error will be thrown,
+         *  if extends a class, implements some interface, the subclass is subtype of supclass,
+         *  but do not guarantee that it will be a subtype of the interface either.
+         *  if implements more than one interface, the subclass is subtype of the first interface.
+         */
+        if (heritages) {
+            const heritageTypes: TSClass[] = [];
+            for (const h of heritages) {
+                for (const type of h.types) {
+                    const symbol = this.typechecker!.getSymbolAtLocation(
+                        type.expression,
+                    );
+                    if (!symbol) break;
+                    const baseDecl = symbol.declarations![0];
+                    const baseType = this.symbolTypeMap.get(baseDecl);
+                    if (type.typeArguments) {
+                        type.typeArguments.forEach((t) => {
+                            effectTypeArguments.push(
+                                this.generateNodeType(t) as TSTypeParameter,
+                            );
+                        });
+                    }
+                    if (!this.parsedClassTypes.has(baseType as TSClass)) {
+                        if (baseType instanceof TSInterface) {
+                            this.parseInfcType(
+                                baseDecl as ts.InterfaceDeclaration,
+                                baseType,
+                            );
+                        } else if (baseType instanceof TSClass) {
+                            this.parseClassType(
+                                baseDecl as ts.ClassDeclaration,
+                                baseType,
+                            );
+                        }
+                    }
+                    heritageTypes.push(baseType as TSClass);
+                }
+            }
+            for (const h of heritageTypes) {
+                if (h instanceof TSInterface) {
+                    if (!baseInfcType) {
+                        baseInfcType = h;
+                        infc.setBase(baseInfcType);
+                    }
+                } else {
+                    // TODO：interface extends class. Don’t implement it now
+                    throw new Error('unimpl interface extends class');
+                }
+            }
+        }
+
+        if (baseInfcType && isTypeGeneric(baseInfcType)) {
+            const _infc = infc;
+            const _effectTypeArguments = effectTypeArguments;
+
+            // For the same interface base on different inheritance chains, we will regenerate a new base infc type.
+            // The purpose is to prevent these base types from affecting each other.
+            // e.g.
+            //  interface IGeneric<X> {...};
+            //  interface IGenericBase1<X, Y> extends IGeneric<Y> {...};
+            //  interface IGenericBase2<X> extends IGeneric<X> {...};
+            const newName = infc.className + '_' + baseInfcType.className;
+            baseInfcType = TypeResolver.createSpecializedType(
+                baseInfcType,
+                _effectTypeArguments,
+                baseInfcType,
+                newName,
+            ) as TSInterface;
+            infc.setBase(baseInfcType);
+            baseInfcType.overrideOrOwnMethods.forEach((t) => {
+                infc.overrideOrOwnMethods.add(t);
+            });
+            this.currentScope!.addType(newName, baseInfcType);
+        }
+
+        if (baseInfcType) {
+            // TODO try resolve the template type
+            for (const field of baseInfcType.fields) {
+                infc.addMemberField(field);
+            }
+            for (const pair of baseInfcType.staticFieldsInitValueMap) {
+                infc.staticFieldsInitValueMap.set(pair[0], pair[1]);
+            }
+            for (const staticField of baseInfcType.staticFields) {
+                infc.addStaticMemberField(staticField);
+            }
+            for (const method of baseInfcType.memberFuncs) {
+                infc.addMethod(method);
+            }
+        }
+
         for (let i = 0; i < node.members.length; ++i) {
             const member = node.members[i];
             if (member.kind == ts.SyntaxKind.IndexSignature) {
@@ -1572,11 +1758,12 @@ export class TypeResolver {
         const heritages = node.heritageClauses;
         let baseClassType: TSClass | null = null;
         let baseInfcType: TSInterface | null = null;
+        const effectTypeArguments = new Array<TSTypeParameter>();
         /** if extends more than two classes, an error will be thrown,
          *  if extends a class, implements some interface, the subclass is subtype of supclass,
          *  but do not guarantee that it will be a subtype of the interface either.
          *  if implements more than one interface, the subclass is subtype of the first interface.
-         *  */
+         */
         if (heritages) {
             const heritageTypes: TSClass[] = [];
             for (const h of heritages) {
@@ -1587,6 +1774,13 @@ export class TypeResolver {
                     const symbol = baseTsType.symbol;
                     const baseDecl = symbol.declarations![0];
                     const baseType = this.symbolTypeMap.get(baseDecl);
+                    if (type.typeArguments) {
+                        type.typeArguments.forEach((t) => {
+                            effectTypeArguments.push(
+                                this.generateNodeType(t) as TSTypeParameter,
+                            );
+                        });
+                    }
                     if (!this.parsedClassTypes.has(baseType as TSClass)) {
                         if (baseType instanceof TSInterface) {
                             this.parseInfcType(
@@ -1622,6 +1816,55 @@ export class TypeResolver {
                 }
             }
         }
+
+        if (baseInfcType && isTypeGeneric(baseInfcType)) {
+            const _effectTypeArguments = effectTypeArguments;
+            const newName = classType.className + '_' + baseInfcType.className;
+            baseInfcType = TypeResolver.createSpecializedType(
+                baseInfcType,
+                _effectTypeArguments,
+                baseInfcType,
+                newName,
+            ) as TSInterface;
+            classType.setImplInfc(baseInfcType);
+            let _baseInfcType: TSClass | null = baseInfcType;
+            while (_baseInfcType) {
+                this.currentScope!.parent!.addType(
+                    _baseInfcType.className,
+                    _baseInfcType,
+                );
+                _baseInfcType = _baseInfcType.getBase();
+            }
+        }
+
+        // handling type parameters in the inheritance chain
+        /* e.g.
+         *  class Generic<X> {...};
+         *  class GenericBase<X, Y> extends Generic<Y> {...};
+         */
+        // On the inheritance chain, the type parameter of Generic is Y,
+        // and in its class definition, the type parameter is X.
+        // So it needs to be corrected based on the actual type parameters on the inheritance chain.
+        if (baseClassType && isTypeGeneric(baseClassType)) {
+            const _classType = classType;
+            const _effectTypeArguments = effectTypeArguments;
+
+            // For the same class base on different inheritance chains, we will regenerate a new base class type.
+            // The purpose is to prevent these base types from affecting each other.
+            // e.g.
+            //  class Generic<X> {...};
+            //  class GenericBase1<X, Y> extends Generic<Y> {...};
+            //  class GenericBase2<X> extends Generic<X> {...};
+            const newName = classType.className + '_' + baseClassType.className;
+            baseClassType = TypeResolver.createSpecializedType(
+                baseClassType,
+                _effectTypeArguments,
+                baseClassType,
+                newName,
+            ) as TSClass;
+            classType.setBase(baseClassType);
+        }
+
         if (baseClassType) {
             // TODO try resolve the template type
             for (const field of baseClassType.fields) {
@@ -1654,6 +1897,7 @@ export class TypeResolver {
             ctorScope.envParamLen = 2;
 
             const ctorType = new TSFunction(FunctionKind.CONSTRUCTOR);
+            ctorType.setBelongedScope(ctorScope);
             ctorType.returnType = classType;
             ctorType.isMethod = true;
             classType.hasDeclareCtor = false;
@@ -1666,6 +1910,15 @@ export class TypeResolver {
                 const baseCtorType = baseClassType.ctorType;
                 const paramTypes = baseCtorType.getParamTypes();
                 for (let i = 0; i < paramTypes.length; i++) {
+                    const paramType = paramTypes[i];
+                    const newType = TypeResolver.createSpecializedType(
+                        paramType,
+                        effectTypeArguments,
+                        classType,
+                    );
+                    if (!newType)
+                        throw new TypeError('unimpl TSTypeParameter exchange');
+
                     ctorType.addParamType(paramTypes[i]);
                     ctorScope.addParameter(
                         new Parameter(`@anonymous${i}`, paramTypes[i]),
@@ -1766,6 +2019,7 @@ export class TypeResolver {
                 const ctorType = this.parseConstructor(member);
                 ctorScope.setFuncType(ctorType);
                 classType.ctorType = ctorType;
+                ctorType.belongedClass = classType;
             }
         }
 
@@ -1881,6 +2135,7 @@ export class TypeResolver {
         const funcDef = this.parserCtx.getScopeByNode(func);
         if (funcDef && funcDef instanceof FunctionScope) {
             funcDef.setFuncType(tsFuncType);
+            tsFuncType.setBelongedScope(funcDef);
         }
         classType.overrideOrOwnMethods.add(nameWithPrefix);
     }
@@ -2113,68 +2368,28 @@ export class TypeResolver {
         }
     }
 
-    /* Check if the type, and all of its children contains generic type */
-    public static isTypeGeneric(type: Type): boolean {
-        switch (type.kind) {
-            case TypeKind.VOID:
-            case TypeKind.BOOLEAN:
-            case TypeKind.NUMBER:
-            case TypeKind.ANY:
-            case TypeKind.UNDEFINED:
-            case TypeKind.STRING:
-            case TypeKind.UNKNOWN:
-            case TypeKind.NULL:
-            case TypeKind.WASM_I32:
-            case TypeKind.WASM_I64:
-            case TypeKind.WASM_F32:
-            case TypeKind.WASM_F64:
-            case TypeKind.WASM_ANYREF: {
-                return false;
-            }
-            case TypeKind.ARRAY: {
-                return this.isTypeGeneric((type as TSArray).elementType);
-            }
-            case TypeKind.FUNCTION: {
-                const funcType = type as TSFunction;
-                return (
-                    funcType.getParamTypes().some((paramType) => {
-                        return this.isTypeGeneric(paramType);
-                    }) || this.isTypeGeneric(funcType.returnType)
-                );
-            }
-            case TypeKind.CLASS:
-            case TypeKind.INTERFACE: {
-                const classType = type as TSClass;
-                return (
-                    classType.fields.some((field) => {
-                        return this.isTypeGeneric(field.type);
-                    }) ||
-                    classType.memberFuncs.some((func) => {
-                        return this.isTypeGeneric(func.type);
-                    }) ||
-                    classType.staticFields.some((field) => {
-                        return this.isTypeGeneric(field.type);
-                    })
-                );
-            }
-            case TypeKind.TYPE_PARAMETER: {
-                return true;
-            }
-            default: {
-                throw new UnimplementError('Not implemented type: ${type}');
-            }
-        }
-        return false;
-    }
-
     public static createSpecializedType(
         type: Type,
-        typeArg: Type[],
+        specializedArgs: Type[],
         containType: TSTypeWithArguments,
+        newName?: string,
     ): Type {
-        if (!this.isTypeGeneric(type)) {
-            return type;
-        }
+        // the type that need to be specialized must be generic
+        if (!isTypeGeneric(type)) return type;
+
+        // SpecializedArgs MAY contain generic type.
+        // This situation currently occurs in the generic inheritance chain.
+        // e.g.
+        //  class Generic<X> {...};
+        //  class GenericBase<X, Y> extends Generic<Y> {...};
+        //
+        //  At this time, we need to change the type parameter of the generic Generic on the inheritance chain from X to Y.
+        let genericInheritance = false;
+        specializedArgs.forEach((t) => {
+            if (isTypeGeneric(t)) {
+                genericInheritance = true;
+            }
+        });
 
         switch (type.kind) {
             case TypeKind.VOID:
@@ -2196,27 +2411,42 @@ export class TypeResolver {
                 return new TSArray(
                     this.createSpecializedType(
                         (type as TSArray).elementType,
-                        typeArg,
-                        type as TSTypeWithArguments,
+                        specializedArgs,
+                        containType as TSTypeWithArguments,
                     ),
                 );
             }
             case TypeKind.FUNCTION: {
                 const funcType = type as TSFunction;
-                const newFuncType = new TSFunction(funcType.funcKind);
+                const newFuncType = funcType.clone();
+                // specialized function does not have '_typeArguments' property
+                if (!genericInheritance)
+                    newFuncType.setTypeParameters(undefined);
+
+                // regenerate the parameter list
+                newFuncType.setParamTypes([]);
                 funcType.getParamTypes().forEach((paramType) => {
                     newFuncType.addParamType(
                         this.createSpecializedType(
                             paramType,
-                            typeArg,
-                            type as TSTypeWithArguments,
+                            specializedArgs,
+                            containType as TSTypeWithArguments,
                         ),
                     );
                 });
+
+                // prevent infinite recursive call
+                if (
+                    funcType.isMethod &&
+                    funcType.returnType instanceof TSClass &&
+                    funcType.returnType.typeId == funcType.belongedClass?.typeId
+                )
+                    return newFuncType;
+
                 newFuncType.returnType = this.createSpecializedType(
                     funcType.returnType,
-                    typeArg,
-                    type as TSTypeWithArguments,
+                    specializedArgs,
+                    containType as TSTypeWithArguments,
                 );
                 return newFuncType;
             }
@@ -2229,23 +2459,135 @@ export class TypeResolver {
                 } else {
                     newType = new TSInterface();
                 }
+
+                // generate the class name of the new class
+                const typeNames = new Array<string>();
+                specializedArgs.forEach((v) => {
+                    typeNames.push(`${v.kind}`);
+                });
+                if (genericInheritance) {
+                    // e.g.
+                    // In this generic inheritance chain case: class GenericBase<X, Y> extends Generic<Y> {...}
+                    // The name of the new generic class will be changed from a to Generic to Generic_GenericBase
+                    const specializedName = newName
+                        ? newName
+                        : classType.className;
+                    newType.setClassName(specializedName);
+                    specializedArgs.forEach((v) => {
+                        newType.addTypeParameter(v as TSTypeParameter);
+                    });
+                } else {
+                    // e.g.
+                    // Generic<X> -> Generic<string>
+                    const specializedName =
+                        classType.className + '<' + typeNames.join(',') + '>';
+                    newType.setClassName(specializedName);
+                    newType.setGenericOwner(classType);
+                }
+
+                // set the property value of the basic property
+                if (classType.getBase()) {
+                    const base = classType.getBase();
+                    const base_typeArguments = base!.typeArguments;
+
+                    /*
+                     * Calculate the specialization parameter list of the base class
+                     * based on the specialization parameter list and type parameter list of the inherited class
+                     */
+                    if (base_typeArguments) {
+                        const baseSpecializedArgs = new Array<Type>();
+                        if (specializedArgs) {
+                            for (
+                                let i = 0;
+                                i < base_typeArguments.length;
+                                i++
+                            ) {
+                                const genericType = base_typeArguments[
+                                    i
+                                ] as TSTypeParameter;
+                                const type = TypeResolver.createSpecializedType(
+                                    genericType,
+                                    specializedArgs,
+                                    classType,
+                                );
+                                baseSpecializedArgs.push(type);
+                            }
+                        }
+                        const newName =
+                            newType.className +
+                            '_' +
+                            base?.className.split('_').reverse()[0];
+                        newType.setBase(
+                            TypeResolver.createSpecializedType(
+                                base!,
+                                baseSpecializedArgs,
+                                base!,
+                                newName,
+                            ) as TSClass,
+                        );
+                    } else {
+                        newType.setBase(base!);
+                    }
+                }
+
+                newType.hasDeclareCtor = classType.hasDeclareCtor;
+                const implInfc = classType.getImplInfc();
+                if (implInfc && isTypeGeneric(implInfc)) {
+                    const infc_typeArguments = implInfc.typeArguments;
+                    if (infc_typeArguments) {
+                        const infcSpecializedArgs = new Array<Type>();
+                        if (specializedArgs) {
+                            for (
+                                let i = 0;
+                                i < infc_typeArguments.length;
+                                i++
+                            ) {
+                                const genericType = infc_typeArguments[
+                                    i
+                                ] as TSTypeParameter;
+                                const type = TypeResolver.createSpecializedType(
+                                    genericType,
+                                    specializedArgs,
+                                    classType,
+                                );
+                                infcSpecializedArgs.push(type);
+                            }
+                        }
+                        newType.setImplInfc(
+                            TypeResolver.createSpecializedType(
+                                implInfc,
+                                infcSpecializedArgs,
+                                implInfc,
+                            ) as TSInterface,
+                        );
+                    }
+                } else {
+                    newType.setImplInfc(implInfc);
+                }
+                newType.isDeclare = classType.isDeclare;
+                newType.isLiteral = classType.isLiteral;
+                newType.overrideOrOwnMethods = classType.overrideOrOwnMethods;
+                newType.traverseStatus = classType.traverseStatus;
+
+                // specialized member variables
                 classType.fields.forEach((field) => {
                     newType.addMemberField({
                         name: field.name,
                         type: this.createSpecializedType(
                             field.type,
-                            typeArg,
-                            type as TSTypeWithArguments,
+                            specializedArgs,
+                            containType as TSTypeWithArguments,
                         ),
                     });
                 });
+                // specialized member functions
                 classType.memberFuncs.forEach((func) => {
                     newType.addMethod({
                         name: func.name,
                         type: this.createSpecializedType(
                             func.type,
-                            typeArg,
-                            type as TSTypeWithArguments,
+                            specializedArgs,
+                            containType as TSTypeWithArguments,
                         ) as TSFunction,
                     });
                 });
@@ -2254,20 +2596,40 @@ export class TypeResolver {
                         name: field.name,
                         type: this.createSpecializedType(
                             field.type,
-                            typeArg,
-                            type as TSTypeWithArguments,
+                            specializedArgs,
+                            containType as TSTypeWithArguments,
                         ),
                     });
                 });
+                // specialized constructor
+                if (classType.ctorType) {
+                    newType.ctorType = this.createSpecializedType(
+                        classType.ctorType,
+                        specializedArgs,
+                        containType as TSTypeWithArguments,
+                    ) as TSFunction;
+                    newType.ctorType.returnType = newType;
+                }
+
+                // create the classScope to which the new class type belongs, but it doesn't always exist
+                const originalClassScope = classType.belongedScope;
+                if (!originalClassScope) return newType;
+                originalClassScope.parent?.addType(newType.className, newType);
+                const newClassScope = createClassScopeByClassType(
+                    originalClassScope as ClassScope,
+                    originalClassScope.parent!,
+                    newType,
+                );
+                newType.setBelongedScope(newClassScope);
                 return newType;
             }
             case TypeKind.TYPE_PARAMETER: {
                 const genericType = type as TSTypeParameter;
                 const typeArgs = containType.typeArguments;
-                if (typeArg && typeArgs) {
+                if (specializedArgs && typeArgs) {
                     for (let i = 0; i < typeArgs.length; i++) {
                         if (typeArgs[i].name === genericType.name) {
-                            return typeArg[i];
+                            return specializedArgs[i];
                         }
                     }
                     // return typeArg;

@@ -15,6 +15,7 @@ import {
     GlobalScope,
     FunctionScope,
     importSearchTypes,
+    ClassScope,
 } from '../scope.js';
 
 import { Variable } from '../variable.js';
