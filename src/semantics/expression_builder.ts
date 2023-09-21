@@ -1315,7 +1315,7 @@ function typeTranslate(type1: ValueType, type2: ValueType): ValueType {
     throw Error(`"${type1}" aginst of "${type2}"`);
 }
 
-function shapeAssignCheck(left: ValueType, right: ValueType) {
+export function shapeAssignCheck(left: ValueType, right: ValueType) {
     // iff the type of lvalue is 'any', we should never fix its shape.
     if (left.equals(Primitive.Any)) return false;
 
