@@ -18,7 +18,6 @@ const __dirname = path.dirname(__filename);
 const IGNORE_LIST = [
     "complexType_case1.ts",
     "complexType_case2.ts",
-    "generics_class.ts",
     "global_generics_function.ts",
     "inner_generics_function.ts",
     "namespace_generics_function.ts",

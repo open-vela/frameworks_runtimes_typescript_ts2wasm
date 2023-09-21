@@ -2001,7 +2001,7 @@ function buildNewExpression2(
     context: BuildContext,
 ): SemanticsValue {
     context.pushReference(ValueReferenceKind.RIGHT);
-    const class_value = buildExpression(expr.newExpr, context);
+    let class_value = buildExpression(expr.newExpr, context);
     context.popReference();
 
     const type = class_value.effectType;
@@ -2018,10 +2018,24 @@ function buildNewExpression2(
     let object_type = type as ObjectType;
     if (object_type.instanceType) object_type = object_type.instanceType;
     if (expr.typeArguments) {
-        object_type = updateValueTypeByTypeArguments(
-            object_type,
-            valueTypeArgs!,
-        ) as ObjectType;
+        // handle array specialization
+        if (object_type.kind == ValueTypeKind.ARRAY) {
+            object_type = updateValueTypeByTypeArguments(
+                object_type,
+                valueTypeArgs!,
+            ) as ObjectType;
+        } else {
+            const exprObjType = context.module.findValueTypeByType(
+                expr.exprType,
+            ) as ObjectType;
+            if (
+                exprObjType.genericOwner &&
+                exprObjType.genericType.equals(object_type)
+            ) {
+                class_value = context.getGlobalValue(exprObjType.meta.name)!;
+                object_type = exprObjType;
+            }
+        }
     }
     const clazz_type = object_type.classType;
 

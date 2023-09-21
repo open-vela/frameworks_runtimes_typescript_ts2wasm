@@ -15,7 +15,7 @@ import {
     TSContext,
 } from './type.js';
 import { ParserContext } from './frontend.js';
-import { parentIsFunctionLike } from './utils.js';
+import { parentIsFunctionLike, isTypeGeneric } from './utils.js';
 import { Parameter, Variable } from './variable.js';
 import { Statement } from './statement.js';
 import { BuiltinNames } from '../lib/builtin/builtin_name.js';
@@ -102,10 +102,18 @@ export class Scope {
             /* For generic types, also add an entry
                 for type without type parameter
                e.g. Array<T>, we may want to search it by Array */
-            if (name.indexOf('<') != -1) {
+            if (name.indexOf('<') != -1 && isTypeGeneric(type)) {
                 this.namedTypeMap.set(name.split('<')[0], type);
             }
         }
+    }
+
+    resetLocalIndex() {
+        this.localIndex = -1;
+    }
+
+    allocateLocalIndex() {
+        return this.localIndex++;
     }
 
     assignVariableIndex(scope: Scope) {
@@ -498,6 +506,38 @@ export class Scope {
             child.traverseScopTree(traverseMethod);
         }
     }
+
+    // shadow copy
+    copy(scope: Scope) {
+        scope.kind = this.kind;
+        scope.name = this.name;
+        scope.children = this.children;
+        scope.parent = this.parent;
+        scope.namedTypeMap = this.namedTypeMap;
+        scope.debugFilePath = this.debugFilePath;
+        scope.tempVarArray = this.tempVarArray;
+        scope.variableArray = this.variableArray;
+        scope.statementArray = this.statementArray;
+        scope.localIndex = this.localIndex;
+        scope.mangledName = this.mangledName;
+        scope.modifiers = this.modifiers;
+    }
+
+    // deep copy
+    clone(scope: Scope) {
+        scope.kind = this.kind;
+        scope.name = this.name;
+        scope.children = new Array<Scope>();
+        scope.parent = this.parent;
+        scope.namedTypeMap = new Map<string, Type>();
+        scope.debugFilePath = this.debugFilePath;
+        scope.tempVarArray = new Array<Variable>();
+        scope.variableArray = new Array<Variable>();
+        scope.statementArray = new Array<Statement>();
+        scope.localIndex = this.localIndex;
+        scope.mangledName = this.mangledName;
+        scope.modifiers = this.modifiers;
+    }
 }
 
 export class ClosureEnvironment extends Scope {
@@ -515,6 +555,22 @@ export class ClosureEnvironment extends Scope {
             this.addVariable(contextVar);
             this.contextVariable = contextVar;
         }
+    }
+
+    copy(scope: ClosureEnvironment) {
+        super.copy(scope);
+        scope.kind = this.kind;
+        scope.parent = this.parent;
+        scope.hasFreeVar = this.hasFreeVar;
+        scope.contextVariable = this.contextVariable;
+    }
+
+    clone(scope: ClosureEnvironment) {
+        super.clone(scope);
+        scope.kind = this.kind;
+        scope.parent = this.parent;
+        scope.hasFreeVar = this.hasFreeVar;
+        scope.contextVariable = this.contextVariable;
     }
 }
 
@@ -615,6 +671,9 @@ export class FunctionScope extends ClosureEnvironment {
     /* ori func name iff func is declare */
     oriFuncName: string | undefined = undefined;
     debugLocations: SourceMapLoc[] = [];
+    // iff this FunctionScope is specialized
+    private _genericOwner?: FunctionScope;
+
     constructor(parent: Scope) {
         super(parent);
         this.debugFilePath = parent.debugFilePath;
@@ -666,6 +725,40 @@ export class FunctionScope extends ClosureEnvironment {
     isMethod(): boolean {
         return this._className !== '';
     }
+
+    setGenericOwner(genericOwner: FunctionScope) {
+        this._genericOwner = genericOwner;
+    }
+
+    get genericOwner(): FunctionScope | undefined {
+        return this._genericOwner;
+    }
+
+    copy(funcScope: FunctionScope) {
+        super.copy(funcScope);
+        funcScope.kind = this.kind;
+        funcScope.parent = this.parent!;
+        funcScope.parameterArray = this.parameterArray;
+        funcScope.envParamLen = this.envParamLen;
+        funcScope.functionType = this.functionType;
+        funcScope._className = this._className;
+        funcScope.realParamCtxType = this.realParamCtxType;
+        funcScope.oriFuncName = this.oriFuncName;
+        funcScope.debugLocations = this.debugLocations;
+    }
+
+    clone(funcScope: FunctionScope) {
+        super.clone(funcScope);
+        funcScope.kind = this.kind;
+        funcScope.parent = this.parent!;
+        funcScope.parameterArray = new Array<Parameter>();
+        funcScope.envParamLen = this.envParamLen;
+        funcScope.functionType = this.functionType;
+        funcScope._className = this._className;
+        funcScope.realParamCtxType = this.realParamCtxType;
+        funcScope.oriFuncName = this.oriFuncName;
+        funcScope.debugLocations = new Array<SourceMapLoc>();
+    }
 }
 
 export class BlockScope extends ClosureEnvironment {
@@ -689,6 +782,8 @@ export class BlockScope extends ClosureEnvironment {
 export class ClassScope extends Scope {
     kind = ScopeKind.ClassScope;
     private _classType: TSClass = new TSClass();
+    // iff this ClassScope is specialized
+    private _genericOwner?: ClassScope;
 
     constructor(parent: Scope, name = '') {
         super(parent);
@@ -706,6 +801,30 @@ export class ClassScope extends Scope {
 
     get classType(): TSClass {
         return this._classType;
+    }
+
+    setGenericOwner(genericOwner: ClassScope) {
+        this._genericOwner = genericOwner;
+    }
+
+    get genericOwner(): ClassScope | undefined {
+        return this._genericOwner;
+    }
+
+    copy(classScope: ClassScope) {
+        super.copy(classScope);
+        classScope.kind = this.kind;
+        classScope.parent = this.parent;
+        classScope.name = this.name;
+        classScope._classType = this._classType;
+    }
+
+    clone(classScope: ClassScope) {
+        super.clone(classScope);
+        classScope.kind = this.kind;
+        classScope.parent = this.parent;
+        classScope.name = this.name;
+        classScope._classType = this._classType;
     }
 }
 
