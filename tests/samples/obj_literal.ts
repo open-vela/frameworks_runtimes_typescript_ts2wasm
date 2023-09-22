@@ -89,3 +89,38 @@ export function structWithSameLayout() {
     };
     return res.y;
 }
+
+interface IA {
+    name: string;
+    say(n: number): number;
+    say2(): void;
+}
+
+export function useThisInLiteralObj() {
+    const a: IA = {
+        name: "A",
+        say(n: number) {
+            console.log(this.name);
+            return n;
+        },
+        say2(){
+            console.log(this.name);
+        }
+
+    }
+    console.log(a.say(1));
+    a.say2();
+
+    const b = {
+        name: "B",
+        say(n: number) {
+            console.log(this.name);
+            return n;
+        },
+        say2() {
+            console.log(this.name);
+        }
+    }
+    console.log(b.say(1));
+    b.say2();
+}

@@ -1017,6 +1017,13 @@ export class TypeResolver {
                 this.currentScope!.setClassType(type as TSClass);
                 (type as TSClass).setBelongedScope(this.currentScope!);
             }
+        } else if (ts.isObjectLiteralExpression(node)) {
+            if (this.currentScope?.parent) {
+                this.currentScope!.parent!.addType(tsTypeString, type);
+            }
+            if (this.currentScope! instanceof ClassScope) {
+                this.currentScope!.setClassType(type as TSClass);
+            }
         } else {
             this.currentScope!.addType(tsTypeString, type);
         }
@@ -1413,12 +1420,23 @@ export class TypeResolver {
             const propType = this.typechecker!.getTypeAtLocation(valueDecl);
             const tsType = this.tsTypeToType(propType);
 
-            if (propType instanceof TSFunction) {
-                tsClass.addMethod({
-                    name: propName,
-                    type: tsType as TSFunction,
-                    optional: (valueDecl as any).questionToken ? true : false,
-                });
+            if (tsType instanceof TSFunction && tsType.isMethod) {
+                if (tsType.envParamLen == 1) {
+                    tsClass.addMethod({
+                        name: propName,
+                        type: tsType as TSFunction,
+                        optional: (valueDecl as any).questionToken
+                            ? true
+                            : false,
+                    });
+                } else {
+                    this.setMethod(
+                        valueDecl as ts.MethodDeclaration,
+                        null,
+                        tsClass,
+                        FunctionKind.METHOD,
+                    );
+                }
             } else {
                 tsClass.addMemberField({
                     name: propName,
