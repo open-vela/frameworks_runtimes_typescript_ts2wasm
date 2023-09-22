@@ -510,11 +510,7 @@ array_splice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
         delete_count = delete_count_double;
     }
     else if (dyntype_is_undefined(dyntype_get_context(), delete_count_value)) {
-        delete_count = 0;
-    }
-    else {
-        wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
-                                   "delete count undefined");
+        delete_count = len - start;
     }
 
     delete_count = delete_count < 0 ? 0 : delete_count;
