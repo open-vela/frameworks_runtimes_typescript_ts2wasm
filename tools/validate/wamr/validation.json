@@ -1006,7 +1006,7 @@
             {
                 "name": "array_splice_number",
                 "args": [],
-                "result": "2:f64"
+                "result": "0 \n2:f64"
             },
             {
                 "name": "array_splice_boolean",

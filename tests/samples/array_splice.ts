@@ -104,6 +104,8 @@ export function array_splice_number() {
     //console.log("case10");
     //output_number_arr(arr);                          // 11 3 4 5 6.5 7.5 8 9 10
     //output_number_arr(removed);                      // 1.5 2.5
+    arr.splice(0);
+    console.log(arr.length);
     return removed.length;
 }
 
