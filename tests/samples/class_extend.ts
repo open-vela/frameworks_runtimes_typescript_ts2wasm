@@ -253,3 +253,28 @@ export function fieldInitOrder() {
     const b = new Bus();
     return b.price;
 }
+
+interface I9 {
+    x: string;
+}
+class A9 {
+    x: string;
+    constructor(xx?: I9) {
+        if (xx) {
+            this.x = xx.x;
+        } else {
+            this.x = 'uninit';
+        }
+    }
+}
+
+class Derived extends A9 {
+    constructor(xx: I9) {
+        super(xx);
+    }
+}
+
+export function superWithOptionlParam() {
+    const d = new Derived({x: 'hello'});
+    console.log(d.x);
+}

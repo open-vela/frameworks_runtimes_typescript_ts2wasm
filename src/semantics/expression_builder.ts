@@ -2338,7 +2338,7 @@ function buildSuperValue(
     context: BuildContext,
 ): SemanticsValue {
     const clazz = getCurrentClassType(context);
-    const param_values: SemanticsValue[] = [];
+    let param_values: SemanticsValue[] = [];
 
     if (!clazz) {
         throw Error('cannot find the current class type for super');
@@ -2374,12 +2374,12 @@ function buildSuperValue(
         }
     } else {
         if (expr.callArgs && expr.callArgs.length > 0) {
-            for (const p of expr.callArgs) {
-                context.pushReference(ValueReferenceKind.RIGHT);
-                const v = buildExpression(p, context);
-                context.popReference();
-                param_values.push(v);
-            }
+            const ctorType = super_type.meta.ctor!.valueType;
+            param_values = buildParameters(
+                context,
+                expr.callArgs,
+                ctorType as FunctionType,
+            );
         }
         return new SuperValue(
             super_type,
