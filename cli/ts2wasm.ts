@@ -326,11 +326,15 @@ function main() {
             process.exit(1);
         } else {
             /* TODO: print line number in error message */
-            consoleLogger.error(
-                (<Error>e).message,
-                '\n',
-                `Error details is in '${logConfig.appenders.file.filename}'`,
+            let errorMessage = (<Error>e).message.concat(
+                `\nError details is in '${logConfig.appenders.errorFile.filename}'`,
             );
+            if (process.env.NODE_ENV !== 'production') {
+                errorMessage = errorMessage.concat(
+                    `\nLog details is in '${logConfig.appenders.traceFile.filename}'`,
+                );
+            }
+            consoleLogger.error(errorMessage);
             Logger.error(e);
             log4js.shutdown(() => process.exit(1));
         }
