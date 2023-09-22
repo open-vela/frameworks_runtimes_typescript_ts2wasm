@@ -121,3 +121,104 @@ export function accessOptionalUnionField() {
     const node1 = {left: l, right: r};
     return checksum(node) + checksum(node1);
 }
+
+interface I2 {
+    x?: number | boolean;
+}
+
+interface I3 {
+    x: number | boolean;
+}
+
+class Foo {
+    y = 10;
+}
+class Bar {
+    y = 11;
+}
+
+interface I4 {
+    x?: Foo | Bar;
+}
+
+interface I5 {
+    x: Foo | Bar;
+}
+
+interface I6 {
+    y?: I4;
+}
+
+interface I7 {
+    y: I4 | I5;
+}
+
+interface I8 {
+    y?: I4 | I5;
+}
+
+export function accessOptionalUnionField2() {
+    let i2: I2 = { x: true };
+    console.log(i2.x);
+    i2 = {};
+    console.log(i2.x);
+
+    let i3: I3 = { x: true };
+    console.log(i3.x);
+    i3 = { x: 10 };
+    console.log(i3.x);
+    // It should not work, because `x` comes from {x: false}
+    // i3.x = 10;
+    // console.log(i3.x);
+
+    const i4: I4 = { x: new Foo() };
+    if (i4.x) {
+        console.log(i4.x.y);
+    }
+    i4.x = new Bar();
+    if (i4.x) {
+        console.log(i4.x.y);
+    }
+
+    const I5: I5 = { x: new Bar() };
+    const x = I5.x;
+    if (x instanceof Foo) {
+        console.log(x.y);
+    } else {
+        console.log(x.y);
+    }
+
+    const i6: I6 = { y: { x: new Foo() } };
+    // console.log();
+    if (i6.y) {
+        const x = i6.y.x;
+        if (x instanceof Foo) {
+            console.log(x.y);
+        }
+    }
+
+    const i7: I7 = { y: { x: new Bar() } };
+    const obj = i7.y;
+    const x1 = obj.x;
+    if (x1) {
+        if (x1 instanceof Foo) {
+            console.log(x1.y);
+        } else {
+            console.log(x1.y);
+        }
+    }
+
+    const i8: I8 = { y: { x: new Foo() } };
+    const obj1 = i8.y;
+    let x11: Foo | Bar | undefined = undefined;
+    if (obj1) {
+        x11 = obj1.x;
+    }
+    if (x11) {
+        if (x11 instanceof Foo) {
+            console.log(x11.y);
+        } else {
+            console.log(x11.y);
+        }
+    }
+}
