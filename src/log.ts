@@ -18,39 +18,37 @@ export enum LoggerLevel {
 
 log4js.configure(config);
 
-const fileLogger = log4js.getLogger();
-fileLogger.level = LoggerLevel.TRACE;
+const traceLogger = log4js.getLogger();
+traceLogger.level = LoggerLevel.TRACE;
+
+const productionLogger = log4js.getLogger('production');
+productionLogger.level = LoggerLevel.ERROR;
 
 export const consoleLogger = log4js.getLogger('console');
 consoleLogger.level = LoggerLevel.ERROR;
 
 export class Logger {
-    static info(...args: any[]) {
-        const msg = Logger.msgCollectInProduction(args);
-        fileLogger.info(msg);
-    }
-
     static trace(...args: any[]) {
-        const msg = Logger.msgCollectInProduction(args);
-        fileLogger.trace(Logger.getLocation(), ...msg);
+        Logger.collectLogs(args, LoggerLevel.TRACE);
     }
 
     static debug(...args: any[]) {
-        const msg = Logger.msgCollectInProduction(args);
-        fileLogger.debug(Logger.getLocation(), ...msg);
+        Logger.collectLogs(args, LoggerLevel.DEBUG);
+    }
+
+    static info(...args: any[]) {
+        Logger.collectLogs(args, LoggerLevel.INFO);
     }
 
     static warn(...args: any[]) {
-        const msg = Logger.msgCollectInProduction(args);
-        fileLogger.warn(Logger.getLocation(), ...msg);
+        Logger.collectLogs(args, LoggerLevel.WARN);
     }
 
     static error(...args: any[]) {
-        const msg = Logger.msgCollectInProduction(args);
-        fileLogger.error(Logger.getLocation(), ...msg);
+        Logger.collectLogs(args, LoggerLevel.ERROR);
     }
 
-    static getLocation(depth = 2): string {
+    static getLocation(depth = 3): string {
         const stackFrames = stackTrace.getSync();
         const stackFrame = stackFrames[depth];
         const lineNumber = stackFrame.lineNumber!;
@@ -60,18 +58,23 @@ export class Logger {
         return `${pathBaseName} (line: ${lineNumber}, column: ${columnNumber}): \n`;
     }
 
-    static msgCollectInProduction(args: any[]) {
-        const res: any[] = [];
-        for (let i = 0; i < args.length; i++) {
-            if (
-                args[i] instanceof Error &&
-                process.env.NODE_ENV === 'production'
-            ) {
-                res.push(args[i].message);
-            } else {
-                res.push(args[i]);
+    static collectLogs(args: any[], logLevel: LoggerLevel) {
+        if (process.env.NODE_ENV === 'production') {
+            if (logLevel === LoggerLevel.ERROR) {
+                productionLogger.error((Logger.getLocation(), args));
+            }
+        } else {
+            if (logLevel === LoggerLevel.TRACE) {
+                traceLogger.trace(Logger.getLocation(), args);
+            } else if (logLevel === LoggerLevel.DEBUG) {
+                traceLogger.debug(Logger.getLocation(), args);
+            } else if (logLevel === LoggerLevel.INFO) {
+                traceLogger.info(Logger.getLocation(), args);
+            } else if (logLevel === LoggerLevel.WARN) {
+                traceLogger.warn(Logger.getLocation(), args);
+            } else if (logLevel === LoggerLevel.ERROR) {
+                traceLogger.error(Logger.getLocation(), args);
             }
         }
-        return res;
     }
 }
