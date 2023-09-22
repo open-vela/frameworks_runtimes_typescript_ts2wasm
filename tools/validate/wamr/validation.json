@@ -3409,7 +3409,7 @@
             {
                 "name": "testGenericParam",
                 "args": [],
-                "result": "hi"
+                "result": "hi \n3"
             }
         ]
     },
@@ -3435,6 +3435,11 @@
                 "name": "test_GenericClassWithImplementsInfc",
                 "args": [],
                 "result": "hello \nworld \nworld \n2 \n111"
+            },
+            {
+                "name": "test_GenericClassWithTypeAlias",
+                "args": [],
+                "result": "John \n18 \n123 \ntrue"
             }
         ]
     },
