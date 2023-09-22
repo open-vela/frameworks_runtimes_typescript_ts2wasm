@@ -868,6 +868,7 @@ export class TypeResolver {
                 const tsType = this.typechecker!.getTypeAtLocation(node);
                 let type: Type;
                 let symbolNode = node;
+                // parse object types circular reference
                 if (
                     (this.isObjectLiteral(tsType) ||
                         this.isObjectType(tsType)) &&
@@ -900,6 +901,23 @@ export class TypeResolver {
                     }
                 } else {
                     type = this.generateNodeType(symbolNode);
+                    // specialization of generic types when using type alias
+                    if (
+                        tsType.aliasTypeArguments &&
+                        this.noTypeParmeters(tsType.aliasTypeArguments) &&
+                        type instanceof TSTypeWithArguments
+                    ) {
+                        const specializedTypes = tsType.aliasTypeArguments.map(
+                            (t) => {
+                                return this.tsTypeToType(t);
+                            },
+                        );
+                        type = TypeResolver.createSpecializedType(
+                            type,
+                            specializedTypes,
+                            type,
+                        );
+                    }
                 }
                 this.addTypeToTypeMap(type, symbolNode);
                 break;
@@ -952,7 +970,20 @@ export class TypeResolver {
             case ts.SyntaxKind.TypeAliasDeclaration: {
                 const typeAliasNode = <ts.TypeAliasDeclaration>node;
                 const typeName = typeAliasNode.name.getText();
+                const tsType =
+                    this.typechecker!.getTypeAtLocation(typeAliasNode);
                 const type = this.generateNodeType(typeAliasNode.type);
+
+                // if it is a generic type, complete its typeArguments
+                if (
+                    tsType.aliasTypeArguments &&
+                    type instanceof TSTypeWithArguments
+                ) {
+                    const typeArgs = tsType.aliasTypeArguments.map((t) => {
+                        return this.tsTypeToType(t) as TSTypeParameter;
+                    });
+                    type.setTypeParameters(typeArgs);
+                }
                 this.currentScope!.addType(typeName, type);
                 break;
             }
