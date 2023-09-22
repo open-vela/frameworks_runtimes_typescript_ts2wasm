@@ -574,30 +574,33 @@ export function isTypeGeneric(type: Type): boolean {
         }
         case TypeKind.FUNCTION: {
             const funcType = type as TSFunction;
-            if (funcType.typeArguments) return true;
-
-            return (
-                funcType.getParamTypes().some((paramType) => {
-                    return isTypeGeneric(paramType);
-                }) || isTypeGeneric(funcType.returnType)
-            );
+            /* Member functions do not have 'typeArguments' property.
+             * So when a function is a member function of a class,
+             * it is determined whether the function is a generic type by judging whether the class it belongs to is a generic type.
+             * The result is not always correct, but it does not affect the logic of specialization.
+             *
+             * e.g.
+             *  class A<T> {
+             *      a: T;
+             *      echo() {
+             *          console.log('hello world');
+             *      }
+             *  }
+             *
+             * 'A' is a generic class type, and at this time we will treat 'echo' as a generic function.
+             */
+            if (
+                (funcType.isMethod && funcType.belongedClass?.typeArguments) ||
+                funcType.typeArguments
+            )
+                return true;
+            return false;
         }
         case TypeKind.CLASS:
         case TypeKind.INTERFACE: {
             const classType = type as TSClass;
             if (classType.typeArguments) return true;
-
-            return (
-                classType.fields.some((field) => {
-                    return isTypeGeneric(field.type);
-                }) ||
-                classType.memberFuncs.some((func) => {
-                    return isTypeGeneric(func.type);
-                }) ||
-                classType.staticFields.some((field) => {
-                    return isTypeGeneric(field.type);
-                })
-            );
+            return false;
         }
         case TypeKind.TYPE_PARAMETER: {
             return true;
