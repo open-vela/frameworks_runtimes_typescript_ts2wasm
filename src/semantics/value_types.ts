@@ -312,6 +312,7 @@ export class ObjectType extends ValueTypeWithArguments {
     public get classType(): ObjectType | undefined {
         if (this.isClassObject()) return this;
         if (this.isObject()) return this._class_or_instance;
+        if (this.isLiteralObject()) return this.instanceType;
         return undefined;
     }
     public set classType(c: ObjectType | undefined) {

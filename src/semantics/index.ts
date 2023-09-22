@@ -419,6 +419,8 @@ export function generateChildrenFunctionScope(
     for (const c of scope.children) {
         if (c.kind == ScopeKind.FunctionScope) {
             generateFunctionScopeNodes(context, c as FunctionScope);
+        } else if (c.kind == ScopeKind.ClassScope) {
+            generateClassScopeNodes(context, c as ClassScope);
         }
     }
 }

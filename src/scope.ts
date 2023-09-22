@@ -850,6 +850,7 @@ export class ScopeScanner {
     anonymousIndex = 0;
     /* block index to represent current block's count */
     blockIndex = 0;
+    static literal_obj_count = 0;
 
     constructor(private parserCtx: ParserContext) {
         this.globalScopes = this.parserCtx.globalScopes;
@@ -1019,6 +1020,26 @@ export class ScopeScanner {
                 }
                 if (classScope.isDeclare()) {
                     parentScope.addDeclareName(className);
+                }
+                this.setCurrentScope(parentScope);
+                break;
+            }
+            case ts.SyntaxKind.ObjectLiteralExpression: {
+                const objectLiteralNode = <ts.ObjectLiteralExpression>node;
+                const parentScope = this.currentScope!;
+                const className =
+                    'literal_obj' + ScopeScanner.literal_obj_count++;
+                const objLiteralScope = new ClassScope(parentScope, className);
+
+                this.setCurrentScope(objLiteralScope);
+                this.nodeScopeMap.set(objectLiteralNode, objLiteralScope);
+
+                for (const property of objectLiteralNode.properties) {
+                    if (ts.isPropertyAssignment(property)) {
+                        this.visitNode(property.initializer);
+                    } else {
+                        this.visitNode(property);
+                    }
                 }
                 this.setCurrentScope(parentScope);
                 break;
@@ -1199,7 +1220,11 @@ export class ScopeScanner {
         if (node.name !== undefined) {
             functionName = node.name.getText();
         } else {
-            functionName = '@anonymous' + this.anonymousIndex++;
+            if (ts.isPropertyAssignment(node.parent)) {
+                functionName = node.parent.name.getText();
+            } else {
+                functionName = '@anonymous' + this.anonymousIndex++;
+            }
         }
         /* function context struct placeholder */
         functionScope.envParamLen = 1;

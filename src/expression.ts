@@ -736,12 +736,14 @@ export default class ExpressionProcessor {
                 const values = new Array<Expression>();
                 let propertyAssign:
                     | ts.PropertyAssignment
-                    | ts.ShorthandPropertyAssignment;
+                    | ts.ShorthandPropertyAssignment
+                    | ts.MethodDeclaration;
 
                 for (const property of objLiteralNode.properties) {
                     if (
                         ts.isPropertyAssignment(property) ||
-                        ts.isShorthandPropertyAssignment(property)
+                        ts.isShorthandPropertyAssignment(property) ||
+                        ts.isMethodDeclaration(property)
                     ) {
                         propertyAssign = property;
                     } else {
@@ -802,7 +804,8 @@ export default class ExpressionProcessor {
             }
             case ts.SyntaxKind.FunctionDeclaration:
             case ts.SyntaxKind.FunctionExpression:
-            case ts.SyntaxKind.ArrowFunction: {
+            case ts.SyntaxKind.ArrowFunction:
+            case ts.SyntaxKind.MethodDeclaration: {
                 const funcScope = getCurScope(node, this.nodeScopeMap)!;
                 res = new FunctionExpression(funcScope as FunctionScope);
                 res.setExprType(this.typeResolver.generateNodeType(node));

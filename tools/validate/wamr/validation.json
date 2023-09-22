@@ -2886,6 +2886,11 @@
                 "name": "structWithSameLayout",
                 "args": [],
                 "result": "1:f64"
+            },
+            {
+                "name": "useThisInLiteralObj",
+                "args": [],
+                "result": "A \n1 \nA \nB \n1 \nB"
             }
         ]
     },

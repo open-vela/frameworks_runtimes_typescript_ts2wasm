@@ -948,10 +948,10 @@ export function createObjectDescriptionShapes(
     shape.members = members;
 
     const is_instance = meta.type == ObjectDescriptionType.OBJECT_INSTANCE;
-
+    const is_Literal = meta.type == ObjectDescriptionType.OBJECT_LITERAL;
     for (let i = 0; i < meta.members.length; i++) {
         const m = meta.members[i];
-        if (is_instance) {
+        if (is_instance || is_Literal) {
             if (m.type == MemberType.FIELD) {
                 members[i] = new ShapeField(m.offset);
             } else if (m.methodOrAccessor) {
