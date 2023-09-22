@@ -1355,6 +1355,13 @@ export function shapeAssignCheck(left: ValueType, right: ValueType) {
                 */
                 if (left_member.isOptional && !right_member.isOptional)
                     return false;
+
+                if (
+                    left_member.valueType instanceof UnionType &&
+                    !(right_member.valueType instanceof UnionType)
+                ) {
+                    return false;
+                }
             }
         } else {
             /* e.g.

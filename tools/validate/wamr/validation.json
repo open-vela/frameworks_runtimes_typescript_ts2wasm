@@ -3630,6 +3630,11 @@
                 "name": "accessOptionalUnionField",
                 "args": [],
                 "result": "14:f64"
+            },
+            {
+                "name": "accessOptionalUnionField2",
+                "args": [],
+                "result": "true \nundefined \ntrue \n10 \n10 \n11 \n11 \n10 \n11 \n10"
             }
         ]
     },
