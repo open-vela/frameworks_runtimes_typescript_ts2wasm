@@ -2890,6 +2890,16 @@
         ]
     },
     {
+        "module": "op_ref_type",
+        "entries": [
+            {
+                "name": "judgeIsRefNull",
+                "args": [],
+                "result": "both find \nat least one found \nno found"
+            }
+        ]
+    },
+    {
         "module": "optional_param",
         "entries": [
             {

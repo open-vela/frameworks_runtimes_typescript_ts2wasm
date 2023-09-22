@@ -1103,6 +1103,30 @@ export namespace FunctionalFuncs {
                     rightExprRef,
                 );
             }
+            case ts.SyntaxKind.AmpersandAmpersandToken:
+            case ts.SyntaxKind.BarBarToken: {
+                const leftIsValidRef = module.i32.eqz(
+                    binaryenCAPI._BinaryenRefIsNull(module.ptr, leftExprRef),
+                );
+                const rightIsValidRef = module.i32.eqz(
+                    binaryenCAPI._BinaryenRefIsNull(module.ptr, rightExprRef),
+                );
+                if (operatorKind == ts.SyntaxKind.AmpersandAmpersandToken) {
+                    return module.select(
+                        leftIsValidRef,
+                        rightIsValidRef,
+                        leftIsValidRef,
+                        binaryen.i32,
+                    );
+                } else {
+                    return module.select(
+                        leftIsValidRef,
+                        leftIsValidRef,
+                        rightIsValidRef,
+                        binaryen.i32,
+                    );
+                }
+            }
             default:
                 throw new UnimplementError(
                     `operator doesn't support, ${operatorKind}`,
@@ -1430,7 +1454,7 @@ export namespace FunctionalFuncs {
         const needNumberOp = module.select(
             judgeRealType(module, leftValueRef, ValueTypeKind.NUMBER),
             judgeRealType(module, rightValueRef, ValueTypeKind.NUMBER),
-            judgeRealType(module, rightValueRef, ValueTypeKind.NUMBER),
+            judgeRealType(module, leftValueRef, ValueTypeKind.NUMBER),
         );
 
         const ifFalseRef = module.unreachable();
