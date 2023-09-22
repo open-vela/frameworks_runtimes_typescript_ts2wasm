@@ -14,9 +14,9 @@ const logConfig = {
         console: {
             type: 'console',
         },
-        file: {
+        traceFile: {
             type: 'file',
-            filename: `${path.join(logDir, 'output.log')}`,
+            filename: `${path.join(logDir, 'trace.log')}`,
             backups: 3,
         },
         errorFile: {
@@ -24,7 +24,7 @@ const logConfig = {
             filename: `${path.join(logDir, 'error.log')}`,
             backups: 3,
         },
-        errors: {
+        filterFile: {
             type: 'logLevelFilter',
             level: 'ERROR',
             appender: 'errorFile',
@@ -32,8 +32,12 @@ const logConfig = {
     },
     categories: {
         default: {
-            appenders: ['file', 'errors'],
-            level: 'debug',
+            appenders: ['traceFile', 'filterFile'],
+            level: 'trace',
+        },
+        production: {
+            appenders: ['filterFile'],
+            level: 'error',
         },
         console: {
             appenders: ['console'],
