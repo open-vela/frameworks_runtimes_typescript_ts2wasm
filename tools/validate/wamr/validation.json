@@ -3812,5 +3812,20 @@
                 "result": "5 \n20 \n30 \n4 \n20 \n3 \n4 \nA20 \nA30 \n3 \nA20 \nA2 \n8 \n2 \nA3 \nA1"
             }
         ]
+    },
+    {
+        "module": "enum",
+        "entries": [
+            {
+                "name": "digitEnum",
+                "args": [],
+                "result": "0"
+            },
+            {
+                "name": "stringEnum",
+                "args": [],
+                "result": "red"
+            }
+        ]
     }
 ]
