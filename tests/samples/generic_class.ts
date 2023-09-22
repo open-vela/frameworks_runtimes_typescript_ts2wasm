@@ -184,3 +184,18 @@ export function test_GenericClassWithImplementsInfc() {
     console.log(generic_class.iGet());
     console.log(generic_class.echo('111'));
 }
+
+type MyObject<T, U> = {
+    a: T;
+    b: U;
+}
+
+export function test_GenericClassWithTypeAlias() {
+    const obj1: MyObject<string, number> = {a: 'John', b: 18};
+    console.log(obj1.a);
+    console.log(obj1.b);
+
+    const obj2: MyObject<number, boolean> = {a: 123, b: true};
+    console.log(obj2.a);
+    console.log(obj2.b);
+}
