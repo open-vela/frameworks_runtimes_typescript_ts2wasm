@@ -589,7 +589,8 @@ export class WASMExpressionGen {
         }
         if (
             leftValueType.kind === ValueTypeKind.NUMBER &&
-            rightValueType.kind === ValueTypeKind.BOOLEAN
+            (rightValueType.kind === ValueTypeKind.BOOLEAN ||
+                rightValueType.kind === ValueTypeKind.INT)
         ) {
             return FunctionalFuncs.operateF64I32(
                 this.module,

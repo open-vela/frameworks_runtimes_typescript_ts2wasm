@@ -5,7 +5,7 @@
 
 import ts from 'typescript';
 import { Expression, IdentifierExpression } from './expression.js';
-import { TypeResolver, Type, TypeKind, TSFunction } from './type.js';
+import { TypeResolver, Type, TypeKind, TSFunction, TSEnum } from './type.js';
 import { ParserContext } from './frontend.js';
 import {
     addSourceMapLoc,
@@ -266,6 +266,9 @@ export class VariableScanner {
                 }
                 let variableType = currentScope.findType(typeName);
 
+                if (variableType instanceof TSEnum) {
+                    variableType = variableType.memberType;
+                }
                 /* Sometimes the variable's type is inferred as a TSFunction with
                     isDeclare == true, we need to treat it as non declare function
                     here to keep the same calling convention for closure */
