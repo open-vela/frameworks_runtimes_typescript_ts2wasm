@@ -1147,6 +1147,12 @@ export class TypeResolver {
             return type_param!;
             //return builtinTypes.get('generic')!;
         }
+        if (!res && type.symbol && type.symbol.declarations) {
+            const typeDecl = type.symbol.declarations[0];
+            if (typeDecl.kind == ts.SyntaxKind.EnumDeclaration) {
+                res = this.parseEnumType(typeDecl as ts.EnumDeclaration);
+            }
+        }
         if (!res && type.isUnion()) {
             res = this.parseUnionType(type);
         }

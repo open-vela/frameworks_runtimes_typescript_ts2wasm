@@ -1157,6 +1157,13 @@ export namespace FunctionalFuncs {
                     binaryen.f64,
                 );
             }
+            case ts.SyntaxKind.EqualsEqualsToken:
+            case ts.SyntaxKind.EqualsEqualsEqualsToken: {
+                return module.f64.eq(
+                    convertTypeToF64(module, leftValueRef),
+                    convertTypeToF64(module, rightValueRef),
+                );
+            }
             default:
                 throw new UnimplementError(
                     `operator doesn't support, ${opKind}`,
