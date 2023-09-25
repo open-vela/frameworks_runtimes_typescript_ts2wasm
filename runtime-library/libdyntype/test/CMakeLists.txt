@@ -10,7 +10,7 @@ project(unittest)
 set (CMAKE_CXX_STANDARD 14)
 
 set (UNITTEST_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR})
-set (QJS_ROOT_DIR ${UNITTEST_ROOT_DIR}/../)
+set (LIBDYNTYPE_ROOT_DIR ${UNITTEST_ROOT_DIR}/..)
 
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -46,22 +46,21 @@ add_custom_command(OUTPUT cov-display
 )
 add_custom_target(cov-test DEPENDS cov-display)
 
-if (DEFINED UNITTEST_USE_SANITIZER)
+if (UNITTEST_USE_SANITIZER EQUAL 1)
     message("Sanitizer enabled")
-    if (UNITTEST_USE_SANITIZER EQUAL 1)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=signed-integer-overflow  \
-                          -fsanitize=undefined -fsanitize=address  \
-                          -fno-sanitize=bounds,bounds-strict,alignment \
-                          -fno-sanitize-recover")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=signed-integer-overflow  \
-                          -fsanitize=undefined -fsanitize=address  \
-                          -fno-sanitize=bounds,bounds-strict,alignment \
-                          -fno-sanitize-recover")
-    endif ()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=signed-integer-overflow  \
+                        -fsanitize=undefined -fsanitize=address  \
+                        -fno-sanitize=bounds,bounds-strict,alignment \
+                        -fno-sanitize-recover")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=signed-integer-overflow  \
+                        -fsanitize=undefined -fsanitize=address  \
+                        -fno-sanitize=bounds,bounds-strict,alignment \
+                        -fno-sanitize-recover")
 endif ()
 
-add_subdirectory(${QJS_ROOT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/libdyntype)
-include_directories(${QJS_ROOT_DIR})
+include(${LIBDYNTYPE_ROOT_DIR}/../wamr_config.cmake)
+add_subdirectory(${LIBDYNTYPE_ROOT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/libdyntype)
+include_directories(${LIBDYNTYPE_ROOT_DIR})
 add_executable(
     dyntype_test
     ${CMAKE_CURRENT_LIST_DIR}/types_test.cc

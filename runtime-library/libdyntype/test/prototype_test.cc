@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "dyntype.h"
+#include "libdyntype_export.h"
 #include <gtest/gtest.h>
 
 class PrototypeTest : public testing::Test {
@@ -26,7 +26,7 @@ TEST_F(PrototypeTest, prototype) {
     dyn_value_t obj1 = dyntype_new_object(ctx);
     EXPECT_NE(obj1, nullptr);
 
-    dyn_value_t prop1 = dyntype_new_string(ctx, name);
+    dyn_value_t prop1 = dyntype_new_string(ctx, name, strlen(name));
     EXPECT_NE(prop1, nullptr);
     EXPECT_EQ(dyntype_set_property(ctx, obj1, "name", prop1), DYNTYPE_SUCCESS);
     dyntype_release(ctx, prop1);

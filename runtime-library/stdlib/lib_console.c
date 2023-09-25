@@ -6,7 +6,7 @@
 #include "gc_export.h"
 #include "bh_platform.h"
 #include "quickjs.h"
-#include "dyntype.h"
+#include "libdyntype_export.h"
 
 void *
 console_constructor(wasm_exec_env_t exec_env, void *obj)
@@ -17,7 +17,7 @@ console_constructor(wasm_exec_env_t exec_env, void *obj)
 void
 console_log(wasm_exec_env_t exec_env, void *thiz, void *obj)
 {
-    uint32 i, len;
+    uint32_t i, len;
     wasm_value_t wasm_array_data = { 0 }, wasm_array_len = { 0 };
     wasm_struct_obj_t arr_struct_ref;
     wasm_array_obj_t arr_ref;

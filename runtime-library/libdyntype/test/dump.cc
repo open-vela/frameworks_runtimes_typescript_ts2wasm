@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "dyntype.h"
+#include "libdyntype_export.h"
 #include <gtest/gtest.h>
 
 class DumpValueTest : public testing::Test {
@@ -49,7 +49,7 @@ TEST_F(DumpValueTest, dump_value) {
     // string
     testing::internal::CaptureStdout();
     // the output contains refer_count, output like "1`123456"
-    dyn_value_t str = dyntype_new_string(ctx, "123456");
+    dyn_value_t str = dyntype_new_string(ctx, "123456", strlen("123456"));
     dyntype_dump_value(ctx, str);
     const std::string output3 = testing::internal::GetCapturedStdout();
     EXPECT_STREQ(output3.c_str(), str_values[3]);

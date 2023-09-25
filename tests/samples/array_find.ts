@@ -30,3 +30,11 @@ export function array_find_string() {
     })
     console.log(element);  // hello
 }
+
+export function array_find_obj() {
+    let array = [{a: 1, b: false}, {a: 2, b: false}, {a: 3, b: true}];
+    let element = array.find((val, idx, arr) => {
+        return val.a == 3;
+    })!;
+    console.log(element.b); // true
+}

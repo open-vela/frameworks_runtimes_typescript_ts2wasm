@@ -3,7 +3,36 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
+#ifndef __TYPE_UTILS_H_
+#define __TYPE_UTILS_H_
+
 #include "gc_export.h"
+#include "gc_object.h"
+
+void
+dynamic_object_finalizer(wasm_anyref_obj_t obj, void *data);
+
+/* Convert host pointer to anyref */
+#define RETURN_BOX_ANYREF(ptr, dyn_ctx)                                        \
+    do {                                                                       \
+        wasm_anyref_obj_t any_obj =                                            \
+            (wasm_anyref_obj_t)wasm_anyref_obj_new(exec_env, ptr);             \
+        if (!any_obj) {                                                        \
+            wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env), \
+                                       "alloc memory failed");                 \
+            return NULL;                                                       \
+        }                                                                      \
+        wasm_obj_set_gc_finalizer(                                             \
+            exec_env, (wasm_obj_t)any_obj,                                     \
+            (wasm_obj_finalizer_t)dynamic_object_finalizer, dyn_ctx);          \
+        return any_obj;                                                        \
+    } while (0)
+
+#define BOX_ANYREF(ptr) wasm_anyref_obj_new(exec_env, ptr)
+
+/* Convert anyref to host pointer */
+#define UNBOX_ANYREF(anyref) \
+    (dyn_value_t) wasm_anyref_obj_get_value((wasm_anyref_obj_t)anyref)
 
 enum field_flag {
     FIELD = 0,
@@ -47,7 +76,7 @@ bool
 is_ts_array_type(wasm_module_t wasm_module, wasm_defined_type_t type);
 
 /* Helper to get common used fields */
-int
+uint32_t
 get_array_length(wasm_struct_obj_t obj);
 
 wasm_array_obj_t
@@ -68,6 +97,10 @@ get_array_type_by_element(wasm_module_t wasm_module,
 int32_t
 get_array_struct_type(wasm_module_t wasm_module, int32_t array_type_idx,
                       wasm_struct_type_t *p_struct_type);
+
+int32_t
+get_closure_struct_type(wasm_module_t wasm_module,
+                        wasm_struct_type_t *p_struct_type);
 
 wasm_struct_obj_t
 create_wasm_array_with_string(wasm_exec_env_t exec_env, void **ptr, uint32_t arrlen);
@@ -95,16 +128,15 @@ void *
 array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
                 void *separator);
 
-/* get obj's tag and ext table index if obj is an extref, store in obj_info */
-void
-get_dyn_obj_info(void *dyn_ctx, void *dyn_obj, uint32 *obj_info);
+typedef struct WasmArrayInfo {
+    wasm_array_obj_t ref;
+    wasm_ref_type_t element_type;
+    uint32_t lengh;
+} WasmArrayInfo;
 
-/* get static array's information, store in arr_info
- * return true if dyn_obj is an extref, else return false
- */
-bool
-get_static_array_info(wasm_exec_env_t exec_env, void *dyn_ctx, void *dyn_obj,
-                      int index, uint64 *arr_info);
+void
+get_static_array_info(wasm_exec_env_t exec_env, uint32_t tbl_idx,
+                      WasmArrayInfo *p_arr_info);
 
 /* get property of a struct
  * result: -2: not a static object, -1: error: else: static object index
@@ -133,6 +165,10 @@ get_object_field(wasm_exec_env_t exec_env,
 const char *
 get_str_from_string_struct(wasm_struct_obj_t obj);
 
+/* get str length from a string struct */
+uint32_t
+get_str_length_from_string_struct(wasm_struct_obj_t obj);
+
 /**
 * @brief get_array_element_type_with_index:
 * @param obj: array struct obj
@@ -151,7 +187,7 @@ get_array_element_i64_with_index(wasm_struct_obj_t obj, uint32_t idx,
                                  uint64 *val);
 int
 get_array_element_i32_with_index(wasm_struct_obj_t obj, uint32_t idx,
-                                 uint32 *val);
+                                 uint32_t *val);
 int
 get_array_element_anyref_with_index(wasm_struct_obj_t obj, uint32_t idx,
                                     void **val);
@@ -192,3 +228,5 @@ get_meta_fields_count(void *meta);
 const char *
 get_field_name_from_meta_index(wasm_exec_env_t exec_env, void *meta,
                                enum field_flag flag, uint32_t index);
+
+#endif /* end of __TYPE_UTILS_H_ */
