@@ -833,10 +833,8 @@ export class WASMExpressionGen {
         const trueValueRef = this.wasmExprGen(value.trueExpr);
         const falseValueRef = this.wasmExprGen(value.falseExpr);
         assert(
-            value.trueExpr.type.equals(value.falseExpr.type),
-            // TODO: to check why the type returned by binaryen is not equal
-            // binaryen.getExpressionType(trueValueRef) ===
-            //     binaryen.getExpressionType(falseValueRef),
+            binaryen.getExpressionType(trueValueRef) ===
+                binaryen.getExpressionType(falseValueRef),
             'trueWASMExprType and falseWASMExprType are not equal in conditional expression ',
         );
         return this.module.select(condValueRef, trueValueRef, falseValueRef);

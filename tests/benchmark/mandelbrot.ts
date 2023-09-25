@@ -72,7 +72,7 @@ function mandelbrot(
     }
 }
 
-function getData() {
+export function main() {
     const WIDTH = 1200;
     const HEIGHT = 800;
     const data: number[] = new Array(WIDTH * HEIGHT * 4);
@@ -86,5 +86,3 @@ function getData() {
         0.00029336,
     );
 }
-
-getData();
