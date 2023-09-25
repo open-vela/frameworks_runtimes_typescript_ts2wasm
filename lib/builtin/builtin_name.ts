@@ -116,7 +116,8 @@ export namespace BuiltinNames {
     export const stringtoUpperCaseFuncName = 'String|toUpperCase';
     export const stringtrimFuncName = 'String|trim';
     export const anyrefCond = 'anyrefCond';
-    export const newExternRef = 'newExtRef';
+    export const newExtRef = 'newExtRef';
+    export const allocExtRefTableSlot = 'allocExtRefTableSlot';
     export const extRefTableMaskArr = 'extRefTableMaskArr';
     export const percent = 'percent';
 

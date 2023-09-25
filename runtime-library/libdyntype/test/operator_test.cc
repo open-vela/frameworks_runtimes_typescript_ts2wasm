@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "dyntype.h"
+#include "libdyntype_export.h"
 #include <gtest/gtest.h>
 
 class OperatorTest : public testing::Test {
@@ -34,8 +34,8 @@ TEST_F(OperatorTest, typeof) {
     dyn_value_t undefined = dyntype_new_undefined(ctx);
     dyn_value_t null = dyntype_new_null(ctx);
     dyn_value_t obj = dyntype_new_object(ctx);
-    dyn_value_t str = dyntype_new_string(ctx, "string");
-    dyn_value_t array = dyntype_new_array(ctx);
+    dyn_value_t str = dyntype_new_string(ctx, "string", strlen("string"));
+    dyn_value_t array = dyntype_new_array(ctx, 0);
     dyn_value_t extref_obj = dyntype_new_extref(
         ctx, (void *)(uintptr_t)ext_data, external_ref_tag::ExtObj, NULL);
     dyn_value_t extref_func = dyntype_new_extref(
@@ -67,7 +67,7 @@ TEST_F(OperatorTest, type_eq) {
         dyntype_new_number(ctx, 2147483649),
         dyntype_new_boolean(ctx, true),
         dyntype_new_undefined(ctx),
-        dyntype_new_string(ctx, "string"),
+        dyntype_new_string(ctx, "string", strlen("string")),
         dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
                            external_ref_tag::ExtObj, NULL),
         dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
@@ -78,18 +78,19 @@ TEST_F(OperatorTest, type_eq) {
         dyntype_new_number(ctx, -10.00),
         dyntype_new_boolean(ctx, false),
         dyntype_new_undefined(ctx),
-        dyntype_new_string(ctx, "test"),
+        dyntype_new_string(ctx, "test", strlen("test")),
         dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
                            external_ref_tag::ExtObj, NULL),
         dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
                            external_ref_tag::ExtFunc, NULL),
         dyntype_new_null(ctx),
         dyntype_new_object(ctx),
-        dyntype_new_array(ctx)
+        dyntype_new_array(ctx, 0)
     };
 
     // they are all object type
-    dyn_value_t value3[] = {dyntype_new_null(ctx), dyntype_new_object(ctx), dyntype_new_array(ctx)};
+    dyn_value_t value3[] = { dyntype_new_null(ctx), dyntype_new_object(ctx),
+                             dyntype_new_array(ctx, 0) };
     uint32_t len1 = sizeof(value1) / sizeof(dyn_value_t);
     uint32_t len2 = sizeof(value2) / sizeof(dyn_value_t);
     uint32_t len3 = sizeof(value3) / sizeof(dyn_value_t);

@@ -261,6 +261,16 @@
                 "name": "anyFuncCallInMap",
                 "args": [],
                 "result": "10"
+            },
+            {
+                "name": "anyFuncCallWithCast",
+                "args": [],
+                "result": "Page class \n1"
+            },
+            {
+                "name": "anyFuncCallWithNoCast",
+                "args": [],
+                "result": "Page class \n1"
             }
         ]
     },
@@ -867,6 +877,11 @@
                 "name": "array_find_string",
                 "args": [],
                 "result": "hello"
+            },
+            {
+                "name": "array_find_obj",
+                "args": [],
+                "result": "true"
             }
         ]
     },

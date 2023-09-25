@@ -2,7 +2,27 @@
 
 ## Overview
 
-`libdyntype` is a library for supporting dynamic objects in WebAssembly. It provides APIs for creating, accessing and manipulating dynamic objects. The dynamic objects are represented as `externref` in WebAssembly, the actual memory space is created and managed by external environment.
+`libdyntype` is a library for supporting dynamic objects for WebAssembly. It provides APIs for creating, accessing and manipulating dynamic objects. The dynamic objects are represented as `externref` in WebAssembly, the actual memory space is created and managed by external environment.
+
+![](./img/libdyntype_any_object.excalidraw.png)
+
+The dynamic objects managed by `libdyntype` are called `any-object`, it can be divided into two categories:
+1. `pure dynamic type`: these objects are originally created from libdyntype.
+2. `extref`: these objects are created when some static objects are assigned to an `any-object`. It's still a dynamic object, but it has some special properties to store references to the static object.
+
+![](./img/libdyntype_type_category.excalidraw.png)
+
+For `extref`, there are two levels for the implementation:
+- level-1:
+    - Support creating `extref` when assigning static object to any-object, but can't access the static fields through libdyntype APIs, the `extref` must be cast back to static type before accessing.
+
+        > level-1 is not bound to a specific source language to be compiled to WebAssembly, libdyntype developer don't need to learn details of the language design and wasm runtime APIs.
+- level-2 (**mixed-type**):
+    - Based on level 1, additional support for accessing static fields through libdyntype APIs. Also support add new dynamic properties to the `extref`.
+
+        > level-2 is bound to a specific source language as well as the target wasm runtime, libdyntype developer must know:
+            - the object layout of the specific languages
+            - the wasm runtime APIs for accessing the fields of these static objects, or APIs for invoking wasm functions
 
 ## Dependent status
 
@@ -16,10 +36,6 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
     An opaque pointer provided by the libdyntype implementer, this pointer will be stored in application once startup, and passed to all APIs as the first argument. If the libdyntype implementation doesn't need a context, it can be `NULL`.
 
-- **thread-safety**
-
-    `libdyntype` assumes application are executed in a single thread environment, no thread safety is guaranteed.
-
 - **extref**
 
     In `ts2wasm-compiler` there are both static and dynamic types, if a statically-typed variable is assigned to an any-typed one, then the dynamic object actually hold a reference to the static world, this kind of object is called `extref`.
@@ -30,6 +46,10 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
     2. A reference to the static object, the reference is a table element index inside wasm table
 
     The actual representation of `extref` is implementer-defined, it doesn't need to be a new type. A possible representation is a normal `object` with specific fields to store the tag and reference to static object.
+
+- **thread-safety**
+
+    `libdyntype` assumes applications are executed in a single thread environment, no thread safety is guaranteed.
 
 - **WasmGC string**
 
@@ -122,14 +142,6 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_new_array**
     - **Description**
-        - Create a dynamic typed array
-    - **Parameters**
-        - `externref`: the dyntype context
-    - **Return**
-        - `externref`: the created array
-
-- **dyntype_new_array_with_length**
-    - **Description**
         - Create a dynamic typed array with length
     - **Parameters**
         - `externref`: the dyntype context
@@ -146,16 +158,6 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
         - `i32`: the reference to the static object (wasm table element index)
     - **Return**
         - `externref`: the created extref
-
-- **dyntype_add_elem**
-    - **Description**
-        - Add an element to the dynamic typed array
-    - **Parameters**
-        - `externref`: the dyntype context
-        - `externref`: the array
-        - `externref`: the element to be added
-    - **Return**
-        - None
 
 - **dyntype_set_elem**
     - **Description**
@@ -177,25 +179,6 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
         - `i32`: the index of the element to be get
     - **Return**
         - `externref`: the element
-
-- **dyntype_set_prototype**
-    - **Description**
-        - Set the prototype of the dynamic typed object
-    - **Parameters**
-        - `externref`: the dyntype context
-        - `externref`: the object
-        - `externref`: the prototype
-    - **Return**
-        - `i32`: result, 0 for success, -1 for failure
-
-- **dyntype_get_prototype**
-    - **Description**
-        - Get the prototype of the dynamic typed object
-    - **Parameters**
-        - `externref`: the dyntype context
-        - `externref`: the object
-    - **Return**
-        - `externref`: the prototype
 
 - **dyntype_set_property**
     - **Description**
@@ -322,6 +305,15 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
     - **Return**
         - `i32`: result, 1 if it is an array, 0 otherwise
 
+- **dyntype_is_function**
+    - **Description**
+        - Check if the dynamic typed value is a function
+    - **Parameters**
+        - `externref`: the dyntype context
+        - `externref`: the value
+    - **Return**
+        - `i32`: result, 1 if it is a function, 0 otherwise
+
 - **dyntype_is_extref**
     - **Description**
         - Check if the dynamic typed value is an extref
@@ -366,6 +358,15 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
         - `externref`: the extref value
     - **Return**
         - `i32`: the static object reference (wasm table element index)
+
+- **dyntype_is_exception**
+    - **Description**
+        - Check if the dynamic typed value is an exception
+    - **Parameters**
+        - `externref`: the dyntype context
+        - `externref`: the value
+    - **Return**
+        - `i32`: result, 1 if it is an exception, 0 otherwise
 
 - **dyntype_is_falsy**
     - **Description**
@@ -415,6 +416,25 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
     - **Return**
         - `i32`: the comparison result, 1 for true, 0 otherwise
 
+- **dyntype_set_prototype**
+    - **Description**
+        - Set the prototype of the dynamic typed object
+    - **Parameters**
+        - `externref`: the dyntype context
+        - `externref`: the object
+        - `externref`: the prototype
+    - **Return**
+        - `i32`: result, 0 for success, -1 for failure
+
+- **dyntype_get_prototype**
+    - **Description**
+        - Get the prototype of the dynamic typed object
+    - **Parameters**
+        - `externref`: the dyntype context
+        - `externref`: the object
+    - **Return**
+        - `externref`: the prototype
+
 - **dyntype_instanceof**
     - **Description**
         - Check if the dynamic typed value is an instance of the given value
@@ -444,15 +464,3 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
         - `i32`: global variable name (string)
     - **Return**
         - `externref`: the global variable
-
-- **invoke_func**
-    - **Description**
-        - Invoke a dynamic function
-    - **Parameters**
-        - `externref`: the dyntype context
-        - `externref`: the function
-        - `arrayref`: the arguments array
-    - **Return**
-        - `externref`: the return value
-
-> TODO: update name of this API

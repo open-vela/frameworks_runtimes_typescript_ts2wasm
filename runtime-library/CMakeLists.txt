@@ -42,17 +42,8 @@ set(QUICKJS_SOURCE
     ${QUICKJS_SRC_DIR}/quickjs.c)
 
 ## libdyntype
-set(LIBDYNTYPE_DIR ${CMAKE_CURRENT_LIST_DIR}/dyntype)
-set(LIBQUICKJS_IMPL_DIR ${LIBDYNTYPE_DIR}/dyntype_qjs_impl)
-
-include_directories(${LIBDYNTYPE_DIR})
-
-set(LIBDYNTYPE_SOURCE
-    ${LIBQUICKJS_IMPL_DIR}/context.c
-    ${LIBQUICKJS_IMPL_DIR}/fallback.c
-    ${LIBQUICKJS_IMPL_DIR}/object.c
-    ${LIBDYNTYPE_DIR}/lib_dyntype_wrapper.c
-)
+set(LIBDYNTYPE_DIR ${CMAKE_CURRENT_LIST_DIR}/libdyntype)
+include (${LIBDYNTYPE_DIR}/libdyntype.cmake)
 
 ## stdlib
 set(STDLIB_DIR ${CMAKE_CURRENT_LIST_DIR}/stdlib)
@@ -79,8 +70,12 @@ set(UTILS_DIR ${CMAKE_CURRENT_LIST_DIR}/utils)
 
 include_directories(${UTILS_DIR})
 
-set(UTILS_SOURCE
+set(TYPE_UTILS_SOURCE
     ${UTILS_DIR}/type_utils.c
+)
+
+set(OBJECT_UTILS_SOURCE
+    ${UTILS_DIR}/object_utils.c
 )
 
 set(WAMR_UTILS_SOURCE
@@ -97,10 +92,11 @@ include (${SHARED_DIR}/utils/uncommon/shared_uncommon.cmake)
 add_executable(iwasm_gc main.c
     ${UNCOMMON_SHARED_SOURCE}
     ${QUICKJS_SOURCE}
-    ${LIBDYNTYPE_SOURCE}
+    ${LIBDYNTYPE_SRC}
     ${STDLIB_SOURCE}
     ${STRUCT_INDIRECT_SOURCE}
-    ${UTILS_SOURCE}
+    ${TYPE_UTILS_SOURCE}
+    ${OBJECT_UTILS_SOURCE}
     ${WAMR_UTILS_SOURCE}
 )
 target_link_libraries (iwasm_gc vmlib -lm -ldl -lpthread)

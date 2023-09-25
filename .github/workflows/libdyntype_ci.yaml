@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: runtime-library/dyntype
+        working-directory: runtime-library/libdyntype
 
     steps:
       - uses: actions/checkout@v3

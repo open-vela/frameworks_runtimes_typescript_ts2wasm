@@ -133,13 +133,6 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.dyntype_new_array,
         dyntype.module_name,
         dyntype.dyntype_new_array,
-        dyntype.dyn_ctx_t,
-        dyntype.dyn_value_t,
-    );
-    module.addFunctionImport(
-        dyntype.dyntype_new_array_with_length,
-        dyntype.module_name,
-        dyntype.dyntype_new_array_with_length,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.int]),
         dyntype.dyn_value_t,
     );
@@ -321,13 +314,6 @@ export function importAnyLibAPI(module: binaryen.Module) {
             : stringTypeInfo.typeRef,
     );
     module.addFunctionImport(
-        dyntype.dyntype_free_cstring,
-        dyntype.module_name,
-        dyntype.dyntype_free_cstring,
-        binaryen.createType([dyntype.dyn_ctx_t, dyntype.pointer]),
-        dyntype.cvoid,
-    );
-    module.addFunctionImport(
         dyntype.dyntype_is_falsy,
         dyntype.module_name,
         dyntype.dyntype_is_falsy,
@@ -375,17 +361,6 @@ export function importAnyLibAPI(module: binaryen.Module) {
         dyntype.dyntype_get_global,
         binaryen.createType([dyntype.dyn_ctx_t, dyntype.pointer]),
         dyntype.dyn_value_t,
-    );
-    module.addFunctionImport(
-        dyntype.invoke_func,
-        dyntype.module_name,
-        dyntype.invoke_func,
-        binaryen.createType([
-            binaryen.anyref,
-            binaryen.anyref,
-            binaryen.anyref,
-        ]),
-        binaryen.anyref,
     );
 }
 

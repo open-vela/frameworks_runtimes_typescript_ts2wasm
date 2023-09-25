@@ -6,10 +6,10 @@
 export function immediateResolveWithNoArg() {
     const promiseInst: any = Promise.resolve();
     promiseInst.then(
-        () => {
+        (value: any) => {
             console.log('then_onFulfilled_func');
         },
-        () => {
+        (reason: any) => {
             console.log('then_onRejected_func');
         },
     );
@@ -29,10 +29,10 @@ export function immediateResolveWithArg() {
 
 export function immediateReject() {
     Promise.reject().then(
-        () => {
+        (value: any) => {
             console.log('then_onFulfilled_func');
         },
-        () => {
+        (reason: any) => {
             console.log('then_onRejected_func');
         },
     );

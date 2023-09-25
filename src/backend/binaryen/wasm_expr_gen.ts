@@ -1210,9 +1210,10 @@ export class WASMExpressionGen {
         const anyFuncRef = this.wasmExprGen(value.anyFunc);
         const argStruct = this.generateArgStruct(value.parameters);
         return this.module.call(
-            dyntype.invoke_func,
+            dyntype.dyntype_invoke,
             [
                 FunctionalFuncs.getDynContextRef(this.module),
+                this.module.i32.const(0),
                 anyFuncRef,
                 argStruct,
             ],
