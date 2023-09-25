@@ -5,7 +5,7 @@
 
 import minimist from 'minimist';
 import cp from 'child_process';
-import fs, { constants } from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ParserContext } from '../src/frontend.js';
@@ -225,7 +225,7 @@ function main() {
         for (let i = 0; i < args._.length; i++) {
             const arg = args._[i];
             if (typeof arg === 'string' && fs.statSync(arg).isFile()) {
-                fs.accessSync(arg, constants.R_OK);
+                fs.accessSync(arg, fs.constants.R_OK);
                 sourceFileList.push(arg);
             } else {
                 params.push(arg);
