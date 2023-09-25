@@ -117,25 +117,6 @@ export namespace UtilFuncs {
         );
     }
 
-    export function getClassNameByTypeKind(typeKind: TypeKind): string {
-        switch (typeKind) {
-            case TypeKind.BOOLEAN:
-                return BuiltinNames.BOOLEAN;
-            case TypeKind.NUMBER:
-                return BuiltinNames.NUMBER;
-            case TypeKind.FUNCTION:
-                return BuiltinNames.FUNCTION;
-            case TypeKind.STRING:
-                return BuiltinNames.STRING;
-            case TypeKind.ARRAY:
-                return BuiltinNames.ARRAY;
-            default:
-                throw new UnimplementError(
-                    'unimplement type class: ${typeKind}',
-                );
-        }
-    }
-
     export function isSupportedStringOP(opKind: ts.SyntaxKind) {
         switch (opKind) {
             case ts.SyntaxKind.ExclamationEqualsToken:
@@ -222,26 +203,9 @@ export namespace FunctionalFuncs {
     ): binaryen.ExpressionRef {
         switch (typeKind) {
             case ValueTypeKind.NUMBER:
-                // case ValueTypeKind.WASM_F64:
                 return defaultValue ? defaultValue : module.f64.const(0);
             case ValueTypeKind.BOOLEAN:
-                // case ValueTypeKind.WASM_I32:
                 return defaultValue ? defaultValue : module.i32.const(0);
-            // case ValueTypeKind.WASM_F32:
-            //     return module.f32.const(0);
-            // case ValueTypeKind.WASM_I64:
-            //     return module.i64.const(0, 0);
-            // case ValueTypeKind.UNDEFINED:
-            //     return generateDynUndefined(module);
-            // case ValueTypeKind.UNION:
-            //     if (isUnionWithUndefined(type)) {
-            //         return generateDynUndefined(module);
-            //     } else {
-            //         return binaryenCAPI._BinaryenRefNull(
-            //             module.ptr,
-            //             binaryenCAPI._BinaryenTypeStructref(),
-            //         );
-            //     }
             default:
                 return binaryenCAPI._BinaryenRefNull(
                     module.ptr,
