@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "dyntype.h"
+#include "libdyntype_export.h"
 #include "type.h"
 
 extern JSValue *
-dyntype_dup_value(JSContext *ctx, JSValue value);
+dynamic_dup_value(JSContext *ctx, JSValue value);
 
 /******************* builtin type compare *******************/
 static inline bool
@@ -189,6 +189,7 @@ WasmCallBackDataForJS(JSContext *ctx, JSValueConst this_obj, int argc,
     dyn_value_t *args = NULL;
     dyn_value_t this_dyn_obj = NULL;
     uint64_t total_size;
+    dyntype_callback_dispatcher_t cb_dispatcher = NULL;
 
     total_size = sizeof(dyn_value_t) * argc;
     args = malloc(total_size);
@@ -198,14 +199,19 @@ WasmCallBackDataForJS(JSContext *ctx, JSValueConst this_obj, int argc,
     }
 
     for (int i = 0; i < argc; i++) {
-        args[i] = dyntype_dup_value(ctx, *(argv + i));
+        args[i] = dynamic_dup_value(ctx, *(argv + i));
     }
-    this_dyn_obj = dyntype_dup_value(ctx, this_obj);
+    this_dyn_obj = dynamic_dup_value(ctx, this_obj);
 
-    if (dyntype_ctx->cb_dispatcher) {
-        dyn_value_t res_boxed = dyntype_ctx->cb_dispatcher(
+    cb_dispatcher = dyntype_get_callback_dispatcher();
+    if (cb_dispatcher) {
+        dyn_value_t res_boxed = cb_dispatcher(
             exec_env, dyntype_ctx, vfunc, this_dyn_obj, argc, args);
-        ret = JS_DupValue(ctx, *(JSValue *)(res_boxed));
+        ret = *(JSValue *)(res_boxed);
+        if (res_boxed != dyntype_ctx->js_undefined
+            && res_boxed != dyntype_ctx->js_null) {
+            js_free(dyntype_ctx->js_ctx, res_boxed);
+        }
     }
     else {
         ret = JS_ThrowInternalError(
@@ -246,73 +252,63 @@ new_function_wrapper(dyn_ctx_t ctx, void *vfunc, void *opaque)
 /******************* Field access *******************/
 
 dyn_value_t
-dyntype_new_number(dyn_ctx_t ctx, double value)
+dynamic_new_number(dyn_ctx_t ctx, double value)
 {
     JSValue v = JS_NewFloat64(ctx->js_ctx, value);
-    return dyntype_dup_value(ctx->js_ctx, v);
+    return dynamic_dup_value(ctx->js_ctx, v);
 }
 
 dyn_value_t
-dyntype_new_boolean(dyn_ctx_t ctx, bool value)
+dynamic_new_boolean(dyn_ctx_t ctx, bool value)
 {
     JSValue v = JS_NewBool(ctx->js_ctx, value);
-    return dyntype_dup_value(ctx->js_ctx, v);
+    return dynamic_dup_value(ctx->js_ctx, v);
 }
 
 dyn_value_t
-dyntype_new_string(dyn_ctx_t ctx, const char *str)
-{
-    JSValue v = JS_NewString(ctx->js_ctx, str);
-    if (JS_IsException(v)) {
-        return NULL;
-    }
-    return dyntype_dup_value(ctx->js_ctx, v);
-}
-
-dyn_value_t
-dyntype_new_string_with_length(dyn_ctx_t ctx, const char *str, int len)
+dynamic_new_string(dyn_ctx_t ctx, const char *str, int len)
 {
     JSValue v = JS_NewStringLen(ctx->js_ctx, str, len);
     if (JS_IsException(v)) {
         return NULL;
     }
-    return dyntype_dup_value(ctx->js_ctx, v);
+    return dynamic_dup_value(ctx->js_ctx, v);
 }
 
 dyn_value_t
-dyntype_new_undefined(dyn_ctx_t ctx)
+dynamic_new_undefined(dyn_ctx_t ctx)
 {
     return ctx->js_undefined;
 }
 
 dyn_value_t
-dyntype_new_null(dyn_ctx_t ctx)
+dynamic_new_null(dyn_ctx_t ctx)
 {
     return ctx->js_null;
 }
 
 dyn_value_t
-dyntype_new_object(dyn_ctx_t ctx)
+dynamic_new_object(dyn_ctx_t ctx)
 {
     JSValue v = JS_NewObject(ctx->js_ctx);
     if (JS_IsException(v)) {
         return NULL;
     }
-    return dyntype_dup_value(ctx->js_ctx, v);
+    return dynamic_dup_value(ctx->js_ctx, v);
 }
 
 dyn_value_t
-dyntype_parse_json(dyn_ctx_t ctx, const char *str)
+dynamic_parse_json(dyn_ctx_t ctx, const char *str)
 {
     JSValue v = JS_ParseJSON(ctx->js_ctx, str, strlen(str), NULL);
     if (JS_IsException(v)) {
         return NULL;
     }
-    return dyntype_dup_value(ctx->js_ctx, v);
+    return dynamic_dup_value(ctx->js_ctx, v);
 }
 
 dyn_value_t
-dyntype_new_array_with_length(dyn_ctx_t ctx, int len)
+dynamic_new_array_with_length(dyn_ctx_t ctx, int len)
 {
     JSValue v = JS_NewArray(ctx->js_ctx);
     if (JS_IsException(v)) {
@@ -324,17 +320,17 @@ dyntype_new_array_with_length(dyn_ctx_t ctx, int len)
         set_array_length1(ctx->js_ctx, JS_VALUE_GET_OBJ(v), vlen, 0);
     }
 
-    return dyntype_dup_value(ctx->js_ctx, v);
+    return dynamic_dup_value(ctx->js_ctx, v);
 }
 
 dyn_value_t
-dyntype_new_array(dyn_ctx_t ctx)
+dynamic_new_array(dyn_ctx_t ctx)
 {
-    return dyntype_new_array_with_length(ctx, 0);
+    return dynamic_new_array_with_length(ctx, 0);
 }
 
 dyn_value_t
-dyntype_get_global(dyn_ctx_t ctx, const char *name)
+dynamic_get_global(dyn_ctx_t ctx, const char *name)
 {
     JSAtom atom = find_atom(ctx->js_ctx, name);
     JSValue global_var = JS_GetGlobalVar(ctx->js_ctx, atom, true);
@@ -343,11 +339,11 @@ dyntype_get_global(dyn_ctx_t ctx, const char *name)
         return NULL;
     }
     JS_FreeAtom(ctx->js_ctx, atom);
-    return dyntype_dup_value(ctx->js_ctx, global_var);
+    return dynamic_dup_value(ctx->js_ctx, global_var);
 }
 
 dyn_value_t
-dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
+dynamic_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
                               dyn_value_t *args)
 {
     JSValue obj;
@@ -376,7 +372,7 @@ dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
     obj = JS_CallConstructorInternal(ctx->js_ctx, global_var, global_var, argc,
                                      argv, 0);
 
-    res = dyntype_dup_value(ctx->js_ctx, obj);
+    res = dynamic_dup_value(ctx->js_ctx, obj);
 
 end:
     JS_FreeAtom(ctx->js_ctx, atom);
@@ -390,7 +386,7 @@ end:
 }
 
 dyn_value_t
-dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, void *opaque)
+dynamic_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, void *opaque)
 {
     JSValue tag_v, ref_v, v;
 
@@ -413,11 +409,11 @@ dyntype_new_extref(dyn_ctx_t ctx, void *ptr, external_ref_tag tag, void *opaque)
     ref_v = JS_NewInt32(ctx->js_ctx, (int32_t)(uintptr_t)ptr);
     JS_SetPropertyStr(ctx->js_ctx, v, "@tag", tag_v);
     JS_SetPropertyStr(ctx->js_ctx, v, "@ref", ref_v);
-    return dyntype_dup_value(ctx->js_ctx, v);
+    return dynamic_dup_value(ctx->js_ctx, v);
 }
 
 int
-dyntype_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem)
+dynamic_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem)
 {
     JSValue *obj_ptr = (JSValue *)obj;
     JSValue *elem_ptr = (JSValue *)elem;
@@ -439,7 +435,7 @@ dyntype_set_elem(dyn_ctx_t ctx, dyn_value_t obj, int index, dyn_value_t elem)
 }
 
 dyn_value_t
-dyntype_get_elem(dyn_ctx_t ctx, dyn_value_t obj, int index)
+dynamic_get_elem(dyn_ctx_t ctx, dyn_value_t obj, int index)
 {
     JSValue val;
     JSValue *obj_ptr = (JSValue *)obj;
@@ -447,16 +443,16 @@ dyntype_get_elem(dyn_ctx_t ctx, dyn_value_t obj, int index)
         return NULL;
     }
     if (index < 0)
-        return dyntype_new_undefined(ctx);
+        return dynamic_new_undefined(ctx);
     val = JS_GetPropertyUint32(ctx->js_ctx, *obj_ptr, index);
     if (JS_IsException(val)) {
         return NULL;
     }
-    return dyntype_dup_value(ctx->js_ctx, val);
+    return dynamic_dup_value(ctx->js_ctx, val);
 }
 
 int
-dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
+dynamic_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
                      dyn_value_t value)
 {
     int ret;
@@ -475,7 +471,7 @@ dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
 }
 
 int
-dyntype_define_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
+dynamic_define_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
                         dyn_value_t desc)
 {
     JSValue *obj_ptr = (JSValue *)obj;
@@ -500,7 +496,7 @@ dyntype_define_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
 }
 
 dyn_value_t
-dyntype_get_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
+dynamic_get_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
 {
     JSValue *obj_ptr = (JSValue *)obj;
     if (!JS_IsObject(*obj_ptr)) {
@@ -510,12 +506,12 @@ dyntype_get_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
     if (JS_IsException(val)) {
         return NULL;
     }
-    JSValue *ptr = dyntype_dup_value(ctx->js_ctx, val);
+    JSValue *ptr = dynamic_dup_value(ctx->js_ctx, val);
     return ptr;
 }
 
 int
-dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
+dynamic_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
 {
     int res;
     JSAtom atom;
@@ -538,12 +534,12 @@ dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
 }
 
 int
-dyntype_delete_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
+dynamic_delete_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
 {
     JSValue *obj_ptr = (JSValue *)obj;
     JSAtom atom;
 
-    if (dyntype_has_property(ctx, obj, prop) != DYNTYPE_TRUE) {
+    if (dynamic_has_property(ctx, obj, prop) != DYNTYPE_TRUE) {
         return -DYNTYPE_FALSE;
     }
 
@@ -563,28 +559,28 @@ dyntype_delete_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
 /******************* Runtime type checking *******************/
 
 bool
-dyntype_is_undefined(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_is_undefined(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *ptr = (JSValue *)obj;
     return (bool)JS_IsUndefined(*ptr);
 }
 
 bool
-dyntype_is_null(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_is_null(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *ptr = (JSValue *)obj;
     return (bool)JS_IsNull(*ptr);
 }
 
 bool
-dyntype_is_bool(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_is_bool(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *ptr = (JSValue *)obj;
     return (bool)JS_IsBool(*ptr);
 }
 
 int
-dyntype_to_bool(dyn_ctx_t ctx, dyn_value_t bool_obj, bool *pres)
+dynamic_to_bool(dyn_ctx_t ctx, dyn_value_t bool_obj, bool *pres)
 {
     JSValue *ptr = (JSValue *)bool_obj;
     if (!JS_IsBool(*ptr)) {
@@ -595,14 +591,14 @@ dyntype_to_bool(dyn_ctx_t ctx, dyn_value_t bool_obj, bool *pres)
 }
 
 bool
-dyntype_is_number(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_is_number(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *ptr = (JSValue *)obj;
     return (bool)JS_IsNumber(*ptr);
 }
 
 int
-dyntype_to_number(dyn_ctx_t ctx, dyn_value_t obj, double *pres)
+dynamic_to_number(dyn_ctx_t ctx, dyn_value_t obj, double *pres)
 {
     JSValue *ptr = (JSValue *)obj;
     if (!JS_IsNumber(*ptr)) {
@@ -614,14 +610,14 @@ dyntype_to_number(dyn_ctx_t ctx, dyn_value_t obj, double *pres)
 }
 
 bool
-dyntype_is_string(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_is_string(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *ptr = (JSValue *)obj;
     return JS_IsString(*ptr);
 }
 
 int
-dyntype_to_cstring(dyn_ctx_t ctx, dyn_value_t str_obj, char **pres)
+dynamic_to_cstring(dyn_ctx_t ctx, dyn_value_t str_obj, char **pres)
 {
     JSValue *ptr = (JSValue *)str_obj;
     *pres = (char *)JS_ToCString(ctx->js_ctx, *ptr);
@@ -632,55 +628,55 @@ dyntype_to_cstring(dyn_ctx_t ctx, dyn_value_t str_obj, char **pres)
 }
 
 void
-dyntype_free_cstring(dyn_ctx_t ctx, char *str)
+dynamic_free_cstring(dyn_ctx_t ctx, char *str)
 {
     JS_FreeCString(ctx->js_ctx, (const char *)str);
 }
 
 bool
-dyntype_is_object(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_is_object(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *ptr = (JSValue *)obj;
     return (bool)JS_IsObject(*ptr);
 }
 
 bool
-dyntype_is_function(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_is_function(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *ptr = (JSValue *)obj;
     return (bool)JS_IsFunction(ctx->js_ctx, *ptr);
 }
 
 bool
-dyntype_is_array(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_is_array(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *ptr = (JSValue *)obj;
     return (bool)JS_IsArray(ctx->js_ctx, *ptr);
 }
 
 bool
-dyntype_is_extref(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_is_extref(dyn_ctx_t ctx, dyn_value_t obj)
 {
-    if (!dyntype_is_object(ctx, obj)) {
+    if (!dynamic_is_object(ctx, obj)) {
         return false;
     }
-    return dyntype_has_property(ctx, obj, "@tag") == DYNTYPE_TRUE ? true
+    return dynamic_has_property(ctx, obj, "@tag") == DYNTYPE_TRUE ? true
                                                                   : false;
 }
 
 int
-dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres)
+dynamic_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres)
 {
     JSValue *ref_v;
     JSValue *tag_v;
     int tag;
 
-    if (dyntype_is_extref(ctx, obj) == DYNTYPE_FALSE) {
+    if (dynamic_is_extref(ctx, obj) == DYNTYPE_FALSE) {
         return -DYNTYPE_TYPEERR;
     }
 
-    tag_v = dyntype_get_property(ctx, obj, "@tag");
-    ref_v = dyntype_get_property(ctx, obj, "@ref");
+    tag_v = dynamic_get_property(ctx, obj, "@tag");
+    ref_v = dynamic_get_property(ctx, obj, "@ref");
     *pres = (void *)(uintptr_t)JS_VALUE_GET_INT(*ref_v);
 
     tag = JS_VALUE_GET_INT(*tag_v);
@@ -692,41 +688,41 @@ dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres)
 }
 
 bool
-dyntype_is_exception(dyn_ctx_t ctx, dyn_value_t value)
+dynamic_is_exception(dyn_ctx_t ctx, dyn_value_t value)
 {
     JSValue *ptr = (JSValue *)value;
     return (bool)JS_IsException(*ptr);
 }
 
 bool
-dyntype_is_falsy(dyn_ctx_t ctx, dyn_value_t value)
+dynamic_is_falsy(dyn_ctx_t ctx, dyn_value_t value)
 {
     bool res;
 
-    if (dyntype_is_extref(ctx, value)) {
+    if (dynamic_is_extref(ctx, value)) {
         res = false;
     }
-    else if (dyntype_is_object(ctx, value)) {
+    else if (dynamic_is_object(ctx, value)) {
         res = false;
     }
-    else if (dyntype_is_undefined(ctx, value) || dyntype_is_null(ctx, value)) {
+    else if (dynamic_is_undefined(ctx, value) || dynamic_is_null(ctx, value)) {
         res = true;
     }
-    else if (dyntype_is_bool(ctx, value)) {
+    else if (dynamic_is_bool(ctx, value)) {
         bool b;
-        dyntype_to_bool(ctx, value, &b);
+        dynamic_to_bool(ctx, value, &b);
         res = !b;
     }
-    else if (dyntype_is_number(ctx, value)) {
+    else if (dynamic_is_number(ctx, value)) {
         double num;
-        dyntype_to_number(ctx, value, &num);
+        dynamic_to_number(ctx, value, &num);
         res = num == 0;
     }
-    else if (dyntype_is_string(ctx, value)) {
+    else if (dynamic_is_string(ctx, value)) {
         char *str;
-        dyntype_to_cstring(ctx, value, &str);
+        dynamic_to_cstring(ctx, value, &str);
         res = strcmp(str, "") == 0;
-        dyntype_free_cstring(ctx, str);
+        dynamic_free_cstring(ctx, str);
     }
     else {
         res = false;
@@ -737,14 +733,14 @@ dyntype_is_falsy(dyn_ctx_t ctx, dyn_value_t value)
 /******************* Type equivalence *******************/
 
 dyn_type_t
-dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_typeof(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValueConst *ptr = (JSValueConst *)obj;
 
-    if (dyntype_is_extref(ctx, obj)) {
+    if (dynamic_is_extref(ctx, obj)) {
         int tag;
         void *ref;
-        tag = dyntype_to_extref(ctx, obj, &ref);
+        tag = dynamic_to_extref(ctx, obj, &ref);
         if (tag == ExtObj) {
             return DynExtRefObj;
         }
@@ -762,13 +758,13 @@ dyntype_typeof(dyn_ctx_t ctx, dyn_value_t obj)
 }
 
 bool
-dyntype_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs)
+dynamic_type_eq(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs)
 {
-    return dyntype_typeof(ctx, lhs) == dyntype_typeof(ctx, rhs);
+    return dynamic_typeof(ctx, lhs) == dynamic_typeof(ctx, rhs);
 }
 
 bool
-dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs,
+dynamic_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs,
             cmp_operator operator_kind)
 {
     bool res;
@@ -783,22 +779,22 @@ dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs,
         }
     }
 
-    type = dyntype_typeof(ctx, lhs);
+    type = dynamic_typeof(ctx, lhs);
 
     switch (type) {
         case DynBoolean:
         {
             bool lhs_b = 0, rhs_b = 0;
-            dyntype_to_bool(ctx, lhs, &lhs_b);
-            dyntype_to_bool(ctx, rhs, &rhs_b);
+            dynamic_to_bool(ctx, lhs, &lhs_b);
+            dynamic_to_bool(ctx, rhs, &rhs_b);
             res = bool_cmp(lhs_b, rhs_b, operator_kind);
             break;
         }
         case DynNumber:
         {
             double lhs_n = 0, rhs_n = 0;
-            dyntype_to_number(ctx, lhs, &lhs_n);
-            dyntype_to_number(ctx, rhs, &rhs_n);
+            dynamic_to_number(ctx, lhs, &lhs_n);
+            dynamic_to_number(ctx, rhs, &rhs_n);
             res = number_cmp(lhs_n, rhs_n, operator_kind);
             break;
         }
@@ -828,11 +824,11 @@ dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs,
         case DynString:
         {
             char *lhs_s, *rhs_s;
-            dyntype_to_cstring(ctx, lhs, &lhs_s);
-            dyntype_to_cstring(ctx, rhs, &rhs_s);
+            dynamic_to_cstring(ctx, lhs, &lhs_s);
+            dynamic_to_cstring(ctx, rhs, &rhs_s);
             res = string_cmp(lhs_s, rhs_s, operator_kind);
-            dyntype_free_cstring(ctx, lhs_s);
-            dyntype_free_cstring(ctx, rhs_s);
+            dynamic_free_cstring(ctx, lhs_s);
+            dynamic_free_cstring(ctx, rhs_s);
             break;
         }
         case DynObject:
@@ -862,7 +858,7 @@ dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs,
 /******************* Subtyping *******************/
 
 dyn_value_t
-dyntype_new_object_with_proto(dyn_ctx_t ctx, const dyn_value_t proto_obj)
+dynamic_new_object_with_proto(dyn_ctx_t ctx, const dyn_value_t proto_obj)
 {
     JSValueConst *proto = (JSValueConst *)proto_obj;
     if (!JS_IsObject(*proto) && !JS_IsNull(*proto)) {
@@ -872,11 +868,11 @@ dyntype_new_object_with_proto(dyn_ctx_t ctx, const dyn_value_t proto_obj)
     if (JS_IsException(new_obj)) {
         return NULL;
     }
-    return dyntype_dup_value(ctx->js_ctx, new_obj);
+    return dynamic_dup_value(ctx->js_ctx, new_obj);
 }
 
 int
-dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
+dynamic_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
                       const dyn_value_t proto_obj)
 {
     JSValue *obj_ptr = (JSValue *)obj;
@@ -894,7 +890,7 @@ dyntype_set_prototype(dyn_ctx_t ctx, dyn_value_t obj,
 }
 
 dyn_value_t
-dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_get_prototype(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *obj_ptr = (JSValue *)obj;
     if (JS_VALUE_GET_TAG(*obj_ptr) == JS_TAG_NULL
@@ -905,12 +901,12 @@ dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj)
     if (JS_IsException(proto)) {
         return NULL;
     }
-    JSValue *proto1 = dyntype_dup_value(ctx->js_ctx, proto);
+    JSValue *proto1 = dynamic_dup_value(ctx->js_ctx, proto);
     return proto1;
 }
 
 dyn_value_t
-dyntype_get_own_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
+dynamic_get_own_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
 {
     JSValue *obj_ptr = (JSValue *)obj;
     if (JS_VALUE_GET_TAG(*obj_ptr) != JS_TAG_OBJECT) {
@@ -926,12 +922,12 @@ dyntype_get_own_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop)
     if (res != 1) {
         return NULL;
     }
-    JSValue *v = dyntype_dup_value(ctx->js_ctx, desc.value);
+    JSValue *v = dynamic_dup_value(ctx->js_ctx, desc.value);
     return v;
 }
 
 bool
-dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
+dynamic_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
                    const dyn_value_t dst_obj)
 {
     JSValue *src = (JSValue *)src_obj;
@@ -948,7 +944,7 @@ dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
 /******************* Dumping *******************/
 
 void
-dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_dump_value(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *v = (JSValue *)obj;
     const char *str;
@@ -968,7 +964,7 @@ dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj)
 }
 
 int
-dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer, int len)
+dynamic_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer, int len)
 {
     JSValue *v = (JSValue *)obj;
     int res = JS_DumpWithBuffer(ctx->js_rt, v, buffer, len);
@@ -976,27 +972,27 @@ dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer, int len)
 }
 
 static dyn_value_t
-dyntype_get_exception(dyn_ctx_t ctx)
+dynamic_get_exception(dyn_ctx_t ctx)
 {
     JSValue val = JS_GetException(ctx->js_ctx);
 
-    return dyntype_dup_value(ctx->js_ctx, val);
+    return dynamic_dup_value(ctx->js_ctx, val);
 }
 
 void
-dyntype_dump_error(dyn_ctx_t ctx)
+dynamic_dump_error(dyn_ctx_t ctx)
 {
     dyn_value_t error;
     JSValue val;
     BOOL is_error;
 
-    error = dyntype_get_exception(ctx);
+    error = dynamic_get_exception(ctx);
     is_error = JS_IsError(ctx->js_ctx, *(JSValue *)error);
-    dyntype_dump_value(ctx, error);
+    dynamic_dump_value(ctx, error);
     if (is_error) {
         val = JS_GetPropertyStr(ctx->js_ctx, *(JSValue *)error, "stack");
         if (!JS_IsUndefined(val)) {
-            dyntype_dump_value(ctx, dyntype_dup_value(ctx->js_ctx, val));
+            dynamic_dump_value(ctx, dynamic_dup_value(ctx->js_ctx, val));
         }
         JS_FreeValue(ctx->js_ctx, val);
     }
@@ -1005,18 +1001,18 @@ dyntype_dump_error(dyn_ctx_t ctx)
 /******************* Garbage collection *******************/
 
 dyn_value_t
-dyntype_hold(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_hold(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue *ptr = (JSValue *)obj;
     if (JS_VALUE_HAS_REF_COUNT(*ptr)) {
         JS_DupValue(ctx->js_ctx, *ptr);
     }
 
-    return dyntype_dup_value(ctx->js_ctx, *ptr);
+    return dynamic_dup_value(ctx->js_ctx, *ptr);
 }
 
 void
-dyntype_release(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_release(dyn_ctx_t ctx, dyn_value_t obj)
 {
     if (obj == NULL) {
         return;
@@ -1030,7 +1026,7 @@ dyntype_release(dyn_ctx_t ctx, dyn_value_t obj)
 }
 
 void
-dyntype_collect(dyn_ctx_t ctx)
+dynamic_collect(dyn_ctx_t ctx)
 {
     // TODO
 }
@@ -1038,7 +1034,7 @@ dyntype_collect(dyn_ctx_t ctx)
 /******************* Exception *******************/
 
 dyn_value_t
-dyntype_throw_exception(dyn_ctx_t ctx, dyn_value_t obj)
+dynamic_throw_exception(dyn_ctx_t ctx, dyn_value_t obj)
 {
     JSValue exception_obj;
     JSValue js_exception;
@@ -1046,5 +1042,5 @@ dyntype_throw_exception(dyn_ctx_t ctx, dyn_value_t obj)
     exception_obj = *(JSValue *)obj;
     js_exception = JS_Throw(ctx->js_ctx, exception_obj);
 
-    return dyntype_dup_value(ctx->js_ctx, js_exception);
+    return dynamic_dup_value(ctx->js_ctx, js_exception);
 }

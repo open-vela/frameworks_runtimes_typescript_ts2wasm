@@ -4,7 +4,6 @@
  */
 
 #include "gc_type.h"
-#include "bh_platform.h"
 
 static wasm_struct_obj_t
 check_struct_obj_type(wasm_exec_env_t exec_env, wasm_obj_t obj, int index,

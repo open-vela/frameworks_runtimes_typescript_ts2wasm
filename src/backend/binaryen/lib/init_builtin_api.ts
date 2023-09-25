@@ -3022,13 +3022,11 @@ function Array_isArray(module: binaryen.Module) {
     return module.block(null, statementArray);
 }
 
-/** to extref with runtime getting table index */
-function newExternRef(module: binaryen.Module) {
-    const objTagIdx = 1;
-    const objIdx = 2;
-    const tableIdx = 3;
-    const loopIdx = 4;
-    const tmpMaskArrIdx = 5;
+function allocExtRefTableSlot(module: binaryen.Module) {
+    const objIdx = 0;
+    const tableIdx = 1;
+    const loopIdx = 2;
+    const tmpMaskArrIdx = 3;
 
     const arrName = getBuiltInFuncName(BuiltinNames.extRefTableMaskArr);
     const maskArr = binaryenCAPI._BinaryenGlobalGet(
@@ -3165,6 +3163,25 @@ function newExternRef(module: binaryen.Module) {
             module.i32.const(1),
         ),
     );
+
+    stmts.push(module.return(module.local.get(tableIdx, binaryen.i32)));
+    return module.block(null, stmts);
+}
+
+/** to extref with runtime getting table index */
+function newExtRef(module: binaryen.Module) {
+    const _context_unused = 0;
+    const objTagIdx = 1;
+    const objIdx = 2;
+
+    /* alloc table slot */
+    const tableIdx = module.call(
+        getBuiltInFuncName(BuiltinNames.allocExtRefTableSlot),
+        [module.local.get(objIdx, binaryen.anyref)],
+        dyntype.int,
+    );
+
+    /* create extref */
     const call = module.call(
         dyntype.dyntype_new_extref,
         [
@@ -3173,14 +3190,13 @@ function newExternRef(module: binaryen.Module) {
                 getCString(dyntype.dyntype_context),
                 binaryen.anyref,
             ),
-            module.local.get(tableIdx, binaryen.i32),
+            tableIdx,
             module.local.get(objTagIdx, binaryen.i32),
         ],
         dyntype.dyn_value_t,
     );
-    stmts.push(module.return(call));
 
-    return module.block(null, stmts);
+    return module.return(call);
 }
 
 export function callBuiltInAPIs(module: binaryen.Module) {
@@ -3283,19 +3299,26 @@ export function callBuiltInAPIs(module: binaryen.Module) {
         anyrefCond(module),
     );
     module.addFunction(
-        getBuiltInFuncName(BuiltinNames.newExternRef),
+        getBuiltInFuncName(BuiltinNames.allocExtRefTableSlot),
+        binaryen.createType([binaryen.anyref]),
+        binaryen.i32,
+        [binaryen.i32, binaryen.i32, charArrayTypeInfo.typeRef],
+        allocExtRefTableSlot(module),
+    );
+    module.addFunction(
+        getBuiltInFuncName(BuiltinNames.newExtRef),
         binaryen.createType([
             dyntype.dyn_ctx_t,
             dyntype.external_ref_tag,
             binaryen.anyref,
         ]),
         binaryen.anyref,
-        [binaryen.i32, binaryen.i32, charArrayTypeInfo.typeRef],
-        newExternRef(module),
+        [],
+        newExtRef(module),
     );
     module.addFunctionExport(
-        getBuiltInFuncName(BuiltinNames.newExternRef),
-        BuiltinNames.newExternRef,
+        getBuiltInFuncName(BuiltinNames.allocExtRefTableSlot),
+        BuiltinNames.allocExtRefTableSlot,
     );
     /** string */
     if (getConfig().enableStringRef) {

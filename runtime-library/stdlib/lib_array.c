@@ -3,46 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "bh_common.h"
-#include "dyntype.h"
-#include "quickjs.h"
-#include "gc_export.h"
-#include "bh_platform.h"
+#include "object_utils.h"
 #include "type_utils.h"
-
-#include "gc_object.h"
-#include "wasm_export.h"
+#include "quickjs.h"
 
 /* When growing an array, allocate more slots to avoid frequent allocation */
 #define ARRAY_GROW_REDUNDANCE 16
 
-static void
-dynamic_object_finalizer(wasm_anyref_obj_t obj, void *data)
-{
-    dyn_value_t value = (dyn_value_t)wasm_anyref_obj_get_value(obj);
-    dyntype_release((dyn_ctx_t)data, value);
-}
-
-#define RETURN_BOX_ANYREF(ptr)                                                 \
-    do {                                                                       \
-        wasm_anyref_obj_t any_obj =                                            \
-            (wasm_anyref_obj_t)wasm_anyref_obj_new(exec_env, ptr);             \
-        if (!any_obj) {                                                        \
-            wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env), \
-                                       "alloc memory failed");                 \
-            return NULL;                                                       \
-        }                                                                      \
-        wasm_obj_set_gc_finalizer(                                             \
-            exec_env, (wasm_obj_t)any_obj,                                     \
-            (wasm_obj_finalizer_t)dynamic_object_finalizer,                    \
-            dyntype_get_context());                                            \
-        return any_obj;                                                        \
-    } while (0)
-
 double
 array_push_generic(wasm_exec_env_t exec_env, void *ctx, void *obj, void *value)
 {
-    uint32 len, value_len, capacity;
+    uint32_t len, value_len, capacity;
     wasm_array_type_t arr_type;
     wasm_array_obj_t new_arr;
     wasm_array_obj_t arr_ref = get_array_ref(obj);
@@ -59,7 +30,7 @@ array_push_generic(wasm_exec_env_t exec_env, void *ctx, void *obj, void *value)
         (wasm_array_type_t)wasm_obj_get_defined_type((wasm_obj_t)arr_ref);
     if (value_len >= capacity - len) {
         /* Current array space not enough, create new array */
-        uint32 new_len = len + value_len + ARRAY_GROW_REDUNDANCE;
+        uint32_t new_len = len + value_len + ARRAY_GROW_REDUNDANCE;
         new_arr =
             wasm_array_obj_new_with_type(exec_env, arr_type, new_len, &init);
         if (!new_arr) {
@@ -89,7 +60,7 @@ array_push_generic(wasm_exec_env_t exec_env, void *ctx, void *obj, void *value)
     return_type array_pop_##wasm_type(wasm_exec_env_t exec_env, void *ctx,     \
                                       void *obj)                               \
     {                                                                          \
-        uint32 len;                                                            \
+        uint32_t len;                                                            \
         return_type res;                                                       \
         wasm_array_obj_t arr_ref = get_array_ref(obj);                         \
         wasm_value_t value = { 0 };                                            \
@@ -146,7 +117,7 @@ void *
 array_concat_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                      void *value)
 {
-    uint32 len, value_len, new_length = 0;
+    uint32_t len, value_len, new_length = 0;
     wasm_array_type_t arr_type = NULL;
     wasm_array_obj_t new_arr = NULL;
     wasm_struct_type_t struct_type = NULL;
@@ -216,7 +187,7 @@ fail:
 void *
 array_reverse_generic(wasm_exec_env_t exec_env, void *ctx, void *obj)
 {
-    uint32 i, len;
+    uint32_t i, len;
     wasm_value_t value1 = { 0 }, value2 = { 0 };
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     len = get_array_length(obj);
@@ -239,7 +210,7 @@ array_reverse_generic(wasm_exec_env_t exec_env, void *ctx, void *obj)
     return_type array_shift_##wasm_type(wasm_exec_env_t exec_env, void *ctx,   \
                                         void *obj)                             \
     {                                                                          \
-        uint32 len;                                                            \
+        uint32_t len;                                                            \
         return_type res;                                                       \
         wasm_array_type_t arr_type;                                            \
         wasm_array_obj_t new_arr;                                              \
@@ -281,7 +252,7 @@ void *
 array_slice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                     void *start_obj, void *end_obj)
 {
-    uint32 i;
+    uint32_t i;
     int32 len, new_len, start, end;
     wasm_struct_obj_t new_arr_struct = NULL;
     wasm_array_obj_t new_arr, arr_ref = get_array_ref(obj);
@@ -361,9 +332,9 @@ quick_sort(wasm_exec_env_t exec_env, wasm_array_obj_t arr, int l, int r,
     int i = l - 1, j = r + 1, pivot_idx = (l + r) >> 1;
     double cmp_res;
     wasm_value_t pivot_elem, elem, tmp_elem, left_elem, right_elem;
-    uint32 argv[6], argc = 0, occupied_slots = 0;
-    uint32 argv_bytes = sizeof(argv), pointer_slots = sizeof(void *) / sizeof(uint32);
-    uint32 elem_size, elem_slot;
+    uint32_t argv[6], argc = 0, occupied_slots = 0;
+    uint32_t argv_bytes = sizeof(argv), pointer_slots = sizeof(void *) / sizeof(uint32);
+    uint32_t elem_size, elem_slot;
 
     if (l >= r)
         return;
@@ -440,7 +411,7 @@ void *
 array_sort_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                    void *closure)
 {
-    uint32 len;
+    uint32_t len;
     wasm_value_t context = { 0 }, func_obj = { 0 };
     wasm_array_obj_t arr_ref = get_array_ref(obj);
 
@@ -462,7 +433,7 @@ array_splice_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
 {
     double delete_count_double;
     int start_idx, delete_count;
-    uint32 len, capacity, value_len = 0, new_len = 0;
+    uint32_t len, capacity, value_len = 0, new_len = 0;
     wasm_array_type_t arr_type;
     wasm_array_obj_t new_arr, delete_arr;
     wasm_array_obj_t arr_ref = get_array_ref(obj);
@@ -595,7 +566,7 @@ double
 array_unshift_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                       void *value)
 {
-    uint32 len, value_len, capacity, new_length = 0;
+    uint32_t len, value_len, capacity, new_length = 0;
     wasm_array_type_t arr_type;
     wasm_array_obj_t new_arr;
     wasm_array_obj_t arr_ref = get_array_ref(obj);
@@ -621,7 +592,7 @@ array_unshift_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     }
     else if (value_len >= capacity - len) {
         /* Current array space not enough, create new array */
-        uint32 new_len = len + value_len + ARRAY_GROW_REDUNDANCE;
+        uint32_t new_len = len + value_len + ARRAY_GROW_REDUNDANCE;
         new_arr =
             wasm_array_obj_new_with_type(exec_env, arr_type, new_len, &init);
         if (!new_arr) {
@@ -653,7 +624,7 @@ array_unshift_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                                      void *from_index_obj)                    \
     {                                                                         \
         int32 len, idx = 0;                                                   \
-        uint32 i;                                                             \
+        uint32_t i;                                                             \
         wasm_value_t tmp_val = { 0 };                                         \
         wasm_array_obj_t arr_ref = get_array_ref(obj);                        \
         len = get_array_length(obj);                                          \
@@ -692,7 +663,7 @@ array_indexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
                      void *element, void *from_index_obj)
 {
     int32 len, idx = 0;
-    uint32 i;
+    uint32_t i;
     wasm_value_t tmp_val = { 0 }, field1 = { 0 }, search_string = { 0 };
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
@@ -721,7 +692,7 @@ array_indexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_struct_obj_get_field(element, 1, false, &search_string);
     wasm_array_obj_t search_string_arr = (wasm_array_obj_t)search_string.gc_obj;
     /* get search_string array len and addr */
-    uint32 search_string_len = wasm_array_obj_length(search_string_arr);
+    uint32_t search_string_len = wasm_array_obj_length(search_string_arr);
     void *search_string_ptr = wasm_array_obj_first_elem_addr(search_string_arr);
     /* loop through the array */
     for (i = idx; i < len; i++) {
@@ -732,7 +703,7 @@ array_indexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
             wasm_obj_get_defined_type((wasm_obj_t)tmp_val.gc_obj);
         if (is_ts_string_type(module, value_defined_type)) {
             wasm_array_obj_t arr2 = (wasm_array_obj_t)field1.gc_obj;
-            uint32 array_element_len = wasm_array_obj_length(arr2);
+            uint32_t array_element_len = wasm_array_obj_length(arr2);
             void *array_element_ptr = wasm_array_obj_first_elem_addr(arr2);
 
             if (search_string_len != array_element_len) {
@@ -826,7 +797,7 @@ array_lastIndexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     wasm_struct_obj_get_field(element, 1, false, &search_string);
     wasm_array_obj_t search_string_arr = (wasm_array_obj_t)search_string.gc_obj;
     /* get search_string array len and addr */
-    uint32 search_string_len = wasm_array_obj_length(search_string_arr);
+    uint32_t search_string_len = wasm_array_obj_length(search_string_arr);
     void *search_string_ptr = wasm_array_obj_first_elem_addr(search_string_arr);
 
     /* loop through the array */
@@ -839,7 +810,7 @@ array_lastIndexOf_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
 
         if (is_ts_string_type(module, value_defined_type)) {
             wasm_array_obj_t arr2 = (wasm_array_obj_t)field1.gc_obj;
-            uint32 array_element_len = wasm_array_obj_length(arr2);
+            uint32_t array_element_len = wasm_array_obj_length(arr2);
             void *array_element_ptr = wasm_array_obj_first_elem_addr(arr2);
 
             if (search_string_len != array_element_len) {
@@ -864,7 +835,7 @@ bool
 array_every_some_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                          void *closure, bool is_every)
 {
-    uint32 i, len, elem_size;
+    uint32_t i, len, elem_size;
     bool tmp, res = false;
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     wasm_value_t context = { 0 }, func_obj = { 0 };
@@ -878,9 +849,9 @@ array_every_some_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
 
     /* invoke callback function */
     for (i = 0; i < len; i++) {
-        uint32 argv[10];
-        uint32 argc = 8;
-        uint32 occupied_slots = 0;
+        uint32_t argv[10];
+        uint32_t argc = 8;
+        uint32_t occupied_slots = 0;
         wasm_value_t element = { 0 };
 
         wasm_array_obj_get_elem(arr_ref, i, false, &element);
@@ -927,7 +898,7 @@ void
 array_forEach_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                       void *closure)
 {
-    uint32 i, len, elem_size;
+    uint32_t i, len, elem_size;
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     WASMValue element = { 0 };
@@ -950,9 +921,9 @@ array_forEach_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
 
     /* invoke callback function */
     for (i = 0; i < len; i++) {
-        uint32 argv[10];
-        uint32 argc = 8;
-        uint32 occupied_slots = 0;
+        uint32_t argv[10];
+        uint32_t argc = 8;
+        uint32_t occupied_slots = 0;
 
         /* Must get arr ref again since it may be changed inside callback */
         arr_ref = get_array_ref(obj);
@@ -981,8 +952,8 @@ array_forEach_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
 void *
 array_map_generic(wasm_exec_env_t exec_env, void *ctx, void *obj, void *closure)
 {
-    uint32 i, len, elem_size;
-    uint32 res_arr_type_idx;
+    uint32_t i, len, elem_size;
+    uint32_t res_arr_type_idx;
     wasm_array_obj_t new_arr;
     wasm_struct_obj_t new_arr_struct = NULL;
     wasm_array_obj_t arr_ref = get_array_ref(obj);
@@ -1034,9 +1005,9 @@ array_map_generic(wasm_exec_env_t exec_env, void *ctx, void *obj, void *closure)
 
     /* invoke callback function */
     for (i = 0; i < len; i++) {
-        uint32 argv[10];
-        uint32 argc = 8;
-        uint32 occupied_slots = 0;
+        uint32_t argv[10];
+        uint32_t argc = 8;
+        uint32_t occupied_slots = 0;
 
         /* Must get arr ref again since it may be changed inside callback */
         arr_ref = get_array_ref(obj);
@@ -1084,7 +1055,7 @@ void *
 array_filter_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                      void *closure)
 {
-    uint32 i, len, elem_size, new_arr_len, include_idx = 0;
+    uint32_t i, len, elem_size, new_arr_len, include_idx = 0;
     wasm_struct_obj_t new_arr_struct = NULL;
     wasm_array_obj_t new_arr, arr_ref = get_array_ref(obj);
     wasm_struct_type_t struct_type;
@@ -1119,9 +1090,9 @@ array_filter_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     memset(include_refs, 0, sizeof(wasm_obj_t) * len);
     /* invoke callback function */
     for (i = 0; i < len; i++) {
-        uint32 argv[10];
-        uint32 argc = 8;
-        uint32 occupied_slots = 0;
+        uint32_t argv[10];
+        uint32_t argc = 8;
+        uint32_t occupied_slots = 0;
 
         /* Must get arr ref again since it may be changed inside callback */
         arr_ref = get_array_ref(obj);
@@ -1195,7 +1166,7 @@ end1:
         wasm_exec_env_t exec_env, void *ctx, void *obj, void *closure,        \
         elem_type initial_value)                                              \
     {                                                                         \
-        uint32 i, len, elem_size;                                             \
+        uint32_t i, len, elem_size;                                             \
         wasm_array_obj_t arr_ref = get_array_ref(obj);                        \
         wasm_value_t previous_value = { 0 };                                  \
         wasm_value_t current_value = { 0 };                                   \
@@ -1215,9 +1186,9 @@ end1:
         wasm_struct_obj_get_field(closure, 1, false, &func_obj);              \
                                                                               \
         for (i = 0; i < len; ++i) {                                           \
-            uint32 idx = i, occupied_slots = 0;                               \
-            uint32 argv[10];                                                  \
-            uint32 argc = 10;                                                 \
+            uint32_t idx = i, occupied_slots = 0;                               \
+            uint32_t argv[10];                                                  \
+            uint32_t argc = 10;                                                 \
                                                                               \
             if (is_right) {                                                   \
                 idx = len - 1 - i;                                            \
@@ -1278,15 +1249,13 @@ void *
 array_find_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                    void *closure)
 {
-    uint32 i, len, elem_size;
-    wasm_value_t context = { 0 }, func_obj = { 0 }, element = { 0 },
-                 field1 = { 0 };
+    uint32_t i, len, elem_size;
+    wasm_value_t context = { 0 }, func_obj = { 0 }, element = { 0 };
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     wasm_module_inst_t module_inst = wasm_runtime_get_module_inst(exec_env);
-    wasm_module_t module = wasm_runtime_get_module(module_inst);
     wasm_array_type_t arr_type;
     dyn_ctx_t dyn_ctx;
-    void *ex_ptr;
+    dyn_value_t found_value;
 
     dyn_ctx = dyntype_get_context();
     if (!dyn_ctx) {
@@ -1298,7 +1267,7 @@ array_find_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
     len = get_array_length(obj);
     arr_type =
         (wasm_array_type_t)wasm_obj_get_defined_type((wasm_obj_t)arr_ref);
-    bool is_mut, mutable = true;
+    bool is_mut;
     wasm_ref_type_t arr_elem_ref_type =
         wasm_array_type_get_elem_type(arr_type, &is_mut);
 
@@ -1309,9 +1278,9 @@ array_find_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
 
     /* invoke callback function */
     for (i = 0; i < len; i++) {
-        uint32 argv[10];
-        uint32 argc = 8;
-        uint32 occupied_slots = 0;
+        uint32_t argv[10];
+        uint32_t argc = 8;
+        uint32_t occupied_slots = 0;
 
         /* Must get arr ref again since it may be changed inside callback */
         arr_ref = get_array_ref(obj);
@@ -1335,41 +1304,20 @@ array_find_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
         wasm_runtime_call_func_ref(exec_env, (wasm_func_obj_t)func_obj.gc_obj,
                                    argc, argv);
         if (argv[0]) {
-            if (arr_elem_ref_type.value_type == VALUE_TYPE_F64
-                && is_mut == mutable) {
-                RETURN_BOX_ANYREF(dyntype_new_number(dyn_ctx, element.f64));
-            }
-            else if (arr_elem_ref_type.value_type == VALUE_TYPE_I32
-                     && is_mut == mutable) {
-                RETURN_BOX_ANYREF(dyntype_new_boolean(dyn_ctx, element.i32));
-            }
-            else if (is_ts_string_type(module,
-                                       wasm_obj_get_defined_type(
-                                           (wasm_obj_t)element.gc_obj))) {
-                wasm_struct_obj_get_field((wasm_struct_obj_t)element.gc_obj, 1,
-                                          false, &field1);
-                wasm_array_obj_t a_ref = (wasm_array_obj_t)(field1.gc_obj);
-                const char *str =
-                    (const char *)wasm_array_obj_first_elem_addr(a_ref);
-                RETURN_BOX_ANYREF(dyntype_new_string(dyn_ctx, str));
-            }
-            else {
-                ex_ptr = element.gc_obj;
-                RETURN_BOX_ANYREF(
-                    dyntype_new_extref(dyn_ctx, ex_ptr, ExtObj, NULL));
-            }
+            found_value = box_value_to_any(exec_env, dyn_ctx, &element, arr_elem_ref_type, false, -1);
+            RETURN_BOX_ANYREF(found_value, dyn_ctx);
             break;
         }
     }
 
-    RETURN_BOX_ANYREF(dyntype_new_undefined(dyn_ctx));
+    RETURN_BOX_ANYREF(dyntype_new_undefined(dyn_ctx), dyn_ctx);
 }
 
 double
 array_findIndex_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                         void *closure)
 {
-    uint32 i, len, elem_size;
+    uint32_t i, len, elem_size;
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     wasm_value_t element = { 0 };
     wasm_value_t context = { 0 }, func_obj = { 0 };
@@ -1384,9 +1332,9 @@ array_findIndex_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
 
     /* invoke callback function */
     for (i = 0; i < len; i++) {
-        uint32 argv[10];
-        uint32 argc = 8;
-        uint32 occupied_slots = 0;
+        uint32_t argv[10];
+        uint32_t argc = 8;
+        uint32_t occupied_slots = 0;
 
         /* Must get arr ref again since it may be changed inside callback */
         arr_ref = get_array_ref(obj);
@@ -1422,7 +1370,7 @@ array_findIndex_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                                  void *obj, elem_type fill_value,              \
                                  void *start_obj, void *end_obj)               \
     {                                                                          \
-        uint32 len;                                                            \
+        uint32_t len;                                                            \
         wasm_array_obj_t arr_ref = get_array_ref(obj);                         \
         wasm_value_t value = { 0 };                                            \
         len = get_array_length(obj);                                           \
@@ -1454,7 +1402,7 @@ ARRAY_FILL_API(void *, anyref, gc_obj)
  *  return -1 if idx >= len
  */
 int
-compute_index(double idx, uint32 _len)
+compute_index(double idx, uint32_t _len)
 {
     int32 res;
     int32 len = _len;
@@ -1480,7 +1428,7 @@ array_copyWithin_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
 {
     int target_idx, start_idx, end_idx, copy_count;
     wasm_array_obj_t arr_ref = get_array_ref(obj);
-    uint32 len = get_array_length(obj);
+    uint32_t len = get_array_length(obj);
     double end_idx_double = len;
     dyn_value_t const end_value =
         (dyn_value_t)wasm_anyref_obj_get_value(end_obj);
@@ -1526,7 +1474,7 @@ array_copyWithin_generic(wasm_exec_env_t exec_env, void *ctx, void *obj,
                                     void *obj, elem_type search_elem,          \
                                     void *from_obj)                            \
     {                                                                          \
-        uint32 len = get_array_length(obj);                                    \
+        uint32_t len = get_array_length(obj);                                    \
         elem_type element_value;                                               \
         wasm_array_obj_t arr_ref = get_array_ref(obj);                         \
         wasm_value_t value = { 0 };                                            \
@@ -1570,7 +1518,7 @@ includes_string(wasm_value_t cur_value, void *search_elem)
 {
     wasm_value_t field1 = { 0 };
     wasm_value_t target_string = { 0 };
-    uint32 string_len, target_string_len;
+    uint32_t string_len, target_string_len;
 
     wasm_struct_obj_get_field((wasm_struct_obj_t)cur_value.gc_obj, 1, false,
                               &field1);
@@ -1601,7 +1549,7 @@ array_includes_anyref(wasm_exec_env_t exec_env, void *ctx, void *obj,
     double from_idx_double;
     bool elem_is_string;
     wasm_value_t value = { 0 };
-    uint32 len = get_array_length(obj);
+    uint32_t len = get_array_length(obj);
     wasm_array_obj_t arr_ref = get_array_ref(obj);
     dyn_value_t const from_idx_value =
         (dyn_value_t)wasm_anyref_obj_get_value(from_obj);

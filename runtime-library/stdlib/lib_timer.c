@@ -5,8 +5,6 @@
 
 #include "bh_hashmap.h"
 #include "wasm_export.h"
-#include "bh_platform.h"
-#include "gc_object.h"
 
 wasm_exec_env_t env;
 HashMap *timer_map;

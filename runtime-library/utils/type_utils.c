@@ -3,12 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "bh_platform.h"
-#include "wasm.h"
 #include "type_utils.h"
-#include "quickjs.h"
-#include "dyntype.h"
 #include "wamr_utils.h"
+#include "libdyntype.h"
+#include "quickjs.h"
 
 #define OFFSET_OF_TYPE_ID 0
 #define OFFSET_OF_IMPL_ID 4
@@ -24,6 +22,7 @@
 
 /** start type id of custom type */
 #define CUSTOM_TYPE_BEGIN 1052
+
 /*
     utilities for closure object
 
@@ -39,10 +38,10 @@ is_ts_closure_type(wasm_module_t wasm_module, wasm_defined_type_t type)
 {
     bool is_struct_type;
     wasm_struct_type_t struct_type;
-    uint32 field_count;
+    uint32_t field_count;
     bool mut;
     wasm_ref_type_t field_type;
-    uint32 field_type_idx = 0;
+    uint32_t field_type_idx = 0;
     wasm_defined_type_t field_defined_type;
 
     is_struct_type = wasm_defined_type_is_struct_type(type);
@@ -87,10 +86,10 @@ is_ts_array_type(wasm_module_t wasm_module, wasm_defined_type_t type)
 {
     bool is_struct_type;
     wasm_struct_type_t struct_type;
-    uint32 field_count;
+    uint32_t field_count;
     bool mut;
     wasm_ref_type_t field_type;
-    uint32 array_type_idx = 0;
+    uint32_t array_type_idx = 0;
     wasm_defined_type_t array_type;
 
     is_struct_type = wasm_defined_type_is_struct_type(type);
@@ -118,14 +117,14 @@ is_ts_array_type(wasm_module_t wasm_module, wasm_defined_type_t type)
     return true;
 }
 
-int
+uint32_t
 get_array_length(wasm_struct_obj_t obj)
 {
     wasm_value_t wasm_array_len = { 0 };
     bh_assert(wasm_obj_is_struct_obj((wasm_obj_t)obj));
 
     wasm_struct_obj_get_field(obj, 1, false, &wasm_array_len);
-    return wasm_array_len.i32;
+    return wasm_array_len.u32;
 }
 
 wasm_array_obj_t
@@ -159,7 +158,7 @@ get_array_type_by_element(wasm_module_t wasm_module,
                           wasm_ref_type_t *element_ref_type, bool is_mutable,
                           wasm_array_type_t *p_array_type)
 {
-    uint32 i, type_count;
+    uint32_t i, type_count;
 
     type_count = wasm_get_defined_type_count(wasm_module);
     for (i = 0; i < type_count; i++) {
@@ -189,7 +188,7 @@ int32_t
 get_array_struct_type(wasm_module_t wasm_module, int32_t array_type_idx,
                       wasm_struct_type_t *p_struct_type)
 {
-    uint32 i, type_count;
+    uint32_t i, type_count;
     wasm_ref_type_t res_arr_ref_type;
 
     wasm_ref_type_set_type_idx(&res_arr_ref_type, true, array_type_idx);
@@ -222,10 +221,47 @@ get_array_struct_type(wasm_module_t wasm_module, int32_t array_type_idx,
     return -1;
 }
 
+int32_t
+get_closure_struct_type(wasm_module_t wasm_module,
+                        wasm_struct_type_t *p_struct_type)
+{
+    uint32_t i, type_count;
+    wasm_defined_type_t type;
+    wasm_ref_type_t field_type;
+    uint32_t field_count_in_ctx = 0;
+    wasm_struct_type_t field_defined_type;
+    bool mut;
+
+    type_count = wasm_get_defined_type_count(wasm_module);
+    for (i = 0; i < type_count; i++) {
+        type = wasm_get_defined_type(wasm_module, i);
+        if (!is_ts_closure_type(wasm_module, type)) {
+            continue;
+        }
+        field_type =
+            wasm_struct_type_get_field_type((wasm_struct_type_t)type, 0, &mut);
+        field_defined_type = (wasm_struct_type_t)wasm_get_defined_type(
+            wasm_module, field_type.heap_type);
+        field_count_in_ctx =
+            wasm_struct_type_get_field_count(field_defined_type);
+        if (field_count_in_ctx != 0) {
+            continue;
+        }
+        if (p_struct_type) {
+            *p_struct_type = (wasm_struct_type_t)type;
+        }
+        return i;
+    }
+    if (p_struct_type) {
+        *p_struct_type = NULL;
+    }
+    return -1;
+}
+
 wasm_struct_obj_t
 create_wasm_array_with_string(wasm_exec_env_t exec_env, void **ptr, uint32_t arrlen)
 {
-    uint32 arr_type_idx, string_type_idx;
+    uint32_t arr_type_idx, string_type_idx;
     wasm_value_t init = { .gc_obj = NULL }, tmp_val = { 0 },
                  val = { .gc_obj = NULL };
     wasm_array_type_t res_arr_type = NULL;
@@ -331,7 +367,7 @@ is_i8_array(wasm_module_t wasm_module, bool is_mutable,
             wasm_ref_type_t ref_type)
 {
     if (ref_type.heap_type >= 0) {
-        uint32 type_idx = ref_type.heap_type;
+        uint32_t type_idx = ref_type.heap_type;
         wasm_defined_type_t type = wasm_get_defined_type(wasm_module, type_idx);
 
         if (wasm_defined_type_is_array_type(type)) {
@@ -351,7 +387,7 @@ int32_t
 get_string_array_type(wasm_module_t wasm_module,
                       wasm_array_type_t *p_array_type_t)
 {
-    uint32 i, type_count;
+    uint32_t i, type_count;
     bool is_mutable = true;
 
     type_count = wasm_get_defined_type_count(wasm_module);
@@ -384,7 +420,7 @@ int32_t
 get_string_struct_type(wasm_module_t wasm_module,
                        wasm_struct_type_t *p_struct_type)
 {
-    uint32 i, type_count;
+    uint32_t i, type_count;
     wasm_defined_type_t type;
 
     type_count = wasm_get_defined_type_count(wasm_module);
@@ -409,7 +445,7 @@ is_ts_string_type(wasm_module_t wasm_module, wasm_defined_type_t type)
 {
     bool is_struct_type;
     wasm_struct_type_t struct_type;
-    uint32 field_count;
+    uint32_t field_count;
     bool mut;
     wasm_ref_type_t field_type;
 
@@ -505,7 +541,7 @@ create_new_array_with_primitive_type(wasm_exec_env_t exec_env,
                                      wasm_value_type_t value_type,
                                      bool is_mutable, uint32_t arrlen)
 {
-    uint32 i, type_count, arr_type_idx = 0;
+    uint32_t i, type_count, arr_type_idx = 0;
     bool mutable;
     wasm_value_t init = { .gc_obj = NULL };
     wasm_array_obj_t new_arr = NULL;
@@ -618,18 +654,33 @@ create_wasm_array_with_f64(wasm_exec_env_t exec_env, void *ptr, uint32_t arrlen)
 const char *
 get_str_from_string_struct(wasm_struct_obj_t obj)
 {
+    wasm_array_obj_t string_arr = NULL;
     wasm_value_t str_val = { 0 };
+
     wasm_struct_obj_get_field(obj, 1, false, &str_val);
-    wasm_array_obj_t string_arr = (wasm_array_obj_t)str_val.gc_obj;
+    string_arr = (wasm_array_obj_t)str_val.gc_obj;
     const char *str = (const char *)wasm_array_obj_first_elem_addr(string_arr);
+
     return str;
+}
+
+uint32_t
+get_str_length_from_string_struct(wasm_struct_obj_t obj)
+{
+    wasm_array_obj_t string_arr = NULL;
+    wasm_value_t str_val = { 0 };
+
+    wasm_struct_obj_get_field(obj, 1, false, &str_val);
+    string_arr = (wasm_array_obj_t)str_val.gc_obj;
+
+    return wasm_array_obj_length(string_arr);
 }
 
 void *
 array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
                 void *separator) {
-    uint32 len, i, result_len, sep_len;
-    uint32 *string_lengths;
+    uint32_t len, i, result_len, sep_len;
+    uint32_t *string_lengths;
     wasm_value_t value = { 0 }, field1 = { 0 };
     wasm_array_obj_t new_arr, arr_ref = get_array_ref(obj);
     wasm_struct_type_t string_struct_type = NULL;
@@ -718,7 +769,7 @@ array_to_string(wasm_exec_env_t exec_env, void *ctx, void *obj,
     bh_assert(p_end);
 
     for (i = 0; i < len; i++) {
-        uint32 cur_string_len = string_lengths[i];
+        uint32_t cur_string_len = string_lengths[i];
         bh_memcpy_s(p, p_end - p, string_addrs[i], cur_string_len);
         p += cur_string_len;
         if (i < len - 1) {
@@ -767,72 +818,28 @@ fail:
 }
 
 void
-get_dyn_obj_info(void *dyn_ctx, void *dyn_obj, uint32 *obj_info)
-{
-    bool is_ext_ref;
-    void *ext_ref;
-    int tag = 0;
-
-    is_ext_ref = dyntype_is_extref((dyn_value_t)dyn_ctx, (dyn_value_t)dyn_obj);
-    /* if !is_ext_ref, the obj is a pure dynamic obj */
-    if (!is_ext_ref) {
-        obj_info[0] = DynObject;
-    }
-    else {
-        /* else, get ext_ref from table */
-        tag = dyntype_to_extref((dyn_value_t)dyn_ctx, (dyn_value_t)dyn_obj,
-                                &ext_ref);
-        if (tag == ExtObj) {
-            obj_info[0] = DynExtRefObj;
-        }
-        else if (tag == ExtArray) {
-            obj_info[0] = DynExtRefArray;
-        }
-        else if (tag == ExtFunc) {
-            obj_info[0] = DynExtRefFunc;
-        }
-        /* store table index */
-        obj_info[1] = (uint32_t)(uintptr_t)ext_ref;
-    }
-}
-
-bool
-get_static_array_info(wasm_exec_env_t exec_env, void *dyn_ctx, void *dyn_obj,
-                      int index, uint64 *arr_info)
+get_static_array_info(wasm_exec_env_t exec_env, uint32_t tbl_idx,
+                      WasmArrayInfo *p_arr_info)
 {
     void *static_arr_struct = NULL;
     wasm_defined_type_t static_arr_arr_type = { 0 };
     bool mutable = false;
-    wasm_array_obj_t arr_ref = { 0 };
-    uint64 arr_len = 0;
+    wasm_array_obj_t arr_ref = NULL;
+    uint32_t arr_len = 0;
     wasm_ref_type_t arr_elem_ref_type = { 0 };
-    wasm_value_t elem_res = { 0 };
-    uint32 obj_info[2] = { 0 };
 
-    get_dyn_obj_info(dyn_ctx, dyn_obj, obj_info);
-    if (obj_info[0] == DynExtRefArray) {
-        static_arr_struct = (wasm_struct_obj_t)wamr_utils_get_table_element(
-            exec_env, obj_info[1]);
-        arr_ref = get_array_ref(static_arr_struct);
-        arr_len = get_array_length(static_arr_struct);
-        static_arr_arr_type = wasm_obj_get_defined_type((wasm_obj_t)arr_ref);
-        arr_elem_ref_type = wasm_array_type_get_elem_type(
-            (wasm_array_type_t)static_arr_arr_type, &mutable);
-        arr_info[0] = (uint64)(intptr_t)&arr_ref;
-        arr_info[1] = (uint64)(intptr_t)&arr_elem_ref_type;
-        if (index < 0) {
-            arr_info[2] = arr_len;
-        }
-        else {
-            bh_assert(arr_len > index);
-            wasm_array_obj_get_elem(arr_ref, index, false, &elem_res);
-            arr_info[2] = (uint64)(intptr_t)&elem_res;
-        }
-        return true;
-    }
-    else {
-        return false;
-    }
+    static_arr_struct =
+        (wasm_struct_obj_t)wamr_utils_get_table_element(exec_env, tbl_idx);
+    arr_ref = get_array_ref(static_arr_struct);
+    arr_len = get_array_length(static_arr_struct);
+    static_arr_arr_type = wasm_obj_get_defined_type((wasm_obj_t)arr_ref);
+    arr_elem_ref_type = wasm_array_type_get_elem_type(
+        (wasm_array_type_t)static_arr_arr_type, &mutable);
+
+    p_arr_info->ref = arr_ref;
+    bh_memcpy_s(&p_arr_info->element_type, sizeof(wasm_ref_type_t),
+                &arr_elem_ref_type, sizeof(wasm_ref_type_t));
+    p_arr_info->lengh = arr_len;
 }
 
 int
@@ -845,13 +852,15 @@ get_prop_index_of_struct(wasm_exec_env_t exec_env, const char *prop,
     wasm_struct_obj_t wasm_struct_obj;
     WASMValue vtable_value = { 0 };
     WASMValue meta = { 0 };
-    uint32 argc = 3, argv[3] = { 0 }, offset;
+    uint32_t argc = 3, argv[3] = { 0 }, offset;
     wasm_struct_type_t struct_type;
+    wasm_struct_type_t vtable_type;
 
     module_inst = wasm_runtime_get_module_inst(exec_env);
     wasm_struct_obj = (wasm_struct_obj_t)(*wasm_obj);
     wasm_struct_obj_get_field(wasm_struct_obj, 0, false, &vtable_value);
     wasm_struct_obj_get_field((wasm_struct_obj_t)vtable_value.gc_obj, 0, false, &meta);
+    struct_type = (wasm_struct_type_t)wasm_obj_get_defined_type(*wasm_obj);
     func = wasm_runtime_lookup_function(module_inst, "find_index", NULL);
     bh_assert(func);
 
@@ -862,10 +871,25 @@ get_prop_index_of_struct(wasm_exec_env_t exec_env, const char *prop,
 
     wasm_runtime_call_wasm(exec_env, func, argc, argv);
     if (argv[0] == -1) {
-        return -1;
+        /* check if flag is method */
+        argv[0] = meta.i32;
+        argv[1] = offset;
+        argv[2] = 1;
+        wasm_runtime_call_wasm(exec_env, func, argc, argv);
+        if (argv[0] == -1) {
+            return -1;
+        }
+        else {
+            vtable_type = (wasm_struct_type_t)wasm_obj_get_defined_type(
+                vtable_value.gc_obj);
+            *field_type =
+                wasm_struct_type_get_field_type(vtable_type, argv[0], &is_mut);
+        }
     }
-    struct_type = (wasm_struct_type_t)wasm_obj_get_defined_type(*wasm_obj);
-    *field_type = wasm_struct_type_get_field_type(struct_type, argv[0], &is_mut);
+    else {
+        *field_type =
+            wasm_struct_type_get_field_type(struct_type, argv[0], &is_mut);
+    }
 
     return argv[0];
 }

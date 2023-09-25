@@ -373,7 +373,7 @@ export namespace FunctionalFuncs {
         arrLenRef: binaryen.ExpressionRef,
     ) {
         return module.call(
-            dyntype.dyntype_new_array_with_length,
+            dyntype.dyntype_new_array,
             [getDynContextRef(module), arrLenRef],
             dyntype.dyn_value_t,
         );
@@ -443,9 +443,7 @@ export namespace FunctionalFuncs {
         extrefTypeKind: ValueTypeKind,
     ) {
         // table type is anyref, no need to cast
-        const dynFuncName: string = getBuiltInFuncName(
-            BuiltinNames.newExternRef,
-        );
+        const dynFuncName: string = getBuiltInFuncName(BuiltinNames.newExtRef);
         let extObjKind: dyntype.ExtObjKind = 0;
         switch (extrefTypeKind) {
             case ValueTypeKind.OBJECT:

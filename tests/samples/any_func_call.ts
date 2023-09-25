@@ -163,3 +163,38 @@ export function anyFuncCallInMap() {
     const res = fn(true);
     console.log(res);
 }
+
+class Page {
+    index = 0;
+    log(): void {
+        console.log('Page class');
+    }
+    increase() {
+        this.index++;
+        console.log(this.index);
+    }
+}
+
+export function anyFuncCallWithCast() {
+    const map: any = new Map();
+    const fn = () => {
+        return new Page();
+    };
+    map.set('Page', fn);
+    const a = map.get('Page');
+    const b = a() as Page;
+    b.log();
+    b.increase();
+}
+
+export function anyFuncCallWithNoCast() {
+    const map: any = new Map();
+    const fn = () => {
+        return new Page();
+    };
+    map.set('Page', fn);
+    const a = map.get('Page');
+    const b = a();
+    b.log();
+    b.increase();
+}

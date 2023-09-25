@@ -7,7 +7,6 @@
  * be removed if these APIs are directly implemented in WAMR */
 
 #include "wasm_exec_env.h"
-#include "wasm_export.h"
 #include "wasm_runtime.h"
 #include "wasm_runtime_common.h"
 

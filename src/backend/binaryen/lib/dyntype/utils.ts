@@ -47,8 +47,6 @@ export namespace dyntype {
     export const dyntype_new_null = 'dyntype_new_null';
     export const dyntype_new_object = 'dyntype_new_object';
     export const dyntype_new_array = 'dyntype_new_array';
-    export const dyntype_new_array_with_length =
-        'dyntype_new_array_with_length';
     export const dyntype_add_elem = 'dyntype_add_elem';
     export const dyntype_set_elem = 'dyntype_set_elem';
     export const dyntype_get_elem = 'dyntype_get_elem';
@@ -67,7 +65,6 @@ export namespace dyntype {
     export const dyntype_is_string = 'dyntype_is_string';
     export const dyntype_to_cstring = 'dyntype_to_cstring';
     export const dyntype_to_string = 'dyntype_to_string';
-    export const dyntype_free_cstring = 'dyntype_free_cstring';
     export const dyntype_is_object = 'dyntype_is_object';
     export const dyntype_is_array = 'dyntype_is_array';
     export const dyntype_is_extref = 'dyntype_is_extref';
@@ -94,7 +91,6 @@ export namespace dyntype {
     export const dyntype_hold = 'dyntype_hold';
     export const dyntype_release = 'dyntype_release';
     export const dyntype_collect = 'dyntype_collect';
-    export const invoke_func = 'invoke_func';
 }
 
 export namespace structdyn {

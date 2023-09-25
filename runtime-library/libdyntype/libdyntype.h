@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#ifndef __DYNTYPE_H_
-#define __DYNTYPE_H_
+#ifndef __LIBDYNTYPE_H_
+#define __LIBDYNTYPE_H_
 
 #include <stdbool.h>
 #include <string.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,9 +21,9 @@ extern "C" {
 #define DYNTYPE_EXCEPTION 1
 #define DYNTYPE_TYPEERR 2
 
-typedef struct DynTypeContext DynTypeContext;
+struct DynTypeContext;
 
-typedef DynTypeContext *dyn_ctx_t;
+typedef struct DynTypeContext *dyn_ctx_t;
 typedef void dyn_options_t;
 typedef void *dyn_value_t;
 
@@ -67,81 +68,6 @@ typedef enum cmp_operator {
 
 /*****************************************************************
 *                                                                *
-*                          Section 1                             *
-*                                                                *
-*          Interface exposed to the runtime embedder             *
-*                                                                *
-*****************************************************************/
-
-/******************* Initialization and destroy *****************/
-
-/**
- * @brief Initialize the dynamic type system context
- *
- * @return dynamic type system context if success, NULL otherwise
- */
-dyn_ctx_t
-dyntype_context_init();
-
-/**
- * @brief Initialize the dynamic type system context with given options
- *
- * @note options can contain allocator functions and maybe other GC related
- * things
- *
- * @param options options to set (TBD)
- * @return dynamic type system context if success, NULL otherwise
- */
-dyn_ctx_t
-dyntype_context_init_with_opt(dyn_options_t *options);
-
-/**
- * @brief Destroy the dynamic type system context
- *
- * @param ctx context to destroy
- */
-void
-dyntype_context_destroy(dyn_ctx_t ctx);
-
-/**
- * @brief Set the callback dispatcher for external functions. When calling
- * dyntype_invoke API, the argument may contain external functions which may be
- * invoked later (e.g. Map.forEach). Libdyntype doesn't know how to invoke the
- * external functions since they are not raw native pointers. The callback
- * dispatcher will be used as a common wrapper for calling all external
- * functions from libdyntype, so the implementer can decide how to invoke the
- * actual function.
- *
- * @note If another callback is set, the previous one will be overwrite.
- *
- * @param ctx the dynamic type system context
- * @param callback the callback to set
- */
-void
-dyntype_set_callback_dispatcher(dyn_ctx_t ctx,
-                                dyntype_callback_dispatcher_t callback);
-
-/******************* event loop *******************/
-
-/**
- * @brief execute pending jobs in micro-tasks of js runtime
- * @param ctx the dynamic type system context
- */
-int
-dyntype_execute_pending_jobs(dyn_ctx_t ctx);
-
-/******************* Dumping *******************/
-
-/**
- * @brief Dump dynamic error to stdout
- *
- * @param ctx the dynamic type system context
- */
-void
-dyntype_dump_error(dyn_ctx_t ctx);
-
-/*****************************************************************
-*                                                                *
 *                          Section 2                             *
 *                                                                *
 *              Interface exposed to application                  *
@@ -182,18 +108,6 @@ dyn_value_t
 dyntype_new_boolean(dyn_ctx_t ctx, bool value);
 
 /**
- * @brief Create a new dynamic string value with the given c-string
- *
- * @note the string must be null-terminated
- *
- * @param ctx the dynamic type system context
- * @param str the string to initialize the dynamic value
- * @return dynamic value if success, NULL otherwise
- */
-dyn_value_t
-dyntype_new_string(dyn_ctx_t ctx, const char *str);
-
-/**
  * @brief Create a new dynamic string value with the given char* and len
  *
  * @param ctx the dynamic type system context
@@ -202,7 +116,7 @@ dyntype_new_string(dyn_ctx_t ctx, const char *str);
  * @return dynamic value if success, NULL otherwise
  */
 dyn_value_t
-dyntype_new_string_with_length(dyn_ctx_t ctx, const char *str, int len);
+dyntype_new_string(dyn_ctx_t ctx, const char *str, int len);
 
 /**
  * @brief Create a undefined value
@@ -232,44 +146,14 @@ dyn_value_t
 dyntype_new_object(dyn_ctx_t ctx);
 
 /**
- * @brief Create a new dynamic JSvalue with the given c JSON string
- *
- * @note the string must be null-terminated
+ * @brief Create new object with given prototype
  *
  * @param ctx the dynamic type system context
- * @param value the JSON string to initialize the dynamic value
+ * @param proto_obj prototype object
  * @return dynamic value if success, NULL otherwise
  */
 dyn_value_t
-dyntype_parse_json(dyn_ctx_t ctx, const char *str);
-
-/**
- * @brief Create a new dynamic array object with array length
- *
- * @param ctx the dynamic type system context
- * @param len array length
- * @return dynamic value if success, NULL otherwise
- */
-dyn_value_t
-dyntype_new_array_with_length(dyn_ctx_t ctx, int len);
-
-/**
- * @brief Create a new dynamic array object without any elements
- *
- * @param ctx the dynamic type system context
- * @return dynamic value if success, NULL otherwise
- */
-dyn_value_t
-dyntype_new_array(dyn_ctx_t ctx);
-
-/**
- * @brief get builtin global object by name
- *
- * @param name the name of object
- * @return dynamic value if success, NULL otherwise
- */
-dyn_value_t
-dyntype_get_global(dyn_ctx_t ctx, const char *name);
+dyntype_new_object_with_proto(dyn_ctx_t ctx, const dyn_value_t proto_obj);
 
 /**
  * @brief Create an object with class name
@@ -283,6 +167,16 @@ dyntype_get_global(dyn_ctx_t ctx, const char *name);
 dyn_value_t
 dyntype_new_object_with_class(dyn_ctx_t ctx, const char *name, int argc,
                               dyn_value_t *args);
+
+/**
+ * @brief Create a new dynamic array object with array length
+ *
+ * @param ctx the dynamic type system context
+ * @param len array length
+ * @return dynamic value if success, NULL otherwise
+ */
+dyn_value_t
+dyntype_new_array(dyn_ctx_t ctx, int len);
 
 /**
  * @brief Boxing an external reference to a dynamic value
@@ -333,6 +227,28 @@ dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
                      dyn_value_t value);
 
 /**
+ * @brief Get the property of a dynamic object
+ *
+ * @param ctx the dynamic type system context
+ * @param obj dynamic object
+ * @param prop property name
+ * @return dynamic value if success, NULL otherwise
+ */
+dyn_value_t
+dyntype_get_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
+
+/**
+ * @brief Get own property of the given dynamic object
+ *
+ * @param ctx the dynamic type system context
+ * @param obj dynamic object
+ * @param prop property name
+ * @return dynamic value of the corresponding property if exists, NULL otherwise
+ */
+dyn_value_t
+dyntype_get_own_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
+
+/**
  * @brief Define the property of a dynamic object
  *
  * @param ctx the dynamic type system context
@@ -345,17 +261,6 @@ dyntype_set_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
 int
 dyntype_define_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop,
                         dyn_value_t desc);
-
-/**
- * @brief Get the property of a dynamic object
- *
- * @param ctx the dynamic type system context
- * @param obj dynamic object
- * @param prop property name
- * @return dynamic value if success, NULL otherwise
- */
-dyn_value_t
-dyntype_get_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
 
 /**
  * @brief Test if the property exists on the given object
@@ -379,49 +284,17 @@ dyntype_has_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
 int
 dyntype_delete_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
 
-/******************* function fallback *******************/
-
-/**
- * @brief invoke a method by this and method name
- *
- * @param name the name of method name
- * @param this_obj the The object bound by this
- * @param argc the count of arguments
- * @param args the argument array
- * @return dynamic value determined by the method
- */
-dyn_value_t
-dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t this_obj, int argc,
-               dyn_value_t *args);
-
-/**
- * @brief Call original function object in js runtime
- *
- * @param ctx the dynamic type system context
- * @param obj dynamic object
- * @param argc the count of arguements
- * @param args the arguements
- * @return The returned dynamic value
- */
-dyn_value_t
-dyntype_call_func(dyn_ctx_t ctx, dyn_value_t obj, int argc, dyn_value_t *args);
-
 /******************* Runtime type checking *******************/
-/* undefined and null */
-bool
-dyntype_is_undefined(dyn_ctx_t ctx, dyn_value_t obj);
-bool
-dyntype_is_null(dyn_ctx_t ctx, dyn_value_t obj);
-/* boolean */
-bool
-dyntype_is_bool(dyn_ctx_t ctx, dyn_value_t obj);
-int
-dyntype_to_bool(dyn_ctx_t ctx, dyn_value_t bool_obj, bool *pres);
 /* number */
 bool
 dyntype_is_number(dyn_ctx_t ctx, dyn_value_t obj);
 int
 dyntype_to_number(dyn_ctx_t ctx, dyn_value_t obj, double *pres);
+/* boolean */
+bool
+dyntype_is_bool(dyn_ctx_t ctx, dyn_value_t obj);
+int
+dyntype_to_bool(dyn_ctx_t ctx, dyn_value_t bool_obj, bool *pres);
 /* string */
 bool
 dyntype_is_string(dyn_ctx_t ctx, dyn_value_t obj);
@@ -429,6 +302,11 @@ int
 dyntype_to_cstring(dyn_ctx_t ctx, dyn_value_t str_obj, char **pres);
 void
 dyntype_free_cstring(dyn_ctx_t ctx, char *str);
+/* undefined and null */
+bool
+dyntype_is_undefined(dyn_ctx_t ctx, dyn_value_t obj);
+bool
+dyntype_is_null(dyn_ctx_t ctx, dyn_value_t obj);
 /* object */
 bool
 dyntype_is_object(dyn_ctx_t ctx, dyn_value_t obj);
@@ -459,7 +337,8 @@ dyntype_to_extref(dyn_ctx_t ctx, dyn_value_t obj, void **pres);
  * @param value dynamic object
  * @return TRUE if the value is exception, FALSE otherwise
  */
-bool dyntype_is_exception(dyn_ctx_t ctx, dyn_value_t value);
+bool
+dyntype_is_exception(dyn_ctx_t ctx, dyn_value_t value);
 
 /**
  * @brief Get the value of any type as a bool condition
@@ -468,7 +347,8 @@ bool dyntype_is_exception(dyn_ctx_t ctx, dyn_value_t value);
  * @param value dynamic object
  * @return TRUE if the value is falsy, FALSE otherwise
  */
-bool dyntype_is_falsy(dyn_ctx_t ctx, dyn_value_t value);
+bool
+dyntype_is_falsy(dyn_ctx_t ctx, dyn_value_t value);
 
 /******************* Type equivalence *******************/
 
@@ -510,16 +390,6 @@ dyntype_cmp(dyn_ctx_t ctx, dyn_value_t lhs, dyn_value_t rhs, cmp_operator operat
 /******************* Subtyping *******************/
 
 /**
- * @brief Create new object with given prototype
- *
- * @param ctx the dynamic type system context
- * @param proto_obj prototype object
- * @return dynamic value if success, NULL otherwise
- */
-dyn_value_t
-dyntype_new_object_with_proto(dyn_ctx_t ctx, const dyn_value_t proto_obj);
-
-/**
  * @brief Set prototype of the given dynamic object
  *
  * @param ctx the dynamic type system context
@@ -546,17 +416,6 @@ dyntype_get_prototype(dyn_ctx_t ctx, dyn_value_t obj);
 /******************* property access *******************/
 
 /**
- * @brief Get own property of the given dynamic object
- *
- * @param ctx the dynamic type system context
- * @param obj dynamic object
- * @param prop property name
- * @return dynamic value of the corresponding property if exists, NULL otherwise
- */
-dyn_value_t
-dyntype_get_own_property(dyn_ctx_t ctx, dyn_value_t obj, const char *prop);
-
-/**
  * @brief Check if the src object is instance of the dst object
  *
  * @param ctx the dynamic type system context
@@ -568,76 +427,32 @@ bool
 dyntype_instanceof(dyn_ctx_t ctx, const dyn_value_t src_obj,
                    const dyn_value_t dst_obj);
 
-/******************* Exception *******************/
+/******************* function fallback *******************/
 
 /**
- * @brief Throw dynamic exception
+ * @brief invoke a dynamic typed function
  *
- * @param ctx the dynamic type system context
- * @param obj the dynamic exception value
+ * @param name the method name if invoking a method, NULL otherwise
+ * @param obj if name is not NULL, obj is the this object, otherwise obj is the function object
+ * @param argc the count of arguments
+ * @param args the argument array
+ * @return dynamic value returned by the function
  */
 dyn_value_t
-dyntype_throw_exception(dyn_ctx_t ctx, dyn_value_t obj);
-
-/******************* Dumping *******************/
-
-/**
- * @brief Dump dynamic value to stdout
- *
- * @param ctx the dynamic type system context
- * @param obj object to be dumped
- */
-void
-dyntype_dump_value(dyn_ctx_t ctx, dyn_value_t obj);
+dyntype_invoke(dyn_ctx_t ctx, const char *name, dyn_value_t obj, int argc,
+               dyn_value_t *args);
 
 /**
- * @brief Dump dynamic value to given buffer
+ * @brief get builtin global object by name
  *
- * @param ctx the dynamic type system context
- * @param obj object to be dumped
- * @param buffer buffer to store the dumped message
- * @param len length of the given buffer
- * @return On success, this function return length of bytes dumped to buffer.
- * When failed, a negative error code is returned and content in buffer is
- * undefined
- */
-int
-dyntype_dump_value_buffer(dyn_ctx_t ctx, dyn_value_t obj, void *buffer,
-                          int len);
-
-/******************* Garbage collection *******************/
-
-/**
- * @brief Mark the object
- *
- * @param ctx the dynamic type system context
- * @param obj the dynamic value
- * @return On success, this function return a dyn_value_t which hold a strong
- * reference to the dynamic object, avoid this object to be claimed until this
- * dyn_value_t is freed through dyntype_release.
+ * @param name the name of object
+ * @return dynamic value if success, NULL otherwise
  */
 dyn_value_t
-dyntype_hold(dyn_ctx_t ctx, dyn_value_t obj);
-
-/**
- * @brief Release the object
- *
- * @param ctx the dynamic type system context
- * @param obj the dynamic value
- */
-void
-dyntype_release(dyn_ctx_t ctx, dyn_value_t obj);
-
-/**
- * @brief Start GC collect
- *
- * @param ctx the dynamic type system context
- */
-void
-dyntype_collect(dyn_ctx_t ctx);
+dyntype_get_global(dyn_ctx_t ctx, const char *name);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* end of  __DYNTYPE_H_ */
+#endif /* end of  __LIBDYNTYPE_H_ */

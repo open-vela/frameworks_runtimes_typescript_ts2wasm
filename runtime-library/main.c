@@ -13,7 +13,7 @@
 #include "bh_platform.h"
 #include "bh_read_file.h"
 #include "wasm_export.h"
-#include "dyntype.h"
+#include "libdyntype_export.h"
 
 extern uint32_t
 get_libdyntype_symbols(char **p_module_name, NativeSymbol **p_native_symbols);
@@ -240,15 +240,15 @@ validate_env_str(char *env)
 #endif
 
 #if BH_HAS_DLFCN
-typedef uint32 (*get_native_lib_func)(char **p_module_name,
+typedef uint32_t (*get_native_lib_func)(char **p_module_name,
                                       NativeSymbol **p_native_symbols);
 
 static uint32
 load_and_register_native_libs(const char **native_lib_list,
-                              uint32 native_lib_count,
+                              uint32_t native_lib_count,
                               void **native_handle_list)
 {
-    uint32 i, native_handle_count = 0, n_native_symbols;
+    uint32_t i, native_handle_count = 0, n_native_symbols;
     NativeSymbol *native_symbols;
     char *module_name;
     void *handle;
@@ -291,10 +291,10 @@ load_and_register_native_libs(const char **native_lib_list,
 }
 
 static void
-unregister_and_unload_native_libs(uint32 native_lib_count,
+unregister_and_unload_native_libs(uint32_t native_lib_count,
                                   void **native_handle_list)
 {
-    uint32 i, n_native_symbols;
+    uint32_t i, n_native_symbols;
     NativeSymbol *native_symbols;
     char *module_name;
     void *handle;
@@ -343,7 +343,7 @@ static char *module_search_path = ".";
 
 static bool
 module_reader_callback(const char *module_name, uint8 **p_buffer,
-                       uint32 *p_size)
+                       uint32_t *p_size)
 {
     const char *format = "%s/%s.wasm";
     int sz = strlen(module_search_path) + strlen("/") + strlen(module_name)
@@ -362,7 +362,7 @@ module_reader_callback(const char *module_name, uint8 **p_buffer,
 }
 
 static void
-moudle_destroyer(uint8 *buffer, uint32 size)
+moudle_destroyer(uint8 *buffer, uint32_t size)
 {
     if (!buffer) {
         return;
@@ -414,17 +414,17 @@ main(int argc, char *argv[])
     char *wasm_file = NULL;
     const char *func_name = NULL;
     uint8 *wasm_file_buf = NULL;
-    uint32 wasm_file_size;
-    uint32 stack_size = 64 * 1024, heap_size = 16 * 1024;
+    uint32_t wasm_file_size;
+    uint32_t stack_size = 64 * 1024, heap_size = 16 * 1024;
 #if WASM_ENABLE_FAST_JIT != 0
-    uint32 jit_code_cache_size = FAST_JIT_DEFAULT_CODE_CACHE_SIZE;
+    uint32_t jit_code_cache_size = FAST_JIT_DEFAULT_CODE_CACHE_SIZE;
 #endif
 #if WASM_ENABLE_GC != 0
-    uint32 gc_heap_size = GC_HEAP_SIZE_DEFAULT;
+    uint32_t gc_heap_size = GC_HEAP_SIZE_DEFAULT;
 #endif
 #if WASM_ENABLE_JIT != 0
-    uint32 llvm_jit_size_level = 3;
-    uint32 llvm_jit_opt_level = 3;
+    uint32_t llvm_jit_size_level = 3;
+    uint32_t llvm_jit_opt_level = 3;
 #endif
     wasm_module_t wasm_module = NULL;
     wasm_module_inst_t wasm_module_inst = NULL;
@@ -440,19 +440,19 @@ main(int argc, char *argv[])
     bool is_xip_file = false;
 #if WASM_ENABLE_LIBC_WASI != 0
     const char *dir_list[8] = { NULL };
-    uint32 dir_list_size = 0;
+    uint32_t dir_list_size = 0;
     const char *env_list[8] = { NULL };
-    uint32 env_list_size = 0;
+    uint32_t env_list_size = 0;
     const char *addr_pool[8] = { NULL };
-    uint32 addr_pool_size = 0;
+    uint32_t addr_pool_size = 0;
     const char *ns_lookup_pool[8] = { NULL };
-    uint32 ns_lookup_pool_size = 0;
+    uint32_t ns_lookup_pool_size = 0;
 #endif
 #if BH_HAS_DLFCN
     const char *native_lib_list[8] = { NULL };
-    uint32 native_lib_count = 0;
+    uint32_t native_lib_count = 0;
     void *native_handle_list[8] = { NULL };
-    uint32 native_handle_count = 0;
+    uint32_t native_handle_count = 0;
 #endif
 #if WASM_ENABLE_DEBUG_INTERP != 0
     char *ip_addr = NULL;
@@ -661,7 +661,7 @@ main(int argc, char *argv[])
         }
 #endif
         else if (!strncmp(argv[0], "--version", 9)) {
-            uint32 major, minor, patch;
+            uint32_t major, minor, patch;
             wasm_runtime_get_version(&major, &minor, &patch);
             printf("iwasm %" PRIu32 ".%" PRIu32 ".%" PRIu32 "\n", major, minor,
                    patch);
@@ -719,7 +719,7 @@ main(int argc, char *argv[])
 
     /* initialize dyntype context and set callback dispatcher */
     dyn_ctx = dyntype_context_init();
-    dyntype_set_callback_dispatcher(dyn_ctx, dyntype_callback_wasm_dispatcher);
+    dyntype_set_callback_dispatcher(dyntype_callback_wasm_dispatcher);
 
 #if WASM_ENABLE_LOG != 0
     bh_log_set_verbose_level(log_verbose_level);

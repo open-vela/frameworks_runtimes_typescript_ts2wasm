@@ -3,23 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "dyntype.h"
+#include "libdyntype_export.h"
+#include <cstddef>
 #include <gtest/gtest.h>
+#include "test_app.h"
+#include "wasm_export.h"
 
-class ObjectPropertyTest : public testing::Test {
+class ObjectPropertyTest : public testing::Test
+{
   protected:
-    virtual void SetUp() {
-        ctx = dyntype_context_init();
-    }
+    virtual void SetUp() { ctx = dyntype_context_init(); }
 
-    virtual void TearDown() {
-        dyntype_context_destroy(ctx);
-    }
+    virtual void TearDown() { dyntype_context_destroy(ctx); }
 
     dyn_ctx_t ctx;
 };
 
-TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property) {
+TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property)
+{
     dyn_value_t obj = dyntype_new_object(ctx);
 
     int ext_data = 1000;
@@ -28,15 +29,17 @@ TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property) {
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
     dyn_value_t undefined = dyntype_new_undefined(ctx);
     dyn_value_t null = dyntype_new_null(ctx);
-    dyn_value_t str = dyntype_new_string(ctx, "string");
-    dyn_value_t array = dyntype_new_array(ctx);
+    dyn_value_t str = dyntype_new_string(ctx, "string", strlen("string"));
+    dyn_value_t array = dyntype_new_array(ctx, 0);
     dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
                                             external_ref_tag::ExtObj, NULL);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop1", num), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_set_property(ctx, obj, "prop2", boolean), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_set_property(ctx, obj, "prop3", undefined), DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_set_property(ctx, obj, "prop2", boolean),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_set_property(ctx, obj, "prop3", undefined),
+              DYNTYPE_SUCCESS);
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop4", null), DYNTYPE_SUCCESS);
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop5", str), DYNTYPE_SUCCESS);
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop6", array), DYNTYPE_SUCCESS);
@@ -93,7 +96,6 @@ TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property) {
     EXPECT_TRUE(dyntype_is_object(ctx, obj1_v));
     dyntype_release(ctx, obj1_v);
 
-
     EXPECT_EQ(dyntype_has_property(ctx, obj, "prop1"), 1);
     EXPECT_EQ(dyntype_has_property(ctx, obj, "prop2"), 1);
     EXPECT_EQ(dyntype_has_property(ctx, obj, "prop3"), 1);
@@ -125,7 +127,8 @@ TEST_F(ObjectPropertyTest, object_set_and_has_and_get_property) {
     dyntype_release(ctx, obj1);
 }
 
-TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property) {
+TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property)
+{
     dyn_value_t obj = dyntype_new_object(ctx);
     int ext_data = 1000;
 
@@ -133,8 +136,8 @@ TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property) {
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
     dyn_value_t undefined = dyntype_new_undefined(ctx);
     dyn_value_t null = dyntype_new_null(ctx);
-    dyn_value_t str = dyntype_new_string(ctx, "  ");
-    dyn_value_t array = dyntype_new_array(ctx);
+    dyn_value_t str = dyntype_new_string(ctx, "  ", 2);
+    dyn_value_t array = dyntype_new_array(ctx, 0);
     dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
                                             external_ref_tag::ExtObj, NULL);
     dyn_value_t obj1 = dyntype_new_object(ctx);
@@ -187,14 +190,22 @@ TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property) {
     dyntype_set_property(ctx, desc8, "value", obj1);
     dyntype_release(ctx, desc8_v);
 
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop1", desc1), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop2", desc2), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop3", desc3), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop4", desc4), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop5", desc5), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop6", desc6), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop7", desc7), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop8", desc8), DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop1", desc1),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop2", desc2),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop3", desc3),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop4", desc4),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop5", desc5),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop6", desc6),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop7", desc7),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop8", desc8),
+              DYNTYPE_SUCCESS);
 
     EXPECT_EQ(dyntype_has_property(ctx, obj, "prop1"), 1);
     EXPECT_EQ(dyntype_has_property(ctx, obj, "prop2"), 1);
@@ -275,8 +286,9 @@ TEST_F(ObjectPropertyTest, object_define_and_has_and_get_property) {
     dyntype_release(ctx, desc8);
 }
 
-TEST_F(ObjectPropertyTest, object_set_and_delete_property) {
-   dyn_value_t obj = dyntype_new_object(ctx);
+TEST_F(ObjectPropertyTest, object_set_and_delete_property)
+{
+    dyn_value_t obj = dyntype_new_object(ctx);
 
     int ext_data = 1000;
 
@@ -284,16 +296,18 @@ TEST_F(ObjectPropertyTest, object_set_and_delete_property) {
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
     dyn_value_t undefined = dyntype_new_undefined(ctx);
     dyn_value_t null = dyntype_new_null(ctx);
-    dyn_value_t str = dyntype_new_string(ctx, "string");
-    dyn_value_t array = dyntype_new_array(ctx);
+    dyn_value_t str = dyntype_new_string(ctx, "string", strlen("string"));
+    dyn_value_t array = dyntype_new_array(ctx, 0);
     EXPECT_TRUE(dyntype_is_array(ctx, array));
     dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
                                             external_ref_tag::ExtObj, NULL);
     dyn_value_t obj1 = dyntype_new_object(ctx);
 
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop1", num), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_set_property(ctx, obj, "prop2", boolean), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_set_property(ctx, obj, "prop3", undefined), DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_set_property(ctx, obj, "prop2", boolean),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_set_property(ctx, obj, "prop3", undefined),
+              DYNTYPE_SUCCESS);
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop4", null), DYNTYPE_SUCCESS);
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop5", str), DYNTYPE_SUCCESS);
     EXPECT_EQ(dyntype_set_property(ctx, obj, "prop6", array), DYNTYPE_SUCCESS);
@@ -331,7 +345,8 @@ TEST_F(ObjectPropertyTest, object_set_and_delete_property) {
     dyntype_release(ctx, obj1);
 }
 
-TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
+TEST_F(ObjectPropertyTest, object_define_and_delete_property)
+{
     dyn_value_t obj = dyntype_new_object(ctx);
     int ext_data = 1000;
 
@@ -339,8 +354,8 @@ TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
     dyn_value_t undefined = dyntype_new_undefined(ctx);
     dyn_value_t null = dyntype_new_null(ctx);
-    dyn_value_t str = dyntype_new_string(ctx, "  ");
-    dyn_value_t array = dyntype_new_array(ctx);
+    dyn_value_t str = dyntype_new_string(ctx, "  ", 2);
+    dyn_value_t array = dyntype_new_array(ctx, 0);
     dyn_value_t extref = dyntype_new_extref(ctx, (void *)(uintptr_t)ext_data,
                                             external_ref_tag::ExtObj, NULL);
     dyn_value_t obj1 = dyntype_new_object(ctx);
@@ -393,17 +408,26 @@ TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
     dyntype_set_property(ctx, desc8, "value", obj1);
     dyntype_release(ctx, desc8_v);
 
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop1", desc1), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop2", desc2), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop3", desc3), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop4", desc4), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop5", desc5), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop6", desc6), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop7", desc7), DYNTYPE_SUCCESS);
-    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop8", desc8), DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop1", desc1),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop2", desc2),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop3", desc3),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop4", desc4),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop5", desc5),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop6", desc6),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop7", desc7),
+              DYNTYPE_SUCCESS);
+    EXPECT_EQ(dyntype_define_property(ctx, obj, "prop8", desc8),
+              DYNTYPE_SUCCESS);
 
     EXPECT_EQ(dyntype_delete_property(ctx, obj, "prop1"), DYNTYPE_TRUE);
-    EXPECT_EQ(dyntype_delete_property(ctx, obj, "prop2"), DYNTYPE_FALSE); // writable
+    EXPECT_EQ(dyntype_delete_property(ctx, obj, "prop2"),
+              DYNTYPE_FALSE); // writable
     EXPECT_EQ(dyntype_delete_property(ctx, obj, "prop3"), DYNTYPE_FALSE);
     EXPECT_EQ(dyntype_delete_property(ctx, obj, "prop4"), DYNTYPE_FALSE);
     EXPECT_EQ(dyntype_delete_property(ctx, obj, "prop5"), DYNTYPE_FALSE);
@@ -423,7 +447,6 @@ TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
     void *extref_prop = nullptr;
     EXPECT_EQ(dyntype_to_extref(ctx, extref, &extref_prop), DYNTYPE_SUCCESS);
     EXPECT_EQ((int)(uintptr_t)extref_prop, 1000);
-
 
     dyntype_release(ctx, obj);
     dyntype_release(ctx, num);
@@ -445,13 +468,14 @@ TEST_F(ObjectPropertyTest, object_define_and_delete_property) {
     dyntype_release(ctx, desc8);
 }
 
-TEST_F(ObjectPropertyTest, map_function_test) {
+TEST_F(ObjectPropertyTest, map_function_test)
+{
     dyn_value_t obj = dyntype_new_object_with_class(ctx, "Map", 0, NULL);
 
     dyn_value_t num = dyntype_new_number(ctx, -10.1);
     dyn_value_t boolean = dyntype_new_boolean(ctx, true);
-    dyn_value_t str = dyntype_new_string(ctx, "123");
-    dyn_value_t array = dyntype_new_array(ctx);
+    dyn_value_t str = dyntype_new_string(ctx, "123", strlen("123"));
+    dyn_value_t array = dyntype_new_array(ctx, 0);
 
     dyn_value_t argv[10];
     EXPECT_EQ(dyntype_has_property(ctx, obj, "set"), DYNTYPE_TRUE);
@@ -470,11 +494,10 @@ TEST_F(ObjectPropertyTest, map_function_test) {
     argv[2] = str;
     argv[3] = array;
     dyn_value_t ret;
-    ret = dyntype_invoke(ctx, "set", obj, 2, argv); // set  num -> boolean
-    dyntype_release(ctx, ret); // release duplicate map
+    ret = dyntype_invoke(ctx, "set", obj, 2, argv);     // set  num -> boolean
+    dyntype_release(ctx, ret);                          // release duplicate map
     ret = dyntype_invoke(ctx, "set", obj, 2, argv + 2); // set str -> array
-    dyntype_release(ctx, ret); // release duplicate map
-
+    dyntype_release(ctx, ret);                          // release duplicate map
 
     ret = dyntype_invoke(ctx, "has", obj, 1, argv);
     bool has;
@@ -514,15 +537,31 @@ TEST_F(ObjectPropertyTest, map_function_test) {
 }
 
 static dyn_value_t
-test_callback_dispatcher(void *exec_env_v, dyn_ctx_t ctx, void *vfunc, dyn_value_t this_obj,
-                         int argc, dyn_value_t *args)
+test_callback_dispatcher(void *exec_env_v, dyn_ctx_t ctx, void *vfunc,
+                         dyn_value_t this_obj, int argc, dyn_value_t *args)
 {
     return dyntype_new_boolean(dyntype_get_context(), true);
 }
 
 TEST_F(ObjectPropertyTest, map_callback_test)
 {
+    wasm_module_t wasm_module;
+    wasm_module_inst_t module_inst;
+    wasm_exec_env_t exec_env;
     dyn_value_t obj = dyntype_new_object_with_class(ctx, "Map", 0, NULL);
+
+    wasm_runtime_init();
+
+    wasm_module = wasm_runtime_load(test_app, sizeof(test_app), NULL, 0);
+    EXPECT_TRUE(wasm_module != NULL);
+
+    module_inst = wasm_runtime_instantiate(wasm_module, 8192, 1024, NULL, 0);
+    EXPECT_TRUE(module_inst != NULL);
+
+    exec_env = wasm_runtime_create_exec_env(module_inst, 4096);
+    EXPECT_TRUE(exec_env != NULL);
+
+    dyntype_context_set_exec_env(exec_env);
 
     char str[] = { ' ', '\0' };
     dyn_value_t argv[10];
@@ -531,7 +570,7 @@ TEST_F(ObjectPropertyTest, map_callback_test)
 
     for (int i = 0, j = '0'; i < 10; i++, j++) {
         str[0] = j;
-        dyn_value_t key = dyntype_new_string(ctx, str);
+        dyn_value_t key = dyntype_new_string(ctx, str, strlen(str));
         dyn_value_t val = dyntype_new_number(ctx, i);
         argv[0] = key;
         argv[1] = val;
@@ -541,7 +580,7 @@ TEST_F(ObjectPropertyTest, map_callback_test)
         dyntype_release(ctx, val);
     }
 
-    gkey = dyntype_new_string(ctx, str);
+    gkey = dyntype_new_string(ctx, str, strlen(str));
     argv[0] = gkey;
     ret = dyntype_invoke(ctx, "has", obj, 1, argv);
     bool has;
@@ -550,13 +589,11 @@ TEST_F(ObjectPropertyTest, map_callback_test)
     dyntype_release(ctx, ret);
     dyntype_release(ctx, gkey);
 
-
     ret = dyntype_get_property(ctx, obj, "size");
     double sz;
     dyntype_to_number(ctx, ret, &sz);
     EXPECT_EQ(sz, 10.0); // size is 10
-    // compile error: undefine symbol dyntype_callback_for_js
-    // temp fix: Replace with printing a mock statement at the calling location.
+
     dyn_value_t func = dyntype_new_extref(ctx, NULL, ExtFunc, NULL);
     EXPECT_EQ(dyntype_is_function(ctx, func), DYNTYPE_TRUE);
     dyntype_release(ctx, ret);
@@ -569,7 +606,7 @@ TEST_F(ObjectPropertyTest, map_callback_test)
     EXPECT_TRUE(dyntype_is_exception(ctx, ret));
     dyntype_release(ctx, ret);
 
-    dyntype_set_callback_dispatcher(ctx, test_callback_dispatcher);
+    dyntype_set_callback_dispatcher(test_callback_dispatcher);
     ret = dyntype_invoke(ctx, "forEach", obj, 1, argv);
     /* The forEach method should return undefined no matter what is returned by
      * the callback */
@@ -578,4 +615,8 @@ TEST_F(ObjectPropertyTest, map_callback_test)
     dyntype_release(ctx, ret);
     dyntype_release(ctx, func);
     dyntype_release(ctx, obj);
+
+    wasm_runtime_destroy_exec_env(exec_env);
+    wasm_runtime_deinstantiate(module_inst);
+    wasm_runtime_unload(wasm_module);
 }
