@@ -1625,10 +1625,11 @@ export class TypeResolver {
             const heritageTypes: TSClass[] = [];
             for (const h of heritages) {
                 for (const type of h.types) {
-                    const symbol = this.typechecker!.getSymbolAtLocation(
-                        type.expression,
-                    );
-                    if (!symbol) break;
+                    const tsType = this.typechecker!.getTypeAtLocation(type);
+                    const symbol = tsType.symbol;
+                    if (!symbol) {
+                        break;
+                    }
                     const baseDecl = symbol.declarations![0];
                     const baseType = this.symbolTypeMap.get(baseDecl);
                     if (type.typeArguments) {
@@ -1656,6 +1657,11 @@ export class TypeResolver {
             }
             for (const h of heritageTypes) {
                 if (h instanceof TSInterface) {
+                    if (baseInfcType) {
+                        throw new TypeError(
+                            `unimpl interface ${infc.className} extends more than one interface`,
+                        );
+                    }
                     if (!baseInfcType) {
                         baseInfcType = h;
                         infc.setBase(baseInfcType);
@@ -1695,12 +1701,6 @@ export class TypeResolver {
             // TODO try resolve the template type
             for (const field of baseInfcType.fields) {
                 infc.addMemberField(field);
-            }
-            for (const pair of baseInfcType.staticFieldsInitValueMap) {
-                infc.staticFieldsInitValueMap.set(pair[0], pair[1]);
-            }
-            for (const staticField of baseInfcType.staticFields) {
-                infc.addStaticMemberField(staticField);
             }
             for (const method of baseInfcType.memberFuncs) {
                 infc.addMethod(method);

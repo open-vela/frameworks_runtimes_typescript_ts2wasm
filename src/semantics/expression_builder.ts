@@ -1330,7 +1330,7 @@ export function shapeAssignCheck(left: ValueType, right: ValueType) {
                 const right_member = rightMeta.findMember(left_member.name);
                 /* e.g.
                  interface I {
-                     x: number;
+                     x?: number;
                  }
                  class A {
                      y = 10;

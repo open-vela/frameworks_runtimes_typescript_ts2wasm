@@ -30,3 +30,20 @@ let testClass = new TestClass();
 export function importClassAsBaseClass() {
     return TestClass.foo(1) + testClass.bar(2) + defaultExportClass.bar(2);
 }
+
+import { BaseI } from './export_class';
+interface DerivedInfcI extends BaseI {
+    y: string;
+}
+
+
+class DerivedClassI implements BaseI {
+    y = "2";
+    x = 1;
+}
+
+export function importClassAsInterface() {
+    let derivedClassI = new DerivedClassI();
+    const infc: DerivedInfcI = { x: 1, y: "2"};
+    return derivedClassI.x + infc.x;
+}

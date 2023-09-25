@@ -28,3 +28,7 @@ export default class DefaultExportClass {
         return x * 2;
     }
 }
+
+export interface BaseI {
+    x: number;
+}

@@ -2286,10 +2286,24 @@ export class WASMExpressionGen {
     }
 
     private infcCastToObj(ref: binaryen.ExpressionRef, toType: ObjectType) {
-        const canbeCasted = binaryenCAPI._BinaryenRefTest(
-            this.module.ptr,
+        const vtable = this.getWasmStructFieldByIndex(
             ref,
-            this.wasmTypeGen.getWASMType(toType),
+            baseStructType.typeRef,
+            StructFieldIndex.VTABLE_INDEX,
+        );
+        const meta = this.getWasmStructFieldByIndex(
+            vtable,
+            baseVtableType.typeRef,
+            VtableFieldIndex.META_INDEX,
+        );
+        const typeIdRef = getFieldFromMetaByOffset(
+            this.module,
+            meta,
+            MetaFieldOffset.TYPE_ID_OFFSET,
+        );
+        const canbeCasted = this.module.i32.eq(
+            typeIdRef,
+            this.module.i32.const(toType.typeId),
         );
         return this.module.if(
             canbeCasted,
@@ -2357,10 +2371,10 @@ export class WASMExpressionGen {
             baseVtableType.typeRef,
             VtableFieldIndex.META_INDEX,
         );
-        const canbeCasted = binaryenCAPI._BinaryenRefTest(
-            this.module.ptr,
-            infcRef,
-            infcDescTypeRef,
+        const typeIdRef = getFieldFromMetaByOffset(
+            this.module,
+            metaRef,
+            MetaFieldOffset.TYPE_ID_OFFSET,
         );
         const implIdRef = getFieldFromMetaByOffset(
             this.module,
@@ -2416,7 +2430,7 @@ export class WASMExpressionGen {
         const res = this.createInfcAccessInfo(
             this.module,
             infcTypeIdRef,
-            canbeCasted,
+            typeIdRef,
             implIdRef,
             ifTrue,
             ifFalse,
@@ -3144,7 +3158,7 @@ export class WASMExpressionGen {
     private createInfcAccessInfo(
         module: binaryen.Module,
         infcTypeId: binaryen.ExpressionRef,
-        canbeCasted: binaryen.ExpressionRef,
+        objTypeId: binaryen.ExpressionRef,
         objImplId: binaryen.ExpressionRef,
         ifTrue: binaryen.ExpressionRef,
         ifFalse: binaryen.ExpressionRef,
@@ -3172,7 +3186,10 @@ export class WASMExpressionGen {
         }
         /** for class, we are not support optional method, so it can't be undefined */
         const cond = module.if(
-            module.i32.or(canbeCasted, module.i32.eq(infcTypeId, objImplId)),
+            module.i32.or(
+                module.i32.eq(infcTypeId, objTypeId),
+                module.i32.eq(infcTypeId, objImplId),
+            ),
             ifTrue,
             falseExpr,
         );

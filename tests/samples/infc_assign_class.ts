@@ -95,3 +95,19 @@ export function infcImplWithOptionalField() {
     const i: I3 = new C();
     console.log(i.y);
 }
+
+interface I4 {
+    x: number;
+    y: number;
+}
+
+class A4 {
+    x = 0;
+    y = 1;
+}
+
+export function infcCastToObject() {
+    const i4: I4 = {x: -1, y: -2};
+    const a: A4 = i4 as A4;
+    console.log(a.x, a.y);
+}
