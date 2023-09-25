@@ -2389,6 +2389,11 @@
                 "name": "importClassAsBaseClass",
                 "args": [],
                 "result": "8:f64"
+            },
+            {
+                "name": "importClassAsInterface",
+                "args": [],
+                "result": "2:f64"
             }
         ]
     },
@@ -2529,6 +2534,11 @@
                 "name": "infcImplWithOptionalField",
                 "args": [],
                 "result": "2"
+            },
+            {
+                "name": "infcCastToObject",
+                "args": [],
+                "result": "-1 -2"
             }
         ]
     },
