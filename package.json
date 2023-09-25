@@ -18,7 +18,7 @@
     "test:unit": "mocha 'tests/unit/*.test.ts'",
     "cover": "c8 npm run test:unit",
     "lint": "npx lint-staged",
-    "setup-hooks": "ts-node-esm scripts/link_hooks.ts",
+    "setup-hooks": "node scripts/link_hooks.js",
     "build": "npx tsc && npm run build:lib",
     "release": "npx tsc -p tsconfig.release.json && npm run build:lib",
     "build:lib": "cp -r ./lib/builtin/* ./build/lib/builtin/ && mkdir -p ./build/src/backend/binaryen/lib/interface && cp -r ./src/backend/binaryen/lib/interface/* ./build/src/backend/binaryen/lib/interface"
