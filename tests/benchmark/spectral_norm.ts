@@ -7,7 +7,7 @@
  *  https://benchmarksgame-team.pages.debian.net/benchmarksgame/program/spectralnorm-typescript-1.html
  */
 
-export function approximate(n: number): number {
+function approximate(n: number): number {
     const u: number[] = new Array(n),
         v: number[] = new Array(n);
     for (let i = 0; i < n; ++i) {
@@ -54,4 +54,7 @@ function multiplyAtAv(n: number, v: number[], atAv: number[]) {
     multiplyAtv(n, u, atAv);
 }
 
-// console.log(approximate(+process.argv[2]).toFixed(9));
+export function main() {
+    const n = 1000;
+    approximate(n);
+}

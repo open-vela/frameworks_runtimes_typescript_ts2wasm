@@ -843,6 +843,7 @@ export namespace FunctionalFuncs {
             case ValueTypeKind.STRING:
             case ValueTypeKind.NULL:
                 return boxBaseTypeToAny(module, valueRef, valueTypeKind);
+            case ValueTypeKind.UNION:
             case ValueTypeKind.ANY:
                 return valueRef;
 
