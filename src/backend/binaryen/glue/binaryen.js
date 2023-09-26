@@ -3,6 +3,11 @@
  * @license Apache-2.0
  */
 
+/* This file is modified base on:
+ *  https://github.com/AssemblyScript/assemblyscript/blob/main/src/glue/binaryen.js
+ *  Please see original LICENSE and NOTICE under the same folder
+ */
+
  import binaryen from "binaryen";
 
  export const {
