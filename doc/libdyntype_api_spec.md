@@ -161,7 +161,11 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_set_elem**
     - **Description**
-        - Set an element to the dynamic typed array
+        - if it's a dynamic typed array:
+            - Set an element to the dynamic typed array
+        - if it's an extref:
+            - Level 1: raise exception: `libdyntype: unsupport operation for extref: set_elem`
+            - Level 2: set an element to the boxed static typed array
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the array
@@ -172,7 +176,11 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_get_elem**
     - **Description**
-        - Get an element from the dynamic typed array
+        - if it's a dynamic typed array:
+            - Get an element from the dynamic typed array
+        - if it's an extref:
+            - Level 1: raise exception: `libdyntype: unsupport operation for extref: get_elem`
+            - Level 2: get an element to the boxed static typed array
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the array
@@ -182,7 +190,11 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_set_property**
     - **Description**
-        - Set the property of the dynamic typed object
+        - if it's a dynamic typed object:
+            - Set the property of the dynamic typed object
+        - if it's an extref:
+            - Level 1: raise exception: `libdyntype: unsupport operation for extref: set_property`
+            - Level 2: set the field value of the boxed static typed object if the field exists in the static object, otherwise add a dynamic property
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the object
@@ -193,7 +205,11 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_get_property**
     - **Description**
-        - Get the property of the dynamic typed object
+        - if it's a dynamic typed object:
+            - Get the property of the dynamic typed object
+        - if it's an extref:
+            - Level 1: raise exception: `libdyntype: unsupport operation for extref: get_property`
+            - Level 2: get the field value of the boxed static typed object if the field exists in the static object, otherwise return `undefined`
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the object
@@ -203,7 +219,11 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_get_own_property**
     - **Description**
-        - Get the own property of the dynamic typed object
+        - if it's a dynamic typed object:
+            - Get the own property of the dynamic typed object
+        - if it's an extref:
+            - Level 1: raise exception: `libdyntype: unsupport operation for extref: get_own_property`
+            - Level 2: get the field value of the boxed static typed object if the field exists in the static object, otherwise return `undefined`
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the object
@@ -213,7 +233,10 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_define_property**
     - **Description**
-        - Define the property of the dynamic typed object
+        - if it's a dynamic typed object:
+            - Define the property of the dynamic typed object
+        - if it's an extref:
+            - raise exception: `libdyntype: unsupport operation for extref: define_property`
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the object
@@ -224,7 +247,11 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_has_property**
     - **Description**
-        - Check if the dynamic typed object has the property
+        - if it's a dynamic typed object:
+            - Check if the dynamic typed object has the property
+        - if it's an extref:
+            - Level 1: raise exception: `libdyntype: unsupport operation for extref: has_property`
+            - Level 2: check if the field exists in the static typed object
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the object
@@ -234,7 +261,11 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_delete_property**
     - **Description**
-        - Delete the property of the dynamic typed object
+        - if it's a dynamic typed object:
+            - Delete the property of the dynamic typed object
+        - if it's an extref:
+            - Level 1: raise exception: `libdyntype: unsupport operation for extref: delete_property`
+            - Level 2: if the field exists in the boxed static object, raise exception: `libdyntype: delete property on static type object`, otherwise delete the dynamic property of the mixed type
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the object
@@ -418,7 +449,10 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_set_prototype**
     - **Description**
-        - Set the prototype of the dynamic typed object
+        - if it's a dynamic typed object:
+            - Set the prototype of the dynamic typed object
+        - if it's an extref:
+            - raise exception: `libdyntype: unsupport operation for extref: set_prototype`
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the object
@@ -428,7 +462,10 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_get_prototype**
     - **Description**
-        - Get the prototype of the dynamic typed object
+        - if it's a dynamic typed object:
+            - Get the prototype of the dynamic typed object
+        - if it's an extref:
+            - raise exception: `libdyntype: unsupport operation for extref: get_prototype`
     - **Parameters**
         - `externref`: the dyntype context
         - `externref`: the object
@@ -447,7 +484,11 @@ These APIs are required by `dynamic types`, the absence of this set of APIs woul
 
 - **dyntype_invoke**
     - **Description**
-        - Invoke method of the given dynamic object
+        - if it's a dynamic typed object:
+            - Invoke method of the given dynamic object if name is not NULL, otherwise invoke the given dynamic object
+        - if it's an extref:
+            - Level 1: raise exception: `libdyntype: unsupport operation for extref: invoke`
+            - Level 2: invoke the boxed wasm function (name is NULL) or class method (name is not NULL)
     - **Parameters**
         - `externref`: the dyntype context
         - `i32`: method name (string)
