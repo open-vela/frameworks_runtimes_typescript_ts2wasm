@@ -20,12 +20,12 @@
             {
                 "name": "anyCmp",
                 "args": [],
-                "result": "false \ntrue \ntrue \nfalse \ntrue \nfalse \nfalse \ntrue \ntrue \nfalse \nfalse"
+                "result": "false\ntrue\ntrue\nfalse\ntrue\nfalse\nfalse\ntrue\ntrue\nfalse\nfalse"
             },
             {
                 "name": "anyNullUndefinedCmp",
                 "args": [],
-                "result": "true \nfalse \ntrue \ntrue \nfalse \ntrue \nfalse"
+                "result": "true\nfalse\ntrue\ntrue\nfalse\ntrue\nfalse"
             },
             {
                 "name": "anyMinusAny",
@@ -185,7 +185,7 @@
             {
                 "name": "stringPlusAnyString",
                 "args": [],
-                "result": "string2string1 \nstring3string2string1"
+                "result": "string2string1\nstring3string2string1"
             }
         ]
     },
@@ -205,22 +205,22 @@
             {
                 "name": "anyFuncCallWithNumber",
                 "args": [],
-                "result": "20 \n110"
+                "result": "20\n110"
             },
             {
                 "name": "anyFuncCallWithBoolean",
                 "args": [],
-                "result": "true \n11"
+                "result": "true\n11"
             },
             {
                 "name": "anyFuncCallWithString",
                 "args": [],
-                "result": "hi \nhello, world"
+                "result": "hi\nhello, world"
             },
             {
                 "name": "anyFuncCallWithAny",
                 "args": [],
-                "result": "100 \nworld"
+                "result": "100\nworld"
             },
             {
                 "name": "anyFuncCallWithFunc",
@@ -230,32 +230,32 @@
             {
                 "name": "anyFuncCallWithClass",
                 "args": [],
-                "result": "3 \ntrue \n1"
+                "result": "3\ntrue\n1"
             },
             {
                 "name": "anyFuncCallWithObj_static",
                 "args": [],
-                "result": "3 \ntrue \n1"
+                "result": "3\ntrue\n1"
             },
             {
                 "name": "anyFuncCallWithInfc_class",
                 "args": [],
-                "result": "3 \ntrue \n1"
+                "result": "3\ntrue\n1"
             },
             {
                 "name": "anyFuncCallWithInfc_obj",
                 "args": [],
-                "result": "3 \ntrue \n1"
+                "result": "3\ntrue\n1"
             },
             {
                 "name": "anyFuncCallWithArray_static",
                 "args": [],
-                "result": "9 \n10 \n2"
+                "result": "9\n10\n2"
             },
             {
                 "name": "anyFuncCallWithArray_extref",
                 "args": [],
-                "result": "9 \n10 \n2"
+                "result": "9\n10\n2"
             },
             {
                 "name": "anyFuncCallInMap",
@@ -265,12 +265,12 @@
             {
                 "name": "anyFuncCallWithCast",
                 "args": [],
-                "result": "Page class \n1"
+                "result": "Page class\n1"
             },
             {
                 "name": "anyFuncCallWithNoCast",
                 "args": [],
-                "result": "Page class \n1"
+                "result": "Page class\n1"
             }
         ]
     },
@@ -496,7 +496,7 @@
             {
                 "name": "array_class2",
                 "args": [],
-                "result": "123 \n123"
+                "result": "123\n123"
             },
             {
                 "name": "array_push_boolean",
@@ -526,7 +526,7 @@
             {
                 "name": "array_push_string_array",
                 "args": [],
-                "result": "123 \n3:f64"
+                "result": "123\n3:f64"
             }
         ]
     },
@@ -566,7 +566,7 @@
             {
                 "name": "array_unshift_string_array",
                 "args": [],
-                "result": "wasm \n3:f64"
+                "result": "wasm\n3:f64"
             }
         ]
     },
@@ -606,7 +606,7 @@
             {
                 "name": "array_filter_string_array",
                 "args": [],
-                "result": "h \n1:f64"
+                "result": "h\n1:f64"
             },
             {
                 "name": "push_in_callback",
@@ -666,7 +666,7 @@
             {
                 "name": "array_pop_string_array",
                 "args": [],
-                "result": "123 \n2:f64"
+                "result": "123\n2:f64"
             }
         ]
     },
@@ -686,17 +686,17 @@
             {
                 "name": "array_map_string",
                 "args": [],
-                "result": "hello! \n6:f64"
+                "result": "hello!\n6:f64"
             },
             {
                 "name": "array_map_class",
                 "args": [],
-                "result": "xxx! \nhello! \n6:f64"
+                "result": "xxx!\nhello!\n6:f64"
             },
             {
                 "name": "array_map_interface",
                 "args": [],
-                "result": "! \nxxx!! \n3:f64"
+                "result": "!\nxxx!!\n3:f64"
             },
             {
                 "name": "array_map_number_array",
@@ -706,7 +706,7 @@
             {
                 "name": "array_map_string_array",
                 "args": [],
-                "result": "world^ \n3:f64"
+                "result": "world^\n3:f64"
             },
             {
                 "name": "array_map_func",
@@ -721,12 +721,12 @@
             {
                 "name": "array_fill_number",
                 "args": [],
-                "result": "0 : 123 \n1 : 234 \n2 : 0 \n3 : 0 \n4 : 0 \n5 : 0 \n6 : 0 \n0 : 123 \n1 : 234 \n2 : 0 \n3 : 0 \n4 : 0 \n5 : 0 \n6 : 0"
+                "result": "0 : 123\n1 : 234\n2 : 0\n3 : 0\n4 : 0\n5 : 0\n6 : 0\n0 : 123\n1 : 234\n2 : 0\n3 : 0\n4 : 0\n5 : 0\n6 : 0"
             },
             {
                 "name": "array_fill_string",
                 "args": [],
-                "result": "0 : hello \n1 : hello \n2 : hello \n3 : hello \n4 : hello \n5 : hello \n6 : hello \n0 : hello \n1 : hello \n2 : hello \n3 : hello \n4 : hello \n5 : hello \n6 : hello"
+                "result": "0 : hello\n1 : hello\n2 : hello\n3 : hello\n4 : hello\n5 : hello\n6 : hello\n0 : hello\n1 : hello\n2 : hello\n3 : hello\n4 : hello\n5 : hello\n6 : hello"
             }
         ]
     },
@@ -736,12 +736,12 @@
             {
                 "name": "array_foreach_number",
                 "args": [],
-                "result": "0 : 123 \n1 : 234 \n2 : 456 \n3 : 4 \n4 : 453 \n5 : 0 \n6 : 456"
+                "result": "0 : 123\n1 : 234\n2 : 456\n3 : 4\n4 : 453\n5 : 0\n6 : 456"
             },
             {
                 "name": "array_foreach_string",
                 "args": [],
-                "result": "0 : s123 \n1 : s234 \n2 : s456 \n3 : s4 \n4 : s453 \n5 : s0 \n6 : s456"
+                "result": "0 : s123\n1 : s234\n2 : s456\n3 : s4\n4 : s453\n5 : s0\n6 : s456"
             },
             {
                 "name": "array_foreach_closure",
@@ -756,7 +756,7 @@
             {
                 "name": "array_slice",
                 "args": [],
-                "result": "0 : 0 \n1 : 456"
+                "result": "0 : 0\n1 : 456"
             },
             {
                 "name": "array_slice_empty",
@@ -766,7 +766,7 @@
             {
                 "name": "array_slice_endIdxisUndefined",
                 "args": [],
-                "result": "0 : a \n1 : b \n2 : c"
+                "result": "0 : a\n1 : b\n2 : c"
             }
         ]
     },
@@ -776,7 +776,7 @@
             {
                 "name": "array_sort_number",
                 "args": [],
-                "result": "0 : 0 \n1 : 4 \n2 : 6 \n3 : 12 \n4 : 23 \n5 : 45 \n6 : 56 \n0 : 0 \n1 : 4 \n2 : 6 \n3 : 12 \n4 : 23 \n5 : 45 \n6 : 56"
+                "result": "0 : 0\n1 : 4\n2 : 6\n3 : 12\n4 : 23\n5 : 45\n6 : 56\n0 : 0\n1 : 4\n2 : 6\n3 : 12\n4 : 23\n5 : 45\n6 : 56"
             }
         ]
     },
@@ -786,12 +786,12 @@
             {
                 "name": "array_findIndex_number",
                 "args": [],
-                "result": "foundIndex: 2 \nnotfoundIndex: -1"
+                "result": "foundIndex: 2\nnotfoundIndex: -1"
             },
             {
                 "name": "array_findIndex_string",
                 "args": [],
-                "result": "result: 3 \nnoresult: -1"
+                "result": "result: 3\nnoresult: -1"
             },
             {
                 "name": "array_findIndex_boolean",
@@ -801,7 +801,7 @@
             {
                 "name": "array_findIndex_class",
                 "args": [],
-                "result": "1 \n-1"
+                "result": "1\n-1"
             },
             {
                 "name": "array_findIndex_interface",
@@ -816,7 +816,7 @@
             {
                 "name": "array_join_string",
                 "args": [],
-                "result": "hello$wasm$hello$world \n22 \nhello,wasm,hello,world \n22"
+                "result": "hello$wasm$hello$world\n22\nhello,wasm,hello,world\n22"
             }
         ]
     },
@@ -856,7 +856,7 @@
             {
                 "name": "array_concat_string_array",
                 "args": [],
-                "result": "hello \n2:f64"
+                "result": "hello\n2:f64"
             }
         ]
     },
@@ -866,7 +866,7 @@
             {
                 "name": "array_find_number",
                 "args": [],
-                "result": "300 \nundefined"
+                "result": "300\nundefined"
             },
             {
                 "name": "array_find_boolean",
@@ -966,12 +966,12 @@
             {
                 "name": "array_reverse_number_array",
                 "args": [],
-                "result": "44 \n8:f64"
+                "result": "44\n8:f64"
             },
             {
                 "name": "array_reverse_string_array",
                 "args": [],
-                "result": "123 \n3:f64"
+                "result": "123\n3:f64"
             }
         ]
     },
@@ -1006,12 +1006,12 @@
             {
                 "name": "array_shift_number_array",
                 "args": [],
-                "result": "1 \n6:f64"
+                "result": "1\n6:f64"
             },
             {
                 "name": "array_shift_string_array",
                 "args": [],
-                "result": "h \n2:f64"
+                "result": "h\n2:f64"
             }
         ]
     },
@@ -1021,7 +1021,7 @@
             {
                 "name": "array_splice_number",
                 "args": [],
-                "result": "0 \n2:f64"
+                "result": "0\n2:f64"
             },
             {
                 "name": "array_splice_boolean",
@@ -1051,27 +1051,27 @@
             {
                 "name": "array_every_number",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             },
             {
                 "name": "array_every_boolean",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             },
             {
                 "name": "array_every_string",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             },
             {
                 "name": "array_every_class",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             },
             {
                 "name": "array_every_interface",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             }
         ]
     },
@@ -1081,27 +1081,27 @@
             {
                 "name": "array_some_number",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             },
             {
                 "name": "array_some_boolean",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             },
             {
                 "name": "array_some_string",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             },
             {
                 "name": "array_some_class",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             },
             {
                 "name": "array_some_interface",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             }
         ]
     },
@@ -1111,27 +1111,27 @@
             {
                 "name": "array_includes_number",
                 "args": [],
-                "result": "false \nfalse \nfalse \nfalse \nfalse \ntrue \ntrue \ntrue \ntrue"
+                "result": "false\nfalse\nfalse\nfalse\nfalse\ntrue\ntrue\ntrue\ntrue"
             },
             {
                 "name": "array_includes_boolean",
                 "args": [],
-                "result": "false \ntrue \ntrue"
+                "result": "false\ntrue\ntrue"
             },
             {
                 "name": "array_includes_string",
                 "args": [],
-                "result": "false \nfalse \ntrue \ntrue \nfalse"
+                "result": "false\nfalse\ntrue\ntrue\nfalse"
             },
             {
                 "name": "array_includes_class",
                 "args": [],
-                "result": "false \nfalse \ntrue \ntrue"
+                "result": "false\nfalse\ntrue\ntrue"
             },
             {
                 "name": "array_includes_interface",
                 "args": [],
-                "result": "false \nfalse \ntrue \ntrue"
+                "result": "false\nfalse\ntrue\ntrue"
             }
         ]
     },
@@ -1206,22 +1206,22 @@
             {
                 "name": "array_copyWithin_boolean",
                 "args": [],
-                "result": "false \nfalse \ntrue"
+                "result": "false\nfalse\ntrue"
             },
             {
                 "name": "array_copyWithin_string",
                 "args": [],
-                "result": "2 \n3 \n3 \n4 \n5"
+                "result": "2\n3\n3\n4\n5"
             },
             {
                 "name": "array_copyWithin_class",
                 "args": [],
-                "result": "A2 \nA2 \nA3"
+                "result": "A2\nA2\nA3"
             },
             {
                 "name": "array_copyWithin_interface",
                 "args": [],
-                "result": "A2 \nA2 \nA3"
+                "result": "A2\nA2\nA3"
             }
         ]
     },
@@ -1231,7 +1231,7 @@
             {
                 "name": "getRes",
                 "args": [],
-                "result": "1 \n5 \n2 \n10 \n10 \n10 \n1 \n5 \n11 \n15 \n2 \n10 \n10 \n10 \n1 \n5"
+                "result": "1\n5\n2\n10\n10\n10\n1\n5\n11\n15\n2\n10\n10\n10\n1\n5"
             }
         ]
     },
@@ -1261,7 +1261,7 @@
             {
                 "name": "booleanCmp",
                 "args": [],
-                "result": "false \ntrue"
+                "result": "false\ntrue"
             }
         ]
     },
@@ -1331,7 +1331,7 @@
             {
                 "name": "specialNum",
                 "args": [],
-                "result": "NaN \nInfinity \n-Infinity"
+                "result": "NaN\nInfinity\n-Infinity"
             }
         ]
     },
@@ -1426,27 +1426,27 @@
             {
                 "name": "stringIndexOf",
                 "args": [],
-                "result": "9 \n-1 \n-1:f64"
+                "result": "9\n-1\n-1:f64"
             },
             {
                 "name": "stringSplit",
                 "args": [],
-                "result": "h \ne \nl \nl \no \n \nllo \n \nref.struct"
+                "result": "h\ne\nl\nl\no\n\nllo\n\nref.struct"
             },
             {
                 "name": "stringReplace",
                 "args": [],
-                "result": "hellokhello \nhellokhello \nhello-hello \n-hellokhello \nhellohello"
+                "result": "hellokhello\nhellokhello\nhello-hello\n-hellokhello\nhellohello"
             },
             {
                 "name": "stringMatch",
                 "args": [],
-                "result": "hello \norld \n \nref.struct"
+                "result": "hello\norld\n\nref.struct"
             },
             {
                 "name": "stringSearch",
                 "args": [],
-                "result": "0 \n7 \n-1 \n0 \n0:f64"
+                "result": "0\n7\n-1\n0\n0:f64"
             },
             {
                 "name": "stringcharAt",
@@ -1626,7 +1626,7 @@
             {
                 "name": "foo",
                 "args": [],
-                "result": "a \nb"
+                "result": "a\nb"
             }
         ]
     },
@@ -1661,17 +1661,17 @@
             {
                 "name": "inheritCast",
                 "args": [],
-                "result": "foo \nbase \nfoo \nbar"
+                "result": "foo\nbase\nfoo\nbar"
             },
             {
                 "name": "extendsImpl",
                 "args": [],
-                "result": "true \n1 \ntrue"
+                "result": "true\n1\ntrue"
             },
             {
                 "name": "implInfc",
                 "args": [],
-                "result": "1 \nfalse"
+                "result": "1\nfalse"
             },
             {
                 "name": "fieldInitOrder",
@@ -1736,7 +1736,7 @@
             {
                 "name": "staticFieldWithOverwrite",
                 "args": [],
-                "result": "3.14 \n3.14 \n100 \n314"
+                "result": "3.14\n3.14\n100\n314"
             }
         ]
     },
@@ -1756,7 +1756,7 @@
             {
                 "name": "bar",
                 "args": [],
-                "result": "a \nb"
+                "result": "a\nb"
             }
         ]
     },
@@ -1816,12 +1816,12 @@
             {
                 "name": "outerFunc",
                 "args": [],
-                "result": "2 \n1"
+                "result": "2\n1"
             },
             {
                 "name": "outerFuncWithBlock",
                 "args": [],
-                "result": "52 \n100"
+                "result": "52\n100"
             }
         ]
     },
@@ -2246,12 +2246,12 @@
             {
                 "name": "arrowFunctionWithoutReturn",
                 "args": [],
-                "result": "1 \n2:f64"
+                "result": "1\n2:f64"
             },
             {
                 "name": "functionReturnClosure",
                 "args": [],
-                "result": "2 \nfoo \n5"
+                "result": "2\nfoo\n5"
             }
         ]
     },
@@ -2303,12 +2303,12 @@
             {
                 "name": "stringAsCond",
                 "args": [],
-                "result": "b \nb"
+                "result": "b\nb"
             },
             {
                 "name": "paramUndefined",
                 "args": [],
-                "result": "else when not undefined \nparams is undefined"
+                "result": "else when not undefined\nparams is undefined"
             },
             {
                 "name": "paramNotUndefined",
@@ -2488,12 +2488,12 @@
             {
                 "name": "validatePrimitiveType",
                 "args": [],
-                "result": "100 \nhi \ntrue"
+                "result": "100\nhi\ntrue"
             },
             {
                 "name": "validateObjType",
                 "args": [],
-                "result": "hello \n18"
+                "result": "hello\n18"
             },
             {
                 "name": "validateFuncType",
@@ -2503,7 +2503,7 @@
             {
                 "name": "validateTypeArguments",
                 "args": [],
-                "result": "10 \nfalse"
+                "result": "10\nfalse"
             }
         ]
     },
@@ -2685,7 +2685,7 @@
             {
                 "name": "instanceofTest",
                 "args": [],
-                "result": "true \ntrue \nfalse \ntrue \nfalse \ntrue \nfalse \nfalse \na \nb \ntrue \ntrue \nfalse"
+                "result": "true\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\na\nb\ntrue\ntrue\nfalse"
             }
         ]
     },
@@ -2915,7 +2915,7 @@
             {
                 "name": "useThisInLiteralObj",
                 "args": [],
-                "result": "A \n1 \nA \nB \n1 \nB"
+                "result": "A\n1\nA\nB\n1\nB"
             }
         ]
     },
@@ -2925,7 +2925,7 @@
             {
                 "name": "judgeIsRefNull",
                 "args": [],
-                "result": "both find \nat least one found \nno found"
+                "result": "both find\nat least one found\nno found"
             }
         ]
     },
@@ -2980,12 +2980,12 @@
             {
                 "name": "nullundefinedCmp",
                 "args": [],
-                "result": "false \ntrue \ntrue \nfalse \nfalse \nfalse \ntrue \nfalse \ntrue \nfalse \ntrue \nfalse \ntrue \ntrue \nfalse"
+                "result": "false\ntrue\ntrue\nfalse\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse"
             },
             {
                 "name": "NaNNumber",
                 "args": [],
-                "result": "1 \n1"
+                "result": "1\n1"
             }
         ]
     },
@@ -2995,12 +2995,12 @@
             {
                 "name": "promiseChain",
                 "args": [],
-                "result": "123 \n456 \nhello \nfalse \nfinally"
+                "result": "123\n456\nhello\nfalse\nfinally"
             },
             {
                 "name": "promiseMultiThen",
                 "args": [],
-                "result": "123 \n133 \n143 \n153"
+                "result": "123\n133\n143\n153"
             }
         ]
     },
@@ -3010,7 +3010,7 @@
             {
                 "name": "newPromiseWithVoid",
                 "args": [],
-                "result": "before call resolve \nafter call resolve \n\nthen_onFulfilled_func"
+                "result": "before call resolve\nafter call resolve\n\nthen_onFulfilled_func"
             },
             {
                 "name": "newPromiseWithNumber",
@@ -3050,17 +3050,17 @@
             {
                 "name": "promiseThrowError",
                 "args": [],
-                "result": "123 \n456 \nfinally"
+                "result": "123\n456\nfinally"
             },
             {
                 "name": "promiseCatchInCB",
                 "args": [],
-                "result": "123 \n456 \nfinally"
+                "result": "123\n456\nfinally"
             },
             {
                 "name": "promiseNotCatchInCB",
                 "args": [],
-                "result": "123 \nexception_not_catch_in_cb \nfinally"
+                "result": "123\nexception_not_catch_in_cb\nfinally"
             }
         ]
     },
@@ -3145,17 +3145,17 @@
             {
                 "name": "undefinedAsCond",
                 "args": [],
-                "result": "hello \nundefined"
+                "result": "hello\nundefined"
             },
             {
                 "name": "anyrefCond",
                 "args": [],
-                "result": "hello \nv \nv3 \nv5 \nv7 \nv10 \nv11 \nv12"
+                "result": "hello\nv\nv3\nv5\nv7\nv10\nv11\nv12"
             },
             {
                 "name": "restParamWithEmpty",
                 "args": [],
-                "result": "3 \n0"
+                "result": "3\n0"
             }
         ]
     },
@@ -3180,7 +3180,7 @@
             {
                 "name": "returnVoid",
                 "args": [],
-                "result": "before \n2"
+                "result": "before\n2"
             },
             {
                 "name": "returnNaN",
@@ -3240,12 +3240,12 @@
             {
                 "name": "noSubstitutionTplLiteral",
                 "args": [],
-                "result": "hello \n \n\n        This is\n        a multiline\n        string."
+                "result": "hello\n\n\n        This is\n        a multiline\n        string."
             },
             {
                 "name": "templateString",
                 "args": [],
-                "result": "1 world \n11 world \nHello world Hello world \nhello is not 10 \nhi x \n1 and Hello is x \n10 \nhi \nhi is x \n10 is 10 \n0 is 0 \n10 is 10 \n1,2 \n2 \n1 is 1 \n[object Object] is object \nhi is hi \n0 is 0 \nundefined is undefined"
+                "result": "1 world\n11 world\nHello world Hello world\nhello is not 10\nhi x\n1 and Hello is x\n10\nhi\nhi is x\n10 is 10\n0 is 0\n10 is 10\n1,2\n2\n1 is 1\n[object Object] is object\nhi is hi\n0 is 0\nundefined is undefined"
             }
         ]
     },
@@ -3270,12 +3270,12 @@
             {
                 "name": "staticToStringAdd",
                 "args": [],
-                "result": "hello123 \nhellotrue"
+                "result": "hello123\nhellotrue"
             },
             {
                 "name": "dynToStringAdd",
                 "args": [],
-                "result": "hello123 \nhellotrue"
+                "result": "hello123\nhellotrue"
             }
         ]
     },
@@ -3285,7 +3285,7 @@
             {
                 "name": "string_or",
                 "args": [],
-                "result": "hello \nwasm"
+                "result": "hello\nwasm"
             }
         ]
     },
@@ -3345,12 +3345,12 @@
             {
                 "name": "mapTest",
                 "args": [],
-                "result": "2 \nundefined \nworld \nundefined \ntrue \nfalse \n11 \n1 \n1 \n3"
+                "result": "2\nundefined\nworld\nundefined\ntrue\nfalse\n11\n1\n1\n3"
             },
             {
                 "name": "setTest",
                 "args": [],
-                "result": "true \n2 \n[wasm object] \ntrue \ntrue \n4"
+                "result": "true\n2\n[wasm object]\ntrue\ntrue\n4"
             }
         ]
     },
@@ -3360,17 +3360,17 @@
             {
                 "name": "JSONTest",
                 "args": [],
-                "result": "42 \n{\"result\":true,\"count\":42} \n42 \n{\"result\":true,\"count\":42}"
+                "result": "42\n{\"result\":true,\"count\":42}\n42\n{\"result\":true,\"count\":42}"
             },
             {
                 "name": "JSONTest2",
                 "args": [],
-                "result": "42 \n{\"result\":true,\"count\":42} \n42 \n{\"result\":true,\"count\":42}"
+                "result": "42\n{\"result\":true,\"count\":42}\n42\n{\"result\":true,\"count\":42}"
             },
             {
                 "name": "JSONTest3",
                 "args": [],
-                "result": "42 \n{\"result\":true,\"count\":42} \n{\"''''\\n\\r\\t\\\\1\":\"2\\n\"}"
+                "result": "42\n{\"result\":true,\"count\":42}\n{\"''''\\n\\r\\t\\\\1\":\"2\\n\"}"
             }
         ]
     },
@@ -3380,12 +3380,12 @@
             {
                 "name": "DateTest1",
                 "args": [],
-                "result": "1690416000000 \n2023 \nInvalid Date \n1995 \n2023 \n1690416000000 \n1692748800000"
+                "result": "1690416000000\n2023\nInvalid Date\n1995\n2023\n1690416000000\n1692748800000"
             },
             {
                 "name": "DateTest2",
                 "args": [],
-                "result": "1690416000000 \n2023 \n1690416000000"
+                "result": "1690416000000\n2023\n1690416000000"
             }
         ]
     },
@@ -3395,17 +3395,17 @@
             {
                 "name": "autoBoxUnboxAssign",
                 "args": [],
-                "result": "1 \n2 \nstr \nstr1 \n10 \n11"
+                "result": "1\n2\nstr\nstr1\n10\n11"
             },
             {
                 "name": "autoBoxUnboxObjParam",
                 "args": [],
-                "result": "30 \n20"
+                "result": "30\n20"
             },
             {
                 "name": "autoBoxunboxObjField",
                 "args": [],
-                "result": "30 \n100 \n100"
+                "result": "30\n100\n100"
             }
         ]
     },
@@ -3415,7 +3415,7 @@
             {
                 "name": "entry",
                 "args": [],
-                "result": "1 \n1"
+                "result": "1\n1"
             }
         ]
     },
@@ -3454,7 +3454,7 @@
             {
                 "name": "testGenericParam",
                 "args": [],
-                "result": "hi \n3"
+                "result": "hi\n3"
             }
         ]
     },
@@ -3464,27 +3464,27 @@
             {
                 "name": "test_GenericClassWithSingleGenericType",
                 "args": [],
-                "result": "MObjectBase constructor:  0 \nMObject constructor:  cat \nhello \nMObjectBase constructor:  0 \nMObject constructor:  12345 \n54321"
+                "result": "MObjectBase constructor:  0\nMObject constructor:  cat\nhello\nMObjectBase constructor:  0\nMObject constructor:  12345\n54321"
             },
             {
                 "name": "test_GenericClassWithMultipleGenericTypes",
                 "args": [],
-                "result": "Generic constructor:  hello \nGenericBase1 constructor:  true hello \nGenericClass1 constructor:  hello 1 true \nworld \n123 \nGeneric constructor:  1 \nGenericBase1 constructor:  3 1 \nGenericClass1 constructor:  1 2 3 \n11 \n111"
+                "result": "Generic constructor:  hello\nGenericBase1 constructor:  true hello\nGenericClass1 constructor:  hello 1 true\nworld\n123\nGeneric constructor:  1\nGenericBase1 constructor:  3 1\nGenericClass1 constructor:  1 2 3\n11\n111"
             },
             {
                 "name": "test_GenericClassWithSameBase",
                 "args": [],
-                "result": "Generic constructor:  hello \nGenericBase2 constructor:  hello \nGenericClass2 constructor:  1 hello \n2 \nworld \nGeneric constructor:  11 \nGenericBase2 constructor:  11 \nGenericClass2 constructor:  world 11 \nhello \n111"
+                "result": "Generic constructor:  hello\nGenericBase2 constructor:  hello\nGenericClass2 constructor:  1 hello\n2\nworld\nGeneric constructor:  11\nGenericBase2 constructor:  11\nGenericClass2 constructor:  world 11\nhello\n111"
             },
             {
                 "name": "test_GenericClassWithImplementsInfc",
                 "args": [],
-                "result": "hello \nworld \nworld \n2 \n111"
+                "result": "hello\nworld\nworld\n2\n111"
             },
             {
                 "name": "test_GenericClassWithTypeAlias",
                 "args": [],
-                "result": "John \n18 \n123 \ntrue"
+                "result": "John\n18\n123\ntrue"
             }
         ]
     },
@@ -3494,7 +3494,7 @@
             {
                 "name": "test",
                 "args": [],
-                "result": "call global function \n2023 \ncall global function \nhello world"
+                "result": "call global function\n2023\ncall global function\nhello world"
             }
         ]
     },
@@ -3504,7 +3504,7 @@
             {
                 "name": "test",
                 "args": [],
-                "result": "call inner function \n2023 \ncall inner function \nhello world"
+                "result": "call inner function\n2023\ncall inner function\nhello world"
             }
         ]
     },
@@ -3514,7 +3514,7 @@
             {
                 "name": "test",
                 "args": [],
-                "result": "call namespace function \n2023 \ncall namespace function \nhello world"
+                "result": "call namespace function\n2023\ncall namespace function\nhello world"
             }
         ]
     },
@@ -3554,7 +3554,7 @@
             {
                 "name": "typeofTest",
                 "args": [],
-                "result": "number \nstring \nboolean \nobject \nobject \nobject \nobject \nobject \nundefined \nnumber \nobject \nobject \nnumber \nstring \nfunction \nobject"
+                "result": "number\nstring\nboolean\nobject\nobject\nobject\nobject\nobject\nundefined\nnumber\nobject\nobject\nnumber\nstring\nfunction\nobject"
             }
         ]
     },
@@ -3564,7 +3564,7 @@
             {
                 "name": "toStringTest",
                 "args": [],
-                "result": "true \ntrue \ntrue \n16 \ntrue \ntrue \ntrue \ntrue \n110 \n1[object Object] \n1undefined \n1null \n11,2 \n1[wasm Function] \n110 \n1[object Object] \nstartmiddle \n2001: A Space Odyssey"
+                "result": "true\ntrue\ntrue\n16\ntrue\ntrue\ntrue\ntrue\n110\n1[object Object]\n1undefined\n1null\n11,2\n1[wasm Function]\n110\n1[object Object]\nstartmiddle\n2001: A Space Odyssey"
             }
         ]
     },
@@ -3574,7 +3574,7 @@
             {
                 "name": "test",
                 "args": [],
-                "result": "constructor from Base \nconstructor from A \nconstructor from B \ny:  hello \nx:  1 \n2 \n1 \n0 \nBase"
+                "result": "constructor from Base\nconstructor from A\nconstructor from B\ny:  hello\nx:  1\n2\n1\n0\nBase"
             }
         ]
     },
@@ -3594,7 +3594,7 @@
             {
                 "name": "test_non_null_any",
                 "args": [],
-                "result": "4 \nundefined"
+                "result": "4\nundefined"
             }
         ]
     },
@@ -3604,7 +3604,7 @@
             {
                 "name": "map_forEach",
                 "args": [],
-                "result": "0 3 [object Map] \n1 4 [object Map] \n2 5 [object Map]"
+                "result": "0 3 [object Map]\n1 4 [object Map]\n2 5 [object Map]"
             },
             {
                 "name": "map_get",
@@ -3619,7 +3619,7 @@
             {
                 "name": "percentToken",
                 "args": [],
-                "result": "1 \n-1 \n-3 \n-3:f64"
+                "result": "1\n-1\n-3\n-3:f64"
             }
         ]
     },
@@ -3629,7 +3629,7 @@
             {
                 "name": "useTypeBeforeDefine",
                 "args": [],
-                "result": "A \nA"
+                "result": "A\nA"
             }
         ]
     },
@@ -3654,12 +3654,12 @@
             {
                 "name": "optionalField",
                 "args": [],
-                "result": "str \nstr1 \nundefined"
+                "result": "str\nstr1\nundefined"
             },
             {
                 "name": "classOptionalField",
                 "args": [],
-                "result": "undefined \n10"
+                "result": "undefined\n10"
             },
             {
                 "name": "optionalMethod",
@@ -3669,7 +3669,7 @@
             {
                 "name": "accessOptFieldOfOptField",
                 "args": [],
-                "result": "undefined \nhello \nhello"
+                "result": "undefined\nhello\nhello"
             },
             {
                 "name": "accessOptionalUnionField",
@@ -3679,7 +3679,7 @@
             {
                 "name": "accessOptionalUnionField2",
                 "args": [],
-                "result": "true \nundefined \ntrue \n10 \n10 \n11 \n11 \n10 \n11 \n10"
+                "result": "true\nundefined\ntrue\n10\n10\n11\n11\n10\n11\n10"
             }
         ]
     },
@@ -3689,7 +3689,7 @@
             {
                 "name": "test",
                 "args": [],
-                "result": "undefined \n18 undefined"
+                "result": "undefined\n18 undefined"
             }
         ]
     },
@@ -3709,7 +3709,7 @@
             {
                 "name": "test",
                 "args": [],
-                "result": "3 \n8 \n5 \nhello world"
+                "result": "3\n8\n5\nhello world"
             }
         ]
     },
@@ -3719,7 +3719,7 @@
             {
                 "name": "test",
                 "args": [],
-                "result": "3 \n4 \n4 \n3 \n7"
+                "result": "3\n4\n4\n3\n7"
             }
         ]
     },
@@ -3749,12 +3749,12 @@
             {
                 "name": "mixTypeInClass",
                 "args": [],
-                "result": "1 \ntrue \n0 \n0 \n00 \n1 \ntrue \n0 \n0"
+                "result": "1\ntrue\n0\n0\n00\n1\ntrue\n0\n0"
             },
             {
                 "name": "mixTypeInInfc",
                 "args": [],
-                "result": "2 \ntrue \n-1 \n-1 \n--1 \n2 \ntrue \n-1 \n-1"
+                "result": "2\ntrue\n-1\n-1\n--1\n2\ntrue\n-1\n-1"
             }
         ]
     },
@@ -3764,32 +3764,32 @@
             {
                 "name": "forOfForArray",
                 "args": [],
-                "result": "1 \n4 \n6 \n1 \n4 \n6 \n2 \n3 \n5 \n2 \n3 \n5"
+                "result": "1\n4\n6\n1\n4\n6\n2\n3\n5\n2\n3\n5"
             },
             {
                 "name": "forOfForString",
                 "args": [],
-                "result": "a \nb \nc"
+                "result": "a\nb\nc"
             },
             {
                 "name": "forOfForMapKeys",
                 "args": [],
-                "result": "key1 \nkey2 \nkey1 \nkey2"
+                "result": "key1\nkey2\nkey1\nkey2"
             },
             {
                 "name": "forOfForMapValues",
                 "args": [],
-                "result": "value1 \nvalue2 \nvalue1 \nvalue2"
+                "result": "value1\nvalue2\nvalue1\nvalue2"
             },
             {
                 "name": "forOfForMapEntries",
                 "args": [],
-                "result": "[key1,value1] \n[key2,value2] \n[key1,value1] \n[key2,value2]"
+                "result": "[key1,value1]\n[key2,value2]\n[key1,value1]\n[key2,value2]"
             },
             {
                 "name": "forOfForSetValues",
                 "args": [],
-                "result": "value1 \nvalue2 \nvalue1 \nvalue2"
+                "result": "value1\nvalue2\nvalue1\nvalue2"
             }
         ]
     },
@@ -3799,47 +3799,47 @@
             {
                 "name": "spread_number_array",
                 "args": [],
-                "result": "8 \n2 \n4 \n1 \n0 \n0 \n0"
+                "result": "8\n2\n4\n1\n0\n0\n0"
             },
             {
                 "name": "spread_boolean_array",
                 "args": [],
-                "result": "5 \ntrue \nfalse"
+                "result": "5\ntrue\nfalse"
             },
             {
                 "name": "spread_string_array",
                 "args": [],
-                "result": "3 \n1"
+                "result": "3\n1"
             },
             {
                 "name": "spread_object_array",
                 "args": [],
-                "result": "3 \nA1 \nA4 \nA4"
+                "result": "3\nA1\nA4\nA4"
             },
             {
                 "name": "spread_interface_array",
                 "args": [],
-                "result": "3 \nA1"
+                "result": "3\nA1"
             },
             {
                 "name": "spread_literal_array",
                 "args": [],
-                "result": "5 \n1 \n2 \n4 \n3 \n1 \n2 \n3 \nfalse \ntrue \n3 \nA2 \nA3 \n3 \n1 \n2 \n2 \n2 \n3"
+                "result": "5\n1\n2\n4\n3\n1\n2\n3\nfalse\ntrue\n3\nA2\nA3\n3\n1\n2\n2\n2\n3"
             },
             {
                 "name": "spread_any_array",
                 "args": [],
-                "result": "4 \n1 \n4 \nA1 \n7 \nA1 \n10"
+                "result": "4\n1\n4\nA1\n7\nA1\n10"
             },
             {
                 "name": "spread_nested_array",
                 "args": [],
-                "result": "3 \n2 \n4 \n5"
+                "result": "3\n2\n4\n5"
             },
             {
                 "name": "pass_spread_to_rest_param",
                 "args": [],
-                "result": "5 \n20 \n30 \n4 \n20 \n3 \n4 \nA20 \nA30 \n3 \nA20 \nA2 \n8 \n2 \nA3 \nA1"
+                "result": "5\n20\n30\n4\n20\n3\n4\nA20\nA30\n3\nA20\nA2\n8\n2\nA3\nA1"
             }
         ]
     },

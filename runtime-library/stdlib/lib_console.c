@@ -41,7 +41,9 @@ console_log(wasm_exec_env_t exec_env, void *thiz, void *obj)
             dyntype_dump_value(dyntype_get_context(), js_value);
         }
 
-        printf(" ");
+        if (i < len - 1) {
+            printf(" ");
+        }
     }
     printf("\n");
 }
