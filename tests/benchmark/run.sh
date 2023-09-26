@@ -10,11 +10,15 @@ ts2wasm_script=$benchmark_dir/../../build/cli/ts2wasm.js
 iwasm_gc=$benchmark_dir/../../runtime-library/build/iwasm_gc
 optimize_level=3
 
-if [ -n "$QJS_PATH" ]; then
+QJS_CMD=`which qjs`
+
+if [ ! -z "$QJS_CMD" ]; then
+    qjs="qjs"
+elif [ -n "$QJS_PATH" ]; then
     qjs="$QJS_PATH"
 else
     default_qjs_path=/usr/local/bin/qjs
-    if [ -n "$default_qjs_path" ]; then
+    if [ -f "$default_qjs_path" ]; then
         qjs="$default_qjs_path"
     else
         echo "Error: QJS_PATH is not defined, and no default qjs path is provided."
@@ -31,6 +35,10 @@ for benchmark in $benchmarks; do
         filename=$(basename "$benchmark")
         prefix="${filename%%.*}"
         extension="${filename##*.}"
+
+        if [ "$prefix" = "merkletrees" ]; then
+            continue;
+        fi
 
         if [ "$extension" = "ts" ]; then
             prefixs+=($prefix)
@@ -50,7 +58,7 @@ for benchmark in $benchmarks; do
             seconds=$(echo "$real_time" | cut -dm -f2 | sed 's/s//')
             total_seconds=$(bc <<< "$minutes * 60 + $seconds")
         fi
-        
+
         if [ "$extension" = "ts" ]; then
             ts_times+=($total_seconds)
         elif [ "$extension" = "js" ]; then
