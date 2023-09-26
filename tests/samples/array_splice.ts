@@ -102,7 +102,15 @@ export function array_splice_number() {
 
     /** the value of start < -len, start will be converted to 0
      *  the value of deleteCount:[0, len -1]
+<<<<<<< PATCH SET (b7f263 Wasmnizer-ts first version(xiaomi) (#3))
+<<<<<<< HEAD
+     *  
+=======
      *
+>>>>>>> e373437... Wasmnizer-ts first version(xiaomi) (#3)
+=======
+     *
+>>>>>>> BASE      (24a617 update README and ATTRIBUTION (#2))
      */
     arr = [1.5, 2.5, 3, 4, 5, 6.5, 7.5, 8, 9, 10];
     removed = arr.splice(-20, 2, 11);
