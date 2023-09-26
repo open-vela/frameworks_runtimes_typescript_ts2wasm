@@ -7,6 +7,12 @@
  *
  * @license Apache-2.0
  */
+
+/* This file is modified base on:
+ *  https://github.com/AssemblyScript/assemblyscript/blob/main/src/glue/binaryen.d.ts
+ *  Please see original LICENSE and NOTICE under the same folder
+ */
+
 module 'binaryen';
 
 export declare type bool = boolean;
