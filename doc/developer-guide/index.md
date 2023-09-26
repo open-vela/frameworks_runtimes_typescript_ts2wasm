@@ -1,4 +1,4 @@
-# ts2wasm developer guide
+# Wasmnizer-ts developer guide
 
 TypeScript is a typed superset of JavaScript, its rich type information has been employed by numerous tools to facilitate tasks such as refactoring and linting. However, TypeScript code must be transpiled into pure JavaScript before execution, resulting in the loss of all type information.
 
