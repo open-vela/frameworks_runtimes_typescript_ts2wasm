@@ -111,7 +111,7 @@ a.say()();  // 10
 
 ## Limitations
 
-- declare field in constructor parameter list is **not supported**
+- ##### declare field in constructor parameter list is **not supported**
 
     ``` TypeScript
     class Car {
@@ -121,7 +121,7 @@ a.say()();  // 10
     }
     ```
 
-- Assign a function to a class method is **not supported**
+- ##### Assign a function to a class method is **not supported**
 
     ``` TypeScript
     let car = new Car();
@@ -129,7 +129,7 @@ a.say()();  // 10
     car.drive = (second: number) => { }
     ```
 
-- Class method with `this` parameter is **not supported**
+- ##### Class method with `this` parameter is **not supported**
 
     ``` TypeScript
     class Car {
@@ -138,14 +138,14 @@ a.say()();  // 10
     }
     ```
 
-- Use class as value is **not supported**
+- ##### Use class as value is **not supported**
 
     ``` TypeScript
     // Not Supported
     let car = Car;
     ```
 
-- Index signatures for class is **not supported**
+- ##### Index signatures for class is **not supported**
 
     ``` TypeScript
     class MyClass {
@@ -158,7 +158,7 @@ a.say()();  // 10
     }
     ```
 
-- Assign to different class with same structure is **not supported by design**
+- ##### Assign to different class with same structure is **not supported by design**
 
     In ts2wasm-compiler, classes are treated as **nominal typing**. This is because class names represent abstractions of real-world entities, and defining class relationships based on structure rather than names can introduce error-prone code.
 
