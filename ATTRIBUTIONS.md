@@ -6,6 +6,8 @@ Wasmnizer-ts project reused some components from other open source project:
 - **QuickJS**: for implementing libdyntype to manage dynamic objects
 - **AssemblyScript**: use some declaration files for exposing C-APIs from binaryen.js
 - **TypeScript**: use some scripts for project setup
+- **Programming Language Benchmarks**: use some code snippets as benchmarks
+- **The Benchmarks Game**: use some code snippets as benchmarks
 
 ## Licenses
 
@@ -25,6 +27,13 @@ Wasmnizer-ts project reused some components from other open source project:
 
 [LICENSE](./scripts/LICENSE.txt) (Apache-2.0)
 
+### Programming Language Benchmarks
+
+[LICENSE](./tests/benchmark/MIT_LICENSE.txt) (MIT)
+
+### The Benchmarks Game
+
+[LICENSE](./tests/benchmark/BSD_LICENSE.txt) (3-Clause BSD)
 
 ## Contributors for initial version
 - [xujuntwt95329](https://github.com/xujuntwt95329) - **Jun Xu**, <jun1.xu@intel.com> (Architect, Project champion)
