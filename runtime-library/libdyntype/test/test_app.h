@@ -1,3 +1,7 @@
+/*
+ * Copyright (C) 2023 Intel Corporation.  All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ */
 
 unsigned char test_app[] = {
   0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00, 0x01, 0x9D, 0x01, 0x17,

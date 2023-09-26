@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2023 Xiaomi Corporation.  All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ */
+
 function output_number_arr(arr: number[]) {
     for (let i = 0; i < arr.length; ++i) {
         console.log(arr[i]);
@@ -97,7 +102,7 @@ export function array_splice_number() {
 
     /** the value of start < -len, start will be converted to 0
      *  the value of deleteCount:[0, len -1]
-     *  
+     *
      */
     arr = [1.5, 2.5, 3, 4, 5, 6.5, 7.5, 8, 9, 10];
     removed = arr.splice(-20, 2, 11);

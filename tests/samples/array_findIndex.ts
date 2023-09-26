@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2023 Xiaomi Corporation.  All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ */
+
 export function array_findIndex_number() {
     const arr = [1, 2, 3, 4, 5];
     const foundIndex = arr.findIndex((element, idx, arr) => {
