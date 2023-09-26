@@ -23,7 +23,7 @@ Table column definition:
 | boolean | :heavy_check_mark: | :heavy_check_mark: | :star::star: |
 | number | :heavy_check_mark: | :heavy_check_mark: | :star::star: |
 | string | :heavy_check_mark: | :heavy_check_mark: | :star::star: |
-| string template | :x: | :x: | :star::star: |
+| string template | :heavy_check_mark: | :heavy_check_mark: | :star::star: |
 | bigint | :x: | :x: | |
 | symbol | :x: | :x: | |
 
