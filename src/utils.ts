@@ -139,25 +139,6 @@ export function parentIsFunctionLike(node: ts.Node) {
     return false;
 }
 
-export function parentIsLoopLike(node: ts.Node) {
-    if (ts.isIterationStatement(node.parent, false)) {
-        return true;
-    }
-
-    return false;
-}
-
-export function parentIsCaseClause(node: ts.Node) {
-    if (
-        node.parent.kind === ts.SyntaxKind.CaseClause ||
-        node.parent.kind === ts.SyntaxKind.DefaultClause
-    ) {
-        return true;
-    }
-
-    return false;
-}
-
 export function isScopeNode(node: ts.Node) {
     if (
         node.kind === ts.SyntaxKind.SourceFile ||

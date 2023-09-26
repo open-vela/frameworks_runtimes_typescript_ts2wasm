@@ -603,17 +603,6 @@ export namespace FunctionalFuncs {
         );
     }
 
-    /** whether a expression ref is wasm signature, iff true, return result type, otherwise undefined  */
-    export function getSignatureResType(exprType: binaryen.Type) {
-        const exprHeapType = binaryenCAPI._BinaryenTypeGetHeapType(exprType);
-        const isSignature =
-            binaryenCAPI._BinaryenHeapTypeIsSignature(exprHeapType);
-        if (isSignature) {
-            return binaryenCAPI._BinaryenSignatureTypeGetResults(exprHeapType);
-        }
-        return undefined;
-    }
-
     export function convertTypeToI32(
         module: binaryen.Module,
         expression: binaryen.ExpressionRef,
@@ -628,16 +617,6 @@ export namespace FunctionalFuncs {
             }
             case binaryen.i32: {
                 return expression;
-            }
-            default: {
-                const signatureResType = getSignatureResType(exprType);
-                if (signatureResType) {
-                    return convertTypeToI32(
-                        module,
-                        expression,
-                        signatureResType,
-                    );
-                }
             }
         }
 
@@ -659,16 +638,6 @@ export namespace FunctionalFuncs {
             case binaryen.i64: {
                 return expression;
             }
-            default: {
-                const signatureResType = getSignatureResType(exprType);
-                if (signatureResType) {
-                    return convertTypeToI64(
-                        module,
-                        expression,
-                        signatureResType,
-                    );
-                }
-            }
         }
         return binaryen.none;
     }
@@ -681,22 +650,12 @@ export namespace FunctionalFuncs {
         const exprType = expressionType
             ? expressionType
             : binaryen.getExpressionType(expression);
-        switch (binaryen.getExpressionType(expression)) {
+        switch (exprType) {
             case binaryen.i32: {
                 return module.f64.convert_u.i32(expression);
             }
             case binaryen.i64: {
                 return module.f64.convert_u.i64(expression);
-            }
-            default: {
-                const signatureResType = getSignatureResType(exprType);
-                if (signatureResType) {
-                    return convertTypeToF64(
-                        module,
-                        expression,
-                        signatureResType,
-                    );
-                }
             }
         }
         return binaryen.none;
