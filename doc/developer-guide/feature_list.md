@@ -38,7 +38,7 @@ Table column definition:
 | field initializer | :heavy_check_mark: | :heavy_check_mark: | :star::star: |
 | visibility control | :heavy_check_mark: | :heavy_check_mark: | :star::star: |
 | getter/setter | :heavy_check_mark: | :heavy_check_mark: |
-| class as value | :x: | :x: |
+| [class as value](./class.md#use-class-as-value-is-not-supported) | :x: | :x: |
 
 ## [Function](./function.md)
 
@@ -79,14 +79,14 @@ Table column definition:
 | console | :heavy_check_mark: | :x: | :star::star: | only support `log` |
 | Object | :x: | :x: | :star: | |
 | Function | :x: | :x: | | |
-| JSON | :heavy_check_mark: | :heavy_check_mark: | :star::star: | [fallback to dynamic](./fallback.md) |
-| Date | :heavy_check_mark: | :heavy_check_mark: | :star::star: | [fallback to dynamic](./fallback.md) |
+| JSON | :heavy_check_mark: | :x: | :star::star: | [fallback to dynamic](./fallback.md) |
+| Date | :heavy_check_mark: | :x: | :star::star: | [fallback to dynamic](./fallback.md) |
 | Math | :heavy_check_mark: | :heavy_check_mark: | :star::star: | only support `pow`, `max`, `min`, `sqrt`, `abs`, `ceil`, `floor` |
 | Number | :x: | :x: | :star::star: | |
 | [String](../standard-library/string.md) | :heavy_check_mark: | :heavy_check_mark: | :star::star: | |
 | [Array](../standard-library/array.md) | :heavy_check_mark: | :x: | :star::star: | |
-| Map | :heavy_check_mark: | :heavy_check_mark: | :star::star: | [fallback to dynamic](./fallback.md) |
-| Set | :heavy_check_mark: | :heavy_check_mark: | :star: | [fallback to dynamic](./fallback.md) |
+| Map | :heavy_check_mark: | :x: | :star::star: | [fallback to dynamic](./fallback.md) |
+| Set | :heavy_check_mark: | :x: | :star: | [fallback to dynamic](./fallback.md) |
 | ArrayBuffer | :x: | :x: | :star: | |
 | RegExp | :x: | :x: | :star: | |
 | ... others | :x: | :x: | | |
@@ -95,7 +95,7 @@ Table column definition:
 | feature | WAMR | chrome | popularity | note |
 | :---: | :---: | :---: | :---: | :---: |
 | exception handling | :x: | :heavy_check_mark: | :star::star: | |
-| promise | :heavy_check_mark: | :heavy_check_mark: | :star::star: | [fallback to dynamic](./fallback.md) |
+| promise | :heavy_check_mark: | :x: | :star::star: | [fallback to dynamic](./fallback.md) |
 | source debugging | :x: | :heavy_check_mark: | :star::star: | |
 | AoT compilation | :x: | :x: | | |
 | async/await | :x: | :x: | :star::star: | |
