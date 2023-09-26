@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2023 Xiaomi Corporation.  All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ */
+
 export function array_slice() {
     let arr: Array<number> = [123, 234, 456, 4, 453, 0, 456];
     let ret = arr.slice(5, 10); // [0, 456]

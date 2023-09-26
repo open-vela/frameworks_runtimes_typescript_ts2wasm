@@ -1,4 +1,9 @@
-name: ts2wasm CI
+#
+# Copyright (C) 2023 Intel Corporation.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+
+name: ts2wasm-compiler CI
 
 on:
   push:

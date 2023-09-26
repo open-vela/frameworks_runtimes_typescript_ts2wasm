@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2023 Intel Corporation.  All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ */
+
 export function judgeIsRefNull() {
     const accounts = [{a: 1}, {a: 2}];
     const account1 = accounts[0];
