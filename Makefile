@@ -38,6 +38,26 @@ else
 CFLAGS += -DWASM_GC_MANUALLY=0
 endif
 
+ifeq ($(CONFIG_INTERPRETERS_WAMR_LOG),y)
+CFLAGS += -DWASM_ENABLE_LOG=1
+else
+CFLAGS += -DWASM_ENABLE_LOG=0
+endif
+
+ifeq ($(CONFIG_INTERPRETERS_WAMR_AOT),y)
+CFLAGS += -DWASM_ENABLE_AOT=1
+CFLAGS += -I$(IWASM_ROOT)/aot
+else
+CFLAGS += -DWASM_ENABLE_AOT=0
+endif
+
+ifeq ($(CONFIG_INTERPRETERS_WAMR_FAST), y)
+CFLAGS += -DWASM_ENABLE_FAST_INTERP=1
+CFLAGS += -DWASM_ENABLE_INTERP=1
+else
+CFLAGS += -DWASM_ENABLE_FAST_INTERP=0
+endif
+
 ifeq ($(CONFIG_INTERPRETERS_WAMR_USE_SIMPLE_LIBDYNTYPE), y)
 CFLAGS += -DUSE_SIMPLE_LIBDYNTYPE=1
 LIBDYNTYPE_DYNAMIC_DIR := ${DYNTYPE_ROOT}/dynamic-simple
@@ -80,6 +100,7 @@ VPATH += ${TS2WASM_RUNTIMELIB_ROOT}
 VPATH += ${LIBDYNTYPE_DYNAMIC_DIR}
 VPATH += ${STRUCT_INDIRECT_DIR}
 VPATH += ${LIBDYNTYPE_EXTREF_DIR}
+VPATH += ${STRINGREF_DIR}
 
 CSRCS += ${LIBDYNTYPE_DYNAMIC_DIR}/context.c \
          ${LIBDYNTYPE_DYNAMIC_DIR}/fallback.c \
@@ -93,10 +114,7 @@ CSRCS += ${LIBDYNTYPE_DYNAMIC_DIR}/context.c \
          ${UTILS_ROOT}/type_utils.c \
          ${UTILS_ROOT}/wamr_utils.c \
          ${UTILS_ROOT}/object_utils.c \
-         ${STRUCT_INDIRECT_DIR}/lib_struct_indirect.c \
-         $(IWASM_ROOT)/common/gc/gc_type.c  \
-         $(IWASM_ROOT)/common/gc/gc_object.c  \
-         $(IWASM_ROOT)/common/gc/gc_common.c
+         ${STRUCT_INDIRECT_DIR}/lib_struct_indirect.c
 
 MAINSRC = ${TS2WASM_RUNTIMELIB_ROOT}/main.c
 PROGNAME  = iwasm
@@ -129,5 +147,4 @@ CFLAGS += -I${QUICKJS_ROOT} \
 
 VPATH += ${QUICKJS_ROOT}
 
-include $(APPDIR)/interpreters/wamr/Module.mk
 include $(APPDIR)/Application.mk
