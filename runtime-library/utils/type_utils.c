@@ -465,7 +465,7 @@ create_wasm_array_with_string(wasm_exec_env_t exec_env, void **ptr,
         uint32_t len;                                                         \
         wasm_array_obj_t arr_ref = get_array_ref(obj);                        \
         len = get_array_length(obj);                                          \
-        if (idx >= 0 && idx < len) {                                          \
+        if (idx < len) {                                                      \
             wasm_value_t value = { 0 };                                       \
             wasm_array_obj_get_elem(arr_ref, idx, false, &value);             \
             *val = value.wasm_field;                                          \
@@ -1319,7 +1319,7 @@ get_field_name_from_meta_index(wasm_exec_env_t exec_env, void *meta,
 
     count = get_meta_fields_count(meta);
 
-    if (index >= 0 && index < count) {
+    if (index < count) {
         meta_field = get_meta_field_by_index(meta, index);
         meta_field_flag = get_meta_field_flag(meta_field);
         meta_field_name_offset = get_meta_field_name(meta_field);
